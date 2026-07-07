@@ -161,4 +161,108 @@ export const MAJORS = {
     potentialCareers: ['Quantitative Researcher / Senior Data Scientist'],
     timeToComplete: '1–2 years',
   },
+
+  // ---- Healthcare: undergraduate majors ----
+  nursing: {
+    id: 'nursing',
+    name: 'Nursing',
+    overview: 'Patient care, clinical procedures, anatomy & physiology.',
+    skills: ['Clinical assessment', 'Patient communication', 'Critical thinking'],
+    potentialCareers: ['Registered Nurse (RN)', 'Nurse Practitioner', 'Nurse Educator'],
+    timeToComplete: '2–4 years',
+  },
+  'biology-premed': {
+    id: 'biology-premed',
+    name: 'Biology / Pre-Med',
+    overview: 'Foundational science for medical and research careers.',
+    skills: ['Lab research', 'Scientific reasoning', 'Data analysis'],
+    potentialCareers: ['Physician', 'Researcher', 'Physician Assistant'],
+    timeToComplete: '4 years (+4 more for MD)',
+  },
+  kinesiology: {
+    id: 'kinesiology',
+    name: 'Kinesiology / Exercise Science',
+    overview: 'Study of human movement and physical performance.',
+    skills: ['Biomechanics', 'Injury prevention', 'Exercise programming'],
+    potentialCareers: ['Physical Therapist', 'Athletic Trainer', 'Wellness Coach'],
+    timeToComplete: '4 years (+3 for DPT)',
+  },
+
+  // ---- Healthcare: graduate majors ----
+  'md-do': {
+    id: 'md-do',
+    name: 'MD/DO (Doctor of Medicine / Osteopathic Medicine)',
+    overview: 'Full medical school training to become a licensed, practicing physician.',
+    skills: ['Clinical diagnosis', 'Patient care', 'Medical procedures', 'Evidence-based practice'],
+    potentialCareers: ['Physician (MD/DO)'],
+    timeToComplete: '4 years (+3–7 year residency)',
+  },
+  'ms-physician-assistant': {
+    id: 'ms-physician-assistant',
+    name: 'MS in Physician Assistant Studies',
+    overview: 'Intensive clinical training to practice medicine under physician supervision.',
+    skills: ['Clinical diagnosis', 'Prescribing', 'Patient management'],
+    potentialCareers: ['Physician Assistant'],
+    timeToComplete: '2–3 years',
+  },
+  'msn-np': {
+    id: 'msn-np',
+    name: 'MSN / DNP — Nurse Practitioner',
+    overview: 'Advanced nursing degree enabling independent or semi-independent clinical practice.',
+    skills: ['Advanced clinical assessment', 'Prescribing', 'Care coordination'],
+    potentialCareers: ['Nurse Practitioner'],
+    timeToComplete: '2–4 years',
+  },
+
+  // ---- Creative/Arts: undergraduate majors ----
+  'graphic-design': {
+    id: 'graphic-design',
+    name: 'Graphic Design',
+    overview: 'Visual communication, typography, branding.',
+    skills: ['Design software', 'Typography', 'Branding'],
+    potentialCareers: ['Graphic Designer', 'Art Director', 'UX Designer'],
+    timeToComplete: '2–4 years',
+  },
+  'film-production': {
+    id: 'film-production',
+    name: 'Film/Media Production',
+    overview: 'Storytelling through video, editing, and cinematography.',
+    skills: ['Editing', 'Cinematography', 'Storytelling'],
+    potentialCareers: ['Producer', 'Director', 'Editor'],
+    timeToComplete: '4 years',
+  },
+  music: {
+    id: 'music',
+    name: 'Music',
+    overview: 'Performance, composition, and music theory.',
+    skills: ['Musicianship', 'Composition', 'Performance'],
+    potentialCareers: ['Musician', 'Composer', 'Music Teacher'],
+    timeToComplete: '4 years',
+  },
+
+  // ---- Creative/Arts: graduate majors ----
+  'mfa-design': {
+    id: 'mfa-design',
+    name: 'MFA in Design',
+    overview: 'Advanced studio and theory training for a career leading creative work professionally.',
+    skills: ['Advanced visual design', 'Creative direction', 'Portfolio development'],
+    potentialCareers: ['Creative Director / Art Director'],
+    timeToComplete: '2 years',
+  },
+  'mfa-film': {
+    id: 'mfa-film',
+    name: 'MFA in Film',
+    overview: 'Graduate-level filmmaking training culminating in a thesis film or portfolio.',
+    skills: ['Directing', 'Advanced cinematography', 'Producing'],
+    potentialCareers: ['Film Director'],
+    timeToComplete: '2–3 years',
+  },
+  'mm-composition': {
+    id: 'mm-composition',
+    name: 'MM in Composition',
+    overview: 'Graduate music degree focused on advanced composition and conducting.',
+    skills: ['Advanced composition', 'Conducting', 'Orchestration'],
+    potentialCareers: ['Composer / Music Director'],
+    timeToComplete: '2 years',
+  },
 };

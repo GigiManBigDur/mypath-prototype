@@ -1,5 +1,8 @@
 // Each tag maps to a "track" that drives Screens 3 & 4.
-// Only 'business' and 'stem' have full content; everything else is 'other' (coming-soon placeholder).
+// 'business', 'stem', 'healthcare', and 'creative' have full content; everything else is
+// 'other' (generic fallback — see getBuiltTracks below).
+
+export const BUILT_TRACKS = ['business', 'stem', 'healthcare', 'creative'];
 
 export const CATEGORIES = [
   {
@@ -10,12 +13,15 @@ export const CATEGORIES = [
   {
     id: 'academic',
     label: 'Academic',
-    tags: tag(['Philosophy', 'Mathematics', 'History', 'Literature', 'Psychology', 'Political Science'], 'other'),
+    tags: [
+      ...tag(['Mathematics'], 'stem'),
+      ...tag(['Philosophy', 'History', 'Literature', 'Psychology', 'Political Science'], 'other'),
+    ],
   },
   {
     id: 'creative',
     label: 'Creative',
-    tags: tag(['Visual Arts', 'Music', 'Writing', 'Theater', 'Film Production', 'Photography'], 'other'),
+    tags: tag(['Visual Arts', 'Music', 'Writing', 'Theater', 'Film Production', 'Photography'], 'creative'),
   },
   {
     id: 'tech',
@@ -32,7 +38,8 @@ export const CATEGORIES = [
     label: 'Career & Professional',
     tags: [
       ...tag(['Business', 'Finance', 'Entrepreneurship', 'Marketing'], 'business'),
-      ...tag(['Healthcare', 'Law'], 'other'),
+      ...tag(['Healthcare'], 'healthcare'),
+      ...tag(['Law'], 'other'),
     ],
   },
   {
@@ -58,11 +65,19 @@ function tag(names, track) {
 
 export const MAX_TAGS = 3;
 
-// First selected tag determines the primary track — matches how a student would
-// naturally lead with their strongest interest.
-export function resolvePrimaryTrack(selectedTagNames) {
-  if (!selectedTagNames.length) return null;
-  const allTags = CATEGORIES.flatMap((c) => c.tags);
-  const first = allTags.find((t) => t.name === selectedTagNames[0]);
-  return first ? first.track : 'other';
+const ALL_TAGS = CATEGORIES.flatMap((c) => c.tags);
+
+// Unique built tracks (business/stem/healthcare/creative) among the selected tags,
+// in the order the student picked them. Tags that map to 'other' are dropped —
+// callers treat an empty result as "fully unbuilt, use the generic fallback".
+export function getBuiltTracks(selectedTagNames) {
+  const tracks = [];
+  for (const name of selectedTagNames) {
+    const found = ALL_TAGS.find((t) => t.name === name);
+    const track = found?.track;
+    if (track && BUILT_TRACKS.includes(track) && !tracks.includes(track)) {
+      tracks.push(track);
+    }
+  }
+  return tracks;
 }

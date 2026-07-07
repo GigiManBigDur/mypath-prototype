@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { resolvePrimaryTrack } from '../data/interests';
-import { CAREERS } from '../data/careers';
-import PlaceholderCard from '../components/PlaceholderCard';
+import { getBuiltTracks } from '../data/interests';
+import { findCareer } from '../data/careers';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
 import ProgramsStep from './discovery/ProgramsStep';
@@ -13,7 +12,7 @@ const SUB_STEPS = ['careers', 'majors', 'programs'];
 const SUB_STEP_COPY = {
   careers: {
     title: 'Careers of interest',
-    sub: 'Based on your interests, here are three careers worth exploring. Pick the one that excites you most.',
+    sub: 'Based on your interests, here are careers worth exploring. Pick the one that excites you most.',
   },
   majors: {
     title: 'Related college majors',
@@ -29,28 +28,20 @@ export default function DiscoveryScreen() {
   const { state, patch } = useApp();
   const [subStep, setSubStep] = useState('careers');
 
-  const track = resolvePrimaryTrack(state.interestTags);
-  const isPlaceholder = track !== 'business' && track !== 'stem';
+  const tracks = getBuiltTracks(state.interestTags);
 
-  if (isPlaceholder) {
-    return (
-      <div>
-        <BackBar onBack={() => patch({ screen: 'admissions' })} />
-        <div className="eyebrow">Step 3 of 5</div>
-        <h1 className="page-title">Self-discovery</h1>
-        <p className="page-sub">Careers, majors, and programs tailored to what you picked in Step 1.</p>
-        <PlaceholderCard trackLabel={state.interestTags.join(', ') || 'your interests'} />
-        <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'opportunities' })}>
-            Continue
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Defensive: this screen should only be reached when at least one selected
+  // interest maps to a built track — Admissions/Opportunities route around it
+  // otherwise. If state ever ends up here with none (e.g. restored mid-flow
+  // after interests changed), bounce forward instead of rendering empty steps.
+  useEffect(() => {
+    if (tracks.length === 0) patch({ screen: 'opportunities' });
+  }, [tracks.length]);
+
+  if (tracks.length === 0) return null;
 
   const career = state.selectedCareerId
-    ? CAREERS[track][state.educationLevel].find((c) => c.id === state.selectedCareerId)
+    ? findCareer(state.selectedCareerId, tracks, state.educationLevel)
     : null;
 
   const goBackSubStep = () => {
@@ -109,7 +100,7 @@ export default function DiscoveryScreen() {
 
       {subStep === 'careers' && (
         <CareersStep
-          track={track}
+          tracks={tracks}
           educationLevel={state.educationLevel}
           selectedCareerId={state.selectedCareerId}
           onSelect={selectCareer}

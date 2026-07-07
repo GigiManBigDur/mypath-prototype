@@ -110,6 +110,74 @@ export const PROGRAMS = {
     { institution: 'Carnegie Mellon University', program: 'MS in Data Science', overview: 'Rigorous, math-heavy program from a top-ranked statistics department.', selectivity: 'Extremely Selective', location: 'Pittsburgh, PA', degreeLevels: ["Master's"], gpaTarget: GRAD_TOP_GPA },
     { institution: 'Stanford University', program: 'MS in Statistics — Data Science Track', overview: 'Strong theoretical foundation with applied data science coursework.', selectivity: 'Extremely Selective', location: 'Stanford, CA', degreeLevels: ["Master's"], gpaTarget: GRAD_TOP_GPA },
   ],
+
+  // ---- Healthcare: undergraduate ----
+  nursing: [
+    { institution: 'University of Pennsylvania', program: 'School of Nursing', overview: 'Private Ivy League university with a top-ranked nursing school.', selectivity: 'Highly Selective', location: 'Philadelphia, PA', degreeLevels: ["Bachelor's (BSN)"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+    { institution: 'University of Michigan', program: 'School of Nursing', overview: 'Large public university with a well-regarded nursing program.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's (BSN)"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+    { institution: 'Johns Hopkins University', program: 'School of Nursing', overview: 'Research-focused nursing school tied to a leading academic medical center.', selectivity: 'Highly Selective', location: 'Baltimore, MD', degreeLevels: ["Bachelor's (BSN)"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+  ],
+  'biology-premed': [
+    { institution: 'Johns Hopkins University', program: 'Biology / Pre-Med Track', overview: 'Private research university renowned for pre-med preparation.', selectivity: 'Extremely Selective', location: 'Baltimore, MD', degreeLevels: ["Bachelor's"], gpaTarget: EXTREMELY_SELECTIVE_GPA },
+    { institution: 'Duke University', program: 'Biology / Pre-Med Track', overview: 'Strong pre-med advising with access to Duke University Medical Center.', selectivity: 'Extremely Selective', location: 'Durham, NC', degreeLevels: ["Bachelor's"], gpaTarget: EXTREMELY_SELECTIVE_GPA },
+    { institution: 'UNC Chapel Hill', program: 'Biology / Pre-Med Track', overview: 'Large public university with a strong, well-supported pre-med pipeline.', selectivity: 'Highly Selective', location: 'Chapel Hill, NC', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+  ],
+  kinesiology: [
+    { institution: 'University of Michigan', program: 'Kinesiology', overview: 'Public research university with a well-established kinesiology department.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+    { institution: 'University of Southern California', program: 'Biokinesiology & Physical Therapy', overview: 'Strong biokinesiology program with a direct pathway into USC\'s DPT program.', selectivity: 'Highly Selective', location: 'Los Angeles, CA', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+    { institution: 'University of Florida', program: 'Applied Kinesiology', overview: 'Large public program with strong exercise science research facilities.', selectivity: 'Selective', location: 'Gainesville, FL', degreeLevels: ["Bachelor's"], gpaTarget: SELECTIVE_GPA },
+  ],
+
+  // ---- Healthcare: graduate ----
+  'md-do': [
+    { institution: 'Johns Hopkins University', program: 'School of Medicine', overview: 'One of the most prestigious medical schools in the country.', selectivity: 'Extremely Selective', location: 'Baltimore, MD', degreeLevels: ['MD'], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'Harvard University', program: 'Harvard Medical School', overview: 'World-renowned medical school with extensive research and clinical opportunities.', selectivity: 'Extremely Selective', location: 'Boston, MA', degreeLevels: ['MD'], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'Stanford University', program: 'School of Medicine', overview: 'Strong ties to biomedical research and Silicon Valley health tech.', selectivity: 'Extremely Selective', location: 'Stanford, CA', degreeLevels: ['MD'], gpaTarget: GRAD_TOP_GPA },
+  ],
+  'ms-physician-assistant': [
+    { institution: 'Duke University', program: 'Physician Assistant Program', overview: 'One of the oldest and most respected PA programs in the country.', selectivity: 'Extremely Selective', location: 'Durham, NC', degreeLevels: ["Master's"], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'University of Iowa', program: 'Physician Assistant Program', overview: 'Well-established public university PA program with strong clinical placements.', selectivity: 'Highly Selective', location: 'Iowa City, IA', degreeLevels: ["Master's"], gpaTarget: GRAD_STRONG_GPA },
+    { institution: 'Emory University', program: 'Physician Assistant Program', overview: 'Private research university tied to a major academic medical center.', selectivity: 'Highly Selective', location: 'Atlanta, GA', degreeLevels: ["Master's"], gpaTarget: GRAD_STRONG_GPA },
+  ],
+  'msn-np': [
+    { institution: 'Johns Hopkins University', program: 'School of Nursing — MSN/DNP', overview: 'Research-driven advanced nursing program at a leading academic medical center.', selectivity: 'Highly Selective', location: 'Baltimore, MD', degreeLevels: ['MSN', 'DNP'], gpaTarget: GRAD_STRONG_GPA },
+    { institution: 'University of Pennsylvania', program: 'School of Nursing — MSN/DNP', overview: 'Top-ranked nursing school with strong NP specialization tracks.', selectivity: 'Highly Selective', location: 'Philadelphia, PA', degreeLevels: ['MSN', 'DNP'], gpaTarget: GRAD_STRONG_GPA },
+    { institution: 'Duke University', program: 'School of Nursing — MSN/DNP', overview: 'Well-regarded advanced practice nursing program.', selectivity: 'Highly Selective', location: 'Durham, NC', degreeLevels: ['MSN', 'DNP'], gpaTarget: GRAD_STRONG_GPA },
+  ],
+
+  // ---- Creative/Arts: undergraduate ----
+  'graphic-design': [
+    { institution: 'Rhode Island School of Design (RISD)', program: 'Graphic Design', overview: 'One of the most prestigious art and design schools in the country.', selectivity: 'Extremely Selective', location: 'Providence, RI', degreeLevels: ["Bachelor's"], gpaTarget: EXTREMELY_SELECTIVE_GPA },
+    { institution: 'Parsons School of Design (The New School)', program: 'Communication Design', overview: 'Located in NYC with deep ties to the design and fashion industries.', selectivity: 'Highly Selective', location: 'New York, NY', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+    { institution: 'ArtCenter College of Design', program: 'Graphic Design', overview: 'Industry-focused design school with strong professional placement.', selectivity: 'Highly Selective', location: 'Pasadena, CA', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+  ],
+  'film-production': [
+    { institution: 'University of Southern California', program: 'School of Cinematic Arts', overview: 'One of the most established and well-connected film schools in the world.', selectivity: 'Extremely Selective', location: 'Los Angeles, CA', degreeLevels: ["Bachelor's"], gpaTarget: EXTREMELY_SELECTIVE_GPA },
+    { institution: 'New York University', program: 'Tisch School of the Arts', overview: 'Renowned film program located in a major media hub.', selectivity: 'Extremely Selective', location: 'New York, NY', degreeLevels: ["Bachelor's"], gpaTarget: EXTREMELY_SELECTIVE_GPA },
+    { institution: 'UCLA', program: 'Film, Theater & Television', overview: 'Public university with a highly-ranked film program and strong LA industry access.', selectivity: 'Highly Selective', location: 'Los Angeles, CA', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+  ],
+  music: [
+    { institution: 'Berklee College of Music', program: 'Contemporary Music', overview: 'The leading school for contemporary and popular music performance.', selectivity: 'Highly Selective', location: 'Boston, MA', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+    { institution: 'The Juilliard School', program: 'Music Performance', overview: 'One of the most prestigious classical performance conservatories in the world.', selectivity: 'Extremely Selective', location: 'New York, NY', degreeLevels: ["Bachelor's"], gpaTarget: EXTREMELY_SELECTIVE_GPA },
+    { institution: 'Eastman School of Music', program: 'Music Performance', overview: 'Highly respected conservatory within the University of Rochester.', selectivity: 'Highly Selective', location: 'Rochester, NY', degreeLevels: ["Bachelor's"], gpaTarget: HIGHLY_SELECTIVE_GPA },
+  ],
+
+  // ---- Creative/Arts: graduate ----
+  'mfa-design': [
+    { institution: 'Yale University', program: 'School of Art — MFA Graphic Design', overview: 'Small, highly selective MFA program with an outsized industry reputation.', selectivity: 'Extremely Selective', location: 'New Haven, CT', degreeLevels: ['MFA'], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'Rhode Island School of Design (RISD)', program: 'MFA Graphic Design', overview: 'Advanced studio-based design training from a top-ranked art school.', selectivity: 'Highly Selective', location: 'Providence, RI', degreeLevels: ['MFA'], gpaTarget: GRAD_STRONG_GPA },
+    { institution: 'School of the Art Institute of Chicago (SAIC)', program: 'MFA Studio', overview: 'Large, well-resourced art school with a flexible interdisciplinary MFA.', selectivity: 'Highly Selective', location: 'Chicago, IL', degreeLevels: ['MFA'], gpaTarget: GRAD_STRONG_GPA },
+  ],
+  'mfa-film': [
+    { institution: 'American Film Institute (AFI) Conservatory', program: 'MFA Filmmaking', overview: 'Elite, hands-on conservatory with a strong industry alumni network.', selectivity: 'Extremely Selective', location: 'Los Angeles, CA', degreeLevels: ['MFA'], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'University of Southern California', program: 'MFA Film & TV Production', overview: 'Deep industry ties and production resources in Los Angeles.', selectivity: 'Extremely Selective', location: 'Los Angeles, CA', degreeLevels: ['MFA'], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'New York University', program: 'Tisch — MFA Film', overview: 'Renowned graduate film program in a major media hub.', selectivity: 'Extremely Selective', location: 'New York, NY', degreeLevels: ['MFA'], gpaTarget: GRAD_TOP_GPA },
+  ],
+  'mm-composition': [
+    { institution: 'The Juilliard School', program: 'MM Composition', overview: 'One of the most prestigious composition programs in the world.', selectivity: 'Extremely Selective', location: 'New York, NY', degreeLevels: ['MM'], gpaTarget: GRAD_TOP_GPA },
+    { institution: 'Eastman School of Music', program: 'MM Composition', overview: 'Highly respected composition program within the University of Rochester.', selectivity: 'Highly Selective', location: 'Rochester, NY', degreeLevels: ['MM'], gpaTarget: GRAD_STRONG_GPA },
+    { institution: 'New England Conservatory', program: 'MM Composition', overview: 'Historic conservatory known for rigorous composition training.', selectivity: 'Highly Selective', location: 'Boston, MA', degreeLevels: ['MM'], gpaTarget: GRAD_STRONG_GPA },
+  ],
 };
 
 export function getPrograms(majorId, educationLevel) {

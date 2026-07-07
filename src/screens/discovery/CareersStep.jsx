@@ -1,8 +1,8 @@
 import { CAREERS } from '../../data/careers';
 import { MAJORS } from '../../data/majors';
 
-export default function CareersStep({ track, educationLevel, selectedCareerId, onSelect }) {
-  const careers = CAREERS[track][educationLevel];
+export default function CareersStep({ tracks, educationLevel, selectedCareerId, onSelect }) {
+  const careers = tracks.flatMap((t) => CAREERS[t][educationLevel]);
 
   return (
     <div className="grid grid-3">

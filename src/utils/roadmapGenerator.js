@@ -1,9 +1,9 @@
-import { CAREERS } from '../data/careers';
 import { MAJORS } from '../data/majors';
+import { findCareer } from '../data/careers';
 import { getPrograms } from '../data/programs';
-import { OPPORTUNITIES } from '../data/opportunities';
+import { findOpportunity } from '../data/opportunities';
 import { TRUNK_STEPS } from '../data/trunkSteps';
-import { resolvePrimaryTrack } from '../data/interests';
+import { getBuiltTracks } from '../data/interests';
 import { layoutTrunk, layoutBranches } from './roadmapLayout';
 
 const LEVEL_LABEL = {
@@ -13,12 +13,10 @@ const LEVEL_LABEL = {
 };
 
 export function generateRoadmap(state) {
-  const track = resolvePrimaryTrack(state.interestTags);
+  const tracks = getBuiltTracks(state.interestTags);
   const level = state.educationLevel;
 
-  const career = track === 'business' || track === 'stem'
-    ? CAREERS[track][level].find((c) => c.id === state.selectedCareerId)
-    : null;
+  const career = state.selectedCareerId ? findCareer(state.selectedCareerId, tracks, level) : null;
   const major = state.selectedMajorId ? MAJORS[state.selectedMajorId] : null;
 
   const selectedPrograms = state.selectedMajorId
@@ -46,7 +44,7 @@ export function generateRoadmap(state) {
 
   const branchDefs = [
     ...buildGpaBranches(selectedPrograms),
-    ...buildOpportunityBranches(track, level, state.selectedOpportunityIds, trunk.length),
+    ...buildOpportunityBranches(tracks, level, state.selectedOpportunityIds, trunk.length),
   ];
   const branch = layoutBranches(branchDefs, trunk);
 
@@ -73,12 +71,10 @@ function buildGpaBranches(selectedPrograms) {
   }));
 }
 
-function buildOpportunityBranches(track, level, selectedOpportunityIds, trunkLength) {
-  if (track !== 'business' && track !== 'stem') return [];
-  const all = OPPORTUNITIES[track][level];
+function buildOpportunityBranches(tracks, level, selectedOpportunityIds, trunkLength) {
   const branches = [];
   selectedOpportunityIds.forEach((id, i) => {
-    const opp = all.find((o) => o.id === id);
+    const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
     const attachTrunkIndex = trunkLength > 1 ? i % (trunkLength - 1) : 0;
     branches.push({

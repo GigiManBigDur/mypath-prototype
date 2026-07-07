@@ -111,8 +111,126 @@ export const CAREERS = {
       },
     ],
   },
+  healthcare: {
+    highschool: [
+      {
+        id: 'registered-nurse',
+        name: 'Registered Nurse (RN)',
+        overview: 'Provides direct patient care and coordinates with doctors across clinical settings.',
+        salary: '~$70k–$90k',
+        requiredEducation: "BSN (Bachelor of Science in Nursing) or Associate's + NCLEX-RN licensure",
+        relevantMajors: ['nursing'],
+      },
+      {
+        id: 'physician',
+        name: 'Physician (MD/DO)',
+        overview: 'Diagnoses and treats patients; requires the longest training path of any career shown here.',
+        salary: 'Highly variable, often $200k+ after full training',
+        requiredEducation: "Bachelor's + Medical School + Residency",
+        relevantMajors: ['biology-premed'],
+      },
+      {
+        id: 'physical-therapist',
+        name: 'Physical Therapist',
+        overview: 'Helps patients recover mobility and manage pain after injury or surgery.',
+        salary: '~$85k–$100k',
+        requiredEducation: "Doctor of Physical Therapy (DPT), ~3 years post-bachelor's",
+        relevantMajors: ['kinesiology'],
+      },
+    ],
+    undergraduate: [
+      {
+        id: 'physician-grad',
+        name: 'Physician (MD/DO)',
+        overview: 'Diagnoses and treats patients through a hospital or private practice after full medical training.',
+        salary: 'Highly variable, often $200k+ after full training',
+        requiredEducation: 'Doctor of Medicine (MD) or Doctor of Osteopathic Medicine (DO)',
+        relevantMajors: ['md-do'],
+      },
+      {
+        id: 'physician-assistant',
+        name: 'Physician Assistant',
+        overview: 'Practices medicine under physician supervision — diagnosing, treating, and prescribing.',
+        salary: '~$100k–$130k',
+        requiredEducation: "Master's in Physician Assistant Studies",
+        relevantMajors: ['ms-physician-assistant'],
+      },
+      {
+        id: 'nurse-practitioner',
+        name: 'Nurse Practitioner',
+        overview: 'Provides advanced clinical care, often with authority to diagnose and prescribe independently.',
+        salary: '~$110k–$140k',
+        requiredEducation: 'MSN or DNP (Master of/Doctor of Nursing Practice)',
+        relevantMajors: ['msn-np'],
+      },
+    ],
+  },
+  creative: {
+    highschool: [
+      {
+        id: 'graphic-designer',
+        name: 'Graphic Designer',
+        overview: 'Creates visual content for brands, media, and products.',
+        salary: '~$50k–$75k',
+        requiredEducation: "Bachelor's in Design or strong portfolio (degree not always required)",
+        relevantMajors: ['graphic-design'],
+      },
+      {
+        id: 'film-producer',
+        name: 'Film/Video Producer or Director',
+        overview: 'Oversees the creative and logistical process of making film or video content.',
+        salary: 'Highly variable',
+        requiredEducation: "Bachelor's in Film common, not required",
+        relevantMajors: ['film-production'],
+      },
+      {
+        id: 'musician',
+        name: 'Musician / Composer',
+        overview: 'Performs or writes original music professionally.',
+        salary: 'Highly variable',
+        requiredEducation: "Bachelor's in Music common for composers, not required for performers",
+        relevantMajors: ['music'],
+      },
+    ],
+    undergraduate: [
+      {
+        id: 'creative-director',
+        name: 'Creative Director / Art Director',
+        overview: 'Leads the creative vision and team for a brand, agency, or studio.',
+        salary: '~$100k–$160k',
+        requiredEducation: 'MFA or extensive professional portfolio',
+        relevantMajors: ['mfa-design'],
+      },
+      {
+        id: 'film-director-advanced',
+        name: 'Film Director',
+        overview: 'Directs feature or narrative film projects at a professional level.',
+        salary: 'Highly variable',
+        requiredEducation: 'MFA in Film common at this level',
+        relevantMajors: ['mfa-film'],
+      },
+      {
+        id: 'composer-advanced',
+        name: 'Composer / Music Director',
+        overview: 'Writes and conducts original music for film, ensembles, or media at a professional level.',
+        salary: 'Highly variable',
+        requiredEducation: "Master's in Music Composition or Conducting",
+        relevantMajors: ['mm-composition'],
+      },
+    ],
+  },
 };
 
 // Transfer students see the same undergraduate-level careers as high schoolers.
 CAREERS.business.transfer = CAREERS.business.highschool;
 CAREERS.stem.transfer = CAREERS.stem.highschool;
+CAREERS.healthcare.transfer = CAREERS.healthcare.highschool;
+CAREERS.creative.transfer = CAREERS.creative.highschool;
+
+export function findCareer(id, tracks, level) {
+  for (const t of tracks) {
+    const found = CAREERS[t]?.[level]?.find((c) => c.id === id);
+    if (found) return found;
+  }
+  return null;
+}
