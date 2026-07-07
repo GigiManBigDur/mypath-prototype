@@ -65,22 +65,23 @@ export function generateRoadmap(state) {
     };
   });
 
-  const chains = [
-    ...buildGpaChains(selectedPrograms, planStartDate),
-    ...buildOpportunityChains(opportunityTracks, level, state.selectedOpportunityIds, planStartDate),
+  const chips = [
+    ...buildGpaChips(selectedPrograms, planStartDate),
+    ...buildOpportunityChips(opportunityTracks, level, state.selectedOpportunityIds, planStartDate),
   ];
 
-  const { today: laidToday, trunk, branch, canvasHeight, canvasWidth } = layoutRoadmap(
-    { today, trunkSteps, chains },
-    planStartDate
-  );
+  const { today: laidToday, trunk, chips: laidChips, canvasHeight, canvasWidth } = layoutRoadmap({
+    today,
+    trunkSteps,
+    chips,
+  });
 
   return {
     title: titleFor(selectedCareers),
     subtitle: `A personalized ${LEVEL_LABEL[level]} plan, built from your profile.`,
     today: laidToday,
     trunk,
-    branch,
+    chips: laidChips,
     canvasHeight,
     canvasWidth,
   };
@@ -93,25 +94,22 @@ function titleFor(selectedCareers) {
   return 'Your Personalized Academic Plan';
 }
 
-// One chain per GPA checkpoint (each a standalone single-node "chain" — they're independent
-// periodic reminders, not a sequence). Shares the same highest-benchmark text logic as before.
-function buildGpaChains(selectedPrograms, planStartDate) {
+// One chip per GPA checkpoint — a standalone reminder, not an expandable chain (no `steps`).
+// Shares the same highest-benchmark text logic as before.
+function buildGpaChips(selectedPrograms, planStartDate) {
   if (!selectedPrograms.length) return [];
   const desc = gpaDescText(selectedPrograms);
   return GPA_CHECKPOINTS.map((checkpoint) => {
     const realDate = anchorDate(checkpoint.date, planStartDate);
     return {
       id: checkpoint.id,
-      nodes: [
-        {
-          id: checkpoint.id,
-          title: `Check your GPA — ${checkpoint.label}`,
-          date: realDate,
-          due: formatDate(realDate),
-          desc,
-          resources: [],
-        },
-      ],
+      type: 'gpa',
+      title: `Check your GPA — ${checkpoint.label}`,
+      date: realDate,
+      due: formatDate(realDate),
+      desc,
+      resources: [],
+      steps: null,
     };
   });
 }
@@ -138,25 +136,25 @@ function gpaDescText(selectedPrograms) {
   return desc;
 }
 
-// Each selected opportunity becomes one chain: its prepSteps spread evenly across the prep
-// window (deadline minus prepWeeks, clamped to start after today), followed by the actual
-// deadline/event node.
-function buildOpportunityChains(tracks, level, selectedOpportunityIds, planStartDate) {
-  const chains = [];
+// Each selected opportunity becomes one chip carrying its own ordered step chain (prepSteps
+// spread evenly across the prep window, clamped to start after today, followed by the actual
+// deadline/event) — the steps aren't plotted on the canvas, only shown when the chip is expanded.
+function buildOpportunityChips(tracks, level, selectedOpportunityIds, planStartDate) {
+  const chips = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
 
     const deadlineDate = anchorDate(opp.date, planStartDate);
-    const steps = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
+    const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
 
     const earliestStart = realAddDays(planStartDate, 1);
     let windowStart = realAddDays(deadlineDate, -opp.prepWeeks * 7);
     if (windowStart < earliestStart) windowStart = earliestStart;
-    const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), steps.length);
+    const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), stepNames.length);
 
-    const nodes = steps.map((stepName, i) => {
-      const frac = (i + 1) / (steps.length + 1);
+    const steps = stepNames.map((stepName, i) => {
+      const frac = (i + 1) / (stepNames.length + 1);
       const stepDate = realAddDays(windowStart, Math.round(spanDays * frac));
       return {
         id: `${opp.id}-prep-${i}`,
@@ -165,12 +163,12 @@ function buildOpportunityChains(tracks, level, selectedOpportunityIds, planStart
         due: formatDate(stepDate),
         desc: i === 0
           ? `${opp.description} This is the first step in preparing for ${opp.name}.`
-          : `Step ${i + 1} of ${steps.length} in preparing for ${opp.name}.`,
+          : `Step ${i + 1} of ${stepNames.length} in preparing for ${opp.name}.`,
         resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
       };
     });
 
-    nodes.push({
+    steps.push({
       id: `${opp.id}-deadline`,
       title: `${opp.name} — deadline / start`,
       date: deadlineDate,
@@ -179,7 +177,16 @@ function buildOpportunityChains(tracks, level, selectedOpportunityIds, planStart
       resources: [],
     });
 
-    chains.push({ id: opp.id, nodes });
+    chips.push({
+      id: opp.id,
+      type: 'opportunity',
+      title: opp.name,
+      date: deadlineDate,
+      due: formatDate(deadlineDate),
+      desc: opp.description,
+      resources: [],
+      steps,
+    });
   });
-  return chains;
+  return chips;
 }
