@@ -1,7 +1,9 @@
 // OPPORTUNITIES[track][level] -> 3-4 cards.
-// date: {month, day} is the concrete (illustrative) deadline/start date — see src/utils/dates.js
-// for how these get formatted and positioned on the roadmap timeline.
-// prepWeeks: how many weeks before that date the "Prepare for X" roadmap node should sit.
+// date: {month, day} is a template date (see src/utils/dates.js — anchored to "today" at
+// generation time), or {offsetDays: N} for an explicit real-day offset from today (used to
+// deliberately place an item in the past). prepWeeks: how many weeks before the deadline the
+// prep chain's window opens. prepSteps: sequential sub-task names shown as a connected chain
+// leading up to the deadline/event node.
 
 export const OPPORTUNITIES = {
   business: {
@@ -15,6 +17,7 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through your school's DECA chapter",
         resource: { label: 'deca.org', note: 'Official prep resources & practice cases' },
         prepWeeks: 3,
+        prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Practice your pitch'],
       },
       {
         id: 'fbla',
@@ -25,6 +28,7 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through your school's FBLA chapter",
         resource: { label: 'fbla.org', note: 'Competitive event guidelines' },
         prepWeeks: 3,
+        prepSteps: ['Register for FBLA', 'Choose your competitive event', 'Prepare your materials/presentation'],
       },
       {
         id: 'boa-leaders',
@@ -35,6 +39,7 @@ export const OPPORTUNITIES = {
         howToApply: 'Apply through the Bank of America Student Leaders website',
         resource: null,
         prepWeeks: 4,
+        prepSteps: ['Update your resume', 'Complete the online application', 'Prepare for the interview'],
       },
     ],
     undergraduate: [
@@ -47,6 +52,7 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through your university's finance club or local CFA society",
         resource: null,
         prepWeeks: 4,
+        prepSteps: ['Form or join your team', 'Research the assigned company', 'Draft your research report', 'Rehearse your presentation'],
       },
       {
         id: 'case-competition',
@@ -57,6 +63,7 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through your business school's events office",
         resource: null,
         prepWeeks: 2,
+        prepSteps: ['Form your team', 'Analyze the case prompt', 'Prepare your pitch deck'],
       },
       {
         id: 'big-four-internship',
@@ -67,6 +74,7 @@ export const OPPORTUNITIES = {
         howToApply: 'Apply directly through each firm\'s campus recruiting site',
         resource: null,
         prepWeeks: 5,
+        prepSteps: ['Update your resume', 'Submit your application', 'Prepare for interviews'],
       },
     ],
   },
@@ -81,6 +89,7 @@ export const OPPORTUNITIES = {
         howToApply: "Join through your school's Science Olympiad team",
         resource: null,
         prepWeeks: 4,
+        prepSteps: ['Register your team', 'Build/test your event project', 'Take 2 practice exams', 'Compete at Regionals'],
       },
       {
         id: 'hackathons',
@@ -91,6 +100,7 @@ export const OPPORTUNITIES = {
         howToApply: 'Find and register for events via mlh.io',
         resource: { label: 'mlh.io', note: 'Directory of student hackathons' },
         prepWeeks: 1,
+        prepSteps: ['Register for the event', 'Form your team', 'Brainstorm project ideas'],
       },
       {
         id: 'research-mentorship',
@@ -101,6 +111,7 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through the host university's summer research office",
         resource: null,
         prepWeeks: 4,
+        prepSteps: ['Draft your research interest statement', 'Request a recommendation letter', 'Submit your application'],
       },
     ],
     undergraduate: [
@@ -113,6 +124,7 @@ export const OPPORTUNITIES = {
         howToApply: 'Browse and apply via the NSF REU site directory',
         resource: { label: 'nsf.gov/crssprgm/reu', note: 'Official REU site search' },
         prepWeeks: 5,
+        prepSteps: ['Draft your research interest statement', 'Request recommendation letters', 'Submit your application'],
       },
       {
         id: 'mlh-hackathons',
@@ -123,6 +135,7 @@ export const OPPORTUNITIES = {
         howToApply: 'Register for events via mlh.io',
         resource: { label: 'mlh.io', note: 'Directory of collegiate hackathons' },
         prepWeeks: 1,
+        prepSteps: ['Register for the event', 'Form your team', 'Brainstorm project ideas'],
       },
       {
         id: 'ieee-acm-research',
@@ -133,6 +146,7 @@ export const OPPORTUNITIES = {
         howToApply: 'Submit through your university IEEE/ACM student chapter',
         resource: null,
         prepWeeks: 6,
+        prepSteps: ['Draft your abstract', 'Complete your research write-up', 'Submit through your chapter'],
       },
     ],
   },
@@ -149,6 +163,7 @@ OPPORTUNITIES.healthcare = {
       howToApply: "Apply through your school's HOSA chapter",
       resource: { label: 'hosa.org', note: 'Competitive event guidelines' },
       prepWeeks: 3,
+      prepSteps: ['Register for HOSA', 'Choose your competitive event', 'Prepare your materials/presentation'],
     },
     {
       id: 'cna-training',
@@ -159,6 +174,7 @@ OPPORTUNITIES.healthcare = {
       howToApply: 'Enroll through your local community college or vocational school',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Enroll in the program', 'Complete required coursework'],
     },
     {
       id: 'hospital-junior-volunteer',
@@ -169,6 +185,7 @@ OPPORTUNITIES.healthcare = {
       howToApply: "Apply through your local hospital's volunteer services office",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Submit your application', 'Complete orientation'],
     },
   ],
   undergraduate: [
@@ -181,6 +198,7 @@ OPPORTUNITIES.healthcare = {
       howToApply: 'Apply via the SHPEP website',
       resource: { label: 'shpep.org', note: 'Official program application' },
       prepWeeks: 5,
+      prepSteps: ['Draft your personal statement', 'Request a recommendation letter', 'Submit your application'],
     },
     {
       id: 'clinical-research-internship',
@@ -191,6 +209,7 @@ OPPORTUNITIES.healthcare = {
       howToApply: "Apply through the hospital's research office or your university's pre-health advising",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Update your resume', 'Submit your application', 'Prepare for the interview'],
     },
     {
       id: 'emt-certification',
@@ -201,6 +220,7 @@ OPPORTUNITIES.healthcare = {
       howToApply: 'Enroll through a local community college or EMS training center',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Enroll in the program', 'Complete required coursework'],
     },
   ],
 };
@@ -216,6 +236,7 @@ OPPORTUNITIES.creative = {
       howToApply: 'Submit through the Scholastic Art & Writing Awards website',
       resource: { label: 'artandwriting.org', note: 'Submission guidelines' },
       prepWeeks: 4,
+      prepSteps: ['Select your best work', 'Prepare your submission materials', 'Submit your entry'],
     },
     {
       id: 'youngarts',
@@ -226,6 +247,7 @@ OPPORTUNITIES.creative = {
       howToApply: 'Apply via the YoungArts website',
       resource: { label: 'youngarts.org', note: 'Official application' },
       prepWeeks: 5,
+      prepSteps: ['Prepare your portfolio/audition materials', 'Request recommendations', 'Submit your application'],
     },
     {
       id: 'community-gallery-internship',
@@ -236,6 +258,7 @@ OPPORTUNITIES.creative = {
       howToApply: 'Contact local theaters and galleries directly about internship openings',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Reach out to local organizations', 'Attend your first session'],
     },
   ],
   undergraduate: [
@@ -248,6 +271,7 @@ OPPORTUNITIES.creative = {
       howToApply: "Apply through your program's career office or studio job boards",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Update your portfolio', 'Submit your application', 'Prepare for the interview'],
     },
     {
       id: 'student-film-festival',
@@ -258,6 +282,7 @@ OPPORTUNITIES.creative = {
       howToApply: 'Submit via the festival\'s official submission platform',
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Finish your submission cut', 'Prepare festival materials', 'Submit your entry'],
     },
     {
       id: 'gallery-open-call',
@@ -268,6 +293,7 @@ OPPORTUNITIES.creative = {
       howToApply: "Submit via the gallery's open call portal or curator contact",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Prepare your submission', 'Submit through the open call portal'],
     },
   ],
 };
@@ -283,6 +309,7 @@ OPPORTUNITIES.sports = {
       howToApply: 'Qualify and register through your school team',
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Confirm qualification requirements', 'Train with your team', 'Compete at Regionals'],
     },
     {
       id: 'junior-nationals',
@@ -293,6 +320,7 @@ OPPORTUNITIES.sports = {
       howToApply: 'Qualify through regional meets in your sport',
       resource: null,
       prepWeeks: 6,
+      prepSteps: ['Qualify at a regional meet', 'Register for Nationals', 'Train and taper', 'Compete at Nationals'],
     },
     {
       id: 'youth-coaching-cert',
@@ -303,6 +331,7 @@ OPPORTUNITIES.sports = {
       howToApply: 'Apply through your local youth sports league',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
     },
   ],
   undergraduate: [
@@ -315,6 +344,7 @@ OPPORTUNITIES.sports = {
       howToApply: "Join through your university's club sports office",
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Attend a team meeting', 'Run for or accept an officer role'],
     },
     {
       id: 'coaching-officiating-cert-adult',
@@ -325,6 +355,7 @@ OPPORTUNITIES.sports = {
       howToApply: "Apply through your sport's national governing body",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
     },
     {
       id: 'sports-management-internship',
@@ -335,6 +366,7 @@ OPPORTUNITIES.sports = {
       howToApply: "Apply through the organization's front office or your university's career center",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Update your resume', 'Submit your application', 'Prepare for the interview'],
     },
   ],
   transfer: [
@@ -347,6 +379,7 @@ OPPORTUNITIES.sports = {
       howToApply: "Contact your community college's athletics department",
       resource: { label: 'njcaa.org', note: 'Community college athletics directory' },
       prepWeeks: 3,
+      prepSteps: ['Contact the athletics department', 'Attend tryouts'],
     },
     {
       id: 'regional-state-championships-transfer',
@@ -357,6 +390,7 @@ OPPORTUNITIES.sports = {
       howToApply: 'Qualify and register through your team',
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Confirm qualification requirements', 'Train with your team', 'Compete at Regionals'],
     },
     {
       id: 'youth-coaching-cert-transfer',
@@ -367,6 +401,7 @@ OPPORTUNITIES.sports = {
       howToApply: 'Apply through your local league or governing body',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
     },
   ],
 };
@@ -382,6 +417,7 @@ OPPORTUNITIES.community = {
       howToApply: 'Join through your school chapter',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first meeting'],
     },
     {
       id: 'model-un-hs',
@@ -392,6 +428,7 @@ OPPORTUNITIES.community = {
       howToApply: "Join through your school's Model UN club",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Register for a conference', 'Research your assigned country', 'Draft position papers'],
     },
     {
       id: 'student-government-hs',
@@ -402,6 +439,7 @@ OPPORTUNITIES.community = {
       howToApply: "Run through your school's student government process",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Declare your candidacy', 'Campaign', 'Election day'],
     },
   ],
   undergraduate: [
@@ -414,6 +452,7 @@ OPPORTUNITIES.community = {
       howToApply: "Join through your university's Model UN club",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Register for a conference', 'Research your assigned country', 'Draft position papers'],
     },
     {
       id: 'student-government-college',
@@ -424,6 +463,7 @@ OPPORTUNITIES.community = {
       howToApply: 'Run through your student government office',
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Declare your candidacy', 'Campaign', 'Election day'],
     },
     {
       id: 'nonprofit-board-fellowship',
@@ -434,6 +474,7 @@ OPPORTUNITIES.community = {
       howToApply: "Apply through your university's civic engagement office or the nonprofit directly",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Submit your application', 'Attend your first meeting'],
     },
   ],
   transfer: [
@@ -446,6 +487,7 @@ OPPORTUNITIES.community = {
       howToApply: 'Apply through your community college PTK chapter',
       resource: { label: 'ptk.org', note: 'Leadership program directory' },
       prepWeeks: 2,
+      prepSteps: ['Confirm eligibility', 'Complete induction'],
     },
     {
       id: 'student-government-cc',
@@ -456,6 +498,7 @@ OPPORTUNITIES.community = {
       howToApply: "Run through your college's student government office",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Declare your candidacy', 'Campaign', 'Election day'],
     },
     {
       id: 'nonprofit-volunteer-leadership',
@@ -466,6 +509,7 @@ OPPORTUNITIES.community = {
       howToApply: 'Apply through local community organizations',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Reach out to local organizations', 'Attend your first session'],
     },
   ],
 };
@@ -481,6 +525,7 @@ OPPORTUNITIES.media = {
       howToApply: 'Join through your school',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first meeting'],
     },
     {
       id: 'student-film-festivals-hs',
@@ -491,6 +536,7 @@ OPPORTUNITIES.media = {
       howToApply: "Submit via each festival's official submission platform",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Finish your submission cut', 'Prepare festival materials', 'Submit your entry'],
     },
     {
       id: 'npr-podcast-challenge',
@@ -501,6 +547,7 @@ OPPORTUNITIES.media = {
       howToApply: "Submit via NPR's official site",
       resource: { label: 'npr.org/podcastchallenge', note: 'Official rules and submission portal' },
       prepWeeks: 5,
+      prepSteps: ['Brainstorm your episode topic', 'Record your episode', 'Edit and submit'],
     },
   ],
   undergraduate: [
@@ -513,6 +560,7 @@ OPPORTUNITIES.media = {
       howToApply: "Join through your university's student media office",
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first meeting'],
     },
     {
       id: 'student-film-festivals-college',
@@ -523,6 +571,7 @@ OPPORTUNITIES.media = {
       howToApply: "Submit via each festival's official submission platform",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Finish your submission cut', 'Prepare festival materials', 'Submit your entry'],
     },
     {
       id: 'podcast-media-internship',
@@ -533,6 +582,7 @@ OPPORTUNITIES.media = {
       howToApply: "Apply through the outlet's careers page or your university's media office",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Update your resume', 'Submit your application', 'Prepare for the interview'],
     },
   ],
   transfer: [
@@ -545,6 +595,7 @@ OPPORTUNITIES.media = {
       howToApply: "Join through your college's student media office",
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first meeting'],
     },
     {
       id: 'student-film-festivals-transfer',
@@ -555,6 +606,7 @@ OPPORTUNITIES.media = {
       howToApply: "Submit via each festival's official submission platform",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Finish your submission cut', 'Prepare festival materials', 'Submit your entry'],
     },
     {
       id: 'media-internship-transfer',
@@ -565,6 +617,7 @@ OPPORTUNITIES.media = {
       howToApply: "Apply through the outlet's careers page",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Update your resume', 'Submit your application', 'Prepare for the interview'],
     },
   ],
 };
@@ -576,10 +629,12 @@ OPPORTUNITIES.lifestyle = {
       name: '4-H Programs',
       type: 'Youth program',
       description: 'For agriculture, gardening, and animal-care interests — local chapter based.',
-      date: { month: 9, day: 1 },
+      // Deliberately in the past — always shows as a "Deadline passed" example in Opportunity Finder.
+      date: { offsetDays: -10 },
       howToApply: 'Join through your local 4-H chapter',
       resource: { label: '4-h.org', note: 'Find a local chapter' },
       prepWeeks: 1,
+      prepSteps: ['Join your local chapter', 'Attend your first meeting'],
     },
     {
       id: 'culinary-youth-programs',
@@ -590,6 +645,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: 'Contact a local community college or culinary school',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Contact the program', 'Enroll'],
     },
     {
       id: 'nsliy',
@@ -600,6 +656,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: 'Apply via the NSLI-Y official website',
       resource: { label: 'nsliforyouth.org', note: 'Official program application' },
       prepWeeks: 6,
+      prepSteps: ['Draft your application essay', 'Request a recommendation letter', 'Submit your application'],
     },
   ],
   undergraduate: [
@@ -612,6 +669,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: "Apply through your university's study abroad office",
       resource: null,
       prepWeeks: 6,
+      prepSteps: ['Research program options', 'Draft your application essay', 'Submit your application'],
     },
     {
       id: 'culinary-certificate',
@@ -622,6 +680,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: 'Enroll through a local community college or culinary school',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Contact the program', 'Enroll'],
     },
     {
       id: '4h-collegiate',
@@ -632,6 +691,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: "Contact your university's extension office",
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Contact the extension office', 'Attend your first meeting'],
     },
   ],
   transfer: [
@@ -644,6 +704,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: "Apply through your college's study abroad or international programs office",
       resource: null,
       prepWeeks: 6,
+      prepSteps: ['Research program options', 'Draft your application essay', 'Submit your application'],
     },
     {
       id: 'culinary-youth-programs-transfer',
@@ -654,6 +715,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: 'Contact a local community college or culinary school',
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Contact the program', 'Enroll'],
     },
     {
       id: '4h-collegiate-transfer',
@@ -664,6 +726,7 @@ OPPORTUNITIES.lifestyle = {
       howToApply: 'Contact your local extension office',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Contact the extension office', 'Attend your first meeting'],
     },
   ],
 };
@@ -679,6 +742,7 @@ OPPORTUNITIES.personal = {
       howToApply: 'Ask your school counselor',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first session'],
     },
     {
       id: 'journaling-workshops-hs',
@@ -689,16 +753,19 @@ OPPORTUNITIES.personal = {
       howToApply: 'Check your local community center or library',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first session'],
     },
     {
       id: 'peer-mentoring-hs',
       name: 'Peer Mentoring / Wellness Ambassador Programs',
       type: 'Leadership role',
       description: 'Many schools have peer mentoring or wellness ambassador programs.',
-      date: { month: 9, day: 15 },
+      // Deliberately in the past — always shows as a "Deadline passed" example in Opportunity Finder.
+      date: { offsetDays: -25 },
       howToApply: 'Join through your school',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Submit your application', 'Complete training'],
     },
   ],
   undergraduate: [
@@ -711,6 +778,7 @@ OPPORTUNITIES.personal = {
       howToApply: 'Ask your student wellness center',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first session'],
     },
     {
       id: 'journaling-workshops-college',
@@ -721,6 +789,7 @@ OPPORTUNITIES.personal = {
       howToApply: 'Check local community centers or writing organizations',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first session'],
     },
     {
       id: 'peer-mentoring-college',
@@ -728,9 +797,10 @@ OPPORTUNITIES.personal = {
       type: 'Leadership role',
       description: 'Many universities have peer mentoring or wellness ambassador programs.',
       date: { month: 9, day: 15 },
-      howToApply: 'Join through your student life office',
+      howToApply: "Join through your student life office",
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Submit your application', 'Complete training'],
     },
   ],
   transfer: [
@@ -743,6 +813,7 @@ OPPORTUNITIES.personal = {
       howToApply: 'Ask your counseling/wellness center',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first session'],
     },
     {
       id: 'journaling-workshops-transfer',
@@ -753,6 +824,7 @@ OPPORTUNITIES.personal = {
       howToApply: 'Check local community centers or writing organizations',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first session'],
     },
     {
       id: 'peer-mentoring-transfer',
@@ -763,6 +835,7 @@ OPPORTUNITIES.personal = {
       howToApply: 'Join through your student life office',
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Submit your application', 'Complete training'],
     },
   ],
 };
@@ -778,6 +851,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Join through your school's Academic Decathlon team",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Join the team', 'Study the annual topic', 'Take a practice exam', 'Compete at Regionals'],
     },
     {
       id: 'national-history-day',
@@ -788,6 +862,7 @@ OPPORTUNITIES.academic = {
       howToApply: 'Register through your school or independently',
       resource: { label: 'nhd.org', note: 'Official contest rules and topic guide' },
       prepWeeks: 5,
+      prepSteps: ['Choose your topic', 'Conduct your research', 'Submit your project'],
     },
     {
       id: 'speech-debate-nsda',
@@ -798,6 +873,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Join through your school's speech & debate team",
       resource: { label: 'speechanddebate.org', note: 'National Speech & Debate Association' },
       prepWeeks: 3,
+      prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
     },
   ],
   undergraduate: [
@@ -810,6 +886,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Ask your history department about your school's chapter",
       resource: null,
       prepWeeks: 1,
+      prepSteps: ['Confirm eligibility', 'Complete induction'],
     },
     {
       id: 'humanities-research-fellowship',
@@ -820,6 +897,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Apply through your university's undergraduate research office",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Draft your research proposal', 'Request a recommendation letter', 'Submit your application'],
     },
     {
       id: 'collegiate-speech-debate',
@@ -830,6 +908,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Join through your university's debate team",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
     },
   ],
   transfer: [
@@ -842,6 +921,7 @@ OPPORTUNITIES.academic = {
       howToApply: 'Apply through your community college PTK chapter',
       resource: { label: 'ptk.org', note: 'Scholarship directory' },
       prepWeeks: 2,
+      prepSteps: ['Confirm eligibility', 'Complete induction'],
     },
     {
       id: 'humanities-research-fellowship-transfer',
@@ -852,6 +932,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Apply through your target school's undergraduate research office",
       resource: null,
       prepWeeks: 4,
+      prepSteps: ['Draft your research proposal', 'Request a recommendation letter', 'Submit your application'],
     },
     {
       id: 'collegiate-speech-debate-transfer',
@@ -862,6 +943,7 @@ OPPORTUNITIES.academic = {
       howToApply: "Join through your college's debate team",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
     },
   ],
 };
@@ -877,6 +959,7 @@ OPPORTUNITIES.business.transfer = [
     howToApply: 'Apply through your community college PTK chapter',
     resource: { label: 'ptk.org', note: 'Scholarship directory' },
     prepWeeks: 2,
+    prepSteps: ['Confirm eligibility', 'Complete induction'],
   },
   {
     id: 'collegiate-deca',
@@ -887,6 +970,7 @@ OPPORTUNITIES.business.transfer = [
     howToApply: 'Apply through your college DECA chapter',
     resource: { label: 'collegiatedeca.org', note: 'Competitive event guidelines' },
     prepWeeks: 3,
+    prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Practice your pitch'],
   },
   {
     id: 'jkc-transfer-scholarship',
@@ -897,6 +981,7 @@ OPPORTUNITIES.business.transfer = [
     howToApply: 'Apply via jkcf.org',
     resource: { label: 'jkcf.org', note: 'Official scholarship application' },
     prepWeeks: 6,
+    prepSteps: ['Gather your materials/recommendations', 'Draft your essay', 'Submit your application'],
   },
 ];
 
@@ -910,6 +995,7 @@ OPPORTUNITIES.stem.transfer = [
     howToApply: 'Apply through your community college PTK chapter',
     resource: { label: 'ptk.org', note: 'Scholarship directory' },
     prepWeeks: 2,
+    prepSteps: ['Confirm eligibility', 'Complete induction'],
   },
   {
     id: 'nsf-reu-transfer',
@@ -920,6 +1006,7 @@ OPPORTUNITIES.stem.transfer = [
     howToApply: 'Browse and apply via the NSF REU site directory',
     resource: { label: 'nsf.gov/crssprgm/reu', note: 'Official REU site search' },
     prepWeeks: 5,
+    prepSteps: ['Draft your research interest statement', 'Request a recommendation letter', 'Submit your application'],
   },
   {
     id: 'jkc-transfer-scholarship-stem',
@@ -930,6 +1017,7 @@ OPPORTUNITIES.stem.transfer = [
     howToApply: 'Apply via jkcf.org',
     resource: { label: 'jkcf.org', note: 'Official scholarship application' },
     prepWeeks: 6,
+    prepSteps: ['Gather your materials/recommendations', 'Draft your essay', 'Submit your application'],
   },
 ];
 
@@ -943,6 +1031,7 @@ OPPORTUNITIES.healthcare.transfer = [
     howToApply: 'Apply through your community college PTK chapter',
     resource: { label: 'ptk.org', note: 'Scholarship directory' },
     prepWeeks: 2,
+    prepSteps: ['Confirm eligibility', 'Complete induction'],
   },
   {
     id: 'cna-emt-transfer',
@@ -953,6 +1042,7 @@ OPPORTUNITIES.healthcare.transfer = [
     howToApply: 'Enroll through your community college',
     resource: null,
     prepWeeks: 2,
+    prepSteps: ['Enroll in the program', 'Complete required coursework'],
   },
   {
     id: 'jkc-transfer-scholarship-healthcare',
@@ -963,6 +1053,7 @@ OPPORTUNITIES.healthcare.transfer = [
     howToApply: 'Apply via jkcf.org',
     resource: { label: 'jkcf.org', note: 'Official scholarship application' },
     prepWeeks: 6,
+    prepSteps: ['Gather your materials/recommendations', 'Draft your essay', 'Submit your application'],
   },
 ];
 
@@ -976,6 +1067,7 @@ OPPORTUNITIES.creative.transfer = [
     howToApply: 'Apply through your community college PTK chapter',
     resource: { label: 'ptk.org', note: 'Scholarship directory' },
     prepWeeks: 2,
+    prepSteps: ['Confirm eligibility', 'Complete induction'],
   },
   {
     id: 'community-gallery-internship-transfer',
@@ -986,6 +1078,7 @@ OPPORTUNITIES.creative.transfer = [
     howToApply: 'Contact local theaters and galleries directly about internship openings',
     resource: null,
     prepWeeks: 2,
+    prepSteps: ['Reach out to local organizations', 'Attend your first session'],
   },
   {
     id: 'jkc-transfer-scholarship-creative',
@@ -996,6 +1089,7 @@ OPPORTUNITIES.creative.transfer = [
     howToApply: 'Apply via jkcf.org',
     resource: { label: 'jkcf.org', note: 'Official scholarship application' },
     prepWeeks: 6,
+    prepSteps: ['Gather your materials/recommendations', 'Draft your essay', 'Submit your application'],
   },
 ];
 
@@ -1012,6 +1106,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: "Ask your school counselor about your school's NHS chapter",
       resource: null,
       prepWeeks: 2,
+      prepSteps: ['Confirm eligibility', 'Complete induction'],
     },
     {
       id: 'general-community-service',
@@ -1022,6 +1117,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: "Find local opportunities via VolunteerMatch or your school's service office",
       resource: { label: 'volunteermatch.org', note: 'Directory of local volunteer opportunities' },
       prepWeeks: 1,
+      prepSteps: ['Find a cause you care about', 'Start volunteering consistently'],
     },
     {
       id: 'sat-act-prep',
@@ -1032,6 +1128,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: 'Register at collegeboard.org (SAT) or act.org (ACT)',
       resource: { label: 'Khan Academy', note: 'Free official SAT prep' },
       prepWeeks: 6,
+      prepSteps: ['Take a diagnostic practice test', 'Complete a prep course', 'Register for your first sitting', 'Take the test'],
     },
   ],
   undergraduate: [
@@ -1044,6 +1141,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: 'Register at ets.org/gre',
       resource: { label: 'ETS GRE prep', note: 'Official free practice tests' },
       prepWeeks: 8,
+      prepSteps: ['Take a diagnostic practice test', 'Complete a prep course', 'Register for your test date', 'Take the test'],
     },
     {
       id: 'volunteer-leadership',
@@ -1054,6 +1152,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: 'Find local opportunities via VolunteerMatch or your university\'s service office',
       resource: { label: 'volunteermatch.org', note: 'Directory of local volunteer opportunities' },
       prepWeeks: 1,
+      prepSteps: ['Find a cause you care about', 'Take on a leadership role'],
     },
     {
       id: 'professional-conference',
@@ -1064,6 +1163,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: "Check your department or professional association's event calendar",
       resource: null,
       prepWeeks: 3,
+      prepSteps: ['Register for the conference', 'Prepare questions/goals for networking'],
     },
   ],
   transfer: [
@@ -1076,6 +1176,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: 'Apply through your community college PTK chapter',
       resource: { label: 'ptk.org', note: 'Scholarship directory' },
       prepWeeks: 2,
+      prepSteps: ['Confirm eligibility', 'Complete induction'],
     },
     {
       id: 'general-community-service-transfer',
@@ -1086,6 +1187,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: 'Find local opportunities via VolunteerMatch or your college\'s service office',
       resource: { label: 'volunteermatch.org', note: 'Directory of local volunteer opportunities' },
       prepWeeks: 1,
+      prepSteps: ['Find a cause you care about', 'Start volunteering consistently'],
     },
     {
       id: 'jkc-transfer-scholarship-generic',
@@ -1096,6 +1198,7 @@ export const GENERIC_OPPORTUNITIES = {
       howToApply: 'Apply via jkcf.org',
       resource: { label: 'jkcf.org', note: 'Official scholarship application' },
       prepWeeks: 6,
+      prepSteps: ['Gather your materials/recommendations', 'Draft your essay', 'Submit your application'],
     },
   ],
 };

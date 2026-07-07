@@ -1,82 +1,152 @@
-// Positions nodes on the same 800x1320 winding-trunk canvas used by the reference prototype.
-// Every node's vertical position (y) is derived from its actual date — nothing is hand-placed.
-// x carries no timing information; it's just left/right jitter for visual variety and to keep
-// labels from overlapping when two nodes land at a similar height.
+// Positions every node on the roadmap canvas from real dates — nothing is hand-placed. x carries
+// no timing information; it's left/right placement for readability.
+//
+// The trunk (today + core steps) is laid out as a sequence of segments, each segment being the
+// gap between two consecutive anchors. A segment's height is normally proportional to the real
+// days between those two dates — but if the opportunities/GPA chains that fall in that segment
+// need more room than that (to keep every node at least MIN_NODE_GAP apart), the segment
+// *expands* to fit them instead of compressing the content. This guarantees no label ever
+// overlaps, at the cost of the trunk occasionally not being perfectly date-proportional in a
+// crowded stretch — readability wins over strict proportionality.
 
-import { dateFraction, daysBetween } from './dates';
+import { realDaysBetween } from './dates';
 
-const BOTTOM_Y = 1180; // TIMELINE_START (earliest date)
-const TOP_Y = 160; // TIMELINE_END (latest date)
 const CENTER_X = 400;
 const X_WIGGLE = [-20, 30, -30, 30, -10, 20, -25];
+const PIXELS_PER_DAY = 3.4; // controls how "tall" the timeline feels when there's room to spare
+const BASE_Y = 1180; // today's y before the top margin shift
 
-export function dateToY(date) {
-  const f = dateFraction(date);
-  return Math.round(BOTTOM_Y - f * (BOTTOM_Y - TOP_Y));
+const MIN_NODE_GAP = 60;
+const TOP_MARGIN = 90;
+const BOTTOM_MARGIN = 90;
+const CANVAS_WIDTH = 800;
+
+const CHAIN_SIDE_OFFSETS = [170, 240, 310, 380, 450];
+
+// Which segment a date belongs to: the segment whose bottom (earlier) anchor is the latest
+// anchor at or before that date. A date after every anchor (possible once "today" is a real,
+// arbitrary date rather than a fixed point months before the plan starts) lands in an open-ended
+// extension segment above the last anchor, rather than being folded into the segment below it.
+function segmentIndexFor(offsetDays, anchorOffsets) {
+  let idx = 0;
+  for (let i = 0; i < anchorOffsets.length; i++) {
+    if (anchorOffsets[i] <= offsetDays) idx = i;
+  }
+  return idx;
 }
 
-export function layoutTrunk(steps) {
-  return steps.map((step, i) => ({
+function pickColumn(usedBands, yMin, yMax, nextSideRef) {
+  let side = nextSideRef.value;
+  let attempt = 0;
+  let magnitude = CHAIN_SIDE_OFFSETS[0];
+  const overlaps = (s, m) =>
+    usedBands.some((b) => b.side === s && b.magnitude === m && yMax >= b.yMin - 30 && yMin <= b.yMax + 30);
+  while (overlaps(side, magnitude) && attempt < CHAIN_SIDE_OFFSETS.length * 2) {
+    attempt++;
+    if (attempt < CHAIN_SIDE_OFFSETS.length) {
+      magnitude = CHAIN_SIDE_OFFSETS[attempt];
+    } else {
+      side = -side;
+      magnitude = CHAIN_SIDE_OFFSETS[attempt - CHAIN_SIDE_OFFSETS.length];
+    }
+  }
+  usedBands.push({ side, magnitude, yMin, yMax });
+  nextSideRef.value = -nextSideRef.value;
+  return CENTER_X + side * magnitude;
+}
+
+export function layoutRoadmap({ today, trunkSteps, chains }, planStartDate) {
+  // 1. Natural (date-driven) offsets for every anchor, in days since today.
+  const anchors = [
+    { ...today, offsetDays: 0 },
+    ...trunkSteps.map((s) => ({ ...s, offsetDays: realDaysBetween(s.date, planStartDate) })),
+  ];
+  const anchorOffsets = anchors.map((a) => a.offsetDays);
+
+  // 2. Bucket each chain into the segment its first node falls into.
+  const chainsWithOffsets = chains.map((c) => ({
+    ...c,
+    nodeOffsets: c.nodes.map((n) => realDaysBetween(n.date, planStartDate)),
+  }));
+  // segments has one extra slot beyond the anchors: segments[anchors.length - 1] holds anything
+  // dated after the final trunk node (e.g. a GPA checkpoint that lands past "Get accepted" once
+  // the whole plan is compressed by a late "today") — it renders as an extension above the top.
+  const segments = Array.from({ length: anchors.length }, () => []);
+  for (const chain of chainsWithOffsets) {
+    const idx = segmentIndexFor(chain.nodeOffsets[0], anchorOffsets);
+    segments[idx].push(chain);
+  }
+
+  // 3. Required height per segment = max(date-proportional height, room needed for the longest
+  // chain in it — chains sit in parallel columns, so it's the tallest one that sets the floor).
+  // The final (extension) segment has no natural upper date to measure against, so its height is
+  // driven entirely by its content.
+  const requiredHeights = [];
+  for (let i = 0; i < anchors.length; i++) {
+    const naturalHeight = i < anchors.length - 1
+      ? (anchors[i + 1].offsetDays - anchors[i].offsetDays) * PIXELS_PER_DAY
+      : 0;
+    const longestChain = segments[i].reduce((max, c) => Math.max(max, c.nodes.length), 0);
+    const neededHeight = longestChain > 0 ? MIN_NODE_GAP * (longestChain + 1) : 0;
+    requiredHeights.push(Math.max(naturalHeight, neededHeight, longestChain > 0 ? MIN_NODE_GAP : 0));
+  }
+
+  // 4. Assign anchor y positions sequentially from the bottom using those (possibly expanded)
+  // heights. anchorY has one more entry than there are real anchors — the last is just the top
+  // boundary for the extension segment, not a rendered node.
+  const anchorY = [BASE_Y];
+  for (const h of requiredHeights) anchorY.push(anchorY[anchorY.length - 1] - h);
+
+  const todayNode = { ...today, x: CENTER_X, y: anchorY[0] };
+  const trunk = trunkSteps.map((step, i) => ({
     ...step,
     x: CENTER_X + X_WIGGLE[i % X_WIGGLE.length],
-    y: dateToY(step.date),
+    y: anchorY[i + 1],
   }));
-}
+  const allAnchors = [todayNode, ...trunk];
 
-// Escalating side offsets tried when a branch collides with something already placed.
-const SIDE_OFFSETS = [150, 210, 270, 330, 390];
-const COLLISION_Y = 40;
-const Y_NUDGE = 22;
+  // 5. Place each chain's nodes evenly within its segment's (guaranteed-sufficient) height,
+  // in a dedicated column so its sequence reads as one connected mini-path.
+  const branch = [];
+  const usedBands = [];
+  const nextSideRef = { value: 1 };
+  segments.forEach((segChains, i) => {
+    if (!segChains.length) return;
+    const segBottomY = anchorY[i];
+    const segTopY = anchorY[i + 1];
+    const anchorBelow = allAnchors[i];
 
-// Labels render pointing away from center (textAnchor 'end' when x < CENTER_X, 'start'
-// otherwise — see Roadmap.jsx) — two nodes on the same side at a similar height will have
-// their labels run into each other regardless of how far apart their x values are, since both
-// extend toward the same edge. So collision detection keys off side, not raw x distance.
-function labelSide(x) {
-  return x < CENTER_X ? -1 : 1;
-}
+    segChains
+      .slice()
+      .sort((a, b) => a.nodeOffsets[0] - b.nodeOffsets[0])
+      .forEach((chain) => {
+        const ys = chain.nodes.map((_, idx) => Math.round(segBottomY - MIN_NODE_GAP * (idx + 1)));
+        // Chains shorter than the segment's tallest still use the same fixed gap, just end
+        // higher up — clamp to stay within the segment as a final safety net.
+        const clampedYs = ys.map((y) => Math.min(segBottomY - MIN_NODE_GAP, Math.max(y, segTopY + MIN_NODE_GAP)));
+        const yMin = Math.min(...clampedYs);
+        const yMax = Math.max(...clampedYs);
+        const x = pickColumn(usedBands, yMin, yMax, nextSideRef);
 
-export function layoutBranches(branchDefs, laidOutTrunk) {
-  // Trunk nodes are fixed anchors — branches get pushed around them, never the reverse.
-  const placed = laidOutTrunk.map((t) => ({ x: t.x, y: t.y }));
-
-  return branchDefs.map((b, i) => {
-    // Attach to whichever trunk node is chronologically closest, not a manual index.
-    let nearest = laidOutTrunk[0];
-    let bestDiff = Infinity;
-    for (const t of laidOutTrunk) {
-      const diff = Math.abs(daysBetween(b.date, t.date));
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        nearest = t;
-      }
-    }
-
-    const y = dateToY(b.date);
-    const preferredSide = i % 2 === 0 ? 1 : -1;
-    const collidesAt = (x, yTry) =>
-      placed.some((p) => Math.abs(p.y - yTry) < COLLISION_Y && labelSide(p.x) === labelSide(x));
-
-    // Try the preferred side at increasing distance, then the opposite side, before nudging y.
-    let found = null;
-    for (let round = 0; round < 3 && !found; round++) {
-      const yTry = y + (round === 0 ? 0 : (round % 2 === 1 ? 1 : -1) * Y_NUDGE * round);
-      for (const side of [preferredSide, -preferredSide]) {
-        for (const mag of SIDE_OFFSETS) {
-          const x = CENTER_X + side * mag;
-          if (!collidesAt(x, yTry)) {
-            found = { x, y: yTry };
-            break;
-          }
-        }
-        if (found) break;
-      }
-    }
-    // Every candidate collided (very crowded date) — fall back to the furthest preferred spot.
-    const chosen = found || { x: CENTER_X + preferredSide * SIDE_OFFSETS[SIDE_OFFSETS.length - 1], y };
-
-    const node = { ...b, x: chosen.x, y: chosen.y, attachX: nearest.x, attachY: nearest.y };
-    placed.push({ x: chosen.x, y: chosen.y });
-    return node;
+        chain.nodes.forEach((node, idx) => {
+          branch.push({
+            ...node,
+            x,
+            y: clampedYs[idx],
+            attachX: idx === 0 ? anchorBelow.x : x,
+            attachY: idx === 0 ? anchorBelow.y : clampedYs[idx - 1],
+          });
+        });
+      });
   });
+
+  // 6. Shift everything into a positive coordinate range and report the canvas height needed.
+  const all = [todayNode, ...trunk, ...branch];
+  const minY = Math.min(...all.map((n) => n.y));
+  const maxY = Math.max(...all.map((n) => n.y));
+  const shift = TOP_MARGIN - minY;
+  for (const n of all) n.y += shift;
+  const canvasHeight = Math.round(maxY - minY + TOP_MARGIN + BOTTOM_MARGIN);
+
+  return { today: todayNode, trunk, branch, canvasHeight, canvasWidth: CANVAS_WIDTH };
 }

@@ -111,6 +111,18 @@ button.card:hover {
   border-color: var(--teal);
   box-shadow: 0 0 0 2px var(--teal) inset;
 }
+.card.passed {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.card.passed:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--paper-line);
+}
+.card.passed .card-meta strong {
+  color: var(--rust);
+}
 .card-title {
   font-family: 'Fraunces', serif;
   font-size: 18px;

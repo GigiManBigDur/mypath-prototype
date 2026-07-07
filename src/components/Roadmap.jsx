@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { CheckCircle2, Circle, Flag, Star, MapPin, X } from 'lucide-react';
+import { CheckCircle2, Circle, Flag, Star, MapPin, Compass, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const TYPE_CONFIG = {
+  today: { label: 'You are here', color: '#C98A2B', Icon: Compass },
   procedure: { label: 'Step', color: '#6E7F87', Icon: Circle },
   milestone: { label: 'Milestone', color: '#2E6E5E', Icon: MapPin },
   major: { label: 'Major Goal', color: '#C98A2B', Icon: Star },
@@ -24,7 +25,7 @@ export default function Roadmap({ roadmap }) {
 
   const trunkDoneCount = roadmap.trunk.filter((n) => isDone(n.id)).length;
   const trunkTotal = roadmap.trunk.length;
-  const currentNode = roadmap.trunk.find((n) => !isDone(n.id));
+  const displayHeight = Math.round(roadmap.canvasHeight * 0.5);
 
   return (
     <div>
@@ -49,7 +50,11 @@ export default function Roadmap({ roadmap }) {
       </div>
 
       <div className="canvas-scroll">
-        <svg viewBox="0 0 800 1320" width="800" height="660">
+        <svg viewBox={`0 0 ${roadmap.canvasWidth} ${roadmap.canvasHeight}`} width={roadmap.canvasWidth} height={displayHeight}>
+          <path
+            d={curve(roadmap.today.x, roadmap.today.y, roadmap.trunk[0].x, roadmap.trunk[0].y)}
+            stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
+          />
           {roadmap.trunk.slice(0, -1).map((n, i) => {
             const next = roadmap.trunk[i + 1];
             return <path key={`tt-${n.id}`} d={curve(n.x, n.y, next.x, next.y)} stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5" />;
@@ -70,10 +75,8 @@ export default function Roadmap({ roadmap }) {
           {roadmap.trunk.map((n) => {
             const cfg = TYPE_CONFIG[n.type];
             const done = isDone(n.id);
-            const isCurrent = currentNode && currentNode.id === n.id;
             return (
               <g key={n.id} className="node-badge" onClick={() => setSelected({ ...n, isBranch: false })} transform={`translate(${n.x},${n.y})`}>
-                {isCurrent && <circle r="26" fill="none" stroke="var(--gold)" strokeWidth="2" strokeDasharray="3 5" />}
                 <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" />
                 {done ? <CheckCircle2 x="-9" y="-9" size={18} color="#fff" /> : <cfg.Icon x="-8" y="-8" size={16} color={cfg.color} />}
                 <text className="node-label" x={n.x < 400 ? -26 : 26} y="2" textAnchor={n.x < 400 ? 'end' : 'start'} fontWeight="600">{n.title}</text>
@@ -81,6 +84,17 @@ export default function Roadmap({ roadmap }) {
               </g>
             );
           })}
+
+          <g
+            className="node-badge"
+            onClick={() => setSelected({ ...roadmap.today, isBranch: false, isToday: true })}
+            transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
+          >
+            <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
+            <Compass x="-8" y="-8" size={16} color="#fff" />
+            <text className="node-label" x={roadmap.today.x < 400 ? -26 : 26} y="2" textAnchor={roadmap.today.x < 400 ? 'end' : 'start'} fontWeight="600">You are here</text>
+            <text className="node-due" x={roadmap.today.x < 400 ? -26 : 26} y="18" textAnchor={roadmap.today.x < 400 ? 'end' : 'start'}>Today · {roadmap.today.due}</text>
+          </g>
         </svg>
       </div>
 
@@ -107,13 +121,15 @@ export default function Roadmap({ roadmap }) {
                 <ul>{selected.resources.map((r) => <li key={r}>{r}</li>)}</ul>
               </div>
             )}
-            <button
-              className={`complete-btn ${isDone(selected.id) ? 'done' : 'todo'}`}
-              onClick={() => toggleDone(selected.id)}
-            >
-              <CheckCircle2 size={16} />
-              {isDone(selected.id) ? 'Marked complete — undo' : 'Mark complete'}
-            </button>
+            {!selected.isToday && (
+              <button
+                className={`complete-btn ${isDone(selected.id) ? 'done' : 'todo'}`}
+                onClick={() => toggleDone(selected.id)}
+              >
+                <CheckCircle2 size={16} />
+                {isDone(selected.id) ? 'Marked complete — undo' : 'Mark complete'}
+              </button>
+            )}
           </div>
         </div>
       )}

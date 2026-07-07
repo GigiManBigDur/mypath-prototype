@@ -4,8 +4,8 @@ import { getMergedPrograms } from '../data/programs';
 import { findOpportunity } from '../data/opportunities';
 import { TRUNK_STEPS } from '../data/trunkSteps';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
-import { layoutTrunk, layoutBranches } from './roadmapLayout';
-import { formatShortDate, addDays } from './dates';
+import { layoutRoadmap } from './roadmapLayout';
+import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween } from './dates';
 
 const LEVEL_LABEL = {
   highschool: 'senior-year',
@@ -22,6 +22,7 @@ const GPA_CHECKPOINTS = [
 ];
 
 export function generateRoadmap(state) {
+  const planStartDate = startOfToday();
   const builtTracks = getBuiltTracks(state.interestTags);
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const level = state.educationLevel;
@@ -41,90 +42,144 @@ export function generateRoadmap(state) {
     careerName: selectedCareers.length ? selectedCareers.map((c) => c.name).join(' and ') : undefined,
   };
 
-  const resolvedTrunk = TRUNK_STEPS[level].map((step) => ({
-    id: step.id,
-    title: typeof step.title === 'function' ? step.title(ctx) : step.title,
-    type: step.type,
-    date: step.date,
-    due: formatShortDate(step.date),
-    desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
-    resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
-  }));
-  const trunk = layoutTrunk(resolvedTrunk);
+  const today = {
+    id: 'today',
+    title: 'Today',
+    type: 'today',
+    date: planStartDate,
+    due: formatDate(planStartDate),
+    desc: 'This is today — your starting point. Everything on this plan is scheduled relative to right now.',
+    resources: [],
+  };
 
-  const branchDefs = [
-    ...buildGpaCheckpoints(selectedPrograms),
-    ...buildOpportunityBranches(opportunityTracks, level, state.selectedOpportunityIds),
+  const trunkSteps = TRUNK_STEPS[level].map((step) => {
+    const realDate = anchorDate(step.date, planStartDate);
+    return {
+      id: step.id,
+      title: typeof step.title === 'function' ? step.title(ctx) : step.title,
+      type: step.type,
+      date: realDate,
+      due: formatDate(realDate),
+      desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
+      resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
+    };
+  });
+
+  const chains = [
+    ...buildGpaChains(selectedPrograms, planStartDate),
+    ...buildOpportunityChains(opportunityTracks, level, state.selectedOpportunityIds, planStartDate),
   ];
-  const branch = layoutBranches(branchDefs, trunk);
 
-  const title = selectedCareers.length
-    ? `Your Path to ${selectedCareers.map((c) => c.name).join(' & ')}`
-    : 'Your Academic Plan';
-  const subtitle = `A personalized ${LEVEL_LABEL[level]} plan, built from your profile.`;
+  const { today: laidToday, trunk, branch, canvasHeight, canvasWidth } = layoutRoadmap(
+    { today, trunkSteps, chains },
+    planStartDate
+  );
 
-  return { title, subtitle, trunk, branch };
+  return {
+    title: titleFor(selectedCareers),
+    subtitle: `A personalized ${LEVEL_LABEL[level]} plan, built from your profile.`,
+    today: laidToday,
+    trunk,
+    branch,
+    canvasHeight,
+    canvasWidth,
+  };
 }
 
-// Three dated GPA-reminder nodes (one per term) sharing the same target text, built from the
-// highest benchmark among all selected programs. Programs with no numeric value (pure
-// audition-based admission, e.g. Juilliard) and programs flagged portfolio/audition-weighted
-// get called out explicitly rather than folded into the number.
-function buildGpaCheckpoints(selectedPrograms) {
-  if (!selectedPrograms.length) return [];
+// 1-2 careers get named; 3+ would grow unbounded and wrap awkwardly, so switch to a generic title.
+function titleFor(selectedCareers) {
+  if (selectedCareers.length === 0) return 'Your Academic Plan';
+  if (selectedCareers.length <= 2) return `Your Path to ${selectedCareers.map((c) => c.name).join(' & ')}`;
+  return 'Your Personalized Academic Plan';
+}
 
+// One chain per GPA checkpoint (each a standalone single-node "chain" — they're independent
+// periodic reminders, not a sequence). Shares the same highest-benchmark text logic as before.
+function buildGpaChains(selectedPrograms, planStartDate) {
+  if (!selectedPrograms.length) return [];
+  const desc = gpaDescText(selectedPrograms);
+  return GPA_CHECKPOINTS.map((checkpoint) => {
+    const realDate = anchorDate(checkpoint.date, planStartDate);
+    return {
+      id: checkpoint.id,
+      nodes: [
+        {
+          id: checkpoint.id,
+          title: `Check your GPA — ${checkpoint.label}`,
+          date: realDate,
+          due: formatDate(realDate),
+          desc,
+          resources: [],
+        },
+      ],
+    };
+  });
+}
+
+function gpaDescText(selectedPrograms) {
   const numeric = selectedPrograms.filter((p) => typeof p.gpaValue === 'number');
   const auditionOnly = selectedPrograms.filter((p) => p.gpaValue == null);
   const anyWeighted = selectedPrograms.some((p) => p.gpaWeighted);
 
-  let desc;
   if (numeric.length === 0) {
-    desc = `Your list is entirely audition/portfolio-based programs (e.g. ${auditionOnly[0].institution}), where GPA is secondary to your audition or portfolio — there's no specific benchmark to chase here, focus on your artistic preparation instead.`;
-  } else {
-    const maxValue = Math.max(...numeric.map((p) => p.gpaValue));
-    if (anyWeighted) {
-      desc = `Your list includes portfolio/audition-based programs where GPA matters less than your submission, but keeping it above ${maxValue}+ keeps every option open.`;
-    } else {
-      const institutions = [...new Set(numeric.map((p) => p.institution))];
-      desc = `Aim for a ${maxValue}+ unweighted GPA to stay competitive for ${institutions.join(', ')}.`;
-    }
-    if (auditionOnly.length && numeric.length) {
-      desc += ` Your list also includes audition-based programs (e.g. ${auditionOnly[0].institution}) where GPA matters less than your audition.`;
-    }
+    return `Your list is entirely audition/portfolio-based programs (e.g. ${auditionOnly[0].institution}), where GPA is secondary to your audition or portfolio — there's no specific benchmark to chase here, focus on your artistic preparation instead.`;
   }
-
-  return GPA_CHECKPOINTS.map((checkpoint) => ({
-    id: checkpoint.id,
-    title: `Check your GPA — ${checkpoint.label}`,
-    date: checkpoint.date,
-    due: formatShortDate(checkpoint.date),
-    desc,
-    resources: [],
-  }));
+  const maxValue = Math.max(...numeric.map((p) => p.gpaValue));
+  let desc;
+  if (anyWeighted) {
+    desc = `Your list includes portfolio/audition-based programs where GPA matters less than your submission, but keeping it above ${maxValue}+ keeps every option open.`;
+  } else {
+    const institutions = [...new Set(numeric.map((p) => p.institution))];
+    desc = `Aim for a ${maxValue}+ unweighted GPA to stay competitive for ${institutions.join(', ')}.`;
+  }
+  if (auditionOnly.length && numeric.length) {
+    desc += ` Your list also includes audition-based programs (e.g. ${auditionOnly[0].institution}) where GPA matters less than your audition.`;
+  }
+  return desc;
 }
 
-function buildOpportunityBranches(tracks, level, selectedOpportunityIds) {
-  const branches = [];
+// Each selected opportunity becomes one chain: its prepSteps spread evenly across the prep
+// window (deadline minus prepWeeks, clamped to start after today), followed by the actual
+// deadline/event node.
+function buildOpportunityChains(tracks, level, selectedOpportunityIds, planStartDate) {
+  const chains = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
-    const prepDate = addDays(opp.date, -opp.prepWeeks * 7);
-    branches.push({
-      id: `${opp.id}-prep`,
-      title: `Prepare for ${opp.name}`,
-      date: prepDate,
-      due: formatShortDate(prepDate),
-      desc: `${opp.description} ${opp.howToApply}.`,
-      resources: opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
+
+    const deadlineDate = anchorDate(opp.date, planStartDate);
+    const steps = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
+
+    const earliestStart = realAddDays(planStartDate, 1);
+    let windowStart = realAddDays(deadlineDate, -opp.prepWeeks * 7);
+    if (windowStart < earliestStart) windowStart = earliestStart;
+    const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), steps.length);
+
+    const nodes = steps.map((stepName, i) => {
+      const frac = (i + 1) / (steps.length + 1);
+      const stepDate = realAddDays(windowStart, Math.round(spanDays * frac));
+      return {
+        id: `${opp.id}-prep-${i}`,
+        title: stepName,
+        date: stepDate,
+        due: formatDate(stepDate),
+        desc: i === 0
+          ? `${opp.description} This is the first step in preparing for ${opp.name}.`
+          : `Step ${i + 1} of ${steps.length} in preparing for ${opp.name}.`,
+        resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
+      };
     });
-    branches.push({
+
+    nodes.push({
       id: `${opp.id}-deadline`,
       title: `${opp.name} — deadline / start`,
-      date: opp.date,
-      due: formatShortDate(opp.date),
+      date: deadlineDate,
+      due: formatDate(deadlineDate),
       desc: `This is when ${opp.name} opens or is due. ${opp.howToApply}.`,
       resources: [],
     });
+
+    chains.push({ id: opp.id, nodes });
   });
-  return branches;
+  return chains;
 }

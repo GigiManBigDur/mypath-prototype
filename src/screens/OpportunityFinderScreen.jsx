@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { getOpportunityPool } from '../data/opportunities';
-import { formatShortDate } from '../utils/dates';
+import { anchorDate, formatDate, startOfToday } from '../utils/dates';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
@@ -10,6 +10,7 @@ export default function OpportunityFinderScreen() {
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const isGeneric = opportunityTracks.length === 0;
   const opportunities = getOpportunityPool(opportunityTracks, state.educationLevel);
+  const today = startOfToday();
 
   const toggleOpportunity = (id) => {
     const has = state.selectedOpportunityIds.includes(id);
@@ -47,11 +48,14 @@ export default function OpportunityFinderScreen() {
       <div className="grid grid-2">
         {opportunities.map((opp) => {
           const selected = state.selectedOpportunityIds.includes(opp.id);
+          const deadline = anchorDate(opp.date, today);
+          const passed = deadline < today;
           return (
             <button
               type="button"
               key={opp.id}
-              className={`card${selected ? ' selected' : ''}`}
+              className={`card${selected ? ' selected' : ''}${passed ? ' passed' : ''}`}
+              disabled={passed}
               onClick={() => toggleOpportunity(opp.id)}
             >
               <div className="card-title">{opp.name}</div>
@@ -60,7 +64,7 @@ export default function OpportunityFinderScreen() {
               <div className="card-meta">
                 <div>
                   <span className="label">Deadline / start</span>
-                  <strong>{formatShortDate(opp.date)}</strong>
+                  <strong>{passed ? 'Deadline passed' : formatDate(deadline)}</strong>
                 </div>
                 <div>
                   <span className="label">How to apply</span>
