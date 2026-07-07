@@ -5,12 +5,21 @@ import { findOpportunity } from '../data/opportunities';
 import { TRUNK_STEPS } from '../data/trunkSteps';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { layoutTrunk, layoutBranches } from './roadmapLayout';
+import { formatShortDate, addDays } from './dates';
 
 const LEVEL_LABEL = {
   highschool: 'senior-year',
   undergraduate: 'graduate-school',
   transfer: 'transfer',
 };
+
+// Three dated checkpoints instead of one "ongoing" node — every task on the plan has a real
+// deadline, GPA reminders included.
+const GPA_CHECKPOINTS = [
+  { id: 'gpa-fall', label: 'end of Fall term', date: { month: 12, day: 15 } },
+  { id: 'gpa-winter', label: 'end of Winter term', date: { month: 3, day: 1 } },
+  { id: 'gpa-spring', label: 'end of Spring term', date: { month: 5, day: 15 } },
+];
 
 export function generateRoadmap(state) {
   const builtTracks = getBuiltTracks(state.interestTags);
@@ -36,15 +45,16 @@ export function generateRoadmap(state) {
     id: step.id,
     title: typeof step.title === 'function' ? step.title(ctx) : step.title,
     type: step.type,
-    due: step.due,
+    date: step.date,
+    due: formatShortDate(step.date),
     desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
     resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
   }));
   const trunk = layoutTrunk(resolvedTrunk);
 
   const branchDefs = [
-    ...buildGpaBranch(selectedPrograms),
-    ...buildOpportunityBranches(opportunityTracks, level, state.selectedOpportunityIds, trunk.length),
+    ...buildGpaCheckpoints(selectedPrograms),
+    ...buildOpportunityBranches(opportunityTracks, level, state.selectedOpportunityIds),
   ];
   const branch = layoutBranches(branchDefs, trunk);
 
@@ -56,10 +66,11 @@ export function generateRoadmap(state) {
   return { title, subtitle, trunk, branch };
 }
 
-// Single GPA-reminder node using the highest benchmark among all selected programs. Programs
-// with no numeric value (pure audition-based admission, e.g. Juilliard) and programs flagged
-// portfolio/audition-weighted get called out explicitly rather than folded into the number.
-function buildGpaBranch(selectedPrograms) {
+// Three dated GPA-reminder nodes (one per term) sharing the same target text, built from the
+// highest benchmark among all selected programs. Programs with no numeric value (pure
+// audition-based admission, e.g. Juilliard) and programs flagged portfolio/audition-weighted
+// get called out explicitly rather than folded into the number.
+function buildGpaCheckpoints(selectedPrograms) {
   if (!selectedPrograms.length) return [];
 
   const numeric = selectedPrograms.filter((p) => typeof p.gpaValue === 'number');
@@ -82,37 +93,37 @@ function buildGpaBranch(selectedPrograms) {
     }
   }
 
-  return [{
-    id: 'gpa',
-    title: 'Maintain your GPA',
-    due: 'Ongoing',
+  return GPA_CHECKPOINTS.map((checkpoint) => ({
+    id: checkpoint.id,
+    title: `Check your GPA — ${checkpoint.label}`,
+    date: checkpoint.date,
+    due: formatShortDate(checkpoint.date),
     desc,
     resources: [],
-    attachTrunkIndex: 0,
-  }];
+  }));
 }
 
-function buildOpportunityBranches(tracks, level, selectedOpportunityIds, trunkLength) {
+function buildOpportunityBranches(tracks, level, selectedOpportunityIds) {
   const branches = [];
-  selectedOpportunityIds.forEach((id, i) => {
+  selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
-    const attachTrunkIndex = trunkLength > 1 ? i % (trunkLength - 1) : 0;
+    const prepDate = addDays(opp.date, -opp.prepWeeks * 7);
     branches.push({
       id: `${opp.id}-prep`,
       title: `Prepare for ${opp.name}`,
-      due: `Prep · ~${opp.prepWeeks} wk${opp.prepWeeks === 1 ? '' : 's'} before deadline`,
+      date: prepDate,
+      due: formatShortDate(prepDate),
       desc: `${opp.description} ${opp.howToApply}.`,
       resources: opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
-      attachTrunkIndex,
     });
     branches.push({
       id: `${opp.id}-deadline`,
       title: `${opp.name} — deadline / start`,
-      due: opp.deadline,
+      date: opp.date,
+      due: formatShortDate(opp.date),
       desc: `This is when ${opp.name} opens or is due. ${opp.howToApply}.`,
       resources: [],
-      attachTrunkIndex,
     });
   });
   return branches;

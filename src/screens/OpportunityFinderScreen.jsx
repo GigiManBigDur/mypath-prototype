@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { getOpportunityPool } from '../data/opportunities';
+import { formatShortDate } from '../utils/dates';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
@@ -59,7 +60,7 @@ export default function OpportunityFinderScreen() {
               <div className="card-meta">
                 <div>
                   <span className="label">Deadline / start</span>
-                  <strong>{opp.deadline}</strong>
+                  <strong>{formatShortDate(opp.date)}</strong>
                 </div>
                 <div>
                   <span className="label">How to apply</span>
