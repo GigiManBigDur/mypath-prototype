@@ -38,10 +38,17 @@ No test suite exists yet. Verification for this project means running `npm run b
 
 ## Git & deployment
 
-This repo has a GitHub remote already (`origin` → `github.com/GigiManBigDur/mypath-prototype`,
-private) and a linked Vercel project (`seal-man/mypath-prototype`). Standing practice for this
-project: after a meaningful change, commit locally with a clean message and push — don't wait to
-be asked. Don't create a second GitHub repo.
+**Commit and push regularly — this is a standing requirement, not an opt-in.** This repo has
+a GitHub remote already (`origin` → `github.com/GigiManBigDur/mypath-prototype`, private) and
+a linked Vercel project (`seal-man/mypath-prototype`). The user wants a saved, revertible
+version of the project at all times, so:
+- After finishing a meaningful unit of work (a feature, a fix, a data addition — not every
+  single file edit), stage the relevant files, write a clean, descriptive commit message, and
+  push to `origin/main`. Do this proactively, without waiting to be asked each time.
+- Don't let uncommitted work pile up across a long session — commit incrementally as logical
+  pieces land, not just once at the very end.
+- Follow standard git safety rules regardless: no `--force` push, no amending published
+  commits, no `--no-verify`. Don't create a second GitHub repo — reuse this one.
 
 The production site (`https://mypath-prototype-seven.vercel.app`) is **not** wired to
 auto-deploy on push — the Vercel project isn't linked to GitHub (the account authenticated via
