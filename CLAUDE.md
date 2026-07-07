@@ -16,12 +16,11 @@ change direction:
 - **State lives in React** (`src/context/AppContext.jsx`, `useState`), persisted to
   `localStorage` on every change. Refreshing mid-flow restores where the user left off;
   there is no requirement to preserve it beyond that.
-- **Business, STEM, Healthcare, and Creative/Arts have full content.** Every other interest
-  tag is "unbuilt" and falls back to generic content (see "Track resolution" below). The data
-  shape in `src/data/` is intentionally structured so a new track can be added by filling in
-  `careers.js` / `majors.js` / `programs.js` / `opportunities.js` for that track key, adding it
-  to `BUILT_TRACKS` in `interests.js`, and mapping the relevant tag(s) to it — no screen/component
-  changes needed.
+- **Business, STEM, Healthcare, and Creative/Arts have full career/major/program content.**
+  Six more interest tracks (Sports, Community & Leadership, Media & Entertainment, Lifestyle &
+  Hobbies, Personal Development, non-STEM Academic) have real opportunities but no
+  career/major/program chain — see "Track resolution" below. Only "Law" falls all the way back
+  to the fully generic opportunity list.
 
 ## Commands
 
@@ -49,13 +48,19 @@ version of the project at all times, so:
   pieces land, not just once at the very end.
 - Follow standard git safety rules regardless: no `--force` push, no amending published
   commits, no `--no-verify`. Don't create a second GitHub repo — reuse this one.
+- **Keep this file current as part of the same workflow.** After a round of changes that
+  alters architecture (not just data content), update the relevant section here before/with
+  that commit — don't wait for the user to run `/init` again. A stale CLAUDE.md is a bug the
+  same way a failing build is.
 
 The production site (`https://mypath-prototype-seven.vercel.app`) is **not** wired to
 auto-deploy on push — the Vercel project isn't linked to GitHub (the account authenticated via
-device code, not GitHub OAuth), so pushing to `main` alone does not update the live site.
-To publish a change: `npx vercel deploy --prod --yes` from the project root (requires the
-Vercel CLI to already be logged in — it was set up interactively once and shouldn't need
-re-auth on this machine).
+device code, not GitHub OAuth), so pushing to `main` alone does not update the live site, and
+it is often several commits behind. Treat "committed to GitHub" and "live on Vercel" as two
+separate facts — don't imply the site is current just because the repo is. To publish a
+change: `npx vercel deploy --prod --yes` from the project root (requires the Vercel CLI to
+already be logged in — it was set up interactively once and shouldn't need re-auth on this
+machine). Only deploy when the user asks; it's a visible, shared action.
 
 ## Architecture
 
@@ -70,84 +75,104 @@ button routes to `admissions` (not `discovery`) in that same case. `DiscoveryScr
 has a defensive `useEffect` that bounces to `opportunities` if it's ever reached with zero
 built tracks (e.g. state restored from `localStorage` after interests changed).
 
-**`AppContext` (`src/context/AppContext.jsx`) is the single source of truth** for every
-answer/selection across all five screens (interest tags, education level, GPA, selected
-career/major/programs/opportunities, completed roadmap nodes) plus the current `screen`.
-It's a flat `useState` object with a `patch()` merge function, auto-persisted to
-`localStorage` under `mypath-prototype-state`. `reset()` clears storage and returns to the
-survey. Any screen can read or write any part of this state via `useApp()`.
+**`AppContext` (`src/context/AppContext.jsx`) is the single source of truth**, a flat
+`useState` object with a `patch()` merge function, auto-persisted to `localStorage` under
+`mypath-prototype-state`. Key fields: `interestTags`, `educationLevel`, `gpa`,
+`selectedCareerIds` / `selectedMajorIds` / `selectedProgramKeys` (all **arrays** — Screens 3a/
+3b/3c are multi-select, not single-select), `selectedOpportunityIds`, `completedNodes` (flat
+map of node/step id → boolean, shared by trunk tasks, opportunity chip steps, and GPA chips
+alike), and `screen`. `reset()` clears storage and returns to the survey.
 
-**Track resolution supports merging multiple interests, not just one.**
-`getBuiltTracks(selectedTagNames)` in `src/data/interests.js` returns the *ordered, deduped*
-list of built tracks (`business` / `stem` / `healthcare` / `creative`) among the user's
-selected tags — tags that map to `other` are dropped. Screens 3 & 4 key off this array, not a
-single track:
-- If 2+ selected tags map to built tracks, Screen 3a merges career cards from all of them
-  (`CareersStep` takes a `tracks` array and does `tracks.flatMap(...)`).
-- If some tags are built and some aren't, the unbuilt ones are silently dropped — no
-  placeholder shown.
-- If **no** selected tag maps to a built track, Screen 3 (Discovery) is skipped entirely and
-  Screen 4 shows a small "more opportunities coming soon" note plus `GENERIC_OPPORTUNITIES`
-  (level-appropriate generic opportunities in `opportunities.js`, e.g. NHS/SAT-prep for high
-  schoolers, GRE-prep for grad-bound students) instead of track-specific ones.
+**Track resolution has two tiers, not one.** `src/data/interests.js` exports:
+- `getBuiltTracks(tags)` — tracks with full career/major/program data (`business` / `stem` /
+  `healthcare` / `creative`). Drives Screen 3's routing/content and the Back-button target.
+- `getOpportunityTracks(tags)` — a superset also including the six opportunity-only tracks.
+  Drives Screen 4's content. An empty result (only "Law" selected, or nothing) falls back to
+  `GENERIC_OPPORTUNITIES`.
 
-Once a career is picked, downstream steps (majors, programs) no longer need to know which
-track it came from — `findCareer(id, tracks, level)` in `careers.js` searches across the given
-tracks, but `MAJORS` (in `majors.js`) is one flat namespace keyed by major id regardless of
-track, so majors/programs lookups never need a track argument.
+Both are *merging*, not single-value: selecting 2+ built-track tags merges their career cards
+on Screen 3a (`getCareerPool(tracks, level)` in `careers.js`, then filtered by
+`selectedCareerIds`); mixing a built and unbuilt tag silently drops the unbuilt one. Once a
+career is picked, downstream steps don't need to know which track it came from — `MAJORS` is
+one flat namespace keyed by major id regardless of track.
+
+**Self-Discovery (Screen 3) is multi-select end to end**, with pruning on the way back up:
+`DiscoveryScreen.jsx`'s `toggleCareer`/`toggleMajor` handlers recompute which majors/programs
+are still reachable after a change and drop any selections that no longer are (e.g.
+deselecting a career drops majors that were only reachable through it). Majors merge
+(deduped) across every selected career; `getMergedPrograms(majorIds, level)` in `programs.js`
+merges programs across every selected major, deduped **by institution+program** (not by
+major) — a program legitimately offered under two selected majors shows once, labeled with
+both, keyed by `${institution}::${program}` rather than the old `${majorId}::${institution}`.
 
 **Data layer (`src/data/`) is keyed by `[track][educationLevel]`, not by screen.**
-- `careers.js`, `programs.js` (via `getPrograms()`), `opportunities.js` all branch on
-  `educationLevel` (`highschool` / `undergraduate` / `transfer`) to decide undergrad-level vs.
-  grad-level content. **Transfer reuses the `highschool` careers/majors data directly**
-  (`CAREERS.business.transfer = CAREERS.business.highschool`, same pattern for all four
-  tracks) — only `programs.js` adds a transfer-specific note at read time
-  (`transferNoteFor()`), it isn't duplicated data.
-- `majors.js` is a flat lookup by major id (undergrad and grad majors across all tracks share
-  one namespace); careers reference majors by id via `relevantMajors`.
-- `opportunities.js` exports `getOpportunityPool(tracks, level)` (merged, de-duped list across
-  the given built tracks, or `GENERIC_OPPORTUNITIES[level]` when `tracks` is empty) and
-  `findOpportunity(id, tracks, level)`. Both `OpportunityFinderScreen` and
-  `roadmapGenerator.js` use these instead of reading `OPPORTUNITIES[track][level]` directly —
-  keep using them so the merge/fallback behavior stays consistent in one place.
-- `trunkSteps.js` holds the templated core admissions steps per education level. A step's
-  `desc`/`resources` can be a plain string or a `(ctx) => string` function — the generator
-  calls it with `{ programNames, majorName, careerName }` so e.g. "Build your college list"
-  can mention the schools the user actually picked, or fall back to generic phrasing when
-  nothing was selected (the all-unbuilt-track path never has programs/major/career, so these
-  functions must degrade gracefully when `ctx` fields are empty/undefined).
+- `careers.js` / `programs.js` (via `getPrograms()`) / `opportunities.js` all branch on
+  `educationLevel` (`highschool` / `undergraduate` / `transfer`). Transfer reuses the
+  `highschool` careers/majors data directly; only `programs.js` adds a transfer-specific note
+  at read time, not duplicated data.
+- `programs.js` entries carry a real numeric `gpaValue` (illustrative, from a fixed benchmark
+  table) instead of a selectivity-tier string, plus optional `gpaWeighted: 'portfolio' |
+  'audition'` for programs where GPA is secondary to a submission (e.g. Juilliard has
+  `gpaValue: null`).
+- `opportunities.js`: every opportunity has `date` (a template `{month, day}`, or
+  `{offsetDays: N}` for the two deliberately-in-the-past ones — see dates below) and
+  `prepSteps` (2-4 ordered sub-task names). `getOpportunityPool(tracks, level)` /
+  `findOpportunity(id, tracks, level)` merge/dedupe across tracks or fall back to
+  `GENERIC_OPPORTUNITIES` — both `OpportunityFinderScreen` and `roadmapGenerator.js` use these
+  rather than reading `OPPORTUNITIES[track][level]` directly.
 
-**The roadmap is generated, not authored.** `src/utils/roadmapGenerator.js` takes the whole
-`AppContext` state and produces a `{ title, subtitle, trunk, branch }` object:
-- `trunk` = the resolved `TRUNK_STEPS` for the education level (required path).
-- `branch` = one GPA-reminder node per distinct `gpaTarget` among selected programs, plus a
-  `Prepare for X` / `X — deadline/start` pair for every selected opportunity (looked up via
-  `findOpportunity`, so this works whether the opportunity came from a built track or the
-  generic fallback list).
+**Dates are "today"-anchored, not fixed-calendar.** `src/utils/dates.js`: data files store
+template dates as `{month, day}` (interpreted as N days after Aug 15 on an implied academic
+year — human-readable, no real year attached) or `{offsetDays: N}` for an explicit
+possibly-negative offset. `anchorDate(date, planStartDate)` is the one place a template date
+becomes a real `Date`, by adding its offset to `planStartDate` (= `new Date()`, captured fresh
+each time `generateRoadmap()` runs). This means every generated plan is relative to whatever
+day the user actually opens the app — a template date always maps to today-or-later, so only
+the two explicit negative-offset opportunities (one Lifestyle & Hobbies, one Personal
+Development — see `opportunities.js`) can ever be in the past. `OpportunityFinderScreen`
+greys those out with a "Deadline passed" badge and disables selecting them, which is also
+*why* nothing can ever appear before "You are here" on the roadmap: nothing past-dated can
+reach `selectedOpportunityIds` in the first place.
 
-  `src/utils/roadmapLayout.js` then assigns SVG coordinates on a fixed 800×1320 canvas
-  (matching the reference prototype). Trunk nodes are spaced evenly bottom-to-top with a
-  wiggle pattern; branch nodes attach to a specific trunk node index and pick an offset from
-  `BRANCH_OFFSETS`, **bucketed per attach point** (not by global branch index) — this matters
-  because several branches (GPA + an opportunity's prep/deadline pair) commonly attach to the
-  *same* trunk node, and reusing a global offset counter caused their labels to overlap in
-  testing. If you add new branch types, keep using the per-attach-point bucket.
-- `src/components/Roadmap.jsx` is the SVG rendering + progress bar + detail modal, ported
-  from the reference file `~/Downloads/mypath_roadmap_prototype.jsx` (the visual design
-  source of truth: paper/trail-map palette, Fraunces/IBM Plex fonts, winding trunk-and-branch
-  metaphor). Node completion state lives in `AppContext.completedNodes`, keyed by node id.
+**The roadmap is generated, then laid out as chips, not plotted step-by-step.**
+`roadmapGenerator.js` builds three things from state: a `today` node, a `trunk` array (the
+resolved `TRUNK_STEPS` for the education level), and a `chips` array — one entry per selected
+opportunity (carrying its full ordered `steps` array as data: prep steps spread across the
+`prepWeeks` window before the deadline, clamped to start after today, plus the deadline/event
+step) and one per GPA checkpoint (`steps: null` — a simple non-expandable reminder, text from
+`gpaDescText()` using the *highest* `gpaValue` among selected programs, phrased specially when
+any are portfolio/audition-weighted). Title is `Your Path to X` for 1-2 selected careers,
+`Your Path to X & Y`, or the generic `Your Personalized Academic Plan` for 3+.
 
-**Screen 3 (`DiscoveryScreen.jsx`) is a 3-step sub-wizard** (careers → majors → programs)
-with its own local `subStep` state, separate from the top-level `screen` state. Selecting a
-major clears any previously-selected programs; selecting a career clears major + programs —
-keeps downstream selections from going stale when the user changes their mind upstream.
+`roadmapLayout.js` then positions two very different things:
+- **The trunk is a single straight vertical line** — today + ~6 core steps, evenly spaced with
+  a fixed gap. No date-proportional math, no collision handling; there are only ever a handful
+  of these so it doesn't need it.
+- **Chips are grouped by nearest trunk anchor** (by real date) and stacked with a simple fixed
+  gap, alternating left/right. A chip's own steps are *not* plotted individually anywhere on
+  the canvas — they only appear in the modal when the chip is clicked.
+
+This chip-based design replaced an earlier version that plotted every individual prep step as
+its own canvas node with an adaptive-spacing algorithm to avoid overlaps. That worked but
+produced a busy, zigzagging canvas once someone selected several opportunities (each exploding
+into 3-5 nodes) and needed increasingly complex collision logic to stay readable. Collapsing
+each opportunity to one chip caps on-canvas node count at roughly trunk-count +
+selected-opportunity-count regardless of how detailed any one chain is — **if you're touching
+the roadmap, keep it this way; don't reintroduce per-step canvas plotting.**
+
+`Roadmap.jsx` renders trunk/chips/today and handles the detail modal: trunk nodes and GPA
+chips get the simple single-item modal (desc + one complete-toggle); opportunity chips get an
+expanded step list, each step independently completable, with a "X/Y steps complete" line.
+`completedNodes` is flat and shared, so step ids (`${opp.id}-prep-${i}`, `${opp.id}-deadline`)
+just need to be unique — no separate tracking structure. The Today node is never completable
+and is excluded from the trunk progress count (it isn't part of the `trunk` array).
 
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
-`--gold`, `--teal`, `--rust`, `--stone`, etc.) plus the roadmap-specific classes ported
-verbatim from the reference prototype. Match these tokens rather than introducing new colors
-when building new UI.
+`--gold`, `--teal`, `--rust`, `--stone`, etc.) plus the roadmap-specific classes originally
+ported from the reference prototype (paper/trail-map palette, Fraunces/IBM Plex fonts). Match
+these tokens rather than introducing new colors when building new UI.
 
 ## Testing changes
 
@@ -156,14 +181,14 @@ drive it with a headless browser (Playwright works; `chromium-cli` was not avail
 environment — the Chromium binary it installs is cached under `~/Library/Caches/ms-playwright`,
 so reinstalling only needs `npm install playwright` in a scratch dir, not a fresh browser
 download). Cover at minimum:
-- One run per built track (Business, STEM, Healthcare, Creative) through all 5 screens.
-- All three education levels at least once (highschool/transfer share career+major data;
-  undergraduate exercises the separate grad-level data).
-- A multi-track merge (e.g. two built-track tags selected together) — check the career count
-  on Screen 3a matches the sum across tracks.
-- A mixed built+unbuilt selection — check only the built track's cards show.
-- An all-unbuilt selection — check Discovery is skipped and the generic fallback opportunities
-  appear.
-
-Check `console --errors` / `page.on('pageerror')` and eyeball the roadmap screenshot for node
-overlap, since layout bugs there are visual, not exceptions.
+- One run per built track (Business, STEM, Healthcare, Creative) and one opportunity-only
+  track, through all 5 screens.
+- All three education levels at least once.
+- A multi-career/multi-major/multi-program selection spanning two tracks — confirm merged
+  counts, a combined single plan, and (if programs differ in GPA) the max-benchmark logic.
+- A dense opportunity selection (several at once, ideally all from one track plus some GPA
+  checkpoints) — this is the scenario that broke the old per-step layout; confirm the canvas
+  still shows one chip per opportunity, not an exploded node-per-step canvas.
+- Extract node positions via `document.querySelectorAll('g.node-badge')` and check trunk nodes
+  share one x value (straight line) and no two labels are within ~40px on both axes — visual
+  layout bugs here are not exceptions, so screenshot + eyeball too, not just the DOM check.
