@@ -227,10 +227,8 @@ CAREERS.stem.transfer = CAREERS.stem.highschool;
 CAREERS.healthcare.transfer = CAREERS.healthcare.highschool;
 CAREERS.creative.transfer = CAREERS.creative.highschool;
 
-export function findCareer(id, tracks, level) {
-  for (const t of tracks) {
-    const found = CAREERS[t]?.[level]?.find((c) => c.id === id);
-    if (found) return found;
-  }
-  return null;
+// Merged career list across the given built tracks for one education level — the pool that
+// Screen 3a (multi-select) renders, and that callers filter by selectedCareerIds against.
+export function getCareerPool(tracks, level) {
+  return tracks.flatMap((t) => CAREERS[t]?.[level] || []);
 }

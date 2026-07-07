@@ -7,9 +7,9 @@ const DEFAULT_STATE = {
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   gpa: '',
-  selectedCareerId: null,
-  selectedMajorId: null,
-  selectedProgramKeys: [], // `${majorId}::${institution}`
+  selectedCareerIds: [],
+  selectedMajorIds: [],
+  selectedProgramKeys: [], // `${institution}::${program}`
   selectedOpportunityIds: [],
   completedNodes: {},
 };

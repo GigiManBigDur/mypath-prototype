@@ -1,13 +1,14 @@
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getBuiltTracks } from '../data/interests';
+import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { getOpportunityPool } from '../data/opportunities';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
-  const tracks = getBuiltTracks(state.interestTags);
-  const isGeneric = tracks.length === 0;
-  const opportunities = getOpportunityPool(tracks, state.educationLevel);
+  const builtTracks = getBuiltTracks(state.interestTags);
+  const opportunityTracks = getOpportunityTracks(state.interestTags);
+  const isGeneric = opportunityTracks.length === 0;
+  const opportunities = getOpportunityPool(opportunityTracks, state.educationLevel);
 
   const toggleOpportunity = (id) => {
     const has = state.selectedOpportunityIds.includes(id);
@@ -23,7 +24,7 @@ export default function OpportunityFinderScreen() {
       <button
         type="button"
         className="btn btn-ghost"
-        onClick={() => patch({ screen: isGeneric ? 'admissions' : 'discovery' })}
+        onClick={() => patch({ screen: builtTracks.length ? 'discovery' : 'admissions' })}
       >
         <ArrowLeft size={14} /> Back
       </button>

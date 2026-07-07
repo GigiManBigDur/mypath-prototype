@@ -1,6 +1,6 @@
 import { MAJORS } from '../../data/majors';
 
-export default function MajorsStep({ majorIds, selectedMajorId, onSelect }) {
+export default function MajorsStep({ majorIds, selectedMajorIds, onToggle }) {
   return (
     <div className="grid grid-3">
       {majorIds.map((id) => {
@@ -9,8 +9,8 @@ export default function MajorsStep({ majorIds, selectedMajorId, onSelect }) {
           <button
             type="button"
             key={id}
-            className={`card${selectedMajorId === id ? ' selected' : ''}`}
-            onClick={() => onSelect(id)}
+            className={`card${selectedMajorIds.includes(id) ? ' selected' : ''}`}
+            onClick={() => onToggle(id)}
           >
             <div className="card-title">{major.name}</div>
             <p className="card-desc">{major.overview}</p>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getBuiltTracks } from '../data/interests';
-import { findCareer } from '../data/careers';
+import { getCareerPool } from '../data/careers';
+import { getMergedPrograms } from '../data/programs';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
 import ProgramsStep from './discovery/ProgramsStep';
@@ -12,15 +13,15 @@ const SUB_STEPS = ['careers', 'majors', 'programs'];
 const SUB_STEP_COPY = {
   careers: {
     title: 'Careers of interest',
-    sub: 'Based on your interests, here are careers worth exploring. Pick the one that excites you most.',
+    sub: 'Based on your interests, here are careers worth exploring. Select as many as you\'d like to pursue.',
   },
   majors: {
     title: 'Related college majors',
-    sub: 'These majors lead toward the career you picked. Pick the one that fits best.',
+    sub: 'These majors lead toward the careers you picked. Select as many as fit.',
   },
   programs: {
     title: 'Recommended programs',
-    sub: 'Well-known programs known for strength in this major.',
+    sub: 'Well-known programs known for strength in your selected majors.',
   },
 };
 
@@ -40,9 +41,10 @@ export default function DiscoveryScreen() {
 
   if (tracks.length === 0) return null;
 
-  const career = state.selectedCareerId
-    ? findCareer(state.selectedCareerId, tracks, state.educationLevel)
-    : null;
+  const level = state.educationLevel;
+  const careers = getCareerPool(tracks, level);
+  const selectedCareers = careers.filter((c) => state.selectedCareerIds.includes(c.id));
+  const majorIds = [...new Set(selectedCareers.flatMap((c) => c.relevantMajors))];
 
   const goBackSubStep = () => {
     const idx = SUB_STEPS.indexOf(subStep);
@@ -53,12 +55,29 @@ export default function DiscoveryScreen() {
     }
   };
 
-  const selectCareer = (id) => {
-    patch({ selectedCareerId: id, selectedMajorId: null, selectedProgramKeys: [] });
+  const toggleCareer = (id) => {
+    const has = state.selectedCareerIds.includes(id);
+    const newCareerIds = has
+      ? state.selectedCareerIds.filter((c) => c !== id)
+      : [...state.selectedCareerIds, id];
+    const newCareers = careers.filter((c) => newCareerIds.includes(c.id));
+    const validMajorIds = new Set(newCareers.flatMap((c) => c.relevantMajors));
+    const newMajorIds = state.selectedMajorIds.filter((m) => validMajorIds.has(m));
+    const validProgramKeys = new Set(getMergedPrograms(newMajorIds, level).map((p) => p.key));
+    const newProgramKeys = state.selectedProgramKeys.filter((k) => validProgramKeys.has(k));
+    patch({ selectedCareerIds: newCareerIds, selectedMajorIds: newMajorIds, selectedProgramKeys: newProgramKeys });
   };
-  const selectMajor = (id) => {
-    patch({ selectedMajorId: id, selectedProgramKeys: [] });
+
+  const toggleMajor = (id) => {
+    const has = state.selectedMajorIds.includes(id);
+    const newMajorIds = has
+      ? state.selectedMajorIds.filter((m) => m !== id)
+      : [...state.selectedMajorIds, id];
+    const validProgramKeys = new Set(getMergedPrograms(newMajorIds, level).map((p) => p.key));
+    const newProgramKeys = state.selectedProgramKeys.filter((k) => validProgramKeys.has(k));
+    patch({ selectedMajorIds: newMajorIds, selectedProgramKeys: newProgramKeys });
   };
+
   const toggleProgram = (key) => {
     const has = state.selectedProgramKeys.includes(key);
     patch({
@@ -69,8 +88,8 @@ export default function DiscoveryScreen() {
   };
 
   const canAdvance =
-    (subStep === 'careers' && !!state.selectedCareerId) ||
-    (subStep === 'majors' && !!state.selectedMajorId) ||
+    (subStep === 'careers' && state.selectedCareerIds.length > 0) ||
+    (subStep === 'majors' && state.selectedMajorIds.length > 0) ||
     (subStep === 'programs' && state.selectedProgramKeys.length > 0);
 
   const handleNext = () => {
@@ -100,23 +119,22 @@ export default function DiscoveryScreen() {
 
       {subStep === 'careers' && (
         <CareersStep
-          tracks={tracks}
-          educationLevel={state.educationLevel}
-          selectedCareerId={state.selectedCareerId}
-          onSelect={selectCareer}
+          careers={careers}
+          selectedCareerIds={state.selectedCareerIds}
+          onToggle={toggleCareer}
         />
       )}
-      {subStep === 'majors' && career && (
+      {subStep === 'majors' && (
         <MajorsStep
-          majorIds={career.relevantMajors}
-          selectedMajorId={state.selectedMajorId}
-          onSelect={selectMajor}
+          majorIds={majorIds}
+          selectedMajorIds={state.selectedMajorIds}
+          onToggle={toggleMajor}
         />
       )}
-      {subStep === 'programs' && state.selectedMajorId && (
+      {subStep === 'programs' && (
         <ProgramsStep
-          majorId={state.selectedMajorId}
-          educationLevel={state.educationLevel}
+          majorIds={state.selectedMajorIds}
+          educationLevel={level}
           selectedProgramKeys={state.selectedProgramKeys}
           onToggle={toggleProgram}
         />

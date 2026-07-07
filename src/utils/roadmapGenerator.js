@@ -1,9 +1,9 @@
 import { MAJORS } from '../data/majors';
-import { findCareer } from '../data/careers';
-import { getPrograms } from '../data/programs';
+import { getCareerPool } from '../data/careers';
+import { getMergedPrograms } from '../data/programs';
 import { findOpportunity } from '../data/opportunities';
 import { TRUNK_STEPS } from '../data/trunkSteps';
-import { getBuiltTracks } from '../data/interests';
+import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { layoutTrunk, layoutBranches } from './roadmapLayout';
 
 const LEVEL_LABEL = {
@@ -13,28 +13,28 @@ const LEVEL_LABEL = {
 };
 
 export function generateRoadmap(state) {
-  const tracks = getBuiltTracks(state.interestTags);
+  const builtTracks = getBuiltTracks(state.interestTags);
+  const opportunityTracks = getOpportunityTracks(state.interestTags);
   const level = state.educationLevel;
 
-  const career = state.selectedCareerId ? findCareer(state.selectedCareerId, tracks, level) : null;
-  const major = state.selectedMajorId ? MAJORS[state.selectedMajorId] : null;
+  const careerPool = getCareerPool(builtTracks, level);
+  const selectedCareers = careerPool.filter((c) => state.selectedCareerIds.includes(c.id));
+  const selectedMajors = state.selectedMajorIds.map((id) => MAJORS[id]).filter(Boolean);
 
-  const selectedPrograms = state.selectedMajorId
-    ? getPrograms(state.selectedMajorId, level).filter((p) =>
-        state.selectedProgramKeys.includes(`${state.selectedMajorId}::${p.institution}`)
-      )
-    : [];
-  const programNames = selectedPrograms.map((p) => p.institution);
+  const mergedPrograms = getMergedPrograms(state.selectedMajorIds, level);
+  const selectedPrograms = mergedPrograms.filter((p) => state.selectedProgramKeys.includes(p.key));
+  const distinctSchoolNames = [...new Set(selectedPrograms.map((p) => p.institution))];
 
   const ctx = {
-    programNames,
-    majorName: major?.name,
-    careerName: career?.name,
+    programNames: distinctSchoolNames,
+    distinctSchoolNames,
+    majorName: selectedMajors.length ? selectedMajors.map((m) => m.name).join(' and ') : undefined,
+    careerName: selectedCareers.length ? selectedCareers.map((c) => c.name).join(' and ') : undefined,
   };
 
   const resolvedTrunk = TRUNK_STEPS[level].map((step) => ({
     id: step.id,
-    title: step.title,
+    title: typeof step.title === 'function' ? step.title(ctx) : step.title,
     type: step.type,
     due: step.due,
     desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
@@ -43,32 +43,53 @@ export function generateRoadmap(state) {
   const trunk = layoutTrunk(resolvedTrunk);
 
   const branchDefs = [
-    ...buildGpaBranches(selectedPrograms),
-    ...buildOpportunityBranches(tracks, level, state.selectedOpportunityIds, trunk.length),
+    ...buildGpaBranch(selectedPrograms),
+    ...buildOpportunityBranches(opportunityTracks, level, state.selectedOpportunityIds, trunk.length),
   ];
   const branch = layoutBranches(branchDefs, trunk);
 
-  const title = career ? `Your Path to ${career.name}` : 'Your Academic Plan';
+  const title = selectedCareers.length
+    ? `Your Path to ${selectedCareers.map((c) => c.name).join(' & ')}`
+    : 'Your Academic Plan';
   const subtitle = `A personalized ${LEVEL_LABEL[level]} plan, built from your profile.`;
 
   return { title, subtitle, trunk, branch };
 }
 
-function buildGpaBranches(selectedPrograms) {
-  const byTarget = new Map();
-  for (const p of selectedPrograms) {
-    if (!p.gpaTarget) continue;
-    if (!byTarget.has(p.gpaTarget)) byTarget.set(p.gpaTarget, []);
-    byTarget.get(p.gpaTarget).push(p.institution);
+// Single GPA-reminder node using the highest benchmark among all selected programs. Programs
+// with no numeric value (pure audition-based admission, e.g. Juilliard) and programs flagged
+// portfolio/audition-weighted get called out explicitly rather than folded into the number.
+function buildGpaBranch(selectedPrograms) {
+  if (!selectedPrograms.length) return [];
+
+  const numeric = selectedPrograms.filter((p) => typeof p.gpaValue === 'number');
+  const auditionOnly = selectedPrograms.filter((p) => p.gpaValue == null);
+  const anyWeighted = selectedPrograms.some((p) => p.gpaWeighted);
+
+  let desc;
+  if (numeric.length === 0) {
+    desc = `Your list is entirely audition/portfolio-based programs (e.g. ${auditionOnly[0].institution}), where GPA is secondary to your audition or portfolio — there's no specific benchmark to chase here, focus on your artistic preparation instead.`;
+  } else {
+    const maxValue = Math.max(...numeric.map((p) => p.gpaValue));
+    if (anyWeighted) {
+      desc = `Your list includes portfolio/audition-based programs where GPA matters less than your submission, but keeping it above ${maxValue}+ keeps every option open.`;
+    } else {
+      const institutions = [...new Set(numeric.map((p) => p.institution))];
+      desc = `Aim for a ${maxValue}+ unweighted GPA to stay competitive for ${institutions.join(', ')}.`;
+    }
+    if (auditionOnly.length && numeric.length) {
+      desc += ` Your list also includes audition-based programs (e.g. ${auditionOnly[0].institution}) where GPA matters less than your audition.`;
+    }
   }
-  return Array.from(byTarget.entries()).map(([target, institutions], i) => ({
-    id: `gpa-${i}`,
+
+  return [{
+    id: 'gpa',
     title: 'Maintain your GPA',
     due: 'Ongoing',
-    desc: `${target} to stay competitive for ${institutions.join(', ')}.`,
+    desc,
     resources: [],
     attachTrunkIndex: 0,
-  }));
+  }];
 }
 
 function buildOpportunityBranches(tracks, level, selectedOpportunityIds, trunkLength) {

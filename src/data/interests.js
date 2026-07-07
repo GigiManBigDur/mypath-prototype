@@ -1,21 +1,33 @@
-// Each tag maps to a "track" that drives Screens 3 & 4.
-// 'business', 'stem', 'healthcare', and 'creative' have full content; everything else is
-// 'other' (generic fallback — see getBuiltTracks below).
+// Each tag maps to a "track". BUILT_TRACKS have full career/major/program data (Screen 3
+// discovery chain runs for these). OPPORTUNITY_TRACKS is broader — every track in it has real,
+// tailored content in Screen 4 (Opportunity Finder) even if it has no career/major/program data
+// of its own. A tag whose track is 'other' (currently just "Law") falls back to the fully
+// generic opportunity list — see getOpportunityTracks below.
 
 export const BUILT_TRACKS = ['business', 'stem', 'healthcare', 'creative'];
+
+export const OPPORTUNITY_TRACKS = [
+  ...BUILT_TRACKS,
+  'sports',
+  'community',
+  'media',
+  'lifestyle',
+  'personal',
+  'academic',
+];
 
 export const CATEGORIES = [
   {
     id: 'sports',
     label: 'Sports',
-    tags: tag(['Soccer', 'Basketball', 'Tennis', 'Swimming', 'Track & Field', 'Football'], 'other'),
+    tags: tag(['Soccer', 'Basketball', 'Tennis', 'Swimming', 'Track & Field', 'Football'], 'sports'),
   },
   {
     id: 'academic',
     label: 'Academic',
     tags: [
       ...tag(['Mathematics'], 'stem'),
-      ...tag(['Philosophy', 'History', 'Literature', 'Psychology', 'Political Science'], 'other'),
+      ...tag(['Philosophy', 'History', 'Literature', 'Psychology', 'Political Science'], 'academic'),
     ],
   },
   {
@@ -31,7 +43,7 @@ export const CATEGORIES = [
   {
     id: 'community',
     label: 'Community & Leadership',
-    tags: tag(['Activism', 'Volunteering', 'Mentoring', 'Student Government', 'Nonprofit Work'], 'other'),
+    tags: tag(['Activism', 'Volunteering', 'Mentoring', 'Student Government', 'Nonprofit Work'], 'community'),
   },
   {
     id: 'career',
@@ -45,17 +57,17 @@ export const CATEGORIES = [
   {
     id: 'lifestyle',
     label: 'Lifestyle & Hobbies',
-    tags: tag(['Gardening', 'Travel', 'Cooking', 'Fitness', 'Fashion'], 'other'),
+    tags: tag(['Gardening', 'Travel', 'Cooking', 'Fitness', 'Fashion'], 'lifestyle'),
   },
   {
     id: 'media',
     label: 'Media & Entertainment',
-    tags: tag(['Film', 'Anime', 'Podcasts', 'Gaming', 'Music Industry'], 'other'),
+    tags: tag(['Film', 'Anime', 'Podcasts', 'Gaming', 'Music Industry'], 'media'),
   },
   {
     id: 'personal',
     label: 'Personal Development',
-    tags: tag(['Journaling', 'Mindfulness', 'Productivity', 'Public Speaking', 'Goal Setting'], 'other'),
+    tags: tag(['Journaling', 'Mindfulness', 'Productivity', 'Public Speaking', 'Goal Setting'], 'personal'),
   },
 ];
 
@@ -67,17 +79,29 @@ export const MAX_TAGS = 3;
 
 const ALL_TAGS = CATEGORIES.flatMap((c) => c.tags);
 
-// Unique built tracks (business/stem/healthcare/creative) among the selected tags,
-// in the order the student picked them. Tags that map to 'other' are dropped —
-// callers treat an empty result as "fully unbuilt, use the generic fallback".
-export function getBuiltTracks(selectedTagNames) {
+function uniqueTracksFromTags(selectedTagNames, allowedTracks) {
   const tracks = [];
   for (const name of selectedTagNames) {
     const found = ALL_TAGS.find((t) => t.name === name);
     const track = found?.track;
-    if (track && BUILT_TRACKS.includes(track) && !tracks.includes(track)) {
+    if (track && allowedTracks.includes(track) && !tracks.includes(track)) {
       tracks.push(track);
     }
   }
   return tracks;
+}
+
+// Unique built tracks (business/stem/healthcare/creative) among the selected tags, in the
+// order the student picked them. Drives the Screen 3 discovery chain — an empty result means
+// Discovery is skipped entirely.
+export function getBuiltTracks(selectedTagNames) {
+  return uniqueTracksFromTags(selectedTagNames, BUILT_TRACKS);
+}
+
+// Unique tracks with real Opportunity Finder content among the selected tags. Broader than
+// getBuiltTracks — includes tracks with no career/major/program data of their own. An empty
+// result means every selected tag is truly unbuilt (currently only "Law"), so Screen 4 falls
+// back to GENERIC_OPPORTUNITIES.
+export function getOpportunityTracks(selectedTagNames) {
+  return uniqueTracksFromTags(selectedTagNames, OPPORTUNITY_TRACKS);
 }

@@ -1,11 +1,8 @@
-import { getPrograms } from '../../data/programs';
+import { getMergedPrograms } from '../../data/programs';
+import { MAJORS } from '../../data/majors';
 
-export function programKey(majorId, institution) {
-  return `${majorId}::${institution}`;
-}
-
-export default function ProgramsStep({ majorId, educationLevel, selectedProgramKeys, onToggle }) {
-  const programs = getPrograms(majorId, educationLevel);
+export default function ProgramsStep({ majorIds, educationLevel, selectedProgramKeys, onToggle }) {
+  const programs = getMergedPrograms(majorIds, educationLevel);
 
   return (
     <div>
@@ -14,14 +11,13 @@ export default function ProgramsStep({ majorId, educationLevel, selectedProgramK
       </p>
       <div className="grid grid-3">
         {programs.map((p) => {
-          const key = programKey(majorId, p.institution);
-          const selected = selectedProgramKeys.includes(key);
+          const selected = selectedProgramKeys.includes(p.key);
           return (
             <button
               type="button"
-              key={key}
+              key={p.key}
               className={`card${selected ? ' selected' : ''}`}
-              onClick={() => onToggle(key)}
+              onClick={() => onToggle(p.key)}
             >
               <div className="card-title">{p.institution}</div>
               <p className="card-desc" style={{ fontWeight: 600, color: 'var(--ink)' }}>{p.program}</p>
@@ -39,6 +35,12 @@ export default function ProgramsStep({ majorId, educationLevel, selectedProgramK
                   <span className="label">Degree levels</span>
                   <strong>{p.degreeLevels.join(', ')}</strong>
                 </div>
+                {p.majorIds.length > 1 && (
+                  <div>
+                    <span className="label">Fits your selected majors</span>
+                    <strong>{p.majorIds.map((id) => MAJORS[id].name).join(', ')}</strong>
+                  </div>
+                )}
               </div>
               {p.transferNote && (
                 <p className="card-desc" style={{ marginTop: 10, color: 'var(--teal)', fontStyle: 'italic' }}>

@@ -1,17 +1,14 @@
-import { CAREERS } from '../../data/careers';
 import { MAJORS } from '../../data/majors';
 
-export default function CareersStep({ tracks, educationLevel, selectedCareerId, onSelect }) {
-  const careers = tracks.flatMap((t) => CAREERS[t][educationLevel]);
-
+export default function CareersStep({ careers, selectedCareerIds, onToggle }) {
   return (
     <div className="grid grid-3">
       {careers.map((career) => (
         <button
           type="button"
           key={career.id}
-          className={`card${selectedCareerId === career.id ? ' selected' : ''}`}
-          onClick={() => onSelect(career.id)}
+          className={`card${selectedCareerIds.includes(career.id) ? ' selected' : ''}`}
+          onClick={() => onToggle(career.id)}
         >
           <div className="card-title">{career.name}</div>
           <p className="card-desc">{career.overview}</p>

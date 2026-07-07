@@ -1,6 +1,15 @@
 // Core admissions steps (the roadmap "trunk"), by education level.
-// desc/resources can be a plain value or a function of ctx = { programNames, majorName, careerName }
-// so the first milestone can reference the student's actual selections.
+// title/desc/resources can be a plain value or a function of
+// ctx = { programNames, distinctSchoolNames, majorName, careerName } so steps can reference
+// the student's actual selections.
+
+// Names the specific school when the student's list has exactly one distinct school; falls
+// back to generic phrasing once it spans two or more (or none were picked yet).
+function finalGoalTitle(ctx) {
+  return ctx.distinctSchoolNames.length === 1
+    ? `Get accepted to ${ctx.distinctSchoolNames[0]}`
+    : 'Get accepted to one of your target schools';
+}
 
 export const TRUNK_STEPS = {
   highschool: [
@@ -34,7 +43,7 @@ export const TRUNK_STEPS = {
       resources: ['Submission checklist'],
     },
     {
-      id: 't6', title: 'Get accepted to your top-choice school', type: 'final', due: 'Apr',
+      id: 't6', title: finalGoalTitle, type: 'final', due: 'Apr',
       desc: 'The finish line. Everything on this path was built to get you here.',
       resources: [],
     },
@@ -65,7 +74,7 @@ export const TRUNK_STEPS = {
       resources: ['FAFSA checklist for transfer students'],
     },
     {
-      id: 't5', title: 'Get accepted', type: 'final', due: 'May',
+      id: 't5', title: finalGoalTitle, type: 'final', due: 'May',
       desc: 'The finish line. Everything on this path was built to get you here.',
       resources: [],
     },
@@ -96,7 +105,7 @@ export const TRUNK_STEPS = {
       resources: ['Submission checklist'],
     },
     {
-      id: 't5', title: 'Get accepted', type: 'final', due: 'Mar',
+      id: 't5', title: finalGoalTitle, type: 'final', due: 'Mar',
       desc: 'The finish line. Everything on this path was built to get you here.',
       resources: [],
     },
