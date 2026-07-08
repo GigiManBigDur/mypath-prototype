@@ -23,7 +23,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function configFor(node) {
   if (node.category === 'core' || node.type === 'today') return CORE_TYPE_CONFIG[node.coreType || node.type];
-  if (node.id.endsWith('-deadline')) return BRANCH_DEADLINE_CONFIG;
+  if (node.isLast) return BRANCH_DEADLINE_CONFIG;
   if (node.category === 'opportunity') return OPPORTUNITY_CONFIG;
   return BRANCH_STEP_CONFIG;
 }
@@ -170,6 +170,28 @@ export default function Roadmap({ roadmap }) {
   const anchorDone = selectedIsAnchorOnly && selected.branchSteps
     ? selected.branchSteps.filter((s) => isDone(s.id)).length
     : 0;
+  const anchorTotal = selectedIsAnchorOnly ? selected.branchSteps.length : 0;
+
+  // The chain-starting node has no single id of its own to toggle — its "complete" state is
+  // derived from its steps. Give it a real action at every state instead of a dead-end summary:
+  // kick off the first step, advance to the next incomplete one, or undo the whole chain once
+  // every step is done — so it responds like every other clickable node, not a lesser one.
+  const advanceChain = () => {
+    if (!selectedIsAnchorOnly) return;
+    if (anchorDone === anchorTotal) {
+      const updates = {};
+      selected.branchSteps.forEach((s) => { updates[s.id] = false; });
+      patch({ completedNodes: { ...state.completedNodes, ...updates } });
+      return;
+    }
+    const next = selected.branchSteps.find((s) => !isDone(s.id));
+    if (next) toggleDone(next.id);
+  };
+  const chainButtonLabel = anchorDone === 0
+    ? 'Start'
+    : anchorDone === anchorTotal
+      ? 'Completed — undo'
+      : `Continue — mark next step complete (${anchorDone}/${anchorTotal})`;
 
   return (
     <div>
@@ -241,7 +263,7 @@ export default function Roadmap({ roadmap }) {
               const labelX = n.side > 0 ? 20 : -20;
               return (
                 <g key={s.id} className="node-badge" onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
-                  <circle className="ring" r="13" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} />
+                  <circle className="ring" r="13" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                   {done ? <CheckCircle2 x="-7" y="-7" size={14} color="#fff" /> : <cfg.Icon x="-6" y="-6" size={12} color={cfg.color} />}
                   <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
                   <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.due}</text>
@@ -265,12 +287,12 @@ export default function Roadmap({ roadmap }) {
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
                     {n.required ? (
                       <>
-                        <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" />
+                        <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
                         {done ? <CheckCircle2 x="-9" y="-9" size={18} color="#fff" /> : <cfg.Icon x="-8" y="-8" size={16} color={cfg.color} />}
                       </>
                     ) : (
                       <>
-                        <circle className="ring" r="16" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} />
+                        <circle className="ring" r="16" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
                         {done ? <CheckCircle2 x="-8" y="-8" size={16} color="#fff" /> : <cfg.Icon x="-7" y="-7" size={14} color={cfg.color} />}
                       </>
                     )}
@@ -334,9 +356,18 @@ export default function Roadmap({ roadmap }) {
             )}
 
             {selectedIsAnchorOnly && (
-              <div className="step-chain-progress">
-                {anchorDone} / {selected.branchSteps.length} steps complete — see the branch on the map for each step.
-              </div>
+              <>
+                <div className="step-chain-progress">
+                  {anchorDone} / {anchorTotal} steps complete — see the branch on the map for each step.
+                </div>
+                <button
+                  className={`complete-btn ${anchorDone === anchorTotal ? 'done' : 'todo'}`}
+                  onClick={advanceChain}
+                >
+                  <CheckCircle2 size={16} />
+                  {chainButtonLabel}
+                </button>
+              </>
             )}
 
             {selected.type !== 'today' && !selectedIsAnchorOnly && (
