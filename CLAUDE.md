@@ -16,11 +16,16 @@ change direction:
 - **State lives in React** (`src/context/AppContext.jsx`, `useState`), persisted to
   `localStorage` on every change. Refreshing mid-flow restores where the user left off;
   there is no requirement to preserve it beyond that.
-- **Business, STEM, Healthcare, and Creative/Arts have full career/major/program content.**
-  Six more interest tracks (Sports, Community & Leadership, Media & Entertainment, Lifestyle &
-  Hobbies, Personal Development, non-STEM Academic) have real opportunities but no
-  career/major/program chain — see "Track resolution" below. Only "Law" falls all the way back
-  to the fully generic opportunity list.
+- **Business, STEM, Healthcare, Creative/Arts, and Academic/Humanities have full
+  career/major/program content** (`BUILT_TRACKS` in `interests.js`). Five more interest tracks
+  (Sports, Community & Leadership, Media & Entertainment, Lifestyle & Hobbies, Personal
+  Development) have real opportunities but no career/major/program chain — see "Track
+  resolution" below. Only "Law" falls all the way back to the fully generic opportunity list.
+  Note the `academic` track key is reused for both category concepts: it's the id of the
+  "Academic" interest *category* in `CATEGORIES` (which also contains the math-leaning
+  "Mathematics" tag that routes to `stem` instead) and separately the *track* key that the
+  humanities-leaning tags in that category (History, Philosophy, Political Science, Psychology,
+  Literature) route to — don't conflate the two when reading `interests.js`.
 
 ## Commands
 
@@ -192,7 +197,7 @@ drive it with a headless browser (Playwright works; `chromium-cli` was not avail
 environment — the Chromium binary it installs is cached under `~/Library/Caches/ms-playwright`,
 so reinstalling only needs `npm install playwright` in a scratch dir, not a fresh browser
 download). Cover at minimum:
-- One run per built track (Business, STEM, Healthcare, Creative) and one opportunity-only
+- One run per built track (Business, STEM, Healthcare, Creative, Academic/Humanities) and one opportunity-only
   track, through all 5 screens.
 - All three education levels at least once.
 - A multi-career/multi-major/multi-program selection spanning two tracks — confirm merged

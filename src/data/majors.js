@@ -265,4 +265,56 @@ export const MAJORS = {
     potentialCareers: ['Composer / Music Director'],
     timeToComplete: '2 years',
   },
+
+  // ---- Academic/Humanities: undergraduate majors ----
+  'political-science-prelaw': {
+    id: 'political-science-prelaw',
+    name: 'Political Science / Pre-Law',
+    overview: 'Study of government, law, and political systems.',
+    skills: ['Critical thinking', 'Argumentation', 'Research', 'Writing'],
+    potentialCareers: ['Lawyer', 'Policy Analyst', 'Diplomat'],
+    timeToComplete: '4 years (+3 for Law School)',
+  },
+  history: {
+    id: 'history',
+    name: 'History',
+    overview: 'Study of past events, primary sources, and historical methods.',
+    skills: ['Research', 'Critical analysis', 'Written communication'],
+    potentialCareers: ['Historian', 'Archivist', 'Museum Curator', 'Teacher'],
+    timeToComplete: '4 years (+2 for Master\'s)',
+  },
+  psychology: {
+    id: 'psychology',
+    name: 'Psychology',
+    overview: 'Study of the mind and behavior.',
+    skills: ['Research design', 'Statistics', 'Communication/empathy'],
+    potentialCareers: ['Psychologist', 'Counselor', 'Researcher'],
+    timeToComplete: '4 years (+5–6 for PhD/PsyD)',
+  },
+
+  // ---- Academic/Humanities: graduate majors ----
+  'jd-law': {
+    id: 'jd-law',
+    name: 'JD (Juris Doctor)',
+    overview: 'Professional law degree required to practice as a licensed attorney.',
+    skills: ['Legal research', 'Case analysis', 'Oral advocacy', 'Legal writing'],
+    potentialCareers: ['Attorney (JD)'],
+    timeToComplete: '3 years',
+  },
+  'phd-history': {
+    id: 'phd-history',
+    name: 'PhD in History',
+    overview: 'Advanced historical research training culminating in an original dissertation.',
+    skills: ['Archival research', 'Historiography', 'Academic writing', 'Teaching'],
+    potentialCareers: ['Professor / Research Historian'],
+    timeToComplete: '5–7 years',
+  },
+  'psyd-clinical-psych': {
+    id: 'psyd-clinical-psych',
+    name: 'PsyD / PhD in Clinical Psychology',
+    overview: 'Doctoral training in clinical assessment and therapy, required for licensure.',
+    skills: ['Clinical assessment', 'Psychotherapy', 'Research methods', 'Ethics'],
+    potentialCareers: ['Clinical Psychologist'],
+    timeToComplete: '5–6 years',
+  },
 };

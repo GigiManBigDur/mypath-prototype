@@ -175,6 +175,40 @@ export const PROGRAMS = {
     { institution: 'Eastman School of Music', program: 'MM Composition', overview: 'Highly respected composition program within the University of Rochester.', selectivity: 'Highly Selective', location: 'Rochester, NY', degreeLevels: ['MM'], gpaValue: 3.5, gpaWeighted: 'audition' },
     { institution: 'New England Conservatory', program: 'MM Composition', overview: 'Historic conservatory known for rigorous composition training.', selectivity: 'Highly Selective', location: 'Boston, MA', degreeLevels: ['MM'], gpaValue: 3.5, gpaWeighted: 'audition' },
   ],
+
+  // ---- Academic/Humanities: undergraduate ----
+  'political-science-prelaw': [
+    { institution: 'Georgetown University', program: 'Political Science / Government', overview: 'Private university in Washington, DC — renowned for political science given its location.', selectivity: 'Extremely Selective', location: 'Washington, DC', degreeLevels: ["Bachelor's"], gpaValue: 3.9 },
+    { institution: 'University of Michigan', program: 'Political Science', overview: 'Large public university with a well-regarded political science department.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
+    { institution: 'UC Berkeley', program: 'Political Science', overview: 'Public research university with a renowned political science program.', selectivity: 'Highly Selective', location: 'Berkeley, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
+  ],
+  history: [
+    { institution: 'Yale University', program: 'Department of History', overview: 'Private Ivy League university with a renowned history program.', selectivity: 'Extremely Selective', location: 'New Haven, CT', degreeLevels: ["Bachelor's"], gpaValue: 3.9 },
+    { institution: 'University of Virginia', program: 'Department of History', overview: 'Public university with a well-regarded history department.', selectivity: 'Highly Selective', location: 'Charlottesville, VA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
+    { institution: 'University of Chicago', program: 'Department of History', overview: 'Private research university renowned for its humanities programs.', selectivity: 'Extremely Selective', location: 'Chicago, IL', degreeLevels: ["Bachelor's"], gpaValue: 3.9 },
+  ],
+  psychology: [
+    { institution: 'University of Michigan', program: 'Department of Psychology', overview: 'Large public university with a renowned psychology department.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
+    { institution: 'Stanford University', program: 'Department of Psychology', overview: 'Private research university with a top-ranked psychology program.', selectivity: 'Extremely Selective', location: 'Stanford, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.9 },
+    { institution: 'UCLA', program: 'Department of Psychology', overview: 'Public university with a strong, research-active psychology program.', selectivity: 'Highly Selective', location: 'Los Angeles, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
+  ],
+
+  // ---- Academic/Humanities: graduate ----
+  'jd-law': [
+    { institution: 'Yale University', program: 'Yale Law School', overview: 'Widely regarded as the top-ranked law school in the country.', selectivity: 'Extremely Selective', location: 'New Haven, CT', degreeLevels: ['JD'], gpaValue: 3.9 },
+    { institution: 'Harvard University', program: 'Harvard Law School', overview: 'One of the largest and most influential law schools in the world.', selectivity: 'Extremely Selective', location: 'Cambridge, MA', degreeLevels: ['JD'], gpaValue: 3.9 },
+    { institution: 'Stanford University', program: 'Stanford Law School', overview: 'Small, highly selective law school with strong Silicon Valley/tech-law ties.', selectivity: 'Extremely Selective', location: 'Stanford, CA', degreeLevels: ['JD'], gpaValue: 3.9 },
+  ],
+  'phd-history': [
+    { institution: 'Harvard University', program: 'PhD in History', overview: 'One of the most prestigious history doctoral programs in the country.', selectivity: 'Extremely Selective', location: 'Cambridge, MA', degreeLevels: ['PhD'], gpaValue: 3.9 },
+    { institution: 'Princeton University', program: 'PhD in History', overview: 'Small, highly selective doctoral program with strong funding.', selectivity: 'Extremely Selective', location: 'Princeton, NJ', degreeLevels: ['PhD'], gpaValue: 3.9 },
+    { institution: 'UC Berkeley', program: 'PhD in History', overview: 'Large, well-resourced public university history doctoral program.', selectivity: 'Highly Selective', location: 'Berkeley, CA', degreeLevels: ['PhD'], gpaValue: 3.7 },
+  ],
+  'psyd-clinical-psych': [
+    { institution: 'Rutgers University', program: 'PsyD — GSAPP', overview: 'One of the oldest and most respected PsyD programs in the country.', selectivity: 'Highly Selective', location: 'Piscataway, NJ', degreeLevels: ['PsyD'], gpaValue: 3.5 },
+    { institution: 'University of Michigan', program: 'PhD in Clinical Psychology', overview: 'Research-intensive clinical psychology doctoral program.', selectivity: 'Extremely Selective', location: 'Ann Arbor, MI', degreeLevels: ['PhD'], gpaValue: 3.8 },
+    { institution: 'UCLA', program: 'PhD in Clinical Psychology', overview: 'Highly-ranked clinical psychology doctoral program with strong research funding.', selectivity: 'Extremely Selective', location: 'Los Angeles, CA', degreeLevels: ['PhD'], gpaValue: 3.8 },
+  ],
 };
 
 export function getPrograms(majorId, educationLevel) {

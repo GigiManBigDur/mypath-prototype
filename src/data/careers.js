@@ -219,6 +219,60 @@ export const CAREERS = {
       },
     ],
   },
+  academic: {
+    highschool: [
+      {
+        id: 'lawyer',
+        name: 'Lawyer / Attorney',
+        overview: 'Represents clients, interprets law, and argues cases in or out of court.',
+        salary: '~$85k–$145k+',
+        requiredEducation: "Bachelor's + Law School (JD) + passing the bar exam",
+        relevantMajors: ['political-science-prelaw'],
+      },
+      {
+        id: 'historian',
+        name: 'Historian / Archivist / Museum Curator',
+        overview: 'Researches, preserves, and interprets historical records and artifacts for museums, archives, or educational institutions.',
+        salary: '~$55k–$75k',
+        requiredEducation: "Bachelor's (Master's often preferred for curator/archivist roles)",
+        relevantMajors: ['history'],
+      },
+      {
+        id: 'psychologist',
+        name: 'Psychologist',
+        overview: 'Studies human behavior and mental processes; works in clinical, counseling, or research settings.',
+        salary: '~$85k–$100k (varies significantly by specialty)',
+        requiredEducation: "Bachelor's + Doctorate (PhD or PsyD) for licensed clinical practice",
+        relevantMajors: ['psychology'],
+      },
+    ],
+    undergraduate: [
+      {
+        id: 'attorney-jd',
+        name: 'Attorney (JD)',
+        overview: 'Practices law after completing law school and passing the bar — the direct next step from a pre-law bachelor\'s.',
+        salary: '~$85k–$200k+',
+        requiredEducation: 'JD (Juris Doctor)',
+        relevantMajors: ['jd-law'],
+      },
+      {
+        id: 'research-historian',
+        name: 'Professor / Research Historian',
+        overview: 'Conducts original historical research and teaches at the university level.',
+        salary: '~$60k–$90k',
+        requiredEducation: 'PhD in History',
+        relevantMajors: ['phd-history'],
+      },
+      {
+        id: 'clinical-psychologist',
+        name: 'Clinical Psychologist',
+        overview: 'Provides licensed therapy and clinical assessment after doctoral training.',
+        salary: '~$90k–$120k',
+        requiredEducation: 'PsyD or PhD in Clinical Psychology',
+        relevantMajors: ['psyd-clinical-psych'],
+      },
+    ],
+  },
 };
 
 // Transfer students see the same undergraduate-level careers as high schoolers.
@@ -226,6 +280,7 @@ CAREERS.business.transfer = CAREERS.business.highschool;
 CAREERS.stem.transfer = CAREERS.stem.highschool;
 CAREERS.healthcare.transfer = CAREERS.healthcare.highschool;
 CAREERS.creative.transfer = CAREERS.creative.highschool;
+CAREERS.academic.transfer = CAREERS.academic.highschool;
 
 // Merged career list across the given built tracks for one education level — the pool that
 // Screen 3a (multi-select) renders, and that callers filter by selectedCareerIds against.

@@ -4,7 +4,7 @@
 // of its own. A tag whose track is 'other' (currently just "Law") falls back to the fully
 // generic opportunity list — see getOpportunityTracks below.
 
-export const BUILT_TRACKS = ['business', 'stem', 'healthcare', 'creative'];
+export const BUILT_TRACKS = ['business', 'stem', 'healthcare', 'creative', 'academic'];
 
 export const OPPORTUNITY_TRACKS = [
   ...BUILT_TRACKS,
@@ -13,7 +13,6 @@ export const OPPORTUNITY_TRACKS = [
   'media',
   'lifestyle',
   'personal',
-  'academic',
 ];
 
 export const CATEGORIES = [
@@ -91,9 +90,9 @@ function uniqueTracksFromTags(selectedTagNames, allowedTracks) {
   return tracks;
 }
 
-// Unique built tracks (business/stem/healthcare/creative) among the selected tags, in the
-// order the student picked them. Drives the Screen 3 discovery chain — an empty result means
-// Discovery is skipped entirely.
+// Unique built tracks (business/stem/healthcare/creative/academic) among the selected tags, in
+// the order the student picked them. Drives the Screen 3 discovery chain — an empty result
+// means Discovery is skipped entirely.
 export function getBuiltTracks(selectedTagNames) {
   return uniqueTracksFromTags(selectedTagNames, BUILT_TRACKS);
 }
