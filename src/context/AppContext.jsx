@@ -6,6 +6,7 @@ const DEFAULT_STATE = {
   screen: 'survey', // survey | admissions | discovery | opportunities | plan
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
+  schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
   gpa: '',
   selectedCareerIds: [],
   selectedMajorIds: [],

@@ -98,11 +98,15 @@ built tracks (e.g. state restored from `localStorage` after interests changed).
 
 **`AppContext` (`src/context/AppContext.jsx`) is the single source of truth**, a flat
 `useState` object with a `patch()` merge function, auto-persisted to `localStorage` under
-`mypath-prototype-state`. Key fields: `interestTags`, `educationLevel`, `gpa`,
+`mypath-prototype-state`. Key fields: `interestTags`, `educationLevel`, `schoolYear` (what
+grade/year within that level — 9-12 for highschool, 1-4 undergraduate, 1-3 transfer; drives
+how many trunk stages get prepended, see "Multi-year trunk" below), `gpa`,
 `selectedCareerIds` / `selectedMajorIds` / `selectedProgramKeys` (all **arrays** — Screens 3a/
 3b/3c are multi-select, not single-select), `selectedOpportunityIds`, `completedNodes` (flat
 map of node/step id → boolean, shared by trunk tasks, opportunity chip steps, and GPA chips
-alike), and `screen`. `reset()` clears storage and returns to the survey.
+alike), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
+"What year are you in?" pill group resets `schoolYear: null` whenever `educationLevel` changes
+(its options are conditional on level), so Continue stays disabled until both are picked.
 
 **Track resolution has two tiers, not one.** `src/data/interests.js` exports:
 - `getBuiltTracks(tags)` — tracks with full career/major/program data (`business` / `stem` /
@@ -143,10 +147,11 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   rather than reading `OPPORTUNITIES[track][level]` directly.
 
 **Dates are "today"-anchored, not fixed-calendar.** `src/utils/dates.js`: data files store
-template dates as `{month, day}` (interpreted as N days after Aug 15 on an implied academic
-year — human-readable, no real year attached) or `{offsetDays: N}` for an explicit
-possibly-negative offset. `anchorDate(date, planStartDate)` is the one place a template date
-becomes a real `Date`, by adding its offset to `planStartDate` (= `new Date()`, captured fresh
+template dates as `{month, day, yearOffset?}` (interpreted as N days after Aug 15 on an
+implied academic year — human-readable, no real year attached — shifted `yearOffset` calendar
+years forward, default 0) or `{offsetDays: N}` for an explicit possibly-negative offset.
+`anchorDate(date, planStartDate)` is the one place a template date becomes a real `Date`, by
+adding its offset (plus `yearOffset` years) to `planStartDate` (= `new Date()`, captured fresh
 each time `generateRoadmap()` runs). This means every generated plan is relative to whatever
 day the user actually opens the app — a template date always maps to today-or-later, so only
 the two explicit negative-offset opportunities (one Lifestyle & Hobbies, one Personal
@@ -155,9 +160,31 @@ greys those out with a "Deadline passed" badge and disables selecting them, whic
 *why* nothing can ever appear before "You are here" on the roadmap: nothing past-dated can
 reach `selectedOpportunityIds` in the first place.
 
+**Multi-year trunk: `src/data/trunkSteps.js` is stages, not one flat list per level.**
+`TRUNK_STAGES[level][stageName]` holds `{ label, steps }` — the final stage in every level
+(`senior` / `application`) is the original single-year plan, unchanged. Earlier stages
+(`freshman`/`sophomore`/`junior` for highschool; `exploration`/`prep` for undergraduate;
+`current` for transfer) get prepended depending on how much runway the student has, per
+`STAGE_PLAN[level][schoolYear]` — an ordered array of stage names ending in that final stage
+(e.g. `highschool[9] = ['freshman','sophomore','junior','senior']`, `highschool[12] =
+['senior']`). `roadmapGenerator.js` looks up that sequence, and for each stage at index `i`
+applies `yearOffset: i` to every one of its steps' dates — so the stage the student is
+currently in is always `yearOffset: 0` regardless of what it's named, and later stages project
+forward one calendar year each. The first step of each stage (when more than one stage is in
+play) carries a `stageLabel` that `Roadmap.jsx` renders as a small "— Sophomore Year —" divider
+text above that node; a 12th-grader/4th-year/non-transfer-2nd-3rd-year student still gets
+exactly one stage, so `stageLabel` is never set and the roadmap is pixel-identical to before
+this feature existed. Transfer students 2+ years out keep the single `application` stage as-is
+(transfer timelines vary too much to model precisely) but get a `caveatNote` string
+(`TRANSFER_CAVEAT`) surfaced as a banner near the top of `Roadmap.jsx` instead of a fabricated
+multi-year transfer plan. **If you add a new stage, only add to `TRUNK_STAGES`/`STAGE_PLAN` —
+`roadmapLayout.js` needs no changes**, since the trunk already uses fixed per-node spacing
+(not date-proportional) and computes canvas height dynamically from content; it was already
+multi-year-safe before this feature, up to several dozen trunk nodes.
+
 **The roadmap is generated, then laid out as chips, not plotted step-by-step.**
 `roadmapGenerator.js` builds three things from state: a `today` node, a `trunk` array (the
-resolved `TRUNK_STEPS` for the education level), and a `chips` array — one entry per selected
+flattened, stage-resolved steps described above), and a `chips` array — one entry per selected
 opportunity (carrying its full ordered `steps` array as data: prep steps spread across the
 `prepWeeks` window before the deadline, clamped to start after today, plus the deadline/event
 step) and one per GPA checkpoint (`steps: null` — a simple non-expandable reminder, text from
@@ -213,3 +240,8 @@ download). Cover at minimum:
 - Extract node positions via `document.querySelectorAll('g.node-badge')` and check trunk nodes
   share one x value (straight line) and no two labels are within ~40px on both axes — visual
   layout bugs here are not exceptions, so screenshot + eyeball too, not just the DOM check.
+- At least one `schoolYear` per level that prepends stages (e.g. highschool 9, undergraduate 1,
+  transfer 1) plus the final-stage-only case (highschool 12, undergraduate 4, transfer 2/3) —
+  confirm the final-stage-only trunk is identical in node count/labels to before this feature,
+  and that the multi-stage cases show the right number of `.stage-label` dividers with no
+  overlap even at the longest case (highschool 9th grade, ~19 trunk nodes).

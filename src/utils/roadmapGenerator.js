@@ -2,14 +2,21 @@ import { MAJORS } from '../data/majors';
 import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import { findOpportunity } from '../data/opportunities';
-import { TRUNK_STEPS } from '../data/trunkSteps';
+import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { layoutRoadmap } from './roadmapLayout';
 import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween } from './dates';
 
+// Single-stage label (unchanged behavior for the final-year case) vs. the multi-year label used
+// once earlier stages are prepended, so a freshman doesn't see "personalized senior-year plan".
 const LEVEL_LABEL = {
   highschool: 'senior-year',
   undergraduate: 'graduate-school',
+  transfer: 'transfer',
+};
+const LEVEL_LABEL_MULTI_YEAR = {
+  highschool: 'high school',
+  undergraduate: 'grad-school prep',
   transfer: 'transfer',
 };
 
@@ -52,18 +59,30 @@ export function generateRoadmap(state) {
     resources: [],
   };
 
-  const trunkSteps = TRUNK_STEPS[level].map((step) => {
-    const realDate = anchorDate(step.date, planStartDate);
-    return {
-      id: step.id,
-      title: typeof step.title === 'function' ? step.title(ctx) : step.title,
-      type: step.type,
-      date: realDate,
-      due: formatDate(realDate),
-      desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
-      resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
-    };
+  const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
+  const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
+
+  const trunkSteps = stageNames.flatMap((stageName, stageIndex) => {
+    const stage = TRUNK_STAGES[level][stageName];
+    return stage.steps.map((step, stepIndex) => {
+      const realDate = anchorDate({ ...step.date, yearOffset: stageIndex }, planStartDate);
+      return {
+        id: step.id,
+        title: typeof step.title === 'function' ? step.title(ctx) : step.title,
+        type: step.type,
+        date: realDate,
+        due: formatDate(realDate),
+        desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
+        resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
+        stageLabel: stepIndex === 0 && stageNames.length > 1 ? stage.label : undefined,
+      };
+    });
   });
+
+  // Transfer students 2+ years out still get the single application-year trunk (transfer
+  // timelines vary too much to model precisely) — flag that assumption instead of pretending
+  // otherwise.
+  const caveatNote = level === 'transfer' && schoolYear >= 2 ? TRANSFER_CAVEAT : null;
 
   const chips = [
     ...buildGpaChips(selectedPrograms, planStartDate),
@@ -76,14 +95,17 @@ export function generateRoadmap(state) {
     chips,
   });
 
+  const levelLabel = stageNames.length > 1 ? LEVEL_LABEL_MULTI_YEAR[level] : LEVEL_LABEL[level];
+
   return {
     title: titleFor(selectedCareers),
-    subtitle: `A personalized ${LEVEL_LABEL[level]} plan, built from your profile.`,
+    subtitle: `A personalized ${levelLabel} plan, built from your profile.`,
     today: laidToday,
     trunk,
     chips: laidChips,
     canvasHeight,
     canvasWidth,
+    caveatNote,
   };
 }
 

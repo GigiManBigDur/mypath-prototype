@@ -51,6 +51,10 @@ export default function Roadmap({ roadmap }) {
         <span className="legend-item"><span className="dot" style={{ background: 'var(--gold)' }} /> You are here</span>
       </div>
 
+      {roadmap.caveatNote && (
+        <div className="caveat-banner">{roadmap.caveatNote}</div>
+      )}
+
       <div className="canvas-scroll">
         <svg viewBox={`0 0 ${roadmap.canvasWidth} ${roadmap.canvasHeight}`} width={roadmap.canvasWidth} height={displayHeight}>
           <path
@@ -84,11 +88,16 @@ export default function Roadmap({ roadmap }) {
             const cfg = TYPE_CONFIG[n.type];
             const done = isDone(n.id);
             return (
-              <g key={n.id} className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
-                <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" />
-                {done ? <CheckCircle2 x="-9" y="-9" size={18} color="#fff" /> : <cfg.Icon x="-8" y="-8" size={16} color={cfg.color} />}
-                <text className="node-label" x={n.x < 400 ? -26 : 26} y="2" textAnchor={n.x < 400 ? 'end' : 'start'} fontWeight="600">{n.title}</text>
-                <text className="node-due" x={n.x < 400 ? -26 : 26} y="18" textAnchor={n.x < 400 ? 'end' : 'start'}>{cfg.label} · {n.due}</text>
+              <g key={n.id}>
+                {n.stageLabel && (
+                  <text className="stage-label" x={n.x} y={n.y + 46} textAnchor="middle">— {n.stageLabel} —</text>
+                )}
+                <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
+                  <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" />
+                  {done ? <CheckCircle2 x="-9" y="-9" size={18} color="#fff" /> : <cfg.Icon x="-8" y="-8" size={16} color={cfg.color} />}
+                  <text className="node-label" x={n.x < 400 ? -26 : 26} y="2" textAnchor={n.x < 400 ? 'end' : 'start'} fontWeight="600">{n.title}</text>
+                  <text className="node-due" x={n.x < 400 ? -26 : 26} y="18" textAnchor={n.x < 400 ? 'end' : 'start'}>{cfg.label} · {n.due}</text>
+                </g>
               </g>
             );
           })}

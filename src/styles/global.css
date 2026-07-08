@@ -326,6 +326,8 @@ button.card.passed:hover {
 .legend-item { display:flex; align-items:center; gap:6px; }
 .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
 
+.caveat-banner { margin-bottom: 18px; background: var(--card); border: 1px solid var(--paper-line); border-left: 4px solid var(--gold); border-radius: 4px; padding: 14px 18px; font-size: 13.5px; color: var(--ink-soft); }
+
 .canvas-scroll { overflow-x: auto; border: 1px solid var(--paper-line); border-radius: 6px; background: var(--card); }
 .canvas-scroll svg { display:block; margin: 0 auto; }
 
@@ -334,6 +336,7 @@ button.card.passed:hover {
 .node-badge:hover circle.ring { r: 22; }
 .node-label { font-family:'IBM Plex Sans'; font-size:13px; font-weight:500; fill: var(--ink); }
 .node-due { font-family:'IBM Plex Mono', monospace; font-size:10px; fill: var(--ink-soft); }
+.stage-label { font-family:'IBM Plex Sans'; font-size:11px; font-weight:600; fill: var(--stone); letter-spacing: 0.03em; text-transform: uppercase; }
 
 .overlay { position:fixed; inset:0; background: rgba(30,61,50,0.35); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
 .modal { background: var(--card); max-width:420px; width:100%; border-radius:6px; padding:26px; position:relative; border:1px solid var(--paper-line); max-height: 85vh; overflow-y: auto; }

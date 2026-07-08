@@ -1,23 +1,27 @@
 // Two layers of dates:
 //
-// 1. Stored/template dates — { month, day } (1-indexed month), used in data files. No explicit
-//    year; interpreted as "N days after Aug 15" on an implied academic-year template, wrapping
-//    Jan–Jun into the following year. This keeps data files human-readable ("Sep 8") without
-//    committing to a real calendar year.
+// 1. Stored/template dates — { month, day, yearOffset? } (1-indexed month), used in data
+//    files. No explicit real year; interpreted as "N days after Aug 15" on an implied
+//    academic-year template, wrapping Jan–Jun into the following year. This keeps data files
+//    human-readable ("Sep 8") without committing to a real calendar year. `yearOffset` (default
+//    0) shifts that whole template year forward by N years — used for multi-year plans, where
+//    e.g. a Freshman-year task might be yearOffset 0 (this year) and a Senior-year task
+//    yearOffset 3 (three years from now), both expressed with ordinary month/day.
 //
 // 2. Real, "today"-anchored dates — actual JS Date objects used everywhere else in the app
 //    (layout, display, comparisons). anchorDate() converts a stored template date into a real
-//    date by adding its "days after Aug 15" offset to PLAN_START_DATE (today), so the plan's
-//    internal timeline always makes sense relative to whatever day the user actually opens the
-//    app. A stored date can also be { offsetDays: N } — an explicit, possibly-negative offset
-//    from today, used to deliberately place an item in the past (e.g. a passed deadline).
+//    date by adding its "days after Aug 15" offset (plus yearOffset years) to PLAN_START_DATE
+//    (today), so the plan's internal timeline always makes sense relative to whatever day the
+//    user actually opens the app. A stored date can also be { offsetDays: N } — an explicit,
+//    possibly-negative offset from today, used to deliberately place an item in the past (e.g.
+//    a passed deadline).
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const BASE_YEAR = 2024;
 
-function templateJsDate({ month, day }) {
-  const year = month >= 8 ? BASE_YEAR : BASE_YEAR + 1;
+function templateJsDate({ month, day, yearOffset = 0 }) {
+  const year = (month >= 8 ? BASE_YEAR : BASE_YEAR + 1) + yearOffset;
   return new Date(year, month - 1, day);
 }
 
