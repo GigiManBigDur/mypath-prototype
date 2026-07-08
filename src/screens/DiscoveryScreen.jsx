@@ -137,6 +137,7 @@ export default function DiscoveryScreen() {
           educationLevel={level}
           selectedProgramKeys={state.selectedProgramKeys}
           onToggle={toggleProgram}
+          gpa={state.gpa}
         />
       )}
 

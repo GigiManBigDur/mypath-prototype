@@ -138,7 +138,22 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
 - `programs.js` entries carry a real numeric `gpaValue` (illustrative, from a fixed benchmark
   table) instead of a selectivity-tier string, plus optional `gpaWeighted: 'portfolio' |
   'audition'` for programs where GPA is secondary to a submission (e.g. Juilliard has
-  `gpaValue: null`).
+  `gpaValue: null`). **Every major has 5 programs, not 3** — the original 3 flagship-tier
+  options plus 2 added afterward at the `Moderately Selective` (~3.2-3.3) / `Less Selective`
+  (~3.0-3.1) tiers specifically so a lower GPA doesn't see the same MIT/Stanford-only list a 4.0
+  would. `selectProgramsForGpa(programs, gpaString, majorCount)` (called from
+  `ProgramsStep.jsx`, not `getMergedPrograms` itself, which stays a pure merge/dedupe) then picks
+  which of those to actually show: mostly programs at-or-below the entered GPA plus one
+  aspirational reach pick for motivation, backfilling from further reach options only if there
+  weren't enough reachable ones to fill the quota (`maxShownFor(majorCount)`, 4 cards per
+  selected major). Programs with `gpaValue: null` are always treated as reachable on the GPA
+  axis, matching their "GPA is secondary" intent. A blank/unparseable GPA does **not** guess —
+  it falls back to `evenSample()`, an evenly-spaced cross-section of the full selectivity range,
+  which is also what a GPA high enough to make everything "reachable" effectively converges to.
+  This is deliberately not a Reach/Match/Safety system (no labels, no balancing logic) — it only
+  changes which programs get selected for display, using the existing `selectivity` string
+  as-is; the `ProgramsStep.jsx` card grid also surfaces `gpaValue` as a "Typical GPA" line
+  (previously computed but never actually rendered anywhere).
 - `opportunities.js`: every opportunity has `date` (a template `{month, day}`, or
   `{offsetDays: N}` for the two deliberately-in-the-past ones — see dates below) and
   `prepSteps` (2-4 ordered sub-task names). `getOpportunityPool(tracks, level)` /

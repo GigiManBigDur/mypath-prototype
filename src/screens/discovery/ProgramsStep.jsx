@@ -1,8 +1,18 @@
-import { getMergedPrograms } from '../../data/programs';
+import { getMergedPrograms, selectProgramsForGpa } from '../../data/programs';
 import { MAJORS } from '../../data/majors';
 
-export default function ProgramsStep({ majorIds, educationLevel, selectedProgramKeys, onToggle }) {
-  const programs = getMergedPrograms(majorIds, educationLevel);
+// Portfolio/audition programs have gpaValue === null (GPA is explicitly secondary there); every
+// other program shows its illustrative benchmark, plus a note when a submission also matters.
+function gpaBenchmarkText(p) {
+  if (p.gpaValue == null) {
+    return p.gpaWeighted === 'audition' ? 'Audition-based — GPA secondary' : 'Portfolio-based — GPA secondary';
+  }
+  return `${p.gpaValue}+${p.gpaWeighted ? ` (${p.gpaWeighted} also weighed)` : ''}`;
+}
+
+export default function ProgramsStep({ majorIds, educationLevel, selectedProgramKeys, onToggle, gpa }) {
+  const allPrograms = getMergedPrograms(majorIds, educationLevel);
+  const programs = selectProgramsForGpa(allPrograms, gpa, majorIds.length);
 
   return (
     <div>
@@ -26,6 +36,10 @@ export default function ProgramsStep({ majorIds, educationLevel, selectedProgram
                 <div>
                   <span className="label">Selectivity</span>
                   <strong>{p.selectivity}</strong>
+                </div>
+                <div>
+                  <span className="label">Typical GPA</span>
+                  <strong>{gpaBenchmarkText(p)}</strong>
                 </div>
                 <div>
                   <span className="label">Location</span>
