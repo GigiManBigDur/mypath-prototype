@@ -126,18 +126,39 @@ export default function Roadmap({ roadmap }) {
     };
   }, [zoomAt, view.zoom, view.panX, view.panY]);
 
+  // Pointer capture must NOT be grabbed on pointerdown itself — capturing immediately redirects
+  // the eventual 'click' away from whatever was actually hit (a node deep inside the SVG), which
+  // silently broke every node click and mark-complete toggle. Only start capturing (and panning)
+  // once the pointer has actually moved past a small threshold, so a plain click always reaches
+  // its real target and only a genuine drag pans the canvas.
+  const DRAG_THRESHOLD = 5;
   const onPointerDown = (e) => {
-    dragState.current = { startX: e.clientX, startY: e.clientY, startPanX: view.panX, startPanY: view.panY };
-    setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    dragState.current = {
+      pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+      startPanX: view.panX, startPanY: view.panY, moved: false,
+    };
   };
   const onPointerMove = (e) => {
-    if (!dragState.current) return;
-    const dx = e.clientX - dragState.current.startX;
-    const dy = e.clientY - dragState.current.startY;
-    setView((v) => ({ ...v, panX: dragState.current.startPanX + dx, panY: dragState.current.startPanY + dy }));
+    const ds = dragState.current;
+    if (!ds) return;
+    const dx = e.clientX - ds.startX;
+    const dy = e.clientY - ds.startY;
+    if (!ds.moved) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      ds.moved = true;
+      setDragging(true);
+      e.currentTarget.setPointerCapture(ds.pointerId);
+    }
+    setView((v) => ({ ...v, panX: ds.startPanX + dx, panY: ds.startPanY + dy }));
   };
-  const onPointerUp = () => { dragState.current = null; setDragging(false); };
+  const onPointerUp = (e) => {
+    const ds = dragState.current;
+    if (ds?.moved) {
+      try { e.currentTarget.releasePointerCapture(ds.pointerId); } catch { /* already released */ }
+    }
+    dragState.current = null;
+    setDragging(false);
+  };
 
   const zoomButton = (factor) => {
     const vw = viewportRef.current?.clientWidth ?? VIEWPORT_HEIGHT;
@@ -189,7 +210,7 @@ export default function Roadmap({ roadmap }) {
             className="roadmap-canvas-inner"
             style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
           >
-            <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight}>
+            <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
             {/* Spine connective line: today up through every spine item, in chronological order. */}
             <path
               d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}

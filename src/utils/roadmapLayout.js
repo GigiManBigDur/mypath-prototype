@@ -19,7 +19,12 @@ const LABEL_BUFFER = 300; // horizontal room for node/branch label text extendin
 const PIXELS_PER_DAY = 3;
 const MIN_SPINE_GAP = 90;
 const MIN_BRANCH_GAP = 46;
-const BRANCH_SLOPE = 0.55; // horizontal px per vertical px traveled along a branch (diagonal peel)
+// Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
+// constant slope for a whole branch makes every point in it exactly colinear with the anchor, so
+// "connect step to previous step" and "connect every step straight back to the anchor" render as
+// the same single straight ray. Alternating slopes give each segment its own direction, so the
+// chain actually bends at every node instead of looking like one long spoke.
+const BRANCH_SLOPES = [0.65, 0.2];
 
 // Rough label-block geometry, used only to decide "would these two labels visually collide" —
 // doesn't need to be pixel-perfect, just a safe overestimate (IBM Plex Sans at 13px averages
@@ -57,32 +62,38 @@ function intersects(a, b) {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
-// Positions one item's step chain along its own diagonal. `side` is +1 (right) or -1 (left).
-// Coordinates are relative to the parent spine node at (0, anchorY) and get shifted into final
-// canvas space later, alongside everything else. `placedLabels` accumulates every label bbox
-// placed so far (across every item, not just this branch) so each step can route around anything
-// already on the canvas — including labels from other chains — instead of only avoiding itself.
+// Positions one item's step chain as a genuine connected path — each step's x is accumulated
+// incrementally from the PREVIOUS step's x (not computed fresh from the anchor every time), using
+// an alternating slope per segment so the path actually bends at each node instead of tracing one
+// straight ray. `side` is +1 (right) or -1 (left). Coordinates are relative to the parent spine
+// node at (0, anchorY) and get shifted into final canvas space later, alongside everything else.
+// `placedLabels` accumulates every label bbox placed so far (across every item, not just this
+// branch) so each step can route around anything already on the canvas — including labels from
+// other chains — instead of only avoiding itself.
 function layoutBranch(steps, anchorY, side, placedLabels) {
   const base = steps[0].date;
   let prevRel = 0;
+  let prevX = 0;
   return steps.map((step, i) => {
     let rel = MIN_BRANCH_GAP + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
     if (i > 0 && rel - prevRel < MIN_BRANCH_GAP) rel = prevRel + MIN_BRANCH_GAP;
 
+    const slope = BRANCH_SLOPES[i % BRANCH_SLOPES.length];
     const width = blockWidth(step.title, step.due);
-    let x = side * rel * BRANCH_SLOPE;
+    let x = prevX + side * (rel - prevRel) * slope;
     let y = anchorY - rel;
     let bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
     let guard = 0;
     while (guard < MAX_NUDGES && placedLabels.some((p) => intersects(p, bbox))) {
       rel += NUDGE_STEP;
-      x = side * rel * BRANCH_SLOPE;
+      x = prevX + side * (rel - prevRel) * slope;
       y = anchorY - rel;
       bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
       guard += 1;
     }
     placedLabels.push(bbox);
     prevRel = rel;
+    prevX = x;
     return { ...step, x, y };
   });
 }

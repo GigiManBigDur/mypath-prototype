@@ -203,16 +203,26 @@ a light forward-only minimum-gap pass so two items landing on the same day don't
 is a genuine change from the old trunk, which used fixed per-node spacing; the old trunk had no
 branches to route around, this one does, so position now has to track real elapsed time.
 **If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
-(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPE`) — canvas width/height are
+(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
 always derived from actual content afterward, never assumed.**
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
 "collapsible chip that expands on click" — density is now handled by zoom/pan (below), not by
-hiding content behind a click. Each branch is computed in true isolation from every *other*
-branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal), which is what actually fixes
-the old overlap bug (multiple opportunities' individual prep steps used to compete for the same
-lateral space around one collapsed chip). But branches still have to share the canvas with the
+hiding content behind a click. A branch's steps are laid out as a genuinely connected path, not
+a fan: **`layoutBranch()` accumulates each step's x incrementally from the *previous* step's x**
+(`prevX + side * deltaRel * slope`), using an alternating slope per segment (`BRANCH_SLOPES =
+[0.65, 0.2]`) rather than one constant slope for the whole branch. A single constant slope makes
+every point in a branch a pure function of one cumulative distance from the anchor — i.e.
+mathematically colinear — so drawing "step → previous step" segments renders *identically* to
+drawing every step straight back to the anchor (a fan/starburst), even though the code is
+already connecting them in sequence; the visual bug is geometric, not in which points get
+connected. Alternating the slope per segment breaks that colinearity so the chain actually bends
+at each node — **don't collapse `BRANCH_SLOPES` back down to one constant, or the fan comes
+back even though the connecting code looks correct.** Each branch is still computed in true
+isolation from every *other* branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal),
+which is what actually fixes the old collapsed-chip overlap bug (multiple opportunities' prep
+steps used to compete for the same lateral space). But branches still have to share the canvas with the
 spine's own labels and with each other's labels, so there's a second layer:
 `roadmapLayout.js` maintains a running `placedLabels` list of every label's *approximate*
 rendered bounding box (character-count-based width estimate, not real DOM measurement) — every
@@ -224,6 +234,16 @@ Every spine item also alternates which side its *own* label renders on (`labelSi
 is always dead-center, so without alternating, every spine label would permanently claim one
 side and guarantee a collision with any branch peeling that way; a branch always peels to the
 side **opposite** its own anchor's label so an item never has to route around itself.
+
+**The `<svg>` itself needs `style={{ overflow: 'visible' }}`.** SVG root elements default to CSS
+`overflow: hidden` on their own coordinate box (`0,0` to `canvasWidth,canvasHeight`), independent
+of the pannable `.roadmap-viewport`'s own clipping — a long label positioned near x=0 or the
+right edge (common for a left/right-anchored label on a node close to center, or any label whose
+real rendered width exceeds the approximate estimate used for layout) would get visually clipped
+by the SVG's own box, even though the actual text content was always intact in the DOM (this
+looked like truncated/missing characters, e.g. "Local Community Theater..." rendering as "al
+Community Theater...", but was pixel clipping, not string truncation). Since zoom/pan already
+exists so nothing has to fit in one fixed frame, there's no reason to let the SVG clip anything.
 
 `Roadmap.jsx` renders the spine, every branch, and the zoom/pan viewport, and handles the detail
 modal. Required (core) nodes render with a solid ring (filled white when incomplete, filled with
@@ -253,6 +273,17 @@ viewport DOM node). `fitView()` auto-fits on load/whenever `canvasWidth`/`canvas
 buttons are a DOM sibling of `.roadmap-viewport`, not a child of it** — nesting them inside the
 div that owns the drag `onPointerDown` handler caused `setPointerCapture` to swallow the
 buttons' own click events; keep that separation if you touch this again.
+
+**`onPointerDown` must NOT call `setPointerCapture` immediately** — doing so broke node clicks
+and mark-complete entirely (a real mouse click still fires `pointerdown`/`pointerup`, and
+capturing the pointer on `down` redirects the resulting `click` away from whatever was actually
+hit deep inside the SVG, so it never reached a node's `onClick`). The fix: `onPointerDown` only
+records the starting position; `onPointerMove` compares against a `DRAG_THRESHOLD` (5px) and
+only calls `setPointerCapture`/starts panning once the pointer has genuinely moved past it. A
+plain click (down+up with no real movement) never triggers capture at all, so it reaches its
+real target through normal bubbling; only an actual drag pans. If you rework the pan gesture,
+keep this click-vs-drag distinction — it's not optional polish, node clicks silently stop
+working without it.
 
 ## Design tokens
 
