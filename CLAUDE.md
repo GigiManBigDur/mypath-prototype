@@ -195,51 +195,45 @@ in `Roadmap.jsx` — see Task 3 of the restructure this became):
   opportunity, anchored at the date of its *earliest* prep step (its "starting point", e.g.
   "Register for DECA") rather than its deadline, carrying its full ordered `steps` chain as data
   (prep steps spread across the `prepWeeks` window before the deadline, clamped to start after
-  today). **The last prep step *is* the deadline/event** (e.g. "Compete at Regionals") — it
-  carries `opp.date` directly and `isLast: true`, rather than a separate trailing
-  `${opp.id}-deadline` node with its own near-duplicate date; that used to be a genuine leftover
-  from before chains existed, when each opportunity was a single hardcoded-date node. `isLast` is
-  also what `Roadmap.jsx`'s `configFor()` uses to give that step the "deadline" icon/label — don't
-  go back to sniffing `id.endsWith('-deadline')`, that id no longer exists.
+  today, plus the deadline/event step itself).
 
-**`roadmapLayout.js` is three strictly separate passes — position, connector lines, and label
-placement — and they must stay that way.** This is the load-bearing rule for this file, after
-several rounds of collision-avoidance patches previously blurred the line between "where a node
-is" and "how dense things look," which caused a real regression: a step 3 weeks out and one 4
-months out in the *same* chain could end up at arbitrary, date-disconnected heights just because
-they shared a branch.
+`roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
+up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
+a light forward-only minimum-gap pass so two items landing on the same day don't collide. This
+is a genuine change from the old trunk, which used fixed per-node spacing; the old trunk had no
+branches to route around, this one does, so position now has to track real elapsed time.
+**If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
+(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
+always derived from actual content afterward, never assumed.**
 
-1. **Position (pure).** `dateToY(date, today)` is the *one* function that turns a real date into
-   a y-coordinate (`PIXELS_PER_DAY`), used identically for spine items and sub-branch steps —
-   never computed relative to a sibling, a previous step, or any other node's resolved position.
-   `computeBranchPositions()` derives a step's x the same way: purely from *its own* date's offset
-   from the chain's fixed anchor date (`item.date`) and a constant `BRANCH_SLOPE`, never from
-   where a previous step in the same chain ended up. The **one documented exception**:
-   `computeSpinePositions()` applies a light forward-only minimum-gap pass to spine dots only
-   (`MIN_SPINE_GAP`) so two spine items landing almost on the same day don't render as touching
-   circles — sub-branch steps get no such adjustment, by design, so a step's height always
-   corresponds to its real date with zero fudging.
-2. **Connector lines.** Built after positions are final, purely by reading them — the spine
-   polyline runs today → soonest → ... → latest, and each branch runs anchor → step 1 → step 2 →
-   ... (never fanned back to the anchor for every step). This pass never writes a position.
-3. **Label placement.** Also built after positions and connector segments are final. Given a
-   node's already-fixed dot, `placeLabel()` finds how far its label *text* needs to sit from that
-   dot to clear every other placed label and every connector segment on the canvas (own chain's
-   segments included) — via `boxesIntersect()` for label-vs-label and a Liang-Barsky
-   `segmentIntersectsBox()` for label-vs-line (a straight connector can cut through a distant,
-   unrelated label without either endpoint overlapping it). It returns a `labelOffset` **distance
-   only** — it never touches x/y. All spine labels are placed first (sub-pass 3a, so a branch can
-   see every spine label regardless of chronological order), then every branch's step labels
-   (sub-pass 3b), so nothing is ever nudged before the thing it needs to route around exists.
-
-If you're changing how lines are drawn, you should not need to touch `dateToY`/
-`computeBranchPositions`, and vice versa — that separation is intentional, keep it. `Roadmap.jsx`
-additionally draws a thin **leader tick** from a dot to its label whenever `labelOffset` exceeds
-the node's default gap (`SPINE_LABEL_GAP`/`BRANCH_LABEL_GAP` — duplicated as constants in
-`Roadmap.jsx` since they're a rendering-only threshold, not a position value) — dense clusters
-(several prep steps only days apart) can still push a label far from its own correctly-positioned
-dot, and without the tick a far-offset label reads as floating/unattached even though it's not
-overlapping anything.
+Any spine item with more than one step (in practice, only opportunities — see above) gets its
+own diagonal sub-branch peeling off the spine at that item's date, instead of the old
+"collapsible chip that expands on click" — density is now handled by zoom/pan (below), not by
+hiding content behind a click. A branch's steps are laid out as a genuinely connected path, not
+a fan: **`layoutBranch()` accumulates each step's x incrementally from the *previous* step's x**
+(`prevX + side * deltaRel * slope`), using an alternating slope per segment (`BRANCH_SLOPES =
+[0.65, 0.2]`) rather than one constant slope for the whole branch. A single constant slope makes
+every point in a branch a pure function of one cumulative distance from the anchor — i.e.
+mathematically colinear — so drawing "step → previous step" segments renders *identically* to
+drawing every step straight back to the anchor (a fan/starburst), even though the code is
+already connecting them in sequence; the visual bug is geometric, not in which points get
+connected. Alternating the slope per segment breaks that colinearity so the chain actually bends
+at each node — **don't collapse `BRANCH_SLOPES` back down to one constant, or the fan comes
+back even though the connecting code looks correct.** Each branch is still computed in true
+isolation from every *other* branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal),
+which is what actually fixes the old collapsed-chip overlap bug (multiple opportunities' prep
+steps used to compete for the same lateral space). But branches still have to share the canvas with the
+spine's own labels and with each other's labels, so there's a second layer:
+`roadmapLayout.js` maintains a running `placedLabels` list of every label's *approximate*
+rendered bounding box (character-count-based width estimate, not real DOM measurement) — every
+spine item's label is placed first (all of them, both earlier and later in time than any given
+branch, since a branch has to route around labels on both sides of it chronologically), then
+each branch step nudges itself further along its own diagonal (via `NUDGE_STEP`) until it clears
+every previously-placed box, registering its own box before the next step or branch is placed.
+Every spine item also alternates which side its *own* label renders on (`labelSide`) — spine x
+is always dead-center, so without alternating, every spine label would permanently claim one
+side and guarantee a collision with any branch peeling that way; a branch always peels to the
+side **opposite** its own anchor's label so an item never has to route around itself.
 
 **The `<svg>` itself needs `style={{ overflow: 'visible' }}`.** SVG root elements default to CSS
 `overflow: hidden` on their own coordinate box (`0,0` to `canvasWidth,canvasHeight`), independent
@@ -254,23 +248,15 @@ exists so nothing has to fit in one fixed frame, there's no reason to let the SV
 `Roadmap.jsx` renders the spine, every branch, and the zoom/pan viewport, and handles the detail
 modal. Required (core) nodes render with a solid ring (filled white when incomplete, filled with
 the type color when done); optional (opportunity anchors and their branch steps) render with a
-thinner, dashed hollow ring when incomplete. **Every ring `<circle>` needs `pointerEvents="all"`**
-— an unfilled circle (`fill="none"`, the hollow/optional style whenever a node isn't done yet)
-only hit-tests its stroke by default SVG behavior, not its interior, so without this a hollow
-node's clickable area was a thin ring around the edge instead of matching its visual size; solid
-circles always have a real fill so they never needed it, but it's applied everywhere now for
-consistency. Every node is independently clickable — a core node or a branch step opens the
-standard modal (desc + resources + complete-toggle). An opportunity's own anchor node has no
-single id of its own to toggle (its completion is derived from its steps), so its modal instead
-gets a status-driven action button: **"Start"** (0 steps done, marks the first step complete),
-**"Continue — mark next step complete (X/Y)"** (some done, marks the next incomplete one), or
-**"Completed — undo"** (all done, resets every step in the chain back to incomplete) — this
-keeps the anchor "actionable" like every other node instead of being a dead-end read-only
-summary, while still deriving its state from the real per-step `completedNodes` entries rather
-than introducing a separate completion concept. `completedNodes` is flat and shared, so step ids
-(`${opp.id}-prep-${i}`) just need to be unique — no separate tracking structure. The Today node
-is never completable and core-progress counting only considers `required` spine items
-(`roadmap.spine.filter(n => n.required)`), matching the old trunk-only progress count.
+thinner, dashed hollow ring when incomplete. Every node is independently clickable — a core node
+or a branch step opens the standard modal (desc + resources + complete-toggle); an opportunity's
+own anchor node opens a read-only summary ("X/Y steps complete") with **no** toggle of its own,
+since the actual actionable items are its branch steps, which are already directly visible and
+clickable on the canvas rather than hidden inside the anchor's modal. `completedNodes` is flat
+and shared, so step ids (`${opp.id}-prep-${i}`, `${opp.id}-deadline`) just need to be unique —
+no separate tracking structure. The Today node is never completable and core-progress counting
+only considers `required` spine items (`roadmap.spine.filter(n => n.required)`), matching the
+old trunk-only progress count.
 
 **Zoom, pan, and drag** replace the old fixed-scale, horizontal-scroll-only canvas (`.canvas-
 scroll`), since a multi-year plan with several opportunities can now run to several thousand
