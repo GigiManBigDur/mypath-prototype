@@ -58,20 +58,25 @@ version of the project at all times, so:
   that commit — don't wait for the user to run `/init` again. A stale CLAUDE.md is a bug the
   same way a failing build is.
 
-**GitHub Pages redeploy is part of the same standing workflow as commit+push — not opt-in.**
-After a meaningful change, run `npm run deploy:pages` alongside the commit+push so
-`https://gigimanbigdur.github.io/mypath-prototype/` always reflects the latest code. User
-asked for this explicitly ("can you update the newest version into it every time we make
-changes?"). It builds with `DEPLOY_TARGET=gh-pages` (which flips `vite.config.js`'s `base` to
-`/mypath-prototype/` — GitHub Pages serves project sites under a subpath, not the domain root)
-and pushes `dist/` to the `gh-pages` branch via the `gh-pages` npm package. This requires the
-repo to stay **public** — Pages needs that on the free tier, which is why it was made public.
+**Both public deploy targets are opt-in only — do not auto-redeploy either one.** Only the
+git commit+push above is standing/automatic. GitHub Pages redeploy was briefly made
+standing-automatic too, then the user explicitly reversed that: only run
+`npm run deploy:pages` when they signal a version is ready to publish (e.g. "this is the
+final version," "deploy it," "update the public link") — not proactively after every change.
+Until then, the everyday testing link is the local dev server (`npm run dev`,
+`localhost:5173`), which always reflects the latest code by definition. When a deploy *is*
+requested: `deploy:pages` builds with `DEPLOY_TARGET=gh-pages` (which flips
+`vite.config.js`'s `base` to `/mypath-prototype/` — GitHub Pages serves project sites under a
+subpath, not the domain root) and pushes `dist/` to the `gh-pages` branch via the `gh-pages`
+npm package, publishing to `https://gigimanbigdur.github.io/mypath-prototype/`. This requires
+the repo to stay **public** — Pages needs that on the free tier, which is why it was made
+public.
 
-**Vercel deploys remain manual/opt-in — do not auto-redeploy there.** Only run
-`npx vercel deploy --prod --yes` when the user explicitly asks; treat "committed to GitHub"
-and "live on Vercel" as separate facts. As of this writing the Vercel account has an
-unresolved issue — every deploy after the very first one got stuck at status `UNKNOWN` with
-zero build logs ever generated (`vercel ls` shows this clearly), almost certainly an
+**Vercel deploys are also opt-in.** Only run `npx vercel deploy --prod --yes` when the user
+explicitly asks; treat "committed to GitHub" and "live" (on either target) as separate facts.
+As of this writing the Vercel account has an unresolved issue — every deploy after the very
+first one got stuck at status `UNKNOWN` with zero build logs ever generated (`vercel ls` shows
+this clearly), almost certainly an
 account-level block (e.g. email verification), not a code or network problem. Don't spend more
 than one retry on it without checking `vercel ls` / `vercel inspect <url>` first — if every
 recent deployment shows `UNKNOWN` with no logs, it's the account, not this attempt. GitHub
