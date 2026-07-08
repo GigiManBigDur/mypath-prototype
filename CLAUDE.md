@@ -202,50 +202,44 @@ in `Roadmap.jsx` — see Task 3 of the restructure this became):
   also what `Roadmap.jsx`'s `configFor()` uses to give that step the "deadline" icon/label — don't
   go back to sniffing `id.endsWith('-deadline')`, that id no longer exists.
 
-`roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
-up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
-a light forward-only minimum-gap pass so two items landing on the same day don't collide. This
-is a genuine change from the old trunk, which used fixed per-node spacing; the old trunk had no
-branches to route around, this one does, so position now has to track real elapsed time.
-**If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
-(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
-always derived from actual content afterward, never assumed.**
+**`roadmapLayout.js` is three strictly separate passes — position, connector lines, and label
+placement — and they must stay that way.** This is the load-bearing rule for this file, after
+several rounds of collision-avoidance patches previously blurred the line between "where a node
+is" and "how dense things look," which caused a real regression: a step 3 weeks out and one 4
+months out in the *same* chain could end up at arbitrary, date-disconnected heights just because
+they shared a branch.
 
-Any spine item with more than one step (in practice, only opportunities — see above) gets its
-own diagonal sub-branch peeling off the spine at that item's date, instead of the old
-"collapsible chip that expands on click" — density is now handled by zoom/pan (below), not by
-hiding content behind a click. A branch's steps are laid out as a genuinely connected path, not
-a fan: **`layoutBranch()` accumulates each step's x incrementally from the *previous* step's x**
-(`prevX + side * deltaRel * slope`), using an alternating slope per segment (`BRANCH_SLOPES =
-[0.65, 0.2]`) rather than one constant slope for the whole branch. A single constant slope makes
-every point in a branch a pure function of one cumulative distance from the anchor — i.e.
-mathematically colinear — so drawing "step → previous step" segments renders *identically* to
-drawing every step straight back to the anchor (a fan/starburst), even though the code is
-already connecting them in sequence; the visual bug is geometric, not in which points get
-connected. Alternating the slope per segment breaks that colinearity so the chain actually bends
-at each node — **don't collapse `BRANCH_SLOPES` back down to one constant, or the fan comes
-back even though the connecting code looks correct.** Each branch is still computed in true
-isolation from every *other* branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal),
-which is what actually fixes the old collapsed-chip overlap bug (multiple opportunities' prep
-steps used to compete for the same lateral space). But branches still have to share the canvas with the
-spine's own labels and with each other's labels, so there's a second layer:
-`roadmapLayout.js` maintains a running `placedLabels` list of every label's *approximate*
-rendered bounding box (character-count-based width estimate, not real DOM measurement) — every
-spine item's label is placed first (all of them, both earlier and later in time than any given
-branch, since a branch has to route around labels on both sides of it chronologically), then
-each branch step nudges itself further along its own diagonal (via `NUDGE_STEP`) until it clears
-every previously-placed box, registering its own box before the next step or branch is placed.
-Every spine item also alternates which side its *own* label renders on (`labelSide`) — spine x
-is always dead-center, so without alternating, every spine label would permanently claim one
-side and guarantee a collision with any branch peeling that way; a branch always peels to the
-side **opposite** its own anchor's label so an item never has to route around itself.
-**A candidate step position is rejected for two different reasons, not one**: if its own label
-would overlap an already-placed label (`intersects()`), or if the *connector segment* leading to
-it (from the anchor or the previous step) would visually cut through an already-placed label even
-without either endpoint overlapping it (`segmentIntersectsBBox()`, a Liang-Barsky line-vs-AABB
-clip test) — a straight connector can pass clean through a distant, unrelated label's text
-otherwise. Both checks run against the same `placedLabels` list, so a spine label registered in
-pass 1 blocks both direct overlap and any later branch's connector line from crossing it.
+1. **Position (pure).** `dateToY(date, today)` is the *one* function that turns a real date into
+   a y-coordinate (`PIXELS_PER_DAY`), used identically for spine items and sub-branch steps —
+   never computed relative to a sibling, a previous step, or any other node's resolved position.
+   `computeBranchPositions()` derives a step's x the same way: purely from *its own* date's offset
+   from the chain's fixed anchor date (`item.date`) and a constant `BRANCH_SLOPE`, never from
+   where a previous step in the same chain ended up. The **one documented exception**:
+   `computeSpinePositions()` applies a light forward-only minimum-gap pass to spine dots only
+   (`MIN_SPINE_GAP`) so two spine items landing almost on the same day don't render as touching
+   circles — sub-branch steps get no such adjustment, by design, so a step's height always
+   corresponds to its real date with zero fudging.
+2. **Connector lines.** Built after positions are final, purely by reading them — the spine
+   polyline runs today → soonest → ... → latest, and each branch runs anchor → step 1 → step 2 →
+   ... (never fanned back to the anchor for every step). This pass never writes a position.
+3. **Label placement.** Also built after positions and connector segments are final. Given a
+   node's already-fixed dot, `placeLabel()` finds how far its label *text* needs to sit from that
+   dot to clear every other placed label and every connector segment on the canvas (own chain's
+   segments included) — via `boxesIntersect()` for label-vs-label and a Liang-Barsky
+   `segmentIntersectsBox()` for label-vs-line (a straight connector can cut through a distant,
+   unrelated label without either endpoint overlapping it). It returns a `labelOffset` **distance
+   only** — it never touches x/y. All spine labels are placed first (sub-pass 3a, so a branch can
+   see every spine label regardless of chronological order), then every branch's step labels
+   (sub-pass 3b), so nothing is ever nudged before the thing it needs to route around exists.
+
+If you're changing how lines are drawn, you should not need to touch `dateToY`/
+`computeBranchPositions`, and vice versa — that separation is intentional, keep it. `Roadmap.jsx`
+additionally draws a thin **leader tick** from a dot to its label whenever `labelOffset` exceeds
+the node's default gap (`SPINE_LABEL_GAP`/`BRANCH_LABEL_GAP` — duplicated as constants in
+`Roadmap.jsx` since they're a rendering-only threshold, not a position value) — dense clusters
+(several prep steps only days apart) can still push a label far from its own correctly-positioned
+dot, and without the tick a far-offset label reads as floating/unattached even though it's not
+overlapping anything.
 
 **The `<svg>` itself needs `style={{ overflow: 'visible' }}`.** SVG root elements default to CSS
 `overflow: hidden` on their own coordinate box (`0,0` to `canvasWidth,canvasHeight`), independent

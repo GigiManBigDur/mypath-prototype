@@ -19,6 +19,12 @@ const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
 const VIEWPORT_HEIGHT = 620;
 
+// Must match SPINE_LABEL_GAP / BRANCH_LABEL_GAP in roadmapLayout.js — used only to decide when a
+// label's resolved offset is "far enough" from its default distance to warrant a leader tick back
+// to its own dot, purely a rendering nicety (not a position/connector concern).
+const SPINE_LABEL_GAP = 26;
+const BRANCH_LABEL_GAP = 20;
+
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function configFor(node) {
@@ -254,37 +260,48 @@ export default function Roadmap({ roadmap }) {
               </g>
             ))}
 
-            {/* Branch step nodes (hollow — optional). Labels get extra clearance beyond the dot's
-                own position (in the branch's own peel direction) so they clear the spine's label
-                column even when a step lands close in time to a spine item. */}
+            {/* Branch step nodes (hollow — optional). `labelOffset` is the distance roadmapLayout.js
+                already computed for this label's text to clear every other label and every
+                connector segment on the canvas — it only ever moves the text, never the dot. When
+                a label had to be pushed well past its default distance (dense clusters, e.g.
+                several prep steps only days apart), a thin leader tick ties it back to its own
+                dot so a far-offset label never reads as floating/unattached. */}
             {roadmap.spine.filter((n) => n.hasBranch).flatMap((n) => n.branchSteps.map((s) => {
               const cfg = configFor(s);
               const done = isDone(s.id);
-              const labelX = n.side > 0 ? 20 : -20;
+              const labelX = n.branchSide * s.labelOffset;
               return (
                 <g key={s.id} className="node-badge" onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
+                  {s.labelOffset > BRANCH_LABEL_GAP + 4 && (
+                    <line x1="0" y1="0" x2={labelX} y2="0" stroke="var(--stone)" strokeWidth="1" opacity="0.35" />
+                  )}
                   <circle className="ring" r="13" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                   {done ? <CheckCircle2 x="-7" y="-7" size={14} color="#fff" /> : <cfg.Icon x="-6" y="-6" size={12} color={cfg.color} />}
-                  <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
-                  <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.due}</text>
+                  <text className="node-label" x={labelX} y="4" textAnchor={n.branchSide > 0 ? 'start' : 'end'}>{s.title}</text>
+                  <text className="node-due" x={labelX} y="17" textAnchor={n.branchSide > 0 ? 'start' : 'end'}>{s.due}</text>
                 </g>
               );
             }))}
 
             {/* Spine nodes: core (solid/required) and opportunity anchors (hollow/optional).
                 labelSide alternates per item (spine x is always dead-center) so consecutive spine
-                labels don't all pile onto one side, and a branch always peels opposite its own
-                anchor's label — see roadmapLayout.js. */}
+                labels don't all pile onto one side; `labelOffset` is the distance
+                roadmapLayout.js already resolved for this label to clear every other label and
+                connector on the canvas — never the dot's own position. */}
             {roadmap.spine.map((n) => {
               const cfg = configFor(n);
               const done = isDone(n.id);
               const isLeft = n.labelSide < 0;
+              const labelX = n.labelSide * n.labelOffset;
               return (
                 <g key={n.id}>
                   {n.stageLabel && (
                     <text className="stage-label" x={n.x} y={n.y + 46} textAnchor="middle">— {n.stageLabel} —</text>
                   )}
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
+                    {n.labelOffset > SPINE_LABEL_GAP + 4 && (
+                      <line x1="0" y1="0" x2={labelX} y2="0" stroke={cfg.color} strokeWidth="1" opacity="0.3" />
+                    )}
                     {n.required ? (
                       <>
                         <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
@@ -296,8 +313,8 @@ export default function Roadmap({ roadmap }) {
                         {done ? <CheckCircle2 x="-8" y="-8" size={16} color="#fff" /> : <cfg.Icon x="-7" y="-7" size={14} color={cfg.color} />}
                       </>
                     )}
-                    <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
-                    <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>{cfg.label} · {n.due}{n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}</text>
+                    <text className="node-label" x={labelX} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
+                    <text className="node-due" x={labelX} y="18" textAnchor={isLeft ? 'end' : 'start'}>{cfg.label} · {n.due}{n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}</text>
                   </g>
                 </g>
               );
