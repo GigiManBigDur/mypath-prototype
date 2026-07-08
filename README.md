@@ -13,7 +13,6 @@ interest tracks have full career/major/program/opportunity data; selecting multi
 tracks merges their career options, and every other interest falls back to real (but simpler)
 opportunities or, as a last resort, a small set of generic ones instead of a dead end.
 
-Live demo: https://gigimanbigdur.github.io/mypath-prototype/
 
 ## Commands
 
