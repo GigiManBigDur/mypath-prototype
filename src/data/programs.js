@@ -356,9 +356,9 @@ function evenSample(arr, n) {
 // or below the student's entered GPA (so the list actually feels reachable), plus a single
 // aspirational reach pick above it for motivation — never a whole list of reach-only schools.
 // Programs with gpaValue === null (portfolio/audition-based, where GPA is explicitly secondary)
-// are always treated as reachable on the GPA axis. This intentionally does NOT add Reach/Match/
-// Safety labels or balancing logic — it only changes which programs get selected/displayed,
-// using the existing `selectivity` string as-is.
+// are always treated as reachable on the GPA axis. This selection step still does NOT add
+// Reach/Match/Safety labels or balancing/sorting logic of its own — see reachMatchSafetyTag()
+// below for the (separate, purely cosmetic) per-card label.
 //
 // If gpaString is blank/unparseable, this returns an evenly-spaced representative sample across
 // the full selectivity range instead of guessing — the same "current behavior" fallback the app
@@ -391,4 +391,23 @@ export function selectProgramsForGpa(programs, gpaString, majorCount = 1) {
 
   // Preserve ascending-selectivity order for a coherent, least-to-most-selective card grid.
   return byReachability.filter((p) => picks.has(p));
+}
+
+// Personalized per-card label — distinct from `selectivity` (an objective description of the
+// program itself, unaffected by who's looking at it). Purely a display tag: no sorting,
+// filtering, or "balance your list" logic lives here or anywhere else. Returns null when there's
+// nothing to compare (blank/unparseable GPA, or a program with gpaValue === null — portfolio/
+// audition programs where GPA is explicitly secondary, same "don't guess" principle as
+// selectProgramsForGpa above) so the caller can simply omit the badge.
+export function reachMatchSafetyTag(gpaString, gpaValue) {
+  if (gpaValue == null) return null;
+  const gpa = parseFloat(gpaString);
+  if (!gpaString || Number.isNaN(gpa)) return null;
+
+  // Rounded to avoid floating-point noise (e.g. 3.0 - 3.2 === -0.20000000000000018 in JS)
+  // landing an exact boundary GPA on the wrong side of the cutoff.
+  const diff = Math.round((gpa - gpaValue) * 100) / 100;
+  if (diff >= 0.3) return 'Safety';
+  if (diff >= -0.2) return 'Match';
+  return 'Reach';
 }

@@ -1,4 +1,4 @@
-import { getMergedPrograms, selectProgramsForGpa } from '../../data/programs';
+import { getMergedPrograms, selectProgramsForGpa, reachMatchSafetyTag } from '../../data/programs';
 import { MAJORS } from '../../data/majors';
 
 // Portfolio/audition programs have gpaValue === null (GPA is explicitly secondary there); every
@@ -22,6 +22,7 @@ export default function ProgramsStep({ majorIds, educationLevel, selectedProgram
       <div className="grid grid-3">
         {programs.map((p) => {
           const selected = selectedProgramKeys.includes(p.key);
+          const tag = reachMatchSafetyTag(gpa, p.gpaValue);
           return (
             <button
               type="button"
@@ -29,6 +30,14 @@ export default function ProgramsStep({ majorIds, educationLevel, selectedProgram
               className={`card${selected ? ' selected' : ''}`}
               onClick={() => onToggle(p.key)}
             >
+              {tag && (
+                <div className="rms-row">
+                  <span className={`rms-badge rms-${tag.toLowerCase()}`}>{tag}</span>
+                  {p.gpaWeighted && (
+                    <span className="rms-caveat">Based on GPA alone — {p.gpaWeighted} also weighed</span>
+                  )}
+                </div>
+              )}
               <div className="card-title">{p.institution}</div>
               <p className="card-desc" style={{ fontWeight: 600, color: 'var(--ink)' }}>{p.program}</p>
               <p className="card-desc">{p.overview}</p>

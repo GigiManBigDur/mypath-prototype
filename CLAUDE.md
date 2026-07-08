@@ -150,10 +150,20 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   axis, matching their "GPA is secondary" intent. A blank/unparseable GPA does **not** guess —
   it falls back to `evenSample()`, an evenly-spaced cross-section of the full selectivity range,
   which is also what a GPA high enough to make everything "reachable" effectively converges to.
-  This is deliberately not a Reach/Match/Safety system (no labels, no balancing logic) — it only
-  changes which programs get selected for display, using the existing `selectivity` string
-  as-is; the `ProgramsStep.jsx` card grid also surfaces `gpaValue` as a "Typical GPA" line
-  (previously computed but never actually rendered anywhere).
+  `selectProgramsForGpa` itself still does no labeling or balancing — it only changes which
+  programs get selected for display. The card grid separately surfaces `gpaValue` as a "Typical
+  GPA" line, and `reachMatchSafetyTag(gpaString, gpaValue)` (also in `programs.js`) computes a
+  **personalized** Reach/Match/Safety badge per card (`diff = gpa - gpaValue`: `>= 0.3` →
+  Safety, `>= -0.2` → Match, else Reach — rounded to 2 decimals before comparing, since raw
+  float subtraction like `3.0 - 3.2` lands a few ulps off an exact boundary and silently flips
+  the tag). It returns `null` — no badge rendered — under the same "don't guess" rule as the
+  selection above: blank/unparseable GPA, or `gpaValue: null` (nothing to compare against
+  either way). This is intentionally still just a per-card label: no sorting/filtering by tag
+  and no "balance your list" messaging anywhere. Styled as a colored pill (`.rms-badge`, one of
+  `--teal`/`--gold`/`--rust`) specifically so it never reads as the same thing as the plain-text,
+  GPA-independent `Selectivity` line elsewhere on the card; portfolio/audition-weighted programs
+  keep the tag but pair it with a `.rms-caveat` ("Based on GPA alone — portfolio also weighed")
+  so it doesn't overstate confidence for admissions that aren't decided by GPA alone.
 - `opportunities.js`: every opportunity has `date` (a template `{month, day}`, or
   `{offsetDays: N}` for the two deliberately-in-the-past ones — see dates below) and
   `prepSteps` (2-4 ordered sub-task names). `getOpportunityPool(tracks, level)` /

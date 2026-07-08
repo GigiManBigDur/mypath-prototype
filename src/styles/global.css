@@ -123,6 +123,25 @@ button.card.passed:hover {
 .card.passed .card-meta strong {
   color: var(--rust);
 }
+/* Reach/Match/Safety: a personalized-to-the-user's-GPA badge, deliberately styled as a colored
+   pill (not plain label/strong text like .card-meta) so it never reads as the same thing as the
+   objective, GPA-independent "Selectivity" line further down the card. */
+.rms-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.rms-badge {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: #fff;
+}
+.rms-badge.rms-safety { background: var(--teal); }
+.rms-badge.rms-match { background: var(--gold); }
+.rms-badge.rms-reach { background: var(--rust); }
+.rms-caveat { font-size: 11px; color: var(--ink-soft); font-style: italic; }
 .card-title {
   font-family: 'Fraunces', serif;
   font-size: 18px;
