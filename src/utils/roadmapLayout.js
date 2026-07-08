@@ -62,6 +62,34 @@ function intersects(a, b) {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
+// Liang-Barsky segment-vs-AABB clip test — true if the line from (x1,y1) to (x2,y2) passes
+// through `box` at all, not just whether its endpoints do. Needed because a connector line can
+// cut straight through an unrelated label's text even when neither of its own endpoints overlap
+// that label's bbox.
+function segmentIntersectsBBox(x1, y1, x2, y2, box) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  let tMin = 0;
+  let tMax = 1;
+  const p = [-dx, dx, -dy, dy];
+  const q = [x1 - box.left, box.right - x1, y1 - box.top, box.bottom - y1];
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return false;
+    } else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) {
+        if (t > tMax) return false;
+        if (t > tMin) tMin = t;
+      } else {
+        if (t < tMin) return false;
+        if (t < tMax) tMax = t;
+      }
+    }
+  }
+  return tMin <= tMax;
+}
+
 // Positions one item's step chain as a genuine connected path — each step's x is accumulated
 // incrementally from the PREVIOUS step's x (not computed fresh from the anchor every time), using
 // an alternating slope per segment so the path actually bends at each node instead of tracing one
@@ -69,31 +97,38 @@ function intersects(a, b) {
 // node at (0, anchorY) and get shifted into final canvas space later, alongside everything else.
 // `placedLabels` accumulates every label bbox placed so far (across every item, not just this
 // branch) so each step can route around anything already on the canvas — including labels from
-// other chains — instead of only avoiding itself.
+// other chains — instead of only avoiding itself. A candidate position is rejected not just when
+// its OWN label would overlap something already placed, but also when the connector segment
+// leading to it (from the anchor, or from the previous step) would visually cut through an
+// unrelated label — otherwise a step positioned far in time could still draw a line that passes
+// straight through some other chain's or the spine's text along the way.
 function layoutBranch(steps, anchorY, side, placedLabels) {
   const base = steps[0].date;
   let prevRel = 0;
   let prevX = 0;
+  let prevY = anchorY;
   return steps.map((step, i) => {
     let rel = MIN_BRANCH_GAP + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
     if (i > 0 && rel - prevRel < MIN_BRANCH_GAP) rel = prevRel + MIN_BRANCH_GAP;
 
     const slope = BRANCH_SLOPES[i % BRANCH_SLOPES.length];
     const width = blockWidth(step.title, step.due);
-    let x = prevX + side * (rel - prevRel) * slope;
-    let y = anchorY - rel;
+    const place = (r) => ({ x: prevX + side * (r - prevRel) * slope, y: anchorY - r });
+
+    let { x, y } = place(rel);
     let bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
+    const blocked = () => placedLabels.some((p) => intersects(p, bbox) || segmentIntersectsBBox(prevX, prevY, x, y, p));
     let guard = 0;
-    while (guard < MAX_NUDGES && placedLabels.some((p) => intersects(p, bbox))) {
+    while (guard < MAX_NUDGES && blocked()) {
       rel += NUDGE_STEP;
-      x = prevX + side * (rel - prevRel) * slope;
-      y = anchorY - rel;
+      ({ x, y } = place(rel));
       bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
       guard += 1;
     }
     placedLabels.push(bbox);
     prevRel = rel;
     prevX = x;
+    prevY = y;
     return { ...step, x, y };
   });
 }

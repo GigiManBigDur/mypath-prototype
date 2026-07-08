@@ -112,9 +112,12 @@ function titleFor(selectedCareers) {
 // Each selected opportunity becomes one optional spine item, anchored at the date of its
 // EARLIEST step (its "starting point" — e.g. "Register for DECA") rather than its deadline, and
 // carrying its full ordered step chain as data. Prep steps are spread across the `prepWeeks`
-// window before the deadline (clamped to start after today), followed by the actual
-// deadline/event step. When there's more than one step, roadmapLayout.js gives this item its own
-// isolated diagonal sub-branch; the branch's positioning never depends on any other item.
+// window before the deadline (clamped to start after today) — the LAST prep step IS the
+// deadline/event itself (e.g. "Compete at Regionals") rather than a separate trailing node, since
+// that step already represents the opportunity's actual terminal action; it carries the real
+// `opp.date` directly instead of an interpolated date. When there's more than one step,
+// roadmapLayout.js gives this item its own isolated diagonal sub-branch; the branch's positioning
+// never depends on any other item.
 function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate) {
   const items = [];
   selectedOpportunityIds.forEach((id) => {
@@ -130,27 +133,21 @@ function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartD
     const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), stepNames.length);
 
     const steps = stepNames.map((stepName, i) => {
-      const frac = (i + 1) / (stepNames.length + 1);
-      const stepDate = realAddDays(windowStart, Math.round(spanDays * frac));
+      const isLast = i === stepNames.length - 1;
+      const stepDate = isLast ? deadlineDate : realAddDays(windowStart, Math.round(spanDays * ((i + 1) / stepNames.length)));
       return {
         id: `${opp.id}-prep-${i}`,
         title: stepName,
         date: stepDate,
         due: formatDate(stepDate),
-        desc: i === 0
-          ? `${opp.description} This is the first step in preparing for ${opp.name}.`
-          : `Step ${i + 1} of ${stepNames.length} in preparing for ${opp.name}.`,
+        desc: isLast
+          ? `This is when ${opp.name} opens or is due. ${opp.howToApply}.`
+          : i === 0
+            ? `${opp.description} This is the first step in preparing for ${opp.name}.`
+            : `Step ${i + 1} of ${stepNames.length} in preparing for ${opp.name}.`,
         resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
+        isLast,
       };
-    });
-
-    steps.push({
-      id: `${opp.id}-deadline`,
-      title: `${opp.name} — deadline / start`,
-      date: deadlineDate,
-      due: formatDate(deadlineDate),
-      desc: `This is when ${opp.name} opens or is due. ${opp.howToApply}.`,
-      resources: [],
     });
 
     const startDate = steps[0].date;

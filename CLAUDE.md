@@ -195,7 +195,12 @@ in `Roadmap.jsx` — see Task 3 of the restructure this became):
   opportunity, anchored at the date of its *earliest* prep step (its "starting point", e.g.
   "Register for DECA") rather than its deadline, carrying its full ordered `steps` chain as data
   (prep steps spread across the `prepWeeks` window before the deadline, clamped to start after
-  today, plus the deadline/event step itself).
+  today). **The last prep step *is* the deadline/event** (e.g. "Compete at Regionals") — it
+  carries `opp.date` directly and `isLast: true`, rather than a separate trailing
+  `${opp.id}-deadline` node with its own near-duplicate date; that used to be a genuine leftover
+  from before chains existed, when each opportunity was a single hardcoded-date node. `isLast` is
+  also what `Roadmap.jsx`'s `configFor()` uses to give that step the "deadline" icon/label — don't
+  go back to sniffing `id.endsWith('-deadline')`, that id no longer exists.
 
 `roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
 up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
@@ -234,6 +239,13 @@ Every spine item also alternates which side its *own* label renders on (`labelSi
 is always dead-center, so without alternating, every spine label would permanently claim one
 side and guarantee a collision with any branch peeling that way; a branch always peels to the
 side **opposite** its own anchor's label so an item never has to route around itself.
+**A candidate step position is rejected for two different reasons, not one**: if its own label
+would overlap an already-placed label (`intersects()`), or if the *connector segment* leading to
+it (from the anchor or the previous step) would visually cut through an already-placed label even
+without either endpoint overlapping it (`segmentIntersectsBBox()`, a Liang-Barsky line-vs-AABB
+clip test) — a straight connector can pass clean through a distant, unrelated label's text
+otherwise. Both checks run against the same `placedLabels` list, so a spine label registered in
+pass 1 blocks both direct overlap and any later branch's connector line from crossing it.
 
 **The `<svg>` itself needs `style={{ overflow: 'visible' }}`.** SVG root elements default to CSS
 `overflow: hidden` on their own coordinate box (`0,0` to `canvasWidth,canvasHeight`), independent
@@ -248,15 +260,23 @@ exists so nothing has to fit in one fixed frame, there's no reason to let the SV
 `Roadmap.jsx` renders the spine, every branch, and the zoom/pan viewport, and handles the detail
 modal. Required (core) nodes render with a solid ring (filled white when incomplete, filled with
 the type color when done); optional (opportunity anchors and their branch steps) render with a
-thinner, dashed hollow ring when incomplete. Every node is independently clickable — a core node
-or a branch step opens the standard modal (desc + resources + complete-toggle); an opportunity's
-own anchor node opens a read-only summary ("X/Y steps complete") with **no** toggle of its own,
-since the actual actionable items are its branch steps, which are already directly visible and
-clickable on the canvas rather than hidden inside the anchor's modal. `completedNodes` is flat
-and shared, so step ids (`${opp.id}-prep-${i}`, `${opp.id}-deadline`) just need to be unique —
-no separate tracking structure. The Today node is never completable and core-progress counting
-only considers `required` spine items (`roadmap.spine.filter(n => n.required)`), matching the
-old trunk-only progress count.
+thinner, dashed hollow ring when incomplete. **Every ring `<circle>` needs `pointerEvents="all"`**
+— an unfilled circle (`fill="none"`, the hollow/optional style whenever a node isn't done yet)
+only hit-tests its stroke by default SVG behavior, not its interior, so without this a hollow
+node's clickable area was a thin ring around the edge instead of matching its visual size; solid
+circles always have a real fill so they never needed it, but it's applied everywhere now for
+consistency. Every node is independently clickable — a core node or a branch step opens the
+standard modal (desc + resources + complete-toggle). An opportunity's own anchor node has no
+single id of its own to toggle (its completion is derived from its steps), so its modal instead
+gets a status-driven action button: **"Start"** (0 steps done, marks the first step complete),
+**"Continue — mark next step complete (X/Y)"** (some done, marks the next incomplete one), or
+**"Completed — undo"** (all done, resets every step in the chain back to incomplete) — this
+keeps the anchor "actionable" like every other node instead of being a dead-end read-only
+summary, while still deriving its state from the real per-step `completedNodes` entries rather
+than introducing a separate completion concept. `completedNodes` is flat and shared, so step ids
+(`${opp.id}-prep-${i}`) just need to be unique — no separate tracking structure. The Today node
+is never completable and core-progress counting only considers `required` spine items
+(`roadmap.spine.filter(n => n.required)`), matching the old trunk-only progress count.
 
 **Zoom, pan, and drag** replace the old fixed-scale, horizontal-scroll-only canvas (`.canvas-
 scroll`), since a multi-year plan with several opportunities can now run to several thousand
