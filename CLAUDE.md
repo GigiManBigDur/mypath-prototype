@@ -38,8 +38,8 @@ No test suite exists yet. Verification for this project means running `npm run b
 ## Git & deployment
 
 **Commit and push regularly — this is a standing requirement, not an opt-in.** This repo has
-a GitHub remote already (`origin` → `github.com/GigiManBigDur/mypath-prototype`, private) and
-a linked Vercel project (`seal-man/mypath-prototype`). The user wants a saved, revertible
+a GitHub remote already (`origin` → `github.com/GigiManBigDur/mypath-prototype`, **public**)
+and a linked Vercel project (`seal-man/mypath-prototype`). The user wants a saved, revertible
 version of the project at all times, so:
 - After finishing a meaningful unit of work (a feature, a fix, a data addition — not every
   single file edit), stage the relevant files, write a clean, descriptive commit message, and
@@ -53,14 +53,25 @@ version of the project at all times, so:
   that commit — don't wait for the user to run `/init` again. A stale CLAUDE.md is a bug the
   same way a failing build is.
 
-The production site (`https://mypath-prototype-seven.vercel.app`) is **not** wired to
-auto-deploy on push — the Vercel project isn't linked to GitHub (the account authenticated via
-device code, not GitHub OAuth), so pushing to `main` alone does not update the live site, and
-it is often several commits behind. Treat "committed to GitHub" and "live on Vercel" as two
-separate facts — don't imply the site is current just because the repo is. To publish a
-change: `npx vercel deploy --prod --yes` from the project root (requires the Vercel CLI to
-already be logged in — it was set up interactively once and shouldn't need re-auth on this
-machine). Only deploy when the user asks; it's a visible, shared action.
+Neither deploy target auto-publishes on push — both are manual, opt-in steps. Only deploy
+when the user asks; it's a visible, shared action. Treat "committed to GitHub" and "live" as
+two separate facts — don't imply either site is current just because the repo is.
+
+- **Vercel** (`https://mypath-prototype-seven.vercel.app`): `npx vercel deploy --prod --yes`
+  from the project root. As of this writing the Vercel account has an unresolved issue —
+  every deploy after the very first one has gotten stuck at status `UNKNOWN` with zero build
+  logs ever generated (`vercel ls` shows this clearly), almost certainly an account-level
+  block (e.g. email verification), not a code or network problem. Don't spend more than one
+  retry on it without checking `vercel ls` / `vercel inspect <url>` first — if every recent
+  deployment shows `UNKNOWN` with no logs, it's the account, not this attempt.
+- **GitHub Pages** (`https://gigimanbigdur.github.io/mypath-prototype/`): the reliable
+  fallback when Vercel is blocked, and doesn't depend on Vercel/Cloudflare account state at
+  all. `npm run deploy:pages` builds with `DEPLOY_TARGET=gh-pages` (which flips
+  `vite.config.js`'s `base` to `/mypath-prototype/` — GitHub Pages serves project sites under
+  a subpath, not the domain root) and pushes `dist/` to the `gh-pages` branch via the
+  `gh-pages` npm package. Pages itself was enabled automatically the first time that branch
+  existed; no manual dashboard step was needed. This requires the repo to stay **public** —
+  Pages needs that on the free tier, which is why the repo was made public.
 
 ## Architecture
 

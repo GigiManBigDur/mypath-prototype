@@ -13,7 +13,7 @@ career/major/program/opportunity data; selecting multiple built tracks merges th
 options, and every other interest falls back to a small set of generic opportunities instead
 of a dead end.
 
-Live demo: https://mypath-prototype-seven.vercel.app
+Live demo: https://gigimanbigdur.github.io/mypath-prototype/
 
 ## Commands
 
@@ -35,8 +35,9 @@ npm run lint     # oxlint
 
 ## Deploying
 
-```bash
-npx vercel deploy --prod --yes
-```
+Neither target auto-deploys on push — both are manual.
 
-The Vercel project isn't linked to GitHub, so pushes don't auto-deploy — run the command above after pushing to publish.
+```bash
+npm run deploy:pages          # GitHub Pages (https://gigimanbigdur.github.io/mypath-prototype/) — reliable fallback
+npx vercel deploy --prod --yes  # Vercel (https://mypath-prototype-seven.vercel.app) — currently blocked account-side
+```
