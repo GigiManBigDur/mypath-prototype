@@ -29,8 +29,8 @@ npm run lint     # oxlint
 - `src/data/` — all hardcoded content (interests, careers, majors, programs, opportunities, admissions text, trunk steps)
 - `src/context/AppContext.jsx` — single source of truth for survey answers and selections across screens, persisted to `localStorage`
 - `src/screens/` — one component per screen in the flow (`SurveyScreen` → `AdmissionsOverviewScreen` → `DiscoveryScreen` → `OpportunityFinderScreen` → `AcademicPlanScreen`)
-- `src/utils/roadmapGenerator.js` + `roadmapLayout.js` — turns the collected state into the trunk/branch roadmap data structure and SVG coordinates
-- `src/components/Roadmap.jsx` — the winding trunk-and-branch SVG roadmap, adapted from the reference prototype (`~/Downloads/mypath_roadmap_prototype.jsx`)
+- `src/utils/roadmapGenerator.js` + `roadmapLayout.js` — turns the collected state into a unified, date-positioned spine with isolated diagonal branches for multi-step opportunities, and SVG coordinates
+- `src/components/Roadmap.jsx` — the zoomable/pannable spine-and-branch SVG roadmap, adapted from the reference prototype (`~/Downloads/mypath_roadmap_prototype.jsx`)
 
 ## Deploying
 

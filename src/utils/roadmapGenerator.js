@@ -20,14 +20,6 @@ const LEVEL_LABEL_MULTI_YEAR = {
   transfer: 'transfer',
 };
 
-// Three dated checkpoints instead of one "ongoing" node — every task on the plan has a real
-// deadline, GPA reminders included.
-const GPA_CHECKPOINTS = [
-  { id: 'gpa-fall', label: 'end of Fall term', date: { month: 12, day: 15 } },
-  { id: 'gpa-winter', label: 'end of Winter term', date: { month: 3, day: 1 } },
-  { id: 'gpa-spring', label: 'end of Spring term', date: { month: 5, day: 15 } },
-];
-
 export function generateRoadmap(state) {
   const planStartDate = startOfToday();
   const builtTracks = getBuiltTracks(state.interestTags);
@@ -62,19 +54,26 @@ export function generateRoadmap(state) {
   const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
   const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
 
-  const trunkSteps = stageNames.flatMap((stageName, stageIndex) => {
+  // Required, single-step items — every core admissions/milestone task, flattened across
+  // however many year-stages the student's schoolYear pulls in. None of these carry a `steps`
+  // chain in the data, so they always render as plain points on the spine (see Task 2 rule in
+  // roadmapLayout.js / Roadmap.jsx).
+  const coreItems = stageNames.flatMap((stageName, stageIndex) => {
     const stage = TRUNK_STAGES[level][stageName];
     return stage.steps.map((step, stepIndex) => {
       const realDate = anchorDate({ ...step.date, yearOffset: stageIndex }, planStartDate);
       return {
         id: step.id,
         title: typeof step.title === 'function' ? step.title(ctx) : step.title,
-        type: step.type,
+        category: 'core',
+        required: true,
+        coreType: step.type,
         date: realDate,
         due: formatDate(realDate),
         desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
         resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
         stageLabel: stepIndex === 0 && stageNames.length > 1 ? stage.label : undefined,
+        steps: null,
       };
     });
   });
@@ -84,16 +83,11 @@ export function generateRoadmap(state) {
   // otherwise.
   const caveatNote = level === 'transfer' && schoolYear >= 2 ? TRANSFER_CAVEAT : null;
 
-  const chips = [
-    ...buildGpaChips(selectedPrograms, planStartDate),
-    ...buildOpportunityChips(opportunityTracks, level, state.selectedOpportunityIds, planStartDate),
-  ];
+  const opportunityItems = buildOpportunityItems(opportunityTracks, level, state.selectedOpportunityIds, planStartDate);
 
-  const { today: laidToday, trunk, chips: laidChips, canvasHeight, canvasWidth } = layoutRoadmap({
-    today,
-    trunkSteps,
-    chips,
-  });
+  const spineItems = [...coreItems, ...opportunityItems];
+
+  const { today: laidToday, spine, canvasHeight, canvasWidth } = layoutRoadmap({ today, spineItems });
 
   const levelLabel = stageNames.length > 1 ? LEVEL_LABEL_MULTI_YEAR[level] : LEVEL_LABEL[level];
 
@@ -101,8 +95,7 @@ export function generateRoadmap(state) {
     title: titleFor(selectedCareers),
     subtitle: `A personalized ${levelLabel} plan, built from your profile.`,
     today: laidToday,
-    trunk,
-    chips: laidChips,
+    spine,
     canvasHeight,
     canvasWidth,
     caveatNote,
@@ -116,53 +109,14 @@ function titleFor(selectedCareers) {
   return 'Your Personalized Academic Plan';
 }
 
-// One chip per GPA checkpoint — a standalone reminder, not an expandable chain (no `steps`).
-// Shares the same highest-benchmark text logic as before.
-function buildGpaChips(selectedPrograms, planStartDate) {
-  if (!selectedPrograms.length) return [];
-  const desc = gpaDescText(selectedPrograms);
-  return GPA_CHECKPOINTS.map((checkpoint) => {
-    const realDate = anchorDate(checkpoint.date, planStartDate);
-    return {
-      id: checkpoint.id,
-      type: 'gpa',
-      title: `Check your GPA — ${checkpoint.label}`,
-      date: realDate,
-      due: formatDate(realDate),
-      desc,
-      resources: [],
-      steps: null,
-    };
-  });
-}
-
-function gpaDescText(selectedPrograms) {
-  const numeric = selectedPrograms.filter((p) => typeof p.gpaValue === 'number');
-  const auditionOnly = selectedPrograms.filter((p) => p.gpaValue == null);
-  const anyWeighted = selectedPrograms.some((p) => p.gpaWeighted);
-
-  if (numeric.length === 0) {
-    return `Your list is entirely audition/portfolio-based programs (e.g. ${auditionOnly[0].institution}), where GPA is secondary to your audition or portfolio — there's no specific benchmark to chase here, focus on your artistic preparation instead.`;
-  }
-  const maxValue = Math.max(...numeric.map((p) => p.gpaValue));
-  let desc;
-  if (anyWeighted) {
-    desc = `Your list includes portfolio/audition-based programs where GPA matters less than your submission, but keeping it above ${maxValue}+ keeps every option open.`;
-  } else {
-    const institutions = [...new Set(numeric.map((p) => p.institution))];
-    desc = `Aim for a ${maxValue}+ unweighted GPA to stay competitive for ${institutions.join(', ')}.`;
-  }
-  if (auditionOnly.length && numeric.length) {
-    desc += ` Your list also includes audition-based programs (e.g. ${auditionOnly[0].institution}) where GPA matters less than your audition.`;
-  }
-  return desc;
-}
-
-// Each selected opportunity becomes one chip carrying its own ordered step chain (prepSteps
-// spread evenly across the prep window, clamped to start after today, followed by the actual
-// deadline/event) — the steps aren't plotted on the canvas, only shown when the chip is expanded.
-function buildOpportunityChips(tracks, level, selectedOpportunityIds, planStartDate) {
-  const chips = [];
+// Each selected opportunity becomes one optional spine item, anchored at the date of its
+// EARLIEST step (its "starting point" — e.g. "Register for DECA") rather than its deadline, and
+// carrying its full ordered step chain as data. Prep steps are spread across the `prepWeeks`
+// window before the deadline (clamped to start after today), followed by the actual
+// deadline/event step. When there's more than one step, roadmapLayout.js gives this item its own
+// isolated diagonal sub-branch; the branch's positioning never depends on any other item.
+function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate) {
+  const items = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
@@ -199,16 +153,19 @@ function buildOpportunityChips(tracks, level, selectedOpportunityIds, planStartD
       resources: [],
     });
 
-    chips.push({
+    const startDate = steps[0].date;
+    items.push({
       id: opp.id,
-      type: 'opportunity',
       title: opp.name,
-      date: deadlineDate,
-      due: formatDate(deadlineDate),
+      category: 'opportunity',
+      required: false,
+      coreType: 'opportunity',
+      date: startDate,
+      due: formatDate(startDate),
       desc: opp.description,
       resources: [],
       steps,
     });
   });
-  return chips;
+  return items;
 }

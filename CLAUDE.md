@@ -103,8 +103,8 @@ grade/year within that level — 9-12 for highschool, 1-4 undergraduate, 1-3 tra
 how many trunk stages get prepended, see "Multi-year trunk" below), `gpa`,
 `selectedCareerIds` / `selectedMajorIds` / `selectedProgramKeys` (all **arrays** — Screens 3a/
 3b/3c are multi-select, not single-select), `selectedOpportunityIds`, `completedNodes` (flat
-map of node/step id → boolean, shared by trunk tasks, opportunity chip steps, and GPA chips
-alike), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
+map of node/step id → boolean, shared by every core spine item and every opportunity's branch
+steps alike), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
 "What year are you in?" pill group resets `schoolYear: null` whenever `educationLevel` changes
 (its options are conditional on level), so Continue stays disabled until both are picked.
 
@@ -162,58 +162,97 @@ reach `selectedOpportunityIds` in the first place.
 
 **Multi-year trunk: `src/data/trunkSteps.js` is stages, not one flat list per level.**
 `TRUNK_STAGES[level][stageName]` holds `{ label, steps }` — the final stage in every level
-(`senior` / `application`) is the original single-year plan, unchanged. Earlier stages
-(`freshman`/`sophomore`/`junior` for highschool; `exploration`/`prep` for undergraduate;
-`current` for transfer) get prepended depending on how much runway the student has, per
-`STAGE_PLAN[level][schoolYear]` — an ordered array of stage names ending in that final stage
-(e.g. `highschool[9] = ['freshman','sophomore','junior','senior']`, `highschool[12] =
-['senior']`). `roadmapGenerator.js` looks up that sequence, and for each stage at index `i`
-applies `yearOffset: i` to every one of its steps' dates — so the stage the student is
-currently in is always `yearOffset: 0` regardless of what it's named, and later stages project
-forward one calendar year each. The first step of each stage (when more than one stage is in
-play) carries a `stageLabel` that `Roadmap.jsx` renders as a small "— Sophomore Year —" divider
-text above that node; a 12th-grader/4th-year/non-transfer-2nd-3rd-year student still gets
-exactly one stage, so `stageLabel` is never set and the roadmap is pixel-identical to before
-this feature existed. Transfer students 2+ years out keep the single `application` stage as-is
-(transfer timelines vary too much to model precisely) but get a `caveatNote` string
-(`TRANSFER_CAVEAT`) surfaced as a banner near the top of `Roadmap.jsx` instead of a fabricated
-multi-year transfer plan. **If you add a new stage, only add to `TRUNK_STAGES`/`STAGE_PLAN` —
-`roadmapLayout.js` needs no changes**, since the trunk already uses fixed per-node spacing
-(not date-proportional) and computes canvas height dynamically from content; it was already
-multi-year-safe before this feature, up to several dozen trunk nodes.
+(`senior` / `application`) is the original single-year plan, plus one added "Check your GPA"
+milestone per Task 6 below. Earlier stages (`freshman`/`sophomore`/`junior` for highschool;
+`exploration`/`prep` for undergraduate; `current` for transfer) get prepended depending on how
+much runway the student has, per `STAGE_PLAN[level][schoolYear]` — an ordered array of stage
+names ending in that final stage (e.g. `highschool[9] = ['freshman','sophomore','junior',
+'senior']`, `highschool[12] = ['senior']`). `roadmapGenerator.js` looks up that sequence, and
+for each stage at index `i` applies `yearOffset: i` to every one of its steps' dates — so the
+stage the student is currently in is always `yearOffset: 0` regardless of what it's named, and
+later stages project forward one calendar year each. **Every stage has exactly one "Check your
+GPA" milestone** — the four originally-existing ones (freshman/sophomore/junior/undergrad-prep)
+plus five added afterward (senior/undergrad-exploration/undergrad-application/transfer-current/
+transfer-application) so no stage is silently missing GPA tracking; this replaced an earlier,
+separate system of quarterly Fall/Winter/Spring GPA checkpoints that lived in
+`roadmapGenerator.js` and, once stages existed, visually collided with these per-stage ones at
+the same granularity — that quarterly system is gone entirely. The first step of each stage
+(when more than one stage is in play) carries a `stageLabel` that `Roadmap.jsx` renders as a
+small "— Sophomore Year —" divider; a 12th-grader/4th-year/non-transfer-2nd-3rd-year student
+still gets exactly one stage, so `stageLabel` is never set. Transfer students 2+ years out keep
+the single `application` stage as-is (transfer timelines vary too much to model precisely) but
+get a `caveatNote` string (`TRANSFER_CAVEAT`) surfaced as a banner near the top of
+`Roadmap.jsx` instead of a fabricated multi-year transfer plan.
 
-**The roadmap is generated, then laid out as chips, not plotted step-by-step.**
-`roadmapGenerator.js` builds three things from state: a `today` node, a `trunk` array (the
-flattened, stage-resolved steps described above), and a `chips` array — one entry per selected
-opportunity (carrying its full ordered `steps` array as data: prep steps spread across the
-`prepWeeks` window before the deadline, clamped to start after today, plus the deadline/event
-step) and one per GPA checkpoint (`steps: null` — a simple non-expandable reminder, text from
-`gpaDescText()` using the *highest* `gpaValue` among selected programs, phrased specially when
-any are portfolio/audition-weighted). Title is `Your Path to X` for 1-2 selected careers,
-`Your Path to X & Y`, or the generic `Your Personalized Academic Plan` for 3+.
+**The roadmap is one unified vertical spine, not separate trunk/branch/chip concepts.**
+`roadmapGenerator.js` builds a `today` node plus a single flat `spineItems` array combining two
+kinds of items, distinguished by a `required` boolean (drives the solid-vs-hollow ring styling
+in `Roadmap.jsx` — see Task 3 of the restructure this became):
+- **Core items** (`category: 'core'`, `required: true`) — the flattened, stage-resolved trunk
+  steps described above. Always single-step (`steps: null`); core tasks never carry a
+  step-chain, only opportunities currently do.
+- **Opportunity items** (`category: 'opportunity'`, `required: false`) — one per selected
+  opportunity, anchored at the date of its *earliest* prep step (its "starting point", e.g.
+  "Register for DECA") rather than its deadline, carrying its full ordered `steps` chain as data
+  (prep steps spread across the `prepWeeks` window before the deadline, clamped to start after
+  today, plus the deadline/event step itself).
 
-`roadmapLayout.js` then positions two very different things:
-- **The trunk is a single straight vertical line** — today + ~6 core steps, evenly spaced with
-  a fixed gap. No date-proportional math, no collision handling; there are only ever a handful
-  of these so it doesn't need it.
-- **Chips are grouped by nearest trunk anchor** (by real date) and stacked with a simple fixed
-  gap, alternating left/right. A chip's own steps are *not* plotted individually anywhere on
-  the canvas — they only appear in the modal when the chip is clicked.
+`roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
+up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
+a light forward-only minimum-gap pass so two items landing on the same day don't collide. This
+is a genuine change from the old trunk, which used fixed per-node spacing; the old trunk had no
+branches to route around, this one does, so position now has to track real elapsed time.
+**If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
+(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPE`) — canvas width/height are
+always derived from actual content afterward, never assumed.**
 
-This chip-based design replaced an earlier version that plotted every individual prep step as
-its own canvas node with an adaptive-spacing algorithm to avoid overlaps. That worked but
-produced a busy, zigzagging canvas once someone selected several opportunities (each exploding
-into 3-5 nodes) and needed increasingly complex collision logic to stay readable. Collapsing
-each opportunity to one chip caps on-canvas node count at roughly trunk-count +
-selected-opportunity-count regardless of how detailed any one chain is — **if you're touching
-the roadmap, keep it this way; don't reintroduce per-step canvas plotting.**
+Any spine item with more than one step (in practice, only opportunities — see above) gets its
+own diagonal sub-branch peeling off the spine at that item's date, instead of the old
+"collapsible chip that expands on click" — density is now handled by zoom/pan (below), not by
+hiding content behind a click. Each branch is computed in true isolation from every *other*
+branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal), which is what actually fixes
+the old overlap bug (multiple opportunities' individual prep steps used to compete for the same
+lateral space around one collapsed chip). But branches still have to share the canvas with the
+spine's own labels and with each other's labels, so there's a second layer:
+`roadmapLayout.js` maintains a running `placedLabels` list of every label's *approximate*
+rendered bounding box (character-count-based width estimate, not real DOM measurement) — every
+spine item's label is placed first (all of them, both earlier and later in time than any given
+branch, since a branch has to route around labels on both sides of it chronologically), then
+each branch step nudges itself further along its own diagonal (via `NUDGE_STEP`) until it clears
+every previously-placed box, registering its own box before the next step or branch is placed.
+Every spine item also alternates which side its *own* label renders on (`labelSide`) — spine x
+is always dead-center, so without alternating, every spine label would permanently claim one
+side and guarantee a collision with any branch peeling that way; a branch always peels to the
+side **opposite** its own anchor's label so an item never has to route around itself.
 
-`Roadmap.jsx` renders trunk/chips/today and handles the detail modal: trunk nodes and GPA
-chips get the simple single-item modal (desc + one complete-toggle); opportunity chips get an
-expanded step list, each step independently completable, with a "X/Y steps complete" line.
-`completedNodes` is flat and shared, so step ids (`${opp.id}-prep-${i}`, `${opp.id}-deadline`)
-just need to be unique — no separate tracking structure. The Today node is never completable
-and is excluded from the trunk progress count (it isn't part of the `trunk` array).
+`Roadmap.jsx` renders the spine, every branch, and the zoom/pan viewport, and handles the detail
+modal. Required (core) nodes render with a solid ring (filled white when incomplete, filled with
+the type color when done); optional (opportunity anchors and their branch steps) render with a
+thinner, dashed hollow ring when incomplete. Every node is independently clickable — a core node
+or a branch step opens the standard modal (desc + resources + complete-toggle); an opportunity's
+own anchor node opens a read-only summary ("X/Y steps complete") with **no** toggle of its own,
+since the actual actionable items are its branch steps, which are already directly visible and
+clickable on the canvas rather than hidden inside the anchor's modal. `completedNodes` is flat
+and shared, so step ids (`${opp.id}-prep-${i}`, `${opp.id}-deadline`) just need to be unique —
+no separate tracking structure. The Today node is never completable and core-progress counting
+only considers `required` spine items (`roadmap.spine.filter(n => n.required)`), matching the
+old trunk-only progress count.
+
+**Zoom, pan, and drag** replace the old fixed-scale, horizontal-scroll-only canvas (`.canvas-
+scroll`), since a multi-year plan with several opportunities can now run to several thousand
+pixels tall. `.roadmap-viewport` (fixed height, `overflow: hidden`) holds `.roadmap-canvas-
+inner`, a plain div carrying `transform: translate(panX, panY) scale(zoom)` — the SVG inside is
+rendered at its true native pixel size (`roadmap.canvasWidth`/`canvasHeight`, no `viewBox`
+scaling) and the CSS transform does all the zooming. Wheel = zoom (centered on the cursor, via
+the standard "keep the point under the cursor fixed" formula), pointer drag = pan, two-finger
+touch = pinch-zoom (tracked via native `touchstart`/`touchmove` listeners, since wheel/touch
+need `{ passive: false }` to `preventDefault()`, which React's synthetic `onWheel`/`onTouchMove`
+props can't reliably guarantee — see the `useEffect` that attaches them directly to the
+viewport DOM node). `fitView()` auto-fits on load/whenever `canvasWidth`/`canvasHeight` change
+(i.e. when the plan's content actually changes, not on every render). **The `.zoom-controls`
+buttons are a DOM sibling of `.roadmap-viewport`, not a child of it** — nesting them inside the
+div that owns the drag `onPointerDown` handler caused `setPointerCapture` to swallow the
+buttons' own click events; keep that separation if you touch this again.
 
 ## Design tokens
 
@@ -234,14 +273,26 @@ download). Cover at minimum:
 - All three education levels at least once.
 - A multi-career/multi-major/multi-program selection spanning two tracks — confirm merged
   counts, a combined single plan, and (if programs differ in GPA) the max-benchmark logic.
-- A dense opportunity selection (several at once, ideally all from one track plus some GPA
-  checkpoints) — this is the scenario that broke the old per-step layout; confirm the canvas
-  still shows one chip per opportunity, not an exploded node-per-step canvas.
-- Extract node positions via `document.querySelectorAll('g.node-badge')` and check trunk nodes
-  share one x value (straight line) and no two labels are within ~40px on both axes — visual
-  layout bugs here are not exceptions, so screenshot + eyeball too, not just the DOM check.
+- A dense opportunity selection (several multi-step opportunities at once, ideally from one
+  track) — this is the scenario that broke the old collapsed-chip layout; confirm each
+  opportunity renders as its own isolated diagonal branch, not overlapping another opportunity's
+  steps or the spine's own labels. Don't just eyeball this: group every `.node-label`/`.node-due`
+  text element in the rendered SVG by its parent node's `transform` (so a node's own title+due
+  lines aren't flagged against each other), then check `getBoundingClientRect()` for any
+  cross-node overlap — the real bug this catches only shows up as actual rendered text collision
+  (variable-width strings), not raw node-to-node distance, so a distance-threshold check alone
+  will miss it. Screenshot + eyeball too, especially after zooming into any dense cluster.
+- Confirm required (core) nodes render as solid rings and optional (opportunity) nodes as hollow
+  dashed rings, both on the spine and within branches; confirm exactly one "Check your GPA" label
+  exists per active stage (`gpaCount === stageLabelCount || (stageLabelCount === 0 && gpaCount
+  === 1)` for the single-stage case).
+- Zoom (wheel + buttons), pan (drag), and reset-view — verify `.roadmap-canvas-inner`'s inline
+  `transform` actually changes after each interaction; this regressed once already because the
+  zoom buttons were nested inside the pointer-drag div and `setPointerCapture` ate their clicks
+  (see Architecture) — if you restructure the viewport markup, re-verify button clicks still
+  fire.
 - At least one `schoolYear` per level that prepends stages (e.g. highschool 9, undergraduate 1,
   transfer 1) plus the final-stage-only case (highschool 12, undergraduate 4, transfer 2/3) —
-  confirm the final-stage-only trunk is identical in node count/labels to before this feature,
-  and that the multi-stage cases show the right number of `.stage-label` dividers with no
-  overlap even at the longest case (highschool 9th grade, ~19 trunk nodes).
+  confirm the multi-stage cases show the right number of `.stage-label` dividers, and test the
+  longest case (highschool 9th grade with several opportunities selected, ~35+ nodes) renders
+  with zero cross-node label overlap and pans/zooms cleanly.

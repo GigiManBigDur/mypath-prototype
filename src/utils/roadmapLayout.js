@@ -1,90 +1,175 @@
-// Positions the roadmap's two kinds of elements:
-//   - trunk: today + the core admissions steps, evenly spaced on one straight vertical line.
-//     There are only ever ~7 of these, so simple fixed spacing is enough — no date-proportional
-//     math, no collision handling needed.
-//   - chips: one per selected opportunity (its whole prep chain collapsed into a single clickable
-//     item — see roadmapGenerator.js) plus one per GPA checkpoint. Each chip attaches to whichever
-//     trunk node is chronologically closest, grouped and stacked near that anchor, alternating
-//     left/right for balance. A handful of chips at most, so a simple fixed-gap stack is enough.
+// One unified vertical spine, not separate trunk/branch/chip concepts. Every item — required
+// core admissions tasks and every selected opportunity's starting point alike — is positioned on
+// the spine by real date (today at the bottom, later dates higher up), same "latitude = time"
+// principle used everywhere else in this app. A light minimum-gap pass nudges spine items apart
+// when two real dates land too close together to read.
 //
-// Individual opportunity steps are NOT plotted on the canvas at all — they only appear in the
-// expanded panel when a chip is clicked (see Roadmap.jsx).
+// Multi-step items (currently only opportunities — core tasks are always single-step, see
+// trunkSteps.js) get their own diagonal sub-branch peeling off the spine, positioned by the same
+// time principle. Each branch is computed against a running list of every label already placed
+// (every earlier spine item, and every earlier branch's own steps) and nudges itself further out
+// along its own diagonal whenever it would collide — so a chain never has to fight over lateral
+// space with another chain's steps, it just routes around them.
 
 import { realDaysBetween } from './dates';
 
-const CENTER_X = 400;
-const TRUNK_GAP = 170;
 const TOP_MARGIN = 90;
 const BOTTOM_MARGIN = 90;
-const CANVAS_WIDTH = 800;
+const LABEL_BUFFER = 300; // horizontal room for node/branch label text extending outward from center
+const PIXELS_PER_DAY = 3;
+const MIN_SPINE_GAP = 90;
+const MIN_BRANCH_GAP = 46;
+const BRANCH_SLOPE = 0.55; // horizontal px per vertical px traveled along a branch (diagonal peel)
 
-const CHIP_SIDE_OFFSET = 220;
-const CHIP_GAP = 50;
+// Rough label-block geometry, used only to decide "would these two labels visually collide" —
+// doesn't need to be pixel-perfect, just a safe overestimate (IBM Plex Sans at 13px averages
+// under 6.3px/char, so this errs generous).
+const CHAR_PX = 6.3;
+const LABEL_PAD = 16;
+const LABEL_BLOCK_HEIGHT = 30;
+const SPINE_EDGE_GAP = 26;
+const BRANCH_EDGE_GAP = 20;
+const NUDGE_STEP = 18;
+const MAX_NUDGES = 80;
 
-function nearestAnchor(date, anchors) {
-  let best = anchors[0];
-  let bestDiff = Infinity;
-  for (const a of anchors) {
-    const diff = Math.abs(realDaysBetween(date, a.date));
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = a;
-    }
-  }
-  return best;
+function labelWidth(text) {
+  return text.length * CHAR_PX + LABEL_PAD;
 }
 
-export function layoutRoadmap({ today, trunkSteps, chips }) {
-  // Trunk: straight line, evenly spaced, today at the bottom.
-  const todayNode = { ...today, x: CENTER_X, y: TOP_MARGIN + trunkSteps.length * TRUNK_GAP };
-  const trunk = trunkSteps.map((step, i) => ({
-    ...step,
-    x: CENTER_X,
-    y: TOP_MARGIN + (trunkSteps.length - 1 - i) * TRUNK_GAP,
-  }));
-  const anchors = [todayNode, ...trunk];
+// A label reads two lines (title, due) of possibly different lengths — use whichever is wider.
+function blockWidth(title, due) {
+  return Math.max(labelWidth(title), labelWidth(`${due} XXXXXXXXXXXXXX`));
+}
 
-  // Group chips by nearest trunk/today anchor, sort each group chronologically, stack centered
-  // on the anchor's y, alternating side per chip (globally, for left/right balance).
-  const groups = new Map();
-  for (const chip of chips) {
-    const anchor = nearestAnchor(chip.date, anchors);
-    if (!groups.has(anchor.id)) groups.set(anchor.id, { anchor, items: [] });
-    groups.get(anchor.id).items.push(chip);
-  }
+function labelBBox(x, y, side, width, edgeGap) {
+  const left = side > 0 ? x + edgeGap : x - edgeGap - width;
+  return { left, right: left + width, top: y - LABEL_BLOCK_HEIGHT / 2, bottom: y + LABEL_BLOCK_HEIGHT / 2 };
+}
 
-  const laidOutChips = [];
-  let sideIndex = 0;
-  for (const { anchor, items } of groups.values()) {
-    items.sort((a, b) => a.date.getTime() - b.date.getTime());
-    items.forEach((chip, i) => {
-      const side = sideIndex % 2 === 0 ? 1 : -1;
-      sideIndex++;
-      const centeredIndex = i - (items.length - 1) / 2;
-      laidOutChips.push({
-        ...chip,
-        x: CENTER_X + side * CHIP_SIDE_OFFSET,
-        y: Math.round(anchor.y + centeredIndex * CHIP_GAP),
-        attachX: anchor.x,
-        attachY: anchor.y,
-      });
-    });
-  }
+// Stage dividers ("— Sophomore Year —") render centered on the spine, just below their node —
+// registered here too so a nearby branch routes around them like any other label.
+function centeredLabelBBox(x, y, text) {
+  const width = labelWidth(text);
+  return { left: x - width / 2, right: x + width / 2, top: y - 10, bottom: y + 10 };
+}
 
-  // Shift everything so the topmost element sits at TOP_MARGIN, and report the height needed.
-  const allY = [...anchors.map((a) => a.y), ...laidOutChips.map((c) => c.y)];
-  const minY = Math.min(...allY);
-  const maxY = Math.max(...allY);
-  const yShift = TOP_MARGIN - minY;
-  todayNode.y += yShift;
-  trunk.forEach((n) => { n.y += yShift; });
-  laidOutChips.forEach((c) => { c.y += yShift; c.attachY += yShift; });
+function intersects(a, b) {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
 
-  return {
-    today: todayNode,
-    trunk,
-    chips: laidOutChips,
-    canvasHeight: Math.round(maxY - minY + TOP_MARGIN + BOTTOM_MARGIN),
-    canvasWidth: CANVAS_WIDTH,
+// Positions one item's step chain along its own diagonal. `side` is +1 (right) or -1 (left).
+// Coordinates are relative to the parent spine node at (0, anchorY) and get shifted into final
+// canvas space later, alongside everything else. `placedLabels` accumulates every label bbox
+// placed so far (across every item, not just this branch) so each step can route around anything
+// already on the canvas — including labels from other chains — instead of only avoiding itself.
+function layoutBranch(steps, anchorY, side, placedLabels) {
+  const base = steps[0].date;
+  let prevRel = 0;
+  return steps.map((step, i) => {
+    let rel = MIN_BRANCH_GAP + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
+    if (i > 0 && rel - prevRel < MIN_BRANCH_GAP) rel = prevRel + MIN_BRANCH_GAP;
+
+    const width = blockWidth(step.title, step.due);
+    let x = side * rel * BRANCH_SLOPE;
+    let y = anchorY - rel;
+    let bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
+    let guard = 0;
+    while (guard < MAX_NUDGES && placedLabels.some((p) => intersects(p, bbox))) {
+      rel += NUDGE_STEP;
+      x = side * rel * BRANCH_SLOPE;
+      y = anchorY - rel;
+      bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
+      guard += 1;
+    }
+    placedLabels.push(bbox);
+    prevRel = rel;
+    return { ...step, x, y };
+  });
+}
+
+export function layoutRoadmap({ today, spineItems }) {
+  const daysFromToday = (date) => realDaysBetween(date, today.date);
+
+  const withT = spineItems
+    .map((item) => ({ item, t: daysFromToday(item.date) }))
+    .sort((a, b) => a.t - b.t);
+
+  // Pass 1: raw date-proportional y (today = 0, future = negative/upward) for every spine item,
+  // with a forward min-gap pass that only ever pushes items further from "now" — never reorders
+  // them — plus which side each item's OWN label renders on (labelSide alternates; spine x is
+  // always dead-center, so without alternating, every spine label would permanently claim the
+  // same side, guaranteeing a collision with any branch that happens to peel toward it).
+  //
+  // All spine labels get placed into `placedLabels` up front, in this same pass, before any
+  // branch is laid out — a branch needs to know about EVERY spine label (including ones later in
+  // time than its own anchor) to route around them, not just the ones already processed.
+  let prevY = 0;
+  let sideToggle = 0;
+  const placedLabels = [];
+  const withPosition = withT.map(({ item, t }) => {
+    let y = -t * PIXELS_PER_DAY;
+    if (prevY - y < MIN_SPINE_GAP) y = prevY - MIN_SPINE_GAP;
+    prevY = y;
+
+    const labelSide = sideToggle % 2 === 0 ? 1 : -1;
+    sideToggle += 1;
+
+    placedLabels.push(labelBBox(0, y, labelSide, blockWidth(item.title, item.due), SPINE_EDGE_GAP));
+    if (item.stageLabel) placedLabels.push(centeredLabelBBox(0, y + 46, `— ${item.stageLabel} —`));
+
+    return { item, y, labelSide };
+  });
+
+  // Pass 2: lay out each item's branch (if any) against the complete spine label set, plus every
+  // other branch's steps placed so far — each chain routes around everything already on the
+  // canvas instead of just avoiding itself.
+  const rawPositioned = withPosition.map(({ item, y, labelSide }) => {
+    const hasBranch = !!(item.steps && item.steps.length > 1);
+    let branchSteps = null;
+    const side = hasBranch ? -labelSide : 0;
+    if (hasBranch) {
+      branchSteps = layoutBranch(item.steps, y, side, placedLabels);
+    }
+    return { ...item, x: 0, y, hasBranch, side, labelSide, branchSteps };
+  });
+
+  const todayNode = { ...today, x: 0, y: 0 };
+
+  let minY = 0;
+  let maxY = 0;
+  let minX = 0;
+  let maxX = 0;
+  const account = (x, y) => {
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
   };
+  rawPositioned.forEach((n) => {
+    account(n.x, n.y);
+    if (n.branchSteps) n.branchSteps.forEach((s) => account(s.x, s.y));
+  });
+
+  // The spine sits at whatever x keeps every branch (and its labels) on-canvas — this is what
+  // lets the canvas scale to however dense/wide the selected opportunities make it, instead of
+  // assuming a fixed frame.
+  const centerX = Math.round(Math.max(-minX, maxX) + LABEL_BUFFER);
+  const yShift = TOP_MARGIN - minY;
+
+  todayNode.x = centerX;
+  todayNode.y += yShift;
+
+  const spine = rawPositioned.map((n) => ({
+    ...n,
+    x: n.x + centerX,
+    y: n.y + yShift,
+    branchSteps: n.branchSteps
+      ? n.branchSteps.map((s) => ({ ...s, x: s.x + centerX, y: s.y + yShift }))
+      : null,
+  }));
+
+  const canvasHeight = Math.round(maxY - minY + TOP_MARGIN + BOTTOM_MARGIN);
+  const canvasWidth = Math.round(centerX * 2);
+
+  return { today: todayNode, spine, canvasHeight, canvasWidth };
 }

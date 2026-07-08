@@ -128,6 +128,11 @@ export const TRUNK_STAGES = {
           resources: ['FAFSA checklist', 'CSS Profile guide'],
         },
         {
+          id: 'sr-gpa', title: 'Check your GPA — before you submit', type: 'milestone', date: { month: 12, day: 20 },
+          desc: 'Colleges may see updated grades — make sure your transcript reflects your best work before you hit submit.',
+          resources: [],
+        },
+        {
           id: 't5', title: 'Submit all college applications', type: 'major', date: { month: 1, day: 5 },
           desc: 'Final proofread, then submit. Double-check every supplement is attached.',
           resources: ['Submission checklist'],
@@ -157,6 +162,11 @@ export const TRUNK_STAGES = {
         {
           id: 'ex3', title: 'Identify 1–2 potential faculty mentors', type: 'procedure', date: { month: 4, day: 1 },
           desc: 'A professor who knows your work well can become a strong letter-writer later — start building that relationship now.',
+          resources: [],
+        },
+        {
+          id: 'ex-gpa', title: 'Check your GPA — end of the year', type: 'milestone', date: { month: 5, day: 15 },
+          desc: 'A yearly check-in early in your journey — steady grades now keep every future option open.',
           resources: [],
         },
       ],
@@ -207,6 +217,11 @@ export const TRUNK_STAGES = {
           resources: ['Statement of purpose outline', 'Example SOPs that worked'],
         },
         {
+          id: 'ap-gpa', title: 'Check your GPA — before you submit', type: 'milestone', date: { month: 12, day: 1 },
+          desc: 'Programs will see your most recent transcript — make sure it reflects your best work before you submit.',
+          resources: [],
+        },
+        {
           id: 't4', title: 'Submit applications', type: 'major', date: { month: 12, day: 15 },
           desc: (ctx) => ctx.programNames.length
             ? `Apply to your list: ${ctx.programNames.join(', ')} — carried over from Self-Discovery.`
@@ -240,6 +255,11 @@ export const TRUNK_STAGES = {
           desc: 'A transfer advisor (at your current school or your target school) can help you map out exactly which credits will count.',
           resources: [],
         },
+        {
+          id: 'cu-gpa', title: 'Check your GPA — end of the year', type: 'milestone', date: { month: 5, day: 15 },
+          desc: 'Your GPA at your current school matters most for transfer admissions — check in as the year wraps up.',
+          resources: [],
+        },
       ],
     },
     application: {
@@ -256,6 +276,11 @@ export const TRUNK_STAGES = {
           id: 't2', title: 'Request transcripts', type: 'procedure', date: { month: 1, day: 10 },
           desc: 'Order official transcripts from every college you\'ve attended, sent directly to each target school.',
           resources: ['Transcript request checklist'],
+        },
+        {
+          id: 'ap-gpa', title: 'Check your GPA — before you submit', type: 'milestone', date: { month: 2, day: 15 },
+          desc: 'Make sure your most recent transcript reflects your best work before you submit your transfer application.',
+          resources: [],
         },
         {
           id: 't3', title: 'Submit transfer application', type: 'major', date: { month: 3, day: 1 },
