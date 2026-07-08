@@ -53,25 +53,25 @@ version of the project at all times, so:
   that commit — don't wait for the user to run `/init` again. A stale CLAUDE.md is a bug the
   same way a failing build is.
 
-Neither deploy target auto-publishes on push — both are manual, opt-in steps. Only deploy
-when the user asks; it's a visible, shared action. Treat "committed to GitHub" and "live" as
-two separate facts — don't imply either site is current just because the repo is.
+**GitHub Pages redeploy is part of the same standing workflow as commit+push — not opt-in.**
+After a meaningful change, run `npm run deploy:pages` alongside the commit+push so
+`https://gigimanbigdur.github.io/mypath-prototype/` always reflects the latest code. User
+asked for this explicitly ("can you update the newest version into it every time we make
+changes?"). It builds with `DEPLOY_TARGET=gh-pages` (which flips `vite.config.js`'s `base` to
+`/mypath-prototype/` — GitHub Pages serves project sites under a subpath, not the domain root)
+and pushes `dist/` to the `gh-pages` branch via the `gh-pages` npm package. This requires the
+repo to stay **public** — Pages needs that on the free tier, which is why it was made public.
 
-- **Vercel** (`https://mypath-prototype-seven.vercel.app`): `npx vercel deploy --prod --yes`
-  from the project root. As of this writing the Vercel account has an unresolved issue —
-  every deploy after the very first one has gotten stuck at status `UNKNOWN` with zero build
-  logs ever generated (`vercel ls` shows this clearly), almost certainly an account-level
-  block (e.g. email verification), not a code or network problem. Don't spend more than one
-  retry on it without checking `vercel ls` / `vercel inspect <url>` first — if every recent
-  deployment shows `UNKNOWN` with no logs, it's the account, not this attempt.
-- **GitHub Pages** (`https://gigimanbigdur.github.io/mypath-prototype/`): the reliable
-  fallback when Vercel is blocked, and doesn't depend on Vercel/Cloudflare account state at
-  all. `npm run deploy:pages` builds with `DEPLOY_TARGET=gh-pages` (which flips
-  `vite.config.js`'s `base` to `/mypath-prototype/` — GitHub Pages serves project sites under
-  a subpath, not the domain root) and pushes `dist/` to the `gh-pages` branch via the
-  `gh-pages` npm package. Pages itself was enabled automatically the first time that branch
-  existed; no manual dashboard step was needed. This requires the repo to stay **public** —
-  Pages needs that on the free tier, which is why the repo was made public.
+**Vercel deploys remain manual/opt-in — do not auto-redeploy there.** Only run
+`npx vercel deploy --prod --yes` when the user explicitly asks; treat "committed to GitHub"
+and "live on Vercel" as separate facts. As of this writing the Vercel account has an
+unresolved issue — every deploy after the very first one got stuck at status `UNKNOWN` with
+zero build logs ever generated (`vercel ls` shows this clearly), almost certainly an
+account-level block (e.g. email verification), not a code or network problem. Don't spend more
+than one retry on it without checking `vercel ls` / `vercel inspect <url>` first — if every
+recent deployment shows `UNKNOWN` with no logs, it's the account, not this attempt. GitHub
+Pages is the standing/default public link; Vercel (`https://mypath-prototype-seven.vercel.app`)
+is secondary and manual only.
 
 ## Architecture
 
