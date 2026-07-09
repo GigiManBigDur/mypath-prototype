@@ -19,6 +19,11 @@ const MILESTONES = [
   { t: 0.88, label: 'Know exactly what’s next' },
 ];
 
+// Module-level, not AppContext/localStorage state — this only needs to remember "already
+// played" for the lifetime of the tab (e.g. navigating back here from the survey), not across
+// a real reload, so a plain module variable is enough.
+let hasPlayedIntro = false;
+
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(() => (
     typeof window !== 'undefined' && window.matchMedia(query).matches
@@ -49,10 +54,12 @@ export default function WelcomeScreen() {
   // animate). `revealed` counts how many milestone markers have been individually revealed so
   // far, driven by its own staggered timers below — a CSS `transition-delay` alone can't do this,
   // since a transition only fires on an actual property CHANGE, and a class applied once at mount
-  // and never removed has nothing to transition from.
-  const [drawn, setDrawn] = useState(reducedMotion);
-  const [revealed, setRevealed] = useState(reducedMotion ? MILESTONES.length : 0);
-  const [heroVisible, setHeroVisible] = useState(reducedMotion);
+  // and never removed has nothing to transition from. A return visit (e.g. Back from the survey)
+  // skips straight to the settled state via `hasPlayedIntro`, same as reduced motion.
+  const skipIntro = reducedMotion || hasPlayedIntro;
+  const [drawn, setDrawn] = useState(skipIntro);
+  const [revealed, setRevealed] = useState(skipIntro ? MILESTONES.length : 0);
+  const [heroVisible, setHeroVisible] = useState(skipIntro);
 
   // Layout effect, not a regular one — this measures real SVG geometry and feeds it back into
   // render (marker positions, path length), so it needs to run before paint to avoid a visible
@@ -69,7 +76,7 @@ export default function WelcomeScreen() {
   }, [trailPath]);
 
   useEffect(() => {
-    if (reducedMotion) return undefined;
+    if (skipIntro) return undefined;
     setDrawn(false);
     // Double rAF: the first frame commits the "undrawn" starting style, the second flips the
     // class that carries the CSS transition — collapsing this to one rAF (or a setTimeout(0))
@@ -83,24 +90,27 @@ export default function WelcomeScreen() {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
     };
-  }, [reducedMotion, pathLength]);
+  }, [skipIntro, pathLength]);
 
   useEffect(() => {
-    if (reducedMotion || markerPoints.length === 0) return undefined;
+    if (skipIntro || markerPoints.length === 0) return undefined;
     setRevealed(0);
     const timers = markerPoints.map((_, i) => setTimeout(() => {
       setRevealed((r) => Math.max(r, i + 1));
     }, 500 + i * 500));
     return () => timers.forEach(clearTimeout);
-  }, [reducedMotion, markerPoints.length]);
+  }, [skipIntro, markerPoints.length]);
 
   useEffect(() => {
-    if (reducedMotion) return undefined;
+    if (skipIntro) return undefined;
     // Hero content settles in once the trail (1.8s) and the last marker (delay 1.5s + ~0.5s pop)
     // have both resolved — reads as one sequence finishing, not an unrelated fourth effect.
-    const timer = setTimeout(() => setHeroVisible(true), 1900);
+    const timer = setTimeout(() => {
+      setHeroVisible(true);
+      hasPlayedIntro = true;
+    }, 1900);
     return () => clearTimeout(timer);
-  }, [reducedMotion]);
+  }, [skipIntro]);
 
   return (
     <div className="welcome-screen">

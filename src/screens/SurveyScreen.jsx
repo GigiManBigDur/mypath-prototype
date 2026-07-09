@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 
@@ -46,6 +46,10 @@ export default function SurveyScreen() {
 
   return (
     <div>
+      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'welcome' })}>
+        <ArrowLeft size={14} /> Back
+      </button>
+
       <div className="eyebrow">Step 1 of 6</div>
       <h1 className="page-title">Let's build your plan.</h1>
       <p className="page-sub">
