@@ -428,7 +428,21 @@ touch = pinch-zoom (tracked via native `touchstart`/`touchmove` listeners, since
 need `{ passive: false }` to `preventDefault()`, which React's synthetic `onWheel`/`onTouchMove`
 props can't reliably guarantee — see the `useEffect` that attaches them directly to the
 viewport DOM node). `fitView()` auto-fits on load/whenever `canvasWidth`/`canvasHeight` change
-(i.e. when the plan's content actually changes, not on every render). **The `.zoom-controls`
+(i.e. when the plan's content actually changes, not on every render) and also runs when the
+"Reset view" zoom-control button is clicked (`Maximize2` icon) — same function, so both share the
+behavior described next. **The default/reset fit caps how much of the timeline shows to at most a
+~2-year window anchored at "today," not the whole plan** — auto-fitting an entire multi-year plan
+(e.g. a 9th-grade 4-year plan) on first load zoomed everything out so far it read as tiny and
+cramped. `roadmapLayout.js` positions today a fixed `BOTTOM_MARGIN` above the canvas's bottom
+edge and everything else strictly further from today the further in the future it is, so
+`roadmap.today.y` (exported alongside `PIXELS_PER_DAY` from `roadmapLayout.js`) is itself
+proportional to the plan's total time-span in pixels — `fitView()` computes `effectiveTop =
+max(0, today.y - 2 years in px)` and fits the region from `effectiveTop` down to the canvas
+bottom, instead of the whole canvas. **This reduces to the exact old full-plan-fit behavior
+whenever the plan's real span is already ≤ 2 years** (`effectiveTop` comes out to 0, no branch
+needed to special-case it) — a 12th-grade 1-year plan is unaffected. Manual zoom (wheel/pinch/
+buttons) and pan are completely untouched by this — a student who wants the full multi-year span
+can still zoom out to it exactly as before; only what's shown by default changed. **The `.zoom-controls`
 buttons are a DOM sibling of `.roadmap-viewport`, not a child of it** — nesting them inside the
 div that owns the drag `onPointerDown` handler caused `setPointerCapture` to swallow the
 buttons' own click events; keep that separation if you touch this again.

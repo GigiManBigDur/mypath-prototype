@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
+import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
 import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 
@@ -41,6 +42,11 @@ const PROJECT_CONFIG = { label: 'Project', color: '#6E7F87', Icon: Rocket };
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
 const VIEWPORT_HEIGHT = 620;
+// Default/reset view caps how much of the timeline shows at once to at most a 2-year window
+// anchored at "today", extending toward the future — auto-fitting an entire multi-year plan
+// (e.g. a 9th-grade 4-year plan) zoomed out so far everything read as tiny and cramped. A plan
+// that already spans 2 years or less is unaffected (see fitView).
+const DEFAULT_WINDOW_DAYS = 365 * 2;
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -151,11 +157,21 @@ export default function Roadmap({ roadmap }) {
     if (!el) return;
     const vw = el.clientWidth;
     const vh = el.clientHeight;
-    const zoom = clamp(Math.min(vw / roadmap.canvasWidth, vh / roadmap.canvasHeight), MIN_ZOOM, 1);
+    // `today.y` is (proportional to) the whole plan's time-span in pixels — today sits a fixed
+    // BOTTOM_MARGIN above the canvas's bottom edge, and every other node's y only ever moves
+    // further from today (upward) the further in the future it is. Capping how far above today.y
+    // the default view starts effectively caps the default view to a window of real time, not a
+    // pixel count — `effectiveTop` is 0 (i.e. this reduces to fitting the whole canvas, same as
+    // before) whenever the plan's actual span is already <= DEFAULT_WINDOW_DAYS.
+    const windowPixels = DEFAULT_WINDOW_DAYS * PIXELS_PER_DAY;
+    const effectiveTop = Math.max(0, roadmap.today.y - windowPixels);
+    const windowHeight = roadmap.canvasHeight - effectiveTop;
+
+    const zoom = clamp(Math.min(vw / roadmap.canvasWidth, vh / windowHeight), MIN_ZOOM, 1);
     const panX = (vw - roadmap.canvasWidth * zoom) / 2;
-    const panY = (vh - roadmap.canvasHeight * zoom) / 2;
+    const panY = (vh - windowHeight * zoom) / 2 - effectiveTop * zoom;
     setView({ zoom, panX, panY });
-  }, [roadmap.canvasWidth, roadmap.canvasHeight]);
+  }, [roadmap.canvasWidth, roadmap.canvasHeight, roadmap.today.y]);
 
   useEffect(() => { fitView(); }, [fitView]);
 
