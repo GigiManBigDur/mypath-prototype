@@ -445,16 +445,24 @@ keep this click-vs-drag distinction — it's not optional polish, node clicks si
 working without it.
 
 **`ProjectBuilderScreen` (`src/screens/ProjectBuilderScreen.jsx`) is a curated browse-and-start
-flow only** — Community Project Examples (peer submissions, likes/comments, verification,
-rewards) and "Create Your Own" (AI-driven dynamic brainstorming) are both explicitly out of
-scope and don't exist anywhere in this screen or its data. Content lives in
-`src/data/projects.js`: `PROJECT_CATEGORIES`, 6 categories each with a `description`, an
-`example` string (always framed in the UI as illustrative — "not a real submission from another
-student" — never as a live community post), and 3 `projectTypes`, each carrying `overview`,
-`timeCommitment`, `steps` (array), and `resources` (array) — same "array of plain strings" shape
-`stepResources` uses elsewhere. `icon` is a lucide-react icon *name* (string), not a component —
-data files stay free of UI imports; `ProjectBuilderScreen` owns the name→component map
-(`CATEGORY_ICONS`).
+flow, plus a static, mocked Community Project Examples preview** — "Create Your Own" (AI-driven
+dynamic brainstorming) is entirely out of scope and doesn't exist anywhere in this screen or its
+data. Community Project Examples, by contrast, DOES have a presence here, but only as fixed
+display content: `PROJECT_CATEGORIES[].communityExamples` (0-2 entries per category, `{ name,
+handle, grade, blurb, likes }`) render as plain, non-interactive `<div>` cards styled to *look*
+like real social posts — but there is no submission flow, no commenting, and `likes` is a fixed
+number next to an icon, never a working like button. This is intentional: it's testing whether
+the concept resonates, not a preview of the real feature's data model, and likes/rewards-based
+incentives specifically were already decided against for the real product — don't wire up
+interactivity here even experimentally. When a real Community feature ships, this field gets
+replaced wholesale, not extended. Content otherwise lives in `src/data/projects.js`:
+`PROJECT_CATEGORIES`, 6 categories each with a `description`, an `example` string (always framed
+in the UI as illustrative — "not a real submission from another student" — the ONE per-category
+example is a different, older piece of content than `communityExamples` and keeps its own
+existing caveat treatment), and 3 `projectTypes`, each carrying `overview`, `timeCommitment`,
+`steps` (array), and `resources` (array) — same "array of plain strings" shape `stepResources`
+uses elsewhere. `icon` is a lucide-react icon *name* (string), not a component — data files stay
+free of UI imports; `ProjectBuilderScreen` owns the name→component map (`CATEGORY_ICONS`).
 
 The screen has 3 local, **unpersisted** sub-views (`'categories' | 'category' | 'projectType'`,
 plain `useState`, not `AppContext`) — refreshing mid-browse just resets to the category grid,

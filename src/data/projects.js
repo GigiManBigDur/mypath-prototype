@@ -1,7 +1,13 @@
 // PROJECT_CATEGORIES: content for the "Project Builder" screen — a curated browse-and-start
-// flow only. Deliberately excludes Community Project Examples (peer submissions, likes/comments,
-// verification, rewards) and "Create Your Own" (AI-driven dynamic brainstorming) — both out of
-// scope; every example project below is illustrative copy, not a live community submission.
+// flow only. "Create Your Own" (AI-driven dynamic brainstorming) is entirely out of scope and
+// doesn't exist anywhere here. `communityExamples` (below) is a deliberately STATIC, mocked
+// stand-in for a real Community Project Examples feature — testing whether the concept resonates
+// before any backend/submission/comment/like system gets built. There is no submission flow, no
+// commenting, and no functional liking anywhere in this app; `likes` on each entry is a fixed
+// display number, not a counter. Likes/rewards-based incentives specifically were already
+// decided against for the real product, so this mock doesn't simulate one either — the `likes`
+// field is flavor text, not a mechanic. When a real Community feature ships, `communityExamples`
+// gets replaced with actual submissions; nothing here should be read as a data model for that.
 //
 // `icon` is a lucide-react icon *name* (not a component) — kept as a string here since data
 // files stay free of UI/React imports elsewhere in this app; ProjectBuilderScreen.jsx maps the
@@ -17,6 +23,18 @@ export const PROJECT_CATEGORIES = [
     icon: 'Rocket',
     description: 'Turn an idea into a real product, service, or venture — teaches planning, budgeting, and initiative.',
     example: "A student built a peer-to-peer tutoring platform connecting high schoolers with local middle schoolers needing extra help.",
+    communityExamples: [
+      {
+        name: 'TutorConnect', handle: '@future_founder22', grade: '11th grade',
+        blurb: "Built a peer-to-peer tutoring platform connecting high schoolers with local middle schoolers needing extra help. Wish I'd started earlier!",
+        likes: 34,
+      },
+      {
+        name: 'GreenBox Refill Co.', handle: '@ecobiz_maya', grade: '12th grade',
+        blurb: 'Started a zero-waste refill station for household products at my local farmers market.',
+        likes: 21,
+      },
+    ],
     projectTypes: [
       {
         id: 'jewelry-ecommerce',
@@ -71,6 +89,13 @@ export const PROJECT_CATEGORIES = [
     icon: 'HeartHandshake',
     description: 'Address a real community need by building an organization, campaign, or initiative — shows leadership with purpose.',
     example: 'A student organized a free tutoring nonprofit pairing high schoolers with elementary students in an underserved neighborhood.',
+    communityExamples: [
+      {
+        name: 'Fed Together', handle: '@foodie4good', grade: '10th grade',
+        blurb: 'Organized a free tutoring nonprofit pairing high schoolers with elementary kids in an under-resourced neighborhood.',
+        likes: 29,
+      },
+    ],
     projectTypes: [
       {
         id: 'food-drive-initiative',
@@ -125,6 +150,13 @@ export const PROJECT_CATEGORIES = [
     icon: 'Microscope',
     description: 'Investigate a genuine question using real research methods — shows intellectual curiosity and independence.',
     example: 'A student surveyed 200 classmates to study the relationship between sleep habits and academic performance at their school.',
+    communityExamples: [
+      {
+        name: 'Sleep & Grades', handle: '@curious_sam', grade: '11th grade',
+        blurb: 'Surveyed 200 classmates to study the link between sleep habits and academic performance at our school.',
+        likes: 18,
+      },
+    ],
     projectTypes: [
       {
         id: 'local-environmental-study',
@@ -179,6 +211,18 @@ export const PROJECT_CATEGORIES = [
     icon: 'Cpu',
     description: 'Explore science, technology, engineering, or math hands-on — shows technical skill and creative problem-solving.',
     example: 'A student built a low-cost weather station using sensors and a Raspberry Pi to collect local climate data for a community science fair.',
+    communityExamples: [
+      {
+        name: 'WeatherWatch', handle: '@stemkid_alex', grade: '10th grade',
+        blurb: 'Built a low-cost weather station using sensors and a Raspberry Pi for our community science fair.',
+        likes: 45,
+      },
+      {
+        name: 'PathBot', handle: '@roboticsrae', grade: '11th grade',
+        blurb: 'A robot that helps visually impaired students navigate school hallways safely.',
+        likes: 52,
+      },
+    ],
     projectTypes: [
       {
         id: 'robotics-project',
@@ -233,6 +277,13 @@ export const PROJECT_CATEGORIES = [
     icon: 'BookOpen',
     description: 'Develop your voice as a writer through fiction, poetry, or nonfiction — shows discipline and creative vision.',
     example: "A student wrote and self-published a short story collection exploring their family's immigration story.",
+    communityExamples: [
+      {
+        name: 'Where We Came From', handle: '@writer_leah', grade: '12th grade',
+        blurb: "Self-published a short story collection about my family's immigration story.",
+        likes: 40,
+      },
+    ],
     projectTypes: [
       {
         id: 'short-story-collection',
@@ -287,6 +338,13 @@ export const PROJECT_CATEGORIES = [
     icon: 'Palette',
     description: 'Create original visual art, music, film, or performance work — shows creative vision and follow-through.',
     example: 'A student created a mural series for their school reflecting the diverse cultures of their student body.',
+    communityExamples: [
+      {
+        name: 'Voices of Our Halls', handle: '@artsy_devon', grade: '10th grade',
+        blurb: 'Created a mural series reflecting the diverse cultures of our student body.',
+        likes: 37,
+      },
+    ],
     projectTypes: [
       {
         id: 'photography-series',

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette,
-  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles,
+  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PROJECT_CATEGORIES, findCategory, findProjectType } from '../data/projects';
@@ -171,6 +171,33 @@ function CategoryView({ category, onOpenProjectType, startedProjects }) {
         <p className="pb-example-text">{category.example}</p>
         <p className="pb-example-caveat">Just an example to get you thinking — not a real submission from another student.</p>
       </div>
+
+      {category.communityExamples?.length > 0 && (
+        <div className="pb-community-section">
+          <div className="field-label" style={{ marginTop: 28 }}>Community Project Examples</div>
+          <p className="field-hint">
+            A preview of what a Community feature could look like — not real, not submittable yet.
+          </p>
+          <div className="pb-community-grid">
+            {category.communityExamples.map((post) => (
+              <div className="pb-community-card" key={post.name}>
+                <div className="pb-community-header">
+                  <div className="pb-community-avatar">{post.handle.replace('@', '').charAt(0).toUpperCase()}</div>
+                  <div>
+                    <div className="pb-community-handle">{post.handle}</div>
+                    <div className="pb-community-grade">{post.grade}</div>
+                  </div>
+                </div>
+                <div className="pb-community-name">{post.name}</div>
+                <p className="pb-community-blurb">{post.blurb}</p>
+                <div className="pb-community-footer">
+                  <Heart size={13} /> {post.likes}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="field-label" style={{ marginTop: 28 }}>Pick a project type</div>
       <div className="pb-projecttype-grid">
