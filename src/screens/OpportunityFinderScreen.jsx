@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { getOpportunityPool } from '../data/opportunities';
 import { anchorDate, formatDate, startOfToday } from '../utils/dates';
+import StepProgress from '../components/StepProgress';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
@@ -31,7 +32,7 @@ export default function OpportunityFinderScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <div className="eyebrow">Step 4 of 6</div>
+      <StepProgress step={4} total={6} />
       <h1 className="page-title">Opportunity Finder</h1>
       <p className="page-sub">
         Real programs and competitions worth pursuing alongside your coursework. Select any that

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
+import StepProgress from '../components/StepProgress';
 
 const LEVELS = [
   { id: 'highschool', label: 'High School' },
@@ -50,7 +51,7 @@ export default function SurveyScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <div className="eyebrow">Step 1 of 6</div>
+      <StepProgress step={1} total={6} />
       <h1 className="page-title">Let's build your plan.</h1>
       <p className="page-sub">
         Answer a few quick questions and we'll put together a personalized roadmap — no

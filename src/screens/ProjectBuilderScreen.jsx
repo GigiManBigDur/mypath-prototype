@@ -8,6 +8,7 @@ import { PROJECT_CATEGORIES, findCategory, findProjectType } from '../data/proje
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { parseDateInputValue, realDaysBetween, formatDate } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
+import StepProgress from '../components/StepProgress';
 
 const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
 // Cycles through the app's existing accent tokens rather than introducing new colors — 6
@@ -93,7 +94,7 @@ export default function ProjectBuilderScreen() {
         </button>
       </div>
 
-      <div className="eyebrow">Step 5 of 6</div>
+      <StepProgress step={5} total={6} />
 
       {view === 'categories' && <CategoriesView onOpenCategory={openCategory} />}
 

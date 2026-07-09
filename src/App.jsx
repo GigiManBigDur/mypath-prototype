@@ -18,19 +18,32 @@ const SCREENS = {
   plan: AcademicPlanScreen,
 };
 
+// Screens that get the shared fade+slide page transition (Task 2 of the animation/polish pass).
+// Welcome is excluded since it has its own bespoke entrance sequence; Plan is excluded because
+// the whole Academic Plan screen is out of scope for that pass (see CLAUDE.md).
+const TRANSITION_SCREENS = new Set(['survey', 'admissions', 'discovery', 'opportunities', 'projectBuilder']);
+
 function AppShell() {
   const { state } = useApp();
-  const Screen = SCREENS[state.screen] || SurveyScreen;
+  const screenKey = SCREENS[state.screen] ? state.screen : 'survey';
+  const Screen = SCREENS[screenKey];
+  const isPlan = screenKey === 'plan';
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isPlan ? '' : ' polish'}`}>
       {state.screen !== 'welcome' && (
         <div className="brand">
           <Compass />
           MyPath — prototype
         </div>
       )}
-      <Screen />
+      {TRANSITION_SCREENS.has(screenKey) ? (
+        <div className="screen-transition" key={screenKey}>
+          <Screen />
+        </div>
+      ) : (
+        <Screen />
+      )}
     </div>
   );
 }

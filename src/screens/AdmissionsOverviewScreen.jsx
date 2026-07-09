@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { ADMISSIONS_TEXT } from '../data/admissionsText';
 import { getBuiltTracks } from '../data/interests';
 import { useApp } from '../context/AppContext';
+import StepProgress from '../components/StepProgress';
 
 export default function AdmissionsOverviewScreen() {
   const { state, patch } = useApp();
@@ -14,7 +15,7 @@ export default function AdmissionsOverviewScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <div className="eyebrow">Step 2 of 6</div>
+      <StepProgress step={2} total={6} />
       <h1 className="page-title">{copy.title}</h1>
 
       <div className="prose">

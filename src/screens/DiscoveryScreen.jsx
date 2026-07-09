@@ -7,6 +7,7 @@ import { getMergedPrograms } from '../data/programs';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
 import ProgramsStep from './discovery/ProgramsStep';
+import StepProgress from '../components/StepProgress';
 
 const SUB_STEPS = ['careers', 'majors', 'programs'];
 
@@ -105,7 +106,7 @@ export default function DiscoveryScreen() {
   return (
     <div>
       <BackBar onBack={goBackSubStep} />
-      <div className="eyebrow">Step 3 of 6 · {SUB_STEP_COPY[subStep].title}</div>
+      <StepProgress step={3} total={6} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">{SUB_STEP_COPY[subStep].sub}</p>
 

@@ -633,6 +633,38 @@ JS is slow to hydrate.
 ported from the reference prototype (paper/trail-map palette, Fraunces/IBM Plex fonts). Match
 these tokens rather than introducing new colors when building new UI.
 
+**Global interaction polish (buttons, page transitions, staggered card reveals, selection
+feedback, card depth) is scoped under a single `.polish` class, not applied to raw shared
+classes directly — this is what keeps it from leaking onto the Academic Plan screen.**
+`App.jsx` adds `.polish` to `.app-shell` for every screen except `plan` (`isPlan` check on the
+resolved `screenKey`, not the raw `state.screen`, so an invalid/unknown screen value falls back
+to `survey`'s behavior rather than accidentally matching `plan`). This exists because most of
+the interactive base classes these effects hook into (`.btn`, `.card`, `.tag`, `.pill`) are
+literally shared with Roadmap.jsx/AcademicPlanScreen — without the `.polish` ancestor scope,
+a rule like `.btn:active { transform: scale(0.965) }` would just as easily fire on the Plan
+screen's own buttons. All of `src/styles/global.css`'s "Global interaction polish" section
+(press-feedback scale on every button/card/tag/pill, the primary-CTA ripple, card depth/rounding,
+the selection pulse + checkmark badge on a selected `.card`, and the staggered card-reveal
+animation) lives under that `.polish` prefix; don't add a new polish rule directly to a bare
+shared class, or it'll silently apply to the Plan screen too. **Page transitions are a separate,
+narrower scope**: `TRANSITION_SCREENS` in `App.jsx` (`survey`, `admissions`, `discovery`,
+`opportunities`, `projectBuilder`) wraps just those screens in a `.screen-transition` div keyed
+by `screenKey`, so changing `state.screen` remounts the wrapper and replays its fade+upward-slide
+`screen-enter` keyframe — this is enter-only (no exit-stage animation, no router), which is fine
+since screens fully unmount/remount on every navigation anyway. `welcome` is deliberately excluded
+from `TRANSITION_SCREENS` (it already has its own bespoke multi-stage entrance, see below) and
+`plan` is excluded per the "don't touch Academic Plan" scope of this pass. The staggered card
+reveal (Task 3 of that pass) needs no per-screen index bookkeeping — it's pure CSS `:nth-child`
+delays applied to the existing shared grid/list container classes (`.grid`, `.tag-list`,
+`.pb-category-grid`, `.pb-projecttype-grid`, `.pb-community-grid`, `.step-track`) via one `:is()`
+selector group, so any future screen that reuses one of those containers gets the stagger for
+free. **`src/components/StepProgress.jsx`** replaces the old plain `<div className="eyebrow">Step
+N of 6</div>` text on Survey/Admissions/Discovery/OpportunityFinder/ProjectBuilder with an
+animated dot track (reusing the exact `.step-track`/`.step-dot` classes DiscoveryScreen already
+had for its own careers/majors/programs sub-steps) plus that same eyebrow text underneath, via a
+`{step, total, label}` prop API — `AcademicPlanScreen.jsx`'s own "Step 6 of 6" is deliberately
+left as plain text, not switched to this component, matching the rest of this pass's scope.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

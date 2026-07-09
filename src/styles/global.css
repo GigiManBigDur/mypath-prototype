@@ -670,3 +670,179 @@ button.card.passed:hover {
   .welcome-trail-path, .welcome-marker, .welcome-hero-content { transition: none; }
   .welcome-here-pulse { animation: none; opacity: 0; }
 }
+
+/* ==========================================================================
+   Global interaction polish — Task: consistent animation/visual pass across
+   every screen EXCEPT the Academic Plan. Everything below is scoped under
+   `.polish`, a class App.jsx adds to `.app-shell` for every screen except
+   `plan` — this guarantees none of it can leak onto the Academic Plan screen
+   even though it reuses shared classes (.btn, .card, .tag, .pill, ...) that
+   the Plan screen/Roadmap also happen to use.
+   ========================================================================== */
+
+/* Task 2 — page transitions. Enter-only (this app has no router/animated exit
+   stage): the wrapping div is remounted (keyed by screen name in App.jsx)
+   every time the active screen changes, which restarts this animation. One
+   consistent fade + upward-slide, used everywhere, regardless of navigation
+   direction (back vs. forward both look the same — simpler and avoids
+   picking a "wrong" left/right direction on a Back click). */
+@keyframes screen-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.screen-transition {
+  animation: screen-enter 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Task 1 — global press/click feedback. A quick scale-down on :active for
+   every interactive control, applied via shared base selectors (not
+   hand-applied per screen/component) so every button/card/tag/pill across
+   the app behaves the same way. */
+.polish .btn:active:not(:disabled),
+.polish button.card:active:not(.passed),
+.polish .tag:active:not(:disabled),
+.polish .pill:active,
+.polish .pb-category-card:active,
+.polish .pb-projecttype-card:active,
+.polish .tag-category-header:active {
+  transform: scale(0.965);
+  transition: transform 100ms ease;
+}
+
+/* Primary CTAs get a bit more: a pressed-in shadow plus a brief ripple
+   expanding from the button's center (CSS-only — no click-position JS
+   needed for a subtle confirmation flash). */
+.polish .btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.polish .btn-primary:active:not(:disabled) {
+  box-shadow: 0 2px 8px -2px rgba(30, 61, 50, 0.5) inset;
+}
+.polish .btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+.polish .btn-primary:active::after {
+  animation: btn-ripple 500ms ease-out;
+}
+@keyframes btn-ripple {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) scale(18); opacity: 0; }
+}
+
+/* Task 5 — a bit more depth + consistent rounding on every card style. */
+.polish .card {
+  border-radius: 10px;
+  box-shadow: 0 2px 6px -2px rgba(30, 61, 50, 0.12);
+}
+.polish .pb-category-card,
+.polish .pb-projecttype-card,
+.polish .pb-community-card {
+  box-shadow: 0 2px 6px -2px rgba(30, 61, 50, 0.12);
+}
+
+/* Task 4 — selection feedback beyond the static border/background change:
+   a brief scale pulse on every selectable control, plus a small checkmark
+   badge that pops onto a selected .card specifically (the larger
+   career/major/program/opportunity picks, where there's room for it). */
+@keyframes select-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+.polish .card.selected,
+.polish .tag.selected,
+.polish .pill.selected {
+  animation: select-pulse 260ms ease;
+}
+.polish .card {
+  position: relative;
+}
+@keyframes check-pop {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.polish .card.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+  animation: check-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Task 3 — staggered card reveals. Applies to every place a set of
+   selectable cards appears (career/major/program/opportunity grids, the
+   interest-tag list, Project Builder's category/project-type/community
+   grids) plus the step-dot track below, via the containers' existing shared
+   classes — no per-screen index bookkeeping needed. */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > * {
+  animation: stagger-in 320ms ease both;
+}
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(1) { animation-delay: 0ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(2) { animation-delay: 40ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(3) { animation-delay: 80ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(4) { animation-delay: 120ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(5) { animation-delay: 160ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(6) { animation-delay: 200ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(7) { animation-delay: 240ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(8) { animation-delay: 280ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(9) { animation-delay: 320ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(10) { animation-delay: 360ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(11) { animation-delay: 400ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(12) { animation-delay: 440ms; }
+:is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+    .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > *:nth-child(n+13) { animation-delay: 480ms; }
+
+/* Step indicator (StepProgress component) — the .step-track/.step-dot rules
+   above already handle its dot animation; this just tightens the spacing
+   between the dot row and the "Step X of Y" label under it. */
+.step-progress .step-track { margin-bottom: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-transition,
+  .polish .btn-primary::after,
+  .polish .card.selected,
+  .polish .tag.selected,
+  .polish .pill.selected,
+  .polish .card.selected::after,
+  :is(.polish .grid, .polish .tag-list, .polish .pb-category-grid,
+      .polish .pb-projecttype-grid, .polish .pb-community-grid, .polish .step-track) > * {
+    animation: none !important;
+  }
+}
