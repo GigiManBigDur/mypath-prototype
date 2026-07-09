@@ -241,7 +241,7 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
         : i === 0
           ? `${opp.description} This is the first step in preparing for ${opp.name}.`
           : `Step ${i + 1} of ${total} in preparing for ${opp.name}.`,
-      resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
+      resources: opp.stepResources?.[i] || [],
     }),
   );
   if (!steps) return null;

@@ -9,6 +9,11 @@
 // title/desc/resources can be a plain value or a function of
 // ctx = { programNames, distinctSchoolNames, majorName, careerName } so steps can reference
 // the student's actual selections.
+//
+// `resources` is intentionally left empty on purely reflective/personal-action steps (e.g. "Check
+// your GPA", "Connect with a transfer advisor") — there's no genuine external link for those, and
+// forcing one in would be padding, not a real resource. Every step with a concrete, well-known
+// resource (test prep, official application platforms, financial aid, etc.) has one attached.
 
 // Names the specific school when the student's list has exactly one distinct school; falls
 // back to generic phrasing once it spans two or more (or none were picked yet).
@@ -46,7 +51,7 @@ export const TRUNK_STAGES = {
         {
           id: 'so1', title: 'Take the PSAT as practice', type: 'procedure', date: { month: 10, day: 15 },
           desc: 'Many schools offer a practice PSAT sophomore year — it\'s low-stakes and gives you an early read on where you stand.',
-          resources: ['Khan Academy free PSAT prep'],
+          resources: ['Khan Academy Official SAT Practice (free, also covers PSAT-style prep)', "College Board's official PSAT/NMSQT info page"],
         },
         {
           id: 'so2', title: 'Take on a leadership role in an activity you enjoy', type: 'milestone', date: { month: 12, day: 1 },
@@ -56,7 +61,7 @@ export const TRUNK_STAGES = {
         {
           id: 'so3', title: 'Start exploring careers and majors that interest you', type: 'milestone', date: { month: 2, day: 1 },
           desc: 'You don\'t need to decide anything yet — just start noticing what subjects and careers genuinely interest you.',
-          resources: [],
+          resources: ['O*NET Interest Profiler (free official career interest quiz)'],
         },
         {
           id: 'so4', title: 'Check your GPA — end of Sophomore year', type: 'milestone', date: { month: 5, day: 15 },
@@ -71,27 +76,27 @@ export const TRUNK_STAGES = {
         {
           id: 'jr1', title: 'Take the PSAT/NMSQT', type: 'procedure', date: { month: 10, day: 15 },
           desc: 'This is the official PSAT that counts for National Merit recognition — register through your school in the fall.',
-          resources: [],
+          resources: ['Khan Academy Official SAT Practice (free, also covers PSAT-style prep)', "College Board's official PSAT/NMSQT info page"],
         },
         {
           id: 'jr2', title: 'Begin SAT/ACT prep', type: 'procedure', date: { month: 11, day: 1 },
           desc: 'Junior year is the standard time to start serious test prep, even if your target schools are test-optional.',
-          resources: ['Khan Academy free SAT prep'],
+          resources: ['Khan Academy Official SAT Practice (free)', 'ACT Academy (free official ACT prep)'],
         },
         {
           id: 'jr3', title: 'Take the SAT or ACT', type: 'milestone', date: { month: 3, day: 1 },
           desc: 'Most students take their first official test in the spring of junior year, leaving room for a retake in the fall if needed.',
-          resources: [],
+          resources: ['College Board SAT registration', 'ACT.org registration'],
         },
         {
           id: 'jr4', title: 'Start building your college list', type: 'milestone', date: { month: 4, day: 1 },
           desc: 'Begin researching schools across Reach, Match, and Safety categories based on your interests and stats so far.',
-          resources: [],
+          resources: ['BigFuture College Search (College Board)'],
         },
         {
           id: 'jr5', title: 'Build strong relationships with 2 teachers for future recommendation letters', type: 'procedure', date: { month: 4, day: 15 },
           desc: 'Recommendation letters are strongest when they come from teachers who know your work well — junior year classes are perfect for this.',
-          resources: [],
+          resources: ['Guide: How to Ask for a Strong Letter of Recommendation'],
         },
         {
           id: 'jr6', title: 'Check your GPA — end of Junior year', type: 'milestone', date: { month: 5, day: 15 },
@@ -108,7 +113,7 @@ export const TRUNK_STAGES = {
           desc: (ctx) => ctx.programNames.length
             ? `Your list: ${ctx.programNames.join(', ')} — carried over from the programs you picked in Self-Discovery. Round it out to 8–12 schools across Reach, Match, and Safety.`
             : 'Put together 8–12 schools across Reach, Match, and Safety categories based on your interests and stats.',
-          resources: ['Net price calculators for each school', "Your school counselor's list-building worksheet"],
+          resources: ['BigFuture College Search (College Board)', 'Net price calculators for each school', "Your school counselor's list-building worksheet"],
         },
         {
           id: 't2', title: 'Request recommendation letters', type: 'procedure', date: { month: 10, day: 1 },
@@ -120,12 +125,12 @@ export const TRUNK_STAGES = {
           desc: (ctx) => ctx.careerName
             ? `First full draft of your Common App essay. Consider weaving in what draws you to ${ctx.careerName.toLowerCase()} — specific stories beat general interest.`
             : 'First full draft of your Common App essay. Focus on getting the story down before polishing.',
-          resources: ['Common App essay prompts', '3 example essays that worked'],
+          resources: ['Common App official essay prompts page', '3 example essays that worked'],
         },
         {
           id: 't4', title: 'Submit FAFSA & financial aid forms', type: 'milestone', date: { month: 11, day: 1 },
           desc: 'File as early as possible — some aid is first-come, first-served.',
-          resources: ['FAFSA checklist', 'CSS Profile guide'],
+          resources: ['studentaid.gov (official FAFSA site)', 'CSS Profile guide'],
         },
         {
           id: 'sr-gpa', title: 'Check your GPA — before you submit', type: 'milestone', date: { month: 12, day: 20 },
@@ -135,7 +140,7 @@ export const TRUNK_STAGES = {
         {
           id: 't5', title: 'Submit all college applications', type: 'major', date: { month: 1, day: 5 },
           desc: 'Final proofread, then submit. Double-check every supplement is attached.',
-          resources: ['Submission checklist'],
+          resources: ['Common App', 'Coalition App', 'Submission checklist'],
         },
         {
           id: 't6', title: finalGoalTitle, type: 'final', date: { month: 4, day: 15 },
@@ -157,7 +162,7 @@ export const TRUNK_STAGES = {
         {
           id: 'ex2', title: 'Explore research or internship opportunities in your field', type: 'milestone', date: { month: 2, day: 1 },
           desc: 'Hands-on experience is one of the strongest parts of a graduate application — start looking for opportunities now, even small ones.',
-          resources: [],
+          resources: ['Handshake (widely-used student internship/job platform)'],
         },
         {
           id: 'ex3', title: 'Identify 1–2 potential faculty mentors', type: 'procedure', date: { month: 4, day: 1 },
@@ -177,17 +182,17 @@ export const TRUNK_STAGES = {
         {
           id: 'pr1', title: 'Research graduate programs in your field', type: 'milestone', date: { month: 9, day: 15 },
           desc: 'Start narrowing down programs based on fit, faculty, and funding — this groundwork makes application season far less stressful.',
-          resources: [],
+          resources: ["Target program's official department page", 'U.S. News graduate program rankings (starting point)'],
         },
         {
           id: 'pr2', title: 'Begin studying for the GRE/GMAT if required', type: 'procedure', date: { month: 11, day: 1 },
           desc: 'Check whether your target programs require a standardized test — many are test-optional now, but preparation still takes months.',
-          resources: [],
+          resources: ['ETS official GRE prep software (free)', 'GMAC official GMAT prep'],
         },
         {
           id: 'pr3', title: 'Build relationships for strong letters of recommendation', type: 'procedure', date: { month: 2, day: 1 },
           desc: 'Reconnect with professors or supervisors who can speak in depth about your work — give them plenty of notice before you\'ll need a letter.',
-          resources: [],
+          resources: ['Guide: How to Ask for a Strong Letter of Recommendation'],
         },
         {
           id: 'pr4', title: 'Check your GPA — end of Junior year', type: 'milestone', date: { month: 5, day: 15 },
@@ -202,7 +207,7 @@ export const TRUNK_STAGES = {
         {
           id: 't1', title: 'Take the GRE/GMAT if relevant to your field', type: 'milestone', date: { month: 9, day: 30 },
           desc: 'Check whether your target programs require or recommend a standardized test — many are test-optional now.',
-          resources: ['GRE prep overview', 'GMAT prep overview'],
+          resources: ['ETS official GRE prep software (free)', 'GMAC official GMAT prep'],
         },
         {
           id: 't2', title: 'Request letters of recommendation', type: 'procedure', date: { month: 10, day: 15 },
@@ -248,7 +253,7 @@ export const TRUNK_STAGES = {
         {
           id: 'cu2', title: 'Research transfer requirements and credit policies at target schools', type: 'milestone', date: { month: 2, day: 1 },
           desc: 'Check articulation agreements early so you don\'t take a course that won\'t transfer toward your intended major.',
-          resources: ['Articulation agreement lookup'],
+          resources: ["Target school's transfer credit equivalency page", 'Articulation agreement lookup (e.g. ASSIST for California)'],
         },
         {
           id: 'cu3', title: 'Connect with a transfer advisor', type: 'procedure', date: { month: 3, day: 1 },
@@ -287,12 +292,12 @@ export const TRUNK_STAGES = {
           desc: (ctx) => ctx.programNames.length
             ? `Apply to your list: ${ctx.programNames.join(', ')} — carried over from Self-Discovery.`
             : 'Submit your transfer applications with all required supplements.',
-          resources: ['Transfer application checklist'],
+          resources: ['Common App for Transfer', 'Transfer application checklist'],
         },
         {
           id: 't4', title: 'Submit financial aid forms', type: 'milestone', date: { month: 3, day: 15 },
           desc: 'File FAFSA and/or CSS Profile as a transfer applicant — deadlines can differ from first-year deadlines.',
-          resources: ['FAFSA checklist for transfer students'],
+          resources: ['studentaid.gov (official FAFSA site)', 'FAFSA checklist for transfer students'],
         },
         {
           id: 't5', title: finalGoalTitle, type: 'final', date: { month: 5, day: 15 },

@@ -183,8 +183,26 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   keep the tag but pair it with a `.rms-caveat` ("Based on GPA alone — portfolio also weighed")
   so it doesn't overstate confidence for admissions that aren't decided by GPA alone.
 - `opportunities.js`: every opportunity has `date` (a template `{month, day}`, or
-  `{offsetDays: N}` for the two deliberately-in-the-past ones — see dates below) and
-  `prepSteps` (2-4 ordered sub-task names). `getOpportunityPool(tracks, level)` /
+  `{offsetDays: N}` for the two deliberately-in-the-past ones — see dates below),
+  `prepSteps` (2-4 ordered sub-task names), and `stepResources` — a parallel array, same length
+  as `prepSteps`, where `stepResources[i]` is the array of real resources (0 or more short
+  strings) shown on that specific step's detail modal. This replaced an earlier single
+  opportunity-level `resource: {label, note}` field that only ever populated the *first* prep
+  step (`i === 0 && opp.resource` in `roadmapGenerator.js`) — every step in a chain needed its
+  own resources, not just the first, so the field became per-step and `resource` was removed
+  entirely (verify with `grep -rn "\.resource\b"` — should only ever match `.resources`/
+  `stepResources`, never a bare `.resource`). A step with no genuine external resource (a purely
+  local/personal action like "Attend your first meeting" or "Election day") gets `[]` rather
+  than a padded/fake one — same judgment call as the empty `resources` on purely reflective core
+  tasks in `trunkSteps.js` (e.g. "Check your GPA", "Connect with a transfer advisor"); a data
+  integrity check (`stepResources.length === prepSteps.length` for every opportunity, and no
+  opportunity with *every* step's resources empty) should hold across the whole file — see the
+  Node verification snippet used when this was built if you need to re-check after an edit.
+  Escalation-year steps (`progressionPrepSteps`, year 2+ of a recurring opportunity) and custom
+  user-created tasks are explicitly out of scope for step resources — the former would double
+  the data-entry surface for a secondary chain, the latter would need an API to generate
+  relevant resources for arbitrary user-typed content, both deferred separately.
+  `getOpportunityPool(tracks, level)` /
   `findOpportunity(id, tracks, level)` merge/dedupe across tracks or fall back to
   `GENERIC_OPPORTUNITIES` — both `OpportunityFinderScreen` and `roadmapGenerator.js` use these
   rather than reading `OPPORTUNITIES[track][level]` directly. **`OPPORTUNITIES.culinary` and
