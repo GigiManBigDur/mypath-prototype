@@ -347,6 +347,21 @@ button.card.passed:hover {
 
 .caveat-banner { margin-bottom: 18px; background: var(--card); border: 1px solid var(--paper-line); border-left: 4px solid var(--gold); border-radius: 4px; padding: 14px 18px; font-size: 13.5px; color: var(--ink-soft); }
 
+.add-task-row { display:flex; justify-content:flex-end; margin-bottom: 14px; }
+
+.task-form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
+.task-form-field .label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); }
+.task-form-field input[type="text"],
+.task-form-field input[type="date"],
+.task-form-field textarea {
+  font-family:'IBM Plex Sans'; font-size:14px; color: var(--ink);
+  border:1px solid var(--paper-line); border-radius:4px; padding:10px 12px; background: var(--paper);
+  width: 100%;
+}
+.task-form-field textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+.task-form-field input:focus, .task-form-field textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+.task-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top: 4px; }
+
 .roadmap-viewport-wrap { position: relative; }
 .roadmap-viewport {
   position: relative;

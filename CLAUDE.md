@@ -113,7 +113,9 @@ how many trunk stages get prepended, see "Multi-year trunk" below), `gpa`,
 map of node/step id → boolean, shared by every core spine item and every opportunity's branch
 steps alike), `nodeDateOverrides` (flat map of node/step id → `'YYYY-MM-DD'`, a user-edited due
 date that overrides the template-computed one), `removedNodeIds` (flat map of node/step id →
-`true`, a user-deleted task), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
+`true`, a user-deleted task), `customTasks` (array of `{ id, title, date: 'YYYY-MM-DD', desc }`
+— tasks the user created themselves via the roadmap's "+ Add Task" control, see below), and
+`screen`. `reset()` clears storage and returns to the survey. The Survey screen's
 "What year are you in?" pill group resets `schoolYear: null` whenever `educationLevel` changes
 (its options are conditional on level), so Continue stays disabled until both are picked.
 
@@ -255,9 +257,12 @@ get a `caveatNote` string (`TRANSFER_CAVEAT`) surfaced as a banner near the top 
 `Roadmap.jsx` instead of a fabricated multi-year transfer plan.
 
 **The roadmap is one unified vertical spine, not separate trunk/branch/chip concepts.**
-`roadmapGenerator.js` builds a `today` node plus a single flat `spineItems` array combining two
-kinds of items, distinguished by a `required` boolean (drives the solid-vs-hollow ring styling
-in `Roadmap.jsx` — see Task 3 of the restructure this became):
+`roadmapGenerator.js` builds a `today` node plus a single flat `spineItems` array combining
+three kinds of items, distinguished by a `required` boolean (core vs. everything else — drives
+the solid-vs-hollow ring styling in `Roadmap.jsx`, see Task 3 of the restructure this became)
+and a `category` string (`'core' | 'opportunity' | 'custom'` — `category` alone is what
+`Roadmap.jsx` uses to pick a third, dotted ring style for custom tasks, since `required` can't
+distinguish opportunity from custom — both are `false`):
 - **Core items** (`category: 'core'`, `required: true`) — the flattened, stage-resolved trunk
   steps described above. Always single-step (`steps: null`); core tasks never carry a
   step-chain, only opportunities currently do.
@@ -288,6 +293,17 @@ in `Roadmap.jsx` — see Task 3 of the restructure this became):
   just a milestone with nothing behind it. A 1-year plan (`yearSpan === 1`) never generates any
   of these, so this is a no-op for a senior/4th-year/non-transfer-2nd-3rd-year student regardless
   of which opportunities they pick.
+- **Custom items** (`category: 'custom'`, `required: false`) — user-created tasks from the
+  roadmap's "+ Add Task" control (a persistent button above the canvas, not per-node — it
+  creates something new, so it isn't attached to any existing node). `buildCustomItems()` in
+  `roadmapGenerator.js` turns each `state.customTasks` entry into a spine item exactly the way
+  `coreItems` does: `task.date` is the template input, a `nodeDateOverrides` entry (from editing
+  it afterward) still wins over it, same precedence and the same `anchorDate`-free
+  `parseDateInputValue` path every other user-edited date goes through. Deliberately
+  single-step (`steps: null`) by design — Task 2's scope explicitly excludes giving custom tasks
+  their own sub-branch/chain. This is manual creation only (the "User Input Destination" concept
+  from the original spec) — there's no proactive "would you like to add this?" suggestion engine
+  here; the app never decides what to suggest, the student always fills in their own task.
 
 `roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
 up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
@@ -340,7 +356,13 @@ exists so nothing has to fit in one fixed frame, there's no reason to let the SV
 `Roadmap.jsx` renders the spine, every branch, and the zoom/pan viewport, and handles the detail
 modal. Required (core) nodes render with a solid ring (filled white when incomplete, filled with
 the type color when done); optional (opportunity anchors and their branch steps) render with a
-thinner, dashed hollow ring when incomplete. **Every ring `<circle>` needs `pointerEvents="all"`**
+thinner, dashed hollow ring when incomplete (`strokeDasharray="4 4"`); custom tasks get their own
+third style — same hollow ring, but dotted (`strokeDasharray="2 3"`) and in `--ink-soft` via a
+dedicated `CUSTOM_CONFIG`/`Pencil` icon, specifically so a student can tell "I added this" apart
+from "the app generated this" at a glance without introducing a new color token. The ring JSX is
+a three-way branch on `n.required` then `n.category === 'custom'`, not a lookup table — if a
+fourth node kind is ever added, extend that branch rather than trying to cram it into `configFor`
+alone (which only supplies icon/color/label, not ring geometry). **Every ring `<circle>` needs `pointerEvents="all"`**
 — an unfilled circle (`fill="none"`, the hollow/optional style whenever a node isn't done yet)
 only hit-tests its stroke by default SVG behavior, not its interior, so without this a hollow
 node's clickable area was a thin ring around the edge instead of matching its visual size; solid

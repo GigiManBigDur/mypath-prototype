@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2,
+  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2, Plus, Pencil,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -23,6 +23,11 @@ const CORE_TYPE_CONFIG = {
 const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: '#6E7F87', Icon: ListChecks };
 const BRANCH_STEP_CONFIG = { label: 'Step', color: '#6E7F87', Icon: Circle };
 const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: '#A6491F', Icon: Flag };
+// A student-added task, not part of the built-in plan — reuses --ink-soft (already in the design
+// tokens) rather than introducing a new color, but gets its own icon and a dotted ring (in the
+// JSX below) so it's visually distinct from both the solid required ring and the dashed
+// opportunity ring at a glance.
+const CUSTOM_CONFIG = { label: 'Custom task', color: '#4B5D54', Icon: Pencil };
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
@@ -32,6 +37,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function configFor(node) {
   if (node.category === 'core' || node.type === 'today') return CORE_TYPE_CONFIG[node.coreType || node.type];
+  if (node.category === 'custom') return CUSTOM_CONFIG;
   if (node.isLast) return BRANCH_DEADLINE_CONFIG;
   if (node.category === 'opportunity') return OPPORTUNITY_CONFIG;
   return BRANCH_STEP_CONFIG;
@@ -44,6 +50,10 @@ function line(x1, y1, x2, y2) {
 export default function Roadmap({ roadmap }) {
   const { state, patch } = useApp();
   const [selected, setSelected] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [taskName, setTaskName] = useState('');
+  const [taskDate, setTaskDate] = useState('');
+  const [taskDesc, setTaskDesc] = useState('');
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [dragging, setDragging] = useState(false);
   const viewportRef = useRef(null);
@@ -68,6 +78,28 @@ export default function Roadmap({ roadmap }) {
     if (required && !window.confirm('This is a required step — are you sure you want to remove it?')) return;
     patch({ removedNodeIds: { ...state.removedNodeIds, [id]: true } });
     setSelected(null);
+  };
+
+  const closeAddForm = () => {
+    setShowAddForm(false);
+    setTaskName('');
+    setTaskDate('');
+    setTaskDesc('');
+  };
+  // Manual creation only (Task 1 scope) — the user fills in their own task, nothing suggested by
+  // the app. Positioned via the same date-to-y path as everything else since roadmapGenerator.js
+  // treats `date` as just another template input.
+  const submitAddForm = (e) => {
+    e.preventDefault();
+    if (!taskName.trim() || !taskDate) return;
+    const newTask = {
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: taskName.trim(),
+      date: taskDate,
+      desc: taskDesc.trim(),
+    };
+    patch({ customTasks: [...(state.customTasks || []), newTask] });
+    closeAddForm();
   };
 
   const requiredNodes = roadmap.spine.filter((n) => n.required);
@@ -237,7 +269,14 @@ export default function Roadmap({ roadmap }) {
       <div className="legend">
         <span className="legend-item"><span className="dot" style={{ background: 'var(--teal)' }} /> Required — solid ring</span>
         <span className="legend-item"><span className="dot" style={{ background: 'var(--stone)', border: '2px solid var(--stone)' }} /> Optional — hollow ring</span>
+        <span className="legend-item"><span className="dot" style={{ background: 'var(--ink-soft)', border: '2px dotted var(--ink-soft)' }} /> Custom — dotted ring</span>
         <span className="legend-item"><span className="dot" style={{ background: 'var(--gold)' }} /> You are here</span>
+      </div>
+
+      <div className="add-task-row">
+        <button type="button" className="btn btn-primary" onClick={() => setShowAddForm(true)}>
+          <Plus size={16} /> Add Task
+        </button>
       </div>
 
       {roadmap.caveatNote && (
@@ -315,6 +354,11 @@ export default function Roadmap({ roadmap }) {
                         <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
                         {done ? <CheckCircle2 x="-9" y="-9" size={18} color="#fff" /> : <cfg.Icon x="-8" y="-8" size={16} color={cfg.color} />}
                       </>
+                    ) : n.category === 'custom' ? (
+                      <>
+                        <circle className="ring" r="16" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 3'} pointerEvents="all" />
+                        {done ? <CheckCircle2 x="-8" y="-8" size={16} color="#fff" /> : <cfg.Icon x="-7" y="-7" size={14} color={cfg.color} />}
+                      </>
                     ) : (
                       <>
                         <circle className="ring" r="16" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
@@ -365,6 +409,7 @@ export default function Roadmap({ roadmap }) {
               style={{ color: selected.type === 'today' ? 'var(--gold)' : configFor(selected).color }}
             >
               {selected.type === 'today' ? 'Today'
+                : selected.category === 'custom' ? 'Custom task'
                 : selected.category === 'opportunity' ? 'Opportunity · optional'
                 : selected.category === 'core' ? configFor(selected).label
                 : 'Step · optional'}
@@ -424,6 +469,44 @@ export default function Roadmap({ roadmap }) {
                 {isDone(selected.id) ? 'Marked complete — undo' : 'Mark complete'}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {showAddForm && (
+        <div className="overlay" onClick={closeAddForm}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeAddForm}><X size={18} /></button>
+            <div className="modal-eyebrow" style={{ color: CUSTOM_CONFIG.color }}>Custom task</div>
+            <h2 className="modal-title">Add a task</h2>
+            <form onSubmit={submitAddForm}>
+              <label className="task-form-field">
+                <span className="label">Task name</span>
+                <input
+                  type="text"
+                  value={taskName}
+                  onChange={(e) => setTaskName(e.target.value)}
+                  placeholder="e.g. Study for biology midterm"
+                  required
+                />
+              </label>
+              <label className="task-form-field">
+                <span className="label">Due date</span>
+                <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} required />
+              </label>
+              <label className="task-form-field">
+                <span className="label">Description (optional)</span>
+                <textarea
+                  value={taskDesc}
+                  onChange={(e) => setTaskDesc(e.target.value)}
+                  placeholder="Any extra notes..."
+                />
+              </label>
+              <div className="task-form-actions">
+                <button type="button" className="btn btn-ghost" onClick={closeAddForm}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={!taskName.trim() || !taskDate}>Add task</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

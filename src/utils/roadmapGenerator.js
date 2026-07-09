@@ -95,7 +95,9 @@ export function generateRoadmap(state) {
     opportunityTracks, level, state.selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
   );
 
-  const spineItems = [...coreItems, ...opportunityItems];
+  const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
+
+  const spineItems = [...coreItems, ...opportunityItems, ...customItems];
 
   const { today: laidToday, spine, canvasHeight, canvasWidth } = layoutRoadmap({ today, spineItems });
 
@@ -117,6 +119,33 @@ function titleFor(selectedCareers) {
   if (selectedCareers.length === 0) return 'Your Academic Plan';
   if (selectedCareers.length <= 2) return `Your Path to ${selectedCareers.map((c) => c.name).join(' & ')}`;
   return 'Your Personalized Academic Plan';
+}
+
+// User-created tasks (the "+ Add Task" flow in Roadmap.jsx): single-step by design — no chain,
+// no sub-branch — positioned via the exact same date-to-y path as every other node. A task's
+// stored `date` is just a template input like any other; a `nodeDateOverrides` entry (from
+// editing it after creation) still wins over it, same override precedence core/opportunity items
+// use. `category: 'custom'` is what gives it a visually distinct ring in Roadmap.jsx, and what
+// keeps it out of the required core-progress count and out of the opportunity anchor/chain logic.
+function buildCustomItems(customTasks, dateOverrides, removed) {
+  return customTasks
+    .filter((task) => !removed[task.id])
+    .map((task) => {
+      const templateDate = parseDateInputValue(task.date);
+      const realDate = dateOverrides[task.id] ? parseDateInputValue(dateOverrides[task.id]) : templateDate;
+      return {
+        id: task.id,
+        title: task.title,
+        category: 'custom',
+        required: false,
+        coreType: 'custom',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: task.desc || 'A task you added yourself.',
+        resources: [],
+        steps: null,
+      };
+    });
 }
 
 // Escalated milestone title for year N (yearIndex is 1-based among the escalation years — 1
