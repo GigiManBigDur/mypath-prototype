@@ -4,6 +4,7 @@ import SurveyScreen from './screens/SurveyScreen';
 import AdmissionsOverviewScreen from './screens/AdmissionsOverviewScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
 import OpportunityFinderScreen from './screens/OpportunityFinderScreen';
+import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
 
 const SCREENS = {
@@ -11,6 +12,7 @@ const SCREENS = {
   admissions: AdmissionsOverviewScreen,
   discovery: DiscoveryScreen,
   opportunities: OpportunityFinderScreen,
+  projectBuilder: ProjectBuilderScreen,
   plan: AcademicPlanScreen,
 };
 

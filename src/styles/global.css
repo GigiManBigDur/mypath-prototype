@@ -428,3 +428,89 @@ button.card.passed:hover {
 
 .win-banner { margin-top:22px; background: var(--card); border:1px solid var(--paper-line); border-left:4px solid var(--rust); border-radius:4px; padding:18px 20px; font-size:14px; }
 .win-banner b { font-family:'Fraunces', serif; font-size:17px; display:block; margin-bottom:4px; }
+
+/* Project Builder screen — deliberately lighter/more energetic than the Academic Plan's
+   checklist tone: bigger icons, a playful card gallery, more whitespace. Still built entirely
+   from the existing design tokens (fonts/colors), just composed differently. */
+.pb-topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px; }
+.pb-skip { color: var(--teal); font-weight:600; }
+.pb-skip:hover:not(:disabled) { color: var(--ink); }
+
+.pb-category-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px; }
+@media (max-width: 720px) { .pb-category-grid { grid-template-columns: 1fr; } }
+
+.pb-category-card {
+  text-align:left; background: var(--card); border:1px solid var(--paper-line); border-radius: 14px;
+  padding: 24px 20px; cursor:pointer; font-family: inherit; position:relative; overflow:hidden;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.pb-category-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:5px; background: var(--pb-accent);
+}
+.pb-category-card:hover {
+  transform: translateY(-4px); box-shadow: 0 16px 30px -18px rgba(30,61,50,0.4); border-color: var(--pb-accent);
+}
+.pb-icon-badge {
+  width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background: var(--paper); color: var(--pb-accent); margin-bottom: 14px;
+}
+.pb-icon-badge-lg { width:64px; height:64px; margin-bottom: 16px; }
+.pb-category-label { font-family:'Fraunces', serif; font-size:18px; font-weight:600; margin-bottom:6px; }
+.pb-category-desc { color: var(--ink-soft); font-size:13.5px; line-height:1.5; margin:0; }
+
+.pb-example-box {
+  background: var(--card); border:1px dashed var(--gold); border-radius: 10px; padding: 18px 20px; margin-top: 20px;
+}
+.pb-example-eyebrow {
+  display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px;
+  text-transform:uppercase; letter-spacing:.08em; color: var(--gold); margin-bottom:8px; font-weight:600;
+}
+.pb-example-text { font-family:'Fraunces', serif; font-style:italic; font-size:15px; line-height:1.5; margin:0 0 8px; color: var(--ink); }
+.pb-example-caveat { font-size:12px; color: var(--ink-soft); margin:0; }
+
+.pb-projecttype-grid { display:grid; gap:14px; margin-top:14px; }
+.pb-projecttype-card {
+  text-align:left; background: var(--card); border:1px solid var(--paper-line); border-radius: 10px;
+  padding: 18px 20px; cursor:pointer; font-family: inherit; position:relative;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.pb-projecttype-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -16px rgba(30,61,50,0.35); border-color: var(--teal); }
+.pb-projecttype-name { font-family:'Fraunces', serif; font-size:16px; font-weight:600; margin-bottom:6px; }
+.pb-projecttype-teaser { color: var(--ink-soft); font-size:13.5px; line-height:1.5; margin:0; }
+.pb-started-tag {
+  display:inline-flex; align-items:center; gap:4px; margin-top:10px; font-family:'IBM Plex Mono', monospace;
+  font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--teal); font-weight:700;
+}
+
+.pb-category-chip {
+  display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px;
+  text-transform:uppercase; letter-spacing:.08em; color: var(--teal); margin-bottom:10px; font-weight:600;
+}
+
+.pb-stat-row { display:flex; gap:20px; margin: 18px 0 26px; }
+.pb-stat { display:flex; align-items:flex-start; gap:10px; color: var(--ink); }
+.pb-stat-label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); margin-bottom:2px; }
+.pb-stat-value { font-size:14px; font-weight:600; }
+
+.pb-detail-section { margin-bottom: 26px; }
+.pb-steps-list { margin: 10px 0 0; padding-left: 22px; font-size:14px; line-height:1.9; color: var(--ink); }
+.pb-resources-list { margin: 10px 0 0; padding-left: 20px; font-size:14px; line-height:1.9; color: var(--ink); }
+
+.pb-start-btn { font-size:16px; padding:14px 28px; margin-top: 6px; }
+
+.pb-start-panel {
+  background: var(--card); border:1px solid var(--paper-line); border-radius: 10px; padding: 20px; margin-top: 10px;
+}
+.pb-conflict-warning {
+  background: rgba(201,138,43,0.12); border:1px solid var(--gold); border-radius:6px; padding:10px 14px;
+  font-size:13px; color: var(--ink); margin: 4px 0 16px;
+}
+
+.pb-started-banner {
+  background: var(--card); border:1px solid var(--teal); border-radius: 10px; padding: 22px; margin-top: 10px;
+}
+.pb-started-headline { display:flex; align-items:center; gap:8px; font-family:'Fraunces', serif; font-size:16px; font-weight:600; color: var(--teal); }
+.pb-milestones { margin-top: 16px; padding-top:16px; border-top:1px dashed var(--paper-line); }
+.pb-milestones-title { display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color: var(--ink-soft); font-weight:700; }
+.pb-milestone-list { margin: 10px 0 0; padding-left: 18px; font-size:13.5px; color: var(--ink); line-height:1.8; }
+.pb-milestone-due { color: var(--ink-soft); font-family:'IBM Plex Mono', monospace; font-size:12px; }

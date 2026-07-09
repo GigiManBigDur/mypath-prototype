@@ -94,14 +94,17 @@ is secondary and manual only.
 
 **Screen flow is a single-page state machine, not a router.** `App.jsx` reads
 `state.screen` from `AppContext` and renders the matching component from a `SCREENS` map
-(`survey → admissions → discovery → opportunities → plan`). Screens advance by calling
-`patch({ screen: 'next' })` — there's no URL routing, back/forward is handled by explicit
+(`survey → admissions → discovery → opportunities → projectBuilder → plan`). Screens advance by
+calling `patch({ screen: 'next' })` — there's no URL routing, back/forward is handled by explicit
 "Back" buttons that patch `screen` backwards. **The `discovery` screen is conditionally
 skipped**: `AdmissionsOverviewScreen`'s Continue button routes straight to `opportunities`
 when the user has no built-track interest selected, and `OpportunityFinderScreen`'s Back
 button routes to `admissions` (not `discovery`) in that same case. `DiscoveryScreen` also
 has a defensive `useEffect` that bounces to `opportunities` if it's ever reached with zero
 built tracks (e.g. state restored from `localStorage` after interests changed).
+`ProjectBuilderScreen` (see below) sits between `opportunities` and `plan` — unlike `discovery`
+it's never skipped by routing logic, since it's fully optional in place via its own persistent
+"Skip for now" control rather than being bypassed based on user data.
 
 **`AppContext` (`src/context/AppContext.jsx`) is the single source of truth**, a flat
 `useState` object with a `patch()` merge function, auto-persisted to `localStorage` under
@@ -439,6 +442,53 @@ real target through normal bubbling; only an actual drag pans. If you rework the
 keep this click-vs-drag distinction — it's not optional polish, node clicks silently stop
 working without it.
 
+**`ProjectBuilderScreen` (`src/screens/ProjectBuilderScreen.jsx`) is a curated browse-and-start
+flow only** — Community Project Examples (peer submissions, likes/comments, verification,
+rewards) and "Create Your Own" (AI-driven dynamic brainstorming) are both explicitly out of
+scope and don't exist anywhere in this screen or its data. Content lives in
+`src/data/projects.js`: `PROJECT_CATEGORIES`, 6 categories each with a `description`, an
+`example` string (always framed in the UI as illustrative — "not a real submission from another
+student" — never as a live community post), and 3 `projectTypes`, each carrying `overview`,
+`timeCommitment`, `steps` (array), and `resources` (array) — same "array of plain strings" shape
+`stepResources` uses elsewhere. `icon` is a lucide-react icon *name* (string), not a component —
+data files stay free of UI imports; `ProjectBuilderScreen` owns the name→component map
+(`CATEGORY_ICONS`).
+
+The screen has 3 local, **unpersisted** sub-views (`'categories' | 'category' | 'projectType'`,
+plain `useState`, not `AppContext`) — refreshing mid-browse just resets to the category grid,
+an acceptable trade since nothing here is a consequential selection like the survey. A "Skip for
+now" control (`.pb-skip`) renders at all 3 levels and always jumps straight to `patch({ screen:
+'plan' })`, per spec ("fully skippable at every level").
+
+**Starting a project reuses the exact same `customTasks` mechanism as a manually-added task —
+there's no separate "started projects" state.** Clicking "Start This Project!" and confirming a
+date pushes a `customTasks` entry exactly like `AddTaskModal` would, except tagged with
+`projectMeta: { categoryId, projectTypeId }`; `roadmapGenerator.js`'s existing `buildCustomItems`
+needed zero changes; the project shows up on the spine as an ordinary dotted-ring custom node.
+**Milestones are the same trick one level down**: `AddTaskModal` (see below) is reused verbatim
+for "+ Add a milestone," except the resulting task is tagged with `parentProjectId` set to the
+project task's own id. "Started" detection and a project's milestone list are just filters over
+`state.customTasks` (`t.projectMeta?.projectTypeId === projectType.id` /
+`t.parentProjectId === startedTask.id`) — no new top-level state field beyond `customTasks`
+itself. This is why the project has no fixed end date: its real checkpoints are whatever
+milestones the user adds over time, same as the spec asked for.
+
+**`AddTaskModal` (`src/components/AddTaskModal.jsx`) was extracted from `Roadmap.jsx`'s inline
+"+ Add Task" form** specifically so Project Builder's milestone flow could reuse the identical
+name/due-date/optional-description mechanism rather than duplicating it — the component takes
+`title`/`eyebrow`/`eyebrowColor`/`submitLabel` props for the two callers' different framing
+("Add a task" vs. "Add a milestone for X") but the field set and validation are identical.
+`Roadmap.jsx` and `ProjectBuilderScreen.jsx` each own their own id generation and tagging
+(`makeTaskId()` in `src/utils/ids.js`, shared) and decide what to do with the submitted
+`{ title, date, desc }` — the modal itself has no opinion on `projectMeta`/`parentProjectId`.
+
+**The Project Start Date picker does a *soft* conflict check, never a hard block.** On every
+keystroke in the date input, `ProjectBuilderScreen` flattens `roadmap.spine` plus every
+`hasBranch` item's `branchSteps` into one list and looks for any node within
+`CONFLICT_WINDOW_DAYS` (3) of the chosen date; a match renders an inline `.pb-conflict-warning`
+naming that node, but the "Confirm Start" button is never disabled by it — this mirrors the
+spec's "a heads-up if it lands close to something else, not a hard block."
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -455,7 +505,12 @@ so reinstalling only needs `npm install playwright` in a scratch dir, not a fres
 download). Cover at minimum:
 - One run per built track (Business, STEM, Healthcare, Creative, Academic/Humanities, Sports,
   Culinary Arts, Community & Leadership, Media & Entertainment, Personal Development, Outdoors)
-  and one opportunity-only tag (Fitness or Fashion, or "Law"), through all 5 screens.
+  and one opportunity-only tag (Fitness or Fashion, or "Law"), through all 6 screens.
+- Project Builder: browse into a category → a project type → confirm Overview/Time
+  Commitment/Steps/Resources all render; start a project and confirm it lands on the Academic
+  Plan spine at the chosen date; add a milestone and confirm it's tagged with the started
+  project's id (`parentProjectId`) and shows up in that project's milestone list; confirm "Skip
+  for now" at all 3 levels jumps straight to `plan` without creating anything.
 - All three education levels at least once.
 - A multi-career/multi-major/multi-program selection spanning two tracks — confirm merged
   counts, a combined single plan, and (if programs differ in GPA) the max-benchmark logic.

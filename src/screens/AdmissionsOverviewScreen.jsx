@@ -14,7 +14,7 @@ export default function AdmissionsOverviewScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <div className="eyebrow">Step 2 of 5</div>
+      <div className="eyebrow">Step 2 of 6</div>
       <h1 className="page-title">{copy.title}</h1>
 
       <div className="prose">

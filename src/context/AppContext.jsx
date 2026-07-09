@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const STORAGE_KEY = 'mypath-prototype-state';
 
 const DEFAULT_STATE = {
-  screen: 'survey', // survey | admissions | discovery | opportunities | plan
+  screen: 'survey', // survey | admissions | discovery | opportunities | projectBuilder | plan
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
@@ -15,7 +15,10 @@ const DEFAULT_STATE = {
   completedNodes: {},
   nodeDateOverrides: {}, // { [nodeId]: 'YYYY-MM-DD' } — user-edited due date, keyed like completedNodes
   removedNodeIds: {}, // { [nodeId]: true } — user-deleted tasks, same flat-map shape as completedNodes
-  customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
+  customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc, projectMeta?, parentProjectId? }] —
+  // tasks the user created themselves. `projectMeta: { categoryId, projectTypeId }` marks one as
+  // a started Project Builder project; `parentProjectId` (= that project task's own id) marks a
+  // milestone as belonging to it. Both are optional/absent on an ordinary custom task.
 };
 
 function loadInitialState() {

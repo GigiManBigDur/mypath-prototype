@@ -46,7 +46,7 @@ export default function SurveyScreen() {
 
   return (
     <div>
-      <div className="eyebrow">Step 1 of 5</div>
+      <div className="eyebrow">Step 1 of 6</div>
       <h1 className="page-title">Let's build your plan.</h1>
       <p className="page-sub">
         Answer a few quick questions and we'll put together a personalized roadmap — no

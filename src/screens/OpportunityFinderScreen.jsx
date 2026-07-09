@@ -31,7 +31,7 @@ export default function OpportunityFinderScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <div className="eyebrow">Step 4 of 5</div>
+      <div className="eyebrow">Step 4 of 6</div>
       <h1 className="page-title">Opportunity Finder</h1>
       <p className="page-sub">
         Real programs and competitions worth pursuing alongside your coursework. Select any that
@@ -77,8 +77,8 @@ export default function OpportunityFinderScreen() {
       </div>
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'plan' })}>
-          Build my Academic Plan
+        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'projectBuilder' })}>
+          Continue
         </button>
       </div>
     </div>

@@ -11,7 +11,7 @@ export default function AcademicPlanScreen() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'opportunities' })}>
+        <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'projectBuilder' })}>
           <ArrowLeft size={14} /> Back
         </button>
         <button type="button" className="btn btn-ghost" onClick={reset}>
@@ -19,7 +19,7 @@ export default function AcademicPlanScreen() {
         </button>
       </div>
 
-      <div className="eyebrow">Step 5 of 5</div>
+      <div className="eyebrow">Step 6 of 6</div>
 
       <Roadmap roadmap={roadmap} />
     </div>

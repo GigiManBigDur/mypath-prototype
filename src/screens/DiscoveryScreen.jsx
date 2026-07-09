@@ -104,7 +104,7 @@ export default function DiscoveryScreen() {
   return (
     <div>
       <BackBar onBack={goBackSubStep} />
-      <div className="eyebrow">Step 3 of 5 · {SUB_STEP_COPY[subStep].title}</div>
+      <div className="eyebrow">Step 3 of 6 · {SUB_STEP_COPY[subStep].title}</div>
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">{SUB_STEP_COPY[subStep].sub}</p>
 

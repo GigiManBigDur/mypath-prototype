@@ -3,6 +3,8 @@ import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2, Plus, Pencil,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import AddTaskModal from './AddTaskModal';
+import { makeTaskId } from '../utils/ids';
 
 // input[type=date] wants a plain YYYY-MM-DD string in LOCAL time — toISOString() would shift by
 // the timezone offset and silently show the wrong day, so build the string from local getters.
@@ -51,9 +53,6 @@ export default function Roadmap({ roadmap }) {
   const { state, patch } = useApp();
   const [selected, setSelected] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [taskName, setTaskName] = useState('');
-  const [taskDate, setTaskDate] = useState('');
-  const [taskDesc, setTaskDesc] = useState('');
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [dragging, setDragging] = useState(false);
   const viewportRef = useRef(null);
@@ -80,26 +79,13 @@ export default function Roadmap({ roadmap }) {
     setSelected(null);
   };
 
-  const closeAddForm = () => {
-    setShowAddForm(false);
-    setTaskName('');
-    setTaskDate('');
-    setTaskDesc('');
-  };
   // Manual creation only (Task 1 scope) — the user fills in their own task, nothing suggested by
   // the app. Positioned via the same date-to-y path as everything else since roadmapGenerator.js
-  // treats `date` as just another template input.
-  const submitAddForm = (e) => {
-    e.preventDefault();
-    if (!taskName.trim() || !taskDate) return;
-    const newTask = {
-      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      title: taskName.trim(),
-      date: taskDate,
-      desc: taskDesc.trim(),
-    };
-    patch({ customTasks: [...(state.customTasks || []), newTask] });
-    closeAddForm();
+  // treats `date` as just another template input. The form itself lives in AddTaskModal, shared
+  // with ProjectBuilderScreen's "Add a milestone" flow.
+  const addTask = (task) => {
+    patch({ customTasks: [...(state.customTasks || []), { id: makeTaskId('custom'), ...task }] });
+    setShowAddForm(false);
   };
 
   const requiredNodes = roadmap.spine.filter((n) => n.required);
@@ -474,41 +460,11 @@ export default function Roadmap({ roadmap }) {
       )}
 
       {showAddForm && (
-        <div className="overlay" onClick={closeAddForm}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeAddForm}><X size={18} /></button>
-            <div className="modal-eyebrow" style={{ color: CUSTOM_CONFIG.color }}>Custom task</div>
-            <h2 className="modal-title">Add a task</h2>
-            <form onSubmit={submitAddForm}>
-              <label className="task-form-field">
-                <span className="label">Task name</span>
-                <input
-                  type="text"
-                  value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
-                  placeholder="e.g. Study for biology midterm"
-                  required
-                />
-              </label>
-              <label className="task-form-field">
-                <span className="label">Due date</span>
-                <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} required />
-              </label>
-              <label className="task-form-field">
-                <span className="label">Description (optional)</span>
-                <textarea
-                  value={taskDesc}
-                  onChange={(e) => setTaskDesc(e.target.value)}
-                  placeholder="Any extra notes..."
-                />
-              </label>
-              <div className="task-form-actions">
-                <button type="button" className="btn btn-ghost" onClick={closeAddForm}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={!taskName.trim() || !taskDate}>Add task</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <AddTaskModal
+          eyebrowColor={CUSTOM_CONFIG.color}
+          onCancel={() => setShowAddForm(false)}
+          onSubmit={addTask}
+        />
       )}
     </div>
   );
