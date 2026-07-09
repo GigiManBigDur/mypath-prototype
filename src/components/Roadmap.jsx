@@ -7,6 +7,8 @@ import { findProjectType } from '../data/projects';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
 import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useModalExit } from '../hooks/useModalExit';
 
 // input[type=date] wants a plain YYYY-MM-DD string in LOCAL time — toISOString() would shift by
 // the timezone offset and silently show the wrong day, so build the string from local getters.
@@ -48,6 +50,28 @@ const VIEWPORT_HEIGHT = 620;
 // that already spans 2 years or less is unaffected (see fitView).
 const DEFAULT_WINDOW_DAYS = 365 * 2;
 
+// --- Visual-polish-only entrance sequencing (Task 1/6 of the Academic Plan animation pass) ----
+// This never changes what x/y a node sits at (layoutRoadmap in roadmapLayout.js is untouched) —
+// it only decides, on top of those already-correct coordinates, how long to delay each node's/
+// segment's reveal animation. Plays once per session (module-level flag, same pattern as
+// WelcomeScreen's `hasPlayedIntro`) — returning to the Plan screen later just shows it settled,
+// same as WelcomeScreen's own return-visit behavior.
+let hasPlayedRoadmapEntrance = false;
+const ENTRANCE_STEP_MS = 70;
+const ENTRANCE_MAX_INDEX = 22; // caps stagger length on long multi-year plans
+const ENTRANCE_TOTAL_MS = ENTRANCE_MAX_INDEX * ENTRANCE_STEP_MS + 800;
+
+function entranceDelay(index, enabled) {
+  return enabled ? Math.min(index, ENTRANCE_MAX_INDEX) * ENTRANCE_STEP_MS : 0;
+}
+
+// Straight-line segment length — used only to size the stroke-dash draw-in animation. The
+// endpoints themselves (x1,y1,x2,y2) always come straight from roadmap.spine/branchSteps/today,
+// never recomputed here.
+function segLength(x1, y1, x2, y2) {
+  return Math.hypot(x2 - x1, y2 - y1);
+}
+
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 function configFor(node) {
@@ -65,6 +89,8 @@ function line(x1, y1, x2, y2) {
 
 export default function Roadmap({ roadmap }) {
   const { state, patch } = useApp();
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const entranceEnabled = !reducedMotion && !hasPlayedRoadmapEntrance;
   const [selected, setSelected] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   // { project, projectType, mode: 'guide' | 'choice' | 'customStep' } — the reveal-next-step
@@ -72,9 +98,20 @@ export default function Roadmap({ roadmap }) {
   const [projectPrompt, setProjectPrompt] = useState(null);
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [dragging, setDragging] = useState(false);
+  // Task 7 — true only for the short window right after a button-triggered zoom/reset, so the
+  // canvas transform gets a CSS transition; manual wheel/drag/pinch clears it immediately (see
+  // onWheel/onPointerMove/onTouchMove) so direct manipulation always stays instant/1:1.
+  const [smoothZoom, setSmoothZoom] = useState(false);
+  const smoothZoomTimer = useRef(null);
   const viewportRef = useRef(null);
   const dragState = useRef(null);
   const pinchState = useRef(null);
+
+  useEffect(() => {
+    if (reducedMotion || hasPlayedRoadmapEntrance) return undefined;
+    const t = setTimeout(() => { hasPlayedRoadmapEntrance = true; }, ENTRANCE_TOTAL_MS);
+    return () => clearTimeout(t);
+  }, [reducedMotion]);
 
   const isDone = (id) => !!state.completedNodes[id];
   // Completing a started project's current LAST step (its one active step — see
@@ -184,6 +221,16 @@ export default function Roadmap({ roadmap }) {
     });
   }, []);
 
+  // Task 7 — marks the canvas transform to transition smoothly for a short window. Only called
+  // from the zoom-control buttons/reset below; wheel/drag/pinch clear it immediately instead of
+  // calling it, so direct manipulation never picks up the transition.
+  const markSmoothZoom = () => {
+    setSmoothZoom(true);
+    clearTimeout(smoothZoomTimer.current);
+    smoothZoomTimer.current = setTimeout(() => setSmoothZoom(false), 280);
+  };
+  useEffect(() => () => clearTimeout(smoothZoomTimer.current), []);
+
   // Wheel (zoom) and touch (pinch) need non-passive listeners to preventDefault, which React's
   // synthetic onWheel/onTouchMove props can't reliably guarantee — attach natively instead.
   useEffect(() => {
@@ -192,6 +239,8 @@ export default function Roadmap({ roadmap }) {
 
     const onWheel = (e) => {
       e.preventDefault();
+      clearTimeout(smoothZoomTimer.current);
+      setSmoothZoom(false);
       const rect = el.getBoundingClientRect();
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
@@ -213,6 +262,8 @@ export default function Roadmap({ roadmap }) {
     const onTouchMove = (e) => {
       if (e.touches.length === 2 && pinchState.current) {
         e.preventDefault();
+        clearTimeout(smoothZoomTimer.current);
+        setSmoothZoom(false);
         const [a, b] = e.touches;
         const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
         const factor = dist / pinchState.current.dist;
@@ -260,6 +311,8 @@ export default function Roadmap({ roadmap }) {
       if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
       ds.moved = true;
       setDragging(true);
+      clearTimeout(smoothZoomTimer.current);
+      setSmoothZoom(false);
       e.currentTarget.setPointerCapture(ds.pointerId);
     }
     setView((v) => ({ ...v, panX: ds.startPanX + dx, panY: ds.startPanY + dy }));
@@ -274,16 +327,41 @@ export default function Roadmap({ roadmap }) {
   };
 
   const zoomButton = (factor) => {
+    markSmoothZoom();
     const vw = viewportRef.current?.clientWidth ?? VIEWPORT_HEIGHT;
     const vh = viewportRef.current?.clientHeight ?? VIEWPORT_HEIGHT;
     zoomAt(vw / 2, vh / 2, factor);
   };
+  const handleResetView = () => {
+    markSmoothZoom();
+    fitView();
+  };
 
-  const selectedIsAnchorOnly = selected?.category === 'opportunity' && selected?.hasBranch;
-  const anchorDone = selectedIsAnchorOnly && selected.branchSteps
-    ? selected.branchSteps.filter((s) => isDone(s.id)).length
+  // Task 5 — the detail modal and the project "choice" modal both need to keep their content
+  // visible while playing an exit animation, even though the state that content came from
+  // (`selected` / `projectPrompt`) is nulled out the instant the user closes them. These refs
+  // retain the last real value purely for rendering the closing frame(s); every click handler
+  // below still reads the live `selected`/`projectPrompt` state exactly as before.
+  const { rendered: selectedRendered, closing: selectedClosing } = useModalExit(!!selected);
+  const lastSelectedRef = useRef(null);
+  if (selected) lastSelectedRef.current = selected;
+  const modalNode = selected || lastSelectedRef.current;
+
+  const { rendered: choiceRendered, closing: choiceClosing } = useModalExit(projectPrompt?.mode === 'choice');
+  const lastChoiceRef = useRef(null);
+  if (projectPrompt?.mode === 'choice') lastChoiceRef.current = projectPrompt;
+  const choiceNode = projectPrompt?.mode === 'choice' ? projectPrompt : lastChoiceRef.current;
+
+  const guideStepTitle = projectPrompt?.mode === 'guide'
+    ? projectPrompt.projectType.steps[projectPrompt.project.guideStepsUsed]
+    : '';
+  const promptProjectName = projectPrompt?.project?.projectName ?? '';
+
+  const selectedIsAnchorOnly = modalNode?.category === 'opportunity' && modalNode?.hasBranch;
+  const anchorDone = selectedIsAnchorOnly && modalNode.branchSteps
+    ? modalNode.branchSteps.filter((s) => isDone(s.id)).length
     : 0;
-  const anchorTotal = selectedIsAnchorOnly ? selected.branchSteps.length : 0;
+  const anchorTotal = selectedIsAnchorOnly ? modalNode.branchSteps.length : 0;
 
   // The chain-starting node has no single id of its own to toggle — its "complete" state is
   // derived from its steps. Give it a real action at every state instead of a dead-end summary:
@@ -293,11 +371,11 @@ export default function Roadmap({ roadmap }) {
     if (!selectedIsAnchorOnly) return;
     if (anchorDone === anchorTotal) {
       const updates = {};
-      selected.branchSteps.forEach((s) => { updates[s.id] = false; });
+      modalNode.branchSteps.forEach((s) => { updates[s.id] = false; });
       patch({ completedNodes: { ...state.completedNodes, ...updates } });
       return;
     }
-    const next = selected.branchSteps.find((s) => !isDone(s.id));
+    const next = modalNode.branchSteps.find((s) => !isDone(s.id));
     if (next) toggleDone(next.id);
   };
   const chainButtonLabel = anchorDone === 0
@@ -349,80 +427,132 @@ export default function Roadmap({ roadmap }) {
           onPointerLeave={onPointerUp}
         >
           <div
-            className="roadmap-canvas-inner"
+            className={`roadmap-canvas-inner${smoothZoom ? ' view-smooth' : ''}`}
             style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
           >
             <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
-            {/* Spine connective line: today up through every spine item, in chronological order. */}
+            {/* Spine connective line: today up through every spine item, in chronological order.
+                Task 1: on first load only, each segment draws in via stroke-dashoffset instead of
+                appearing solid immediately — the `d`/coordinates themselves are untouched. */}
             <path
+              className={entranceEnabled ? 'roadmap-draw-line' : undefined}
+              style={entranceEnabled ? {
+                '--seg-length': segLength(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y),
+                animationDelay: '0ms',
+              } : undefined}
               d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}
               stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
             />
             {roadmap.spine.slice(0, -1).map((n, i) => {
               const next = roadmap.spine[i + 1];
-              return <path key={`sp-${n.id}`} d={line(n.x, n.y, next.x, next.y)} stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5" />;
+              const delay = entranceDelay(i + 1, entranceEnabled);
+              return (
+                <path
+                  key={`sp-${n.id}`}
+                  className={entranceEnabled ? 'roadmap-draw-line' : undefined}
+                  style={entranceEnabled ? { '--seg-length': segLength(n.x, n.y, next.x, next.y), animationDelay: `${delay}ms` } : undefined}
+                  d={line(n.x, n.y, next.x, next.y)} stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
+                />
+              );
             })}
 
-            {/* Each multi-step item's own isolated diagonal, plus the chain within it. */}
-            {roadmap.spine.filter((n) => n.hasBranch).map((n) => (
-              <g key={`branch-${n.id}`}>
-                <path d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke="var(--stone)" strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6" />
-                {n.branchSteps.slice(0, -1).map((s, i) => {
-                  const next = n.branchSteps[i + 1];
-                  return <path key={`bs-${s.id}`} d={line(s.x, s.y, next.x, next.y)} stroke="var(--stone)" strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6" />;
-                })}
-              </g>
-            ))}
+            {/* Each multi-step item's own isolated diagonal, plus the chain within it. Branch
+                lines keep their permanent dashed "6 6" pattern (that's how optional branches read
+                as distinct from the solid required spine), so their first-load reveal is a plain
+                opacity fade rather than the dash-offset draw (which would fight that pattern). */}
+            {roadmap.spine.filter((n) => n.hasBranch).map((n) => {
+              const anchorIndex = roadmap.spine.indexOf(n);
+              const anchorDelay = entranceDelay(anchorIndex, entranceEnabled);
+              const stepDelay = (k) => anchorDelay + (k + 1) * ENTRANCE_STEP_MS;
+              return (
+                <g key={`branch-${n.id}`}>
+                  <path
+                    className={entranceEnabled ? 'roadmap-fade-line' : undefined}
+                    style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
+                    d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke="var(--stone)" strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
+                  />
+                  {n.branchSteps.slice(0, -1).map((s, i) => {
+                    const next = n.branchSteps[i + 1];
+                    return (
+                      <path
+                        key={`bs-${s.id}`}
+                        className={entranceEnabled ? 'roadmap-fade-line' : undefined}
+                        style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
+                        d={line(s.x, s.y, next.x, next.y)} stroke="var(--stone)" strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
+                      />
+                    );
+                  })}
+                </g>
+              );
+            })}
 
             {/* Branch step nodes (hollow — optional). Labels get extra clearance beyond the dot's
                 own position (in the branch's own peel direction) so they clear the spine's label
                 column even when a step lands close in time to a spine item. */}
-            {roadmap.spine.filter((n) => n.hasBranch).flatMap((n) => n.branchSteps.map((s) => {
-              const cfg = configFor(s);
-              const done = isDone(s.id);
-              const labelX = n.side > 0 ? 20 : -20;
-              return (
-                <g key={s.id} className="node-badge" onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
-                  <circle className="ring" r="13" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
-                  {done ? <CheckCircle2 x="-7" y="-7" size={14} color="#fff" /> : <cfg.Icon x="-6" y="-6" size={12} color={cfg.color} />}
-                  <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
-                  <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
-                    {s.category === 'project' ? `${s.projectLabel} · ${s.due}` : s.due}
-                  </text>
-                </g>
-              );
-            }))}
+            {roadmap.spine.filter((n) => n.hasBranch).flatMap((n) => {
+              const anchorIndex = roadmap.spine.indexOf(n);
+              const anchorDelay = entranceDelay(anchorIndex, entranceEnabled);
+              return n.branchSteps.map((s, i) => {
+                const cfg = configFor(s);
+                const done = isDone(s.id);
+                const labelX = n.side > 0 ? 20 : -20;
+                const delay = entranceEnabled ? anchorDelay + (i + 1) * ENTRANCE_STEP_MS : 0;
+                return (
+                  <g key={s.id} className="node-badge" onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
+                    <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
+                      <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
+                      {done
+                        ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
+                        : <cfg.Icon className="node-icon-pop" x="-6" y="-6" size={12} color={cfg.color} />}
+                    </g>
+                    <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
+                    <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
+                      {s.category === 'project' ? `${s.projectLabel} · ${s.due}` : s.due}
+                    </text>
+                  </g>
+                );
+              });
+            })}
 
             {/* Spine nodes: core (solid/required) and opportunity anchors (hollow/optional).
                 labelSide alternates per item (spine x is always dead-center) so consecutive spine
                 labels don't all pile onto one side, and a branch always peels opposite its own
                 anchor's label — see roadmapLayout.js. */}
-            {roadmap.spine.map((n) => {
+            {roadmap.spine.map((n, i) => {
               const cfg = configFor(n);
               const done = isDone(n.id);
               const isLeft = n.labelSide < 0;
+              const delay = entranceDelay(i, entranceEnabled);
               return (
                 <g key={n.id}>
                   {n.stageLabel && (
                     <text className="stage-label" x={n.x} y={n.y + 46} textAnchor="middle">— {n.stageLabel} —</text>
                   )}
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
-                    {n.required ? (
-                      <>
-                        <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
-                        {done ? <CheckCircle2 x="-9" y="-9" size={18} color="#fff" /> : <cfg.Icon x="-8" y="-8" size={16} color={cfg.color} />}
-                      </>
-                    ) : n.category === 'custom' ? (
-                      <>
-                        <circle className="ring" r="16" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 3'} pointerEvents="all" />
-                        {done ? <CheckCircle2 x="-8" y="-8" size={16} color="#fff" /> : <cfg.Icon x="-7" y="-7" size={14} color={cfg.color} />}
-                      </>
-                    ) : (
-                      <>
-                        <circle className="ring" r="16" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
-                        {done ? <CheckCircle2 x="-8" y="-8" size={16} color="#fff" /> : <cfg.Icon x="-7" y="-7" size={14} color={cfg.color} />}
-                      </>
-                    )}
+                    <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
+                      {n.required ? (
+                        <>
+                          <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
+                          {done
+                            ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />
+                            : <cfg.Icon className="node-icon-pop" x="-8" y="-8" size={16} color={cfg.color} />}
+                        </>
+                      ) : n.category === 'custom' ? (
+                        <>
+                          <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 3'} pointerEvents="all" />
+                          {done
+                            ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
+                            : <cfg.Icon className="node-icon-pop" x="-7" y="-7" size={14} color={cfg.color} />}
+                        </>
+                      ) : (
+                        <>
+                          <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
+                          {done
+                            ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
+                            : <cfg.Icon className="node-icon-pop" x="-7" y="-7" size={14} color={cfg.color} />}
+                        </>
+                      )}
+                    </g>
                     <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
                     <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
                       {n.category === 'project' ? `${n.projectLabel} · ${n.due}` : `${cfg.label} · ${n.due}${n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}`}
@@ -437,8 +567,10 @@ export default function Roadmap({ roadmap }) {
               onClick={() => setSelected({ ...roadmap.today, isToday: true })}
               transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
             >
-              <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
-              <Compass x="-8" y="-8" size={16} color="#fff" />
+              <g className="node-pop">
+                <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
+                <Compass x="-8" y="-8" size={16} color="#fff" />
+              </g>
               <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
               <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>Today · {roadmap.today.due}</text>
             </g>
@@ -449,7 +581,7 @@ export default function Roadmap({ roadmap }) {
         <div className="zoom-controls">
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1.25)} aria-label="Zoom in"><ZoomIn size={16} /></button>
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1 / 1.25)} aria-label="Zoom out"><ZoomOut size={16} /></button>
-          <button type="button" className="zoom-btn" onClick={fitView} aria-label="Reset view"><Maximize2 size={16} /></button>
+          <button type="button" className="zoom-btn" onClick={handleResetView} aria-label="Reset view"><Maximize2 size={16} /></button>
         </div>
       </div>
 
@@ -460,46 +592,46 @@ export default function Roadmap({ roadmap }) {
         </div>
       )}
 
-      {selected && (
-        <div className="overlay" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+      {selectedRendered && modalNode && (
+        <div className={`overlay${selectedClosing ? ' overlay-exit' : ''}`} onClick={() => setSelected(null)}>
+          <div className={`modal${selectedClosing ? ' modal-exit' : ''}`} onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelected(null)}><X size={18} /></button>
             <div
               className="modal-eyebrow"
-              style={{ color: selected.type === 'today' ? 'var(--gold)' : configFor(selected).color }}
+              style={{ color: modalNode.type === 'today' ? 'var(--gold)' : configFor(modalNode).color }}
             >
-              {selected.type === 'today' ? 'Today'
-                : selected.category === 'project' ? 'Project'
-                : selected.category === 'custom' ? 'Custom task'
-                : selected.category === 'opportunity' ? 'Opportunity · optional'
-                : selected.category === 'core' ? configFor(selected).label
+              {modalNode.type === 'today' ? 'Today'
+                : modalNode.category === 'project' ? 'Project'
+                : modalNode.category === 'custom' ? 'Custom task'
+                : modalNode.category === 'opportunity' ? 'Opportunity · optional'
+                : modalNode.category === 'core' ? configFor(modalNode).label
                 : 'Step · optional'}
             </div>
-            <h2 className="modal-title">{selected.title}</h2>
-            <div className="modal-due">Due {selected.due}</div>
-            <p className="modal-desc">{selected.desc}</p>
+            <h2 className="modal-title">{modalNode.title}</h2>
+            <div className="modal-due">Due {modalNode.due}</div>
+            <p className="modal-desc">{modalNode.desc}</p>
 
-            {selected.resources && selected.resources.length > 0 && (
+            {modalNode.resources && modalNode.resources.length > 0 && (
               <div className="modal-resources">
                 Recommended resources:
-                <ul>{selected.resources.map((r) => <li key={r}>{r}</li>)}</ul>
+                <ul>{modalNode.resources.map((r) => <li key={r}>{r}</li>)}</ul>
               </div>
             )}
 
-            {selected.type !== 'today' && (
+            {modalNode.type !== 'today' && (
               <div className="modal-edit-row">
                 <label className="modal-edit-date">
                   <span className="label">Due date</span>
                   <input
                     type="date"
-                    value={toDateInputValue(selected.date)}
-                    onChange={(e) => updateNodeDate(selected.id, e.target.value)}
+                    value={toDateInputValue(modalNode.date)}
+                    onChange={(e) => updateNodeDate(modalNode.id, e.target.value)}
                   />
                 </label>
                 <button
                   type="button"
                   className="remove-btn"
-                  onClick={() => removeNode(selected.id, selected.required)}
+                  onClick={() => removeNode(modalNode.id, modalNode.required)}
                 >
                   <Trash2 size={14} /> Remove task
                 </button>
@@ -521,48 +653,46 @@ export default function Roadmap({ roadmap }) {
               </>
             )}
 
-            {selected.type !== 'today' && !selectedIsAnchorOnly && (
+            {modalNode.type !== 'today' && !selectedIsAnchorOnly && (
               <button
-                className={`complete-btn ${isDone(selected.id) ? 'done' : 'todo'}`}
-                onClick={() => toggleDone(selected.id)}
+                className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
+                onClick={() => toggleDone(modalNode.id)}
               >
                 <CheckCircle2 size={16} />
-                {isDone(selected.id) ? 'Marked complete — undo' : 'Mark complete'}
+                {isDone(modalNode.id) ? 'Marked complete — undo' : 'Mark complete'}
               </button>
             )}
           </div>
         </div>
       )}
 
-      {showAddForm && (
-        <AddTaskModal
-          eyebrowColor={CUSTOM_CONFIG.color}
-          onCancel={() => setShowAddForm(false)}
-          onSubmit={addTask}
-        />
-      )}
+      <AddTaskModal
+        isOpen={showAddForm}
+        eyebrowColor={CUSTOM_CONFIG.color}
+        onCancel={() => setShowAddForm(false)}
+        onSubmit={addTask}
+      />
 
-      {projectPrompt?.mode === 'guide' && (
-        <AddTaskModal
-          title={`What's next for ${projectPrompt.project.projectName}?`}
-          eyebrow="Next step"
-          eyebrowColor={PROJECT_CONFIG.color}
-          nameLabel="Step name"
-          submitLabel="Add this step"
-          initialTitle={projectPrompt.projectType.steps[projectPrompt.project.guideStepsUsed]}
-          onCancel={() => setProjectPrompt(null)}
-          onSubmit={(task) => appendProjectStep(task.title, task.date, true, task.desc)}
-        />
-      )}
+      <AddTaskModal
+        isOpen={projectPrompt?.mode === 'guide'}
+        title={`What's next for ${promptProjectName}?`}
+        eyebrow="Next step"
+        eyebrowColor={PROJECT_CONFIG.color}
+        nameLabel="Step name"
+        submitLabel="Add this step"
+        initialTitle={guideStepTitle}
+        onCancel={() => setProjectPrompt(null)}
+        onSubmit={(task) => appendProjectStep(task.title, task.date, true, task.desc)}
+      />
 
-      {projectPrompt?.mode === 'choice' && (
-        <div className="overlay" onClick={() => setProjectPrompt(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+      {choiceRendered && choiceNode && (
+        <div className={`overlay${choiceClosing ? ' overlay-exit' : ''}`} onClick={() => setProjectPrompt(null)}>
+          <div className={`modal${choiceClosing ? ' modal-exit' : ''}`} onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setProjectPrompt(null)}><X size={18} /></button>
             <div className="modal-eyebrow" style={{ color: PROJECT_CONFIG.color }}>Project</div>
             <h2 className="modal-title">You've completed every guide step!</h2>
             <p className="modal-desc">
-              {projectPrompt.project.projectName} doesn't have a fixed end date — wrap it up here,
+              {choiceNode.project.projectName} doesn't have a fixed end date — wrap it up here,
               or keep adding your own steps.
             </p>
             <div className="task-form-actions">
@@ -581,17 +711,16 @@ export default function Roadmap({ roadmap }) {
         </div>
       )}
 
-      {projectPrompt?.mode === 'customStep' && (
-        <AddTaskModal
-          title={`Add a step for ${projectPrompt.project.projectName}`}
-          eyebrow="Project step"
-          eyebrowColor={PROJECT_CONFIG.color}
-          nameLabel="Step name"
-          submitLabel="Add step"
-          onCancel={() => setProjectPrompt(null)}
-          onSubmit={(task) => appendProjectStep(task.title, task.date, false, task.desc)}
-        />
-      )}
+      <AddTaskModal
+        isOpen={projectPrompt?.mode === 'customStep'}
+        title={`Add a step for ${promptProjectName}`}
+        eyebrow="Project step"
+        eyebrowColor={PROJECT_CONFIG.color}
+        nameLabel="Step name"
+        submitLabel="Add step"
+        onCancel={() => setProjectPrompt(null)}
+        onSubmit={(task) => appendProjectStep(task.title, task.date, false, task.desc)}
+      />
     </div>
   );
 }

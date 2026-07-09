@@ -356,7 +356,7 @@ button.card.passed:hover {
 .progress-num { font-family:'IBM Plex Mono', monospace; font-size:22px; color: var(--teal); }
 .progress-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color: var(--ink-soft); }
 .bar { width:100%; height:6px; background: var(--paper-line); border-radius:3px; overflow:hidden; margin: 14px 0 24px; }
-.bar-fill { height:100%; background: var(--teal); transition: width .3s ease; }
+.bar-fill { height:100%; background: var(--teal); transition: width .45s cubic-bezier(0.4,0,0.2,1); }
 
 .legend { display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color: var(--ink-soft); margin-bottom: 18px; }
 .legend-item { display:flex; align-items:center; gap:6px; }
@@ -444,6 +444,123 @@ button.card.passed:hover {
 }
 
 .win-banner { margin-top:22px; background: var(--card); border:1px solid var(--paper-line); border-left:4px solid var(--rust); border-radius:4px; padding:18px 20px; font-size:14px; }
+
+/* ==========================================================================
+   Academic Plan visual polish — style layer ONLY, additive on top of the
+   already-correct positioning/connector/zoom-pan engine (roadmapLayout.js's
+   layoutRoadmap, and Roadmap.jsx's fitView/zoomAt/onPointer* math). Nothing
+   here changes what x/y/zoom/panX/panY/`d` ARE — only how nodes, connector
+   lines, and panels get revealed, hovered, clicked, and dismissed.
+   ========================================================================== */
+
+/* Task 1 (+ Task 6, same mechanism) — entrance / new-chain-step "settle".
+   Solid spine segments draw in via stroke-dashoffset; dashed branch segments
+   fade in via opacity instead (a dash-offset reveal would fight their
+   permanent "6 6" dash pattern, which is how optional branches read as
+   distinct from the solid required spine). Every node's ring+icon pops in via
+   .node-pop — Roadmap.jsx applies this unconditionally (not just on first
+   load), so a freshly appended project-chain step gets the same quick
+   "settle" the moment it mounts, with zero extra markup needed for Task 6. */
+@keyframes roadmap-draw-line {
+  from { stroke-dashoffset: var(--seg-length); }
+  to { stroke-dashoffset: 0; }
+}
+.roadmap-draw-line {
+  stroke-dasharray: var(--seg-length);
+  animation: roadmap-draw-line 420ms ease-out both;
+}
+@keyframes roadmap-fade-line {
+  from { opacity: 0; }
+  to { opacity: 0.6; }
+}
+.roadmap-fade-line {
+  animation: roadmap-fade-line 320ms ease-out both;
+}
+@keyframes node-pop-in {
+  0% { opacity: 0; transform: scale(0.35); }
+  65% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.node-pop {
+  animation: node-pop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes node-icon-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+.node-icon-pop {
+  animation: node-icon-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: center;
+}
+
+/* Task 2 — hover, layered on top of the existing ring styles (the r-on-hover
+   growth above already existed and still applies) rather than replacing
+   them: a touch of scale plus a soft glow on the node's inner visual group.
+   Never applied to the outer .node-badge <g> itself, which carries the real
+   translate(x,y) position — see Roadmap.jsx's comment on .node-pop. */
+.node-badge:hover .node-pop {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 4px rgba(46, 110, 94, 0.45));
+}
+
+/* Task 3 — a quick pulse right as a node is pressed, before its detail panel
+   opens. */
+@keyframes node-click-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+.node-badge:active .node-pop {
+  animation: node-click-pulse 260ms ease;
+}
+
+/* Task 4 — mark-complete: the ring's fill now transitions instead of
+   swapping instantly. Hollow (optional/custom) rings toggle `fill-opacity`
+   rather than `fill: none <-> color` — 'none' isn't a real animatable color,
+   so browsers can't smoothly interpolate to/from it; fill-opacity is a plain
+   0-1 number and always interpolates cleanly (see the fillOpacity prop in
+   Roadmap.jsx). The completed-state icon also gets its own .node-icon-pop
+   above, which plays automatically the moment `done` flips (that's exactly
+   when React swaps which icon element is mounted there). */
+.node-badge circle.ring {
+  transition: r 0.15s ease, fill-opacity 0.28s ease, fill 0.28s ease;
+}
+
+/* Task 5 — detail panel/modal entrance + exit. The overlay/modal stay
+   mounted for the duration of the exit animation (see useModalExit.js) —
+   `-exit` variants also disable pointer-events so a click can't land on a
+   button whose backing state has already been cleared mid-fade. */
+@keyframes roadmap-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes roadmap-overlay-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes roadmap-modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes roadmap-modal-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(6px) scale(0.97); }
+}
+.overlay { animation: roadmap-overlay-in 180ms ease both; }
+.overlay.overlay-exit { animation: roadmap-overlay-out 180ms ease both; pointer-events: none; }
+.modal { animation: roadmap-modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.modal.modal-exit { animation: roadmap-modal-out 180ms ease both; pointer-events: none; }
+
+/* Task 7 — button-triggered zoom in/out and "Reset view" get a smooth
+   transition; manual wheel-zoom, pinch, and drag-to-pan intentionally never
+   get this class (Roadmap.jsx strips it the instant any of those start), so
+   direct manipulation stays immediate/1:1. */
+.roadmap-canvas-inner.view-smooth {
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roadmap-draw-line, .roadmap-fade-line, .node-pop, .node-icon-pop,
+  .node-badge:hover .node-pop, .node-badge:active .node-pop,
+  .overlay, .modal {
+    animation: none !important;
+  }
+  .roadmap-canvas-inner.view-smooth { transition: none !important; }
+}
 .win-banner b { font-family:'Fraunces', serif; font-size:17px; display:block; margin-bottom:4px; }
 
 /* Project Builder screen — deliberately lighter/more energetic than the Academic Plan's

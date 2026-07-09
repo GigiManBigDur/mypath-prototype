@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Compass } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 // Two distinct trail shapes, not one shape CSS-scaled down — the mobile variant has a much
 // narrower horizontal swing relative to its height so the winding S-curve reads as intentional
@@ -23,20 +24,6 @@ const MILESTONES = [
 // played" for the lifetime of the tab (e.g. navigating back here from the survey), not across
 // a real reload, so a plain module variable is enough.
 let hasPlayedIntro = false;
-
-function useMediaQuery(query) {
-  const [matches, setMatches] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia(query).matches
-  ));
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = () => setMatches(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [query]);
-  return matches;
-}
 
 export default function WelcomeScreen() {
   const { patch } = useApp();

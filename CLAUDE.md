@@ -665,6 +665,77 @@ had for its own careers/majors/programs sub-steps) plus that same eyebrow text u
 `{step, total, label}` prop API — `AcademicPlanScreen.jsx`'s own "Step 6 of 6" is deliberately
 left as plain text, not switched to this component, matching the rest of this pass's scope.
 
+**The Academic Plan's own animation/visual-polish pass is a strict style-layer overlay on top of
+`roadmapLayout.js`'s positioning and `Roadmap.jsx`'s zoom/pan/drag math — none of that math was
+touched.** Every node/segment already has a correct, final x/y (or `d` for connectors) before any
+of this runs; the additions below only decide how those already-correct values get *revealed*,
+*hovered*, *clicked*, and *dismissed*. If you're tempted to fix a visual glitch here by adjusting
+`layoutRoadmap`, `layoutBranch`, `fitView`, or `zoomAt`, stop — that's exactly the mixing of style
+and logic changes that broke date-positioning once before (see the file-level warning in a prior
+session). Key pieces:
+- **Entrance (+ new-chain-step "settle") reuses one mechanism for both.** `Roadmap.jsx` wraps
+  every node's ring+icon in an inner `<g className="node-pop">`, nested *inside* the existing
+  outer `<g transform="translate(x,y)">` — never applying a CSS `transform` to that outer g
+  itself, since a CSS transform on an SVG element replaces its presentation-attribute `transform`
+  rather than composing with it (the same landmine WelcomeScreen's animation already documents).
+  `.node-pop`'s pop-in keyframe is applied *unconditionally*, every mount — so Task 6 (a freshly
+  appended Project Builder step) gets the same "settle" pop for free, with zero extra code,
+  purely because React mounts a new DOM node for a new array entry with a new `key`/id. Only the
+  *delay* is conditional: a module-level `hasPlayedRoadmapEntrance` flag (same pattern as
+  WelcomeScreen's `hasPlayedIntro`) gates whether nodes/connectors get a real staggered delay
+  (first load only, capped at `ENTRANCE_MAX_INDEX` steps so a long multi-year plan doesn't take
+  forever) or `0` (every later mount, including Task 6's new steps, which should never wait).
+  Connector lines split into two techniques: the solid spine draws in via `stroke-dashoffset`
+  (`.roadmap-draw-line`, needs a real `--seg-length` computed from the segment's own endpoints —
+  straight lines, so just `Math.hypot`, no DOM measurement needed); dashed branch connectors fade
+  in via opacity instead (`.roadmap-fade-line`) specifically because they carry a *permanent*
+  `strokeDasharray="6 6"` presentation attribute (that's how an optional branch reads as visually
+  distinct from the solid required spine) — a dash-offset reveal would fight that pattern, so
+  branches get a plainer fade instead.
+- **Mark-complete (Task 4) uses `fill-opacity`, not `fill: none <-> color`, for every hollow
+  ring.** CSS can't reliably transition to/from the literal value `none`, so those rings now
+  always render `fill={cfg.color}` and toggle `fillOpacity={done ? 1 : 0}` instead — solid
+  required rings didn't need this (they already toggle between two real colors, `#fff` and
+  `cfg.color`, which transitions natively). `.node-badge circle.ring`'s existing `transition: r
+  .15s ease` (from the pre-existing hover-grow effect) gained `fill-opacity`/`fill` alongside it.
+  The completed-state icon swap (`cfg.Icon` ↔ `CheckCircle2`) gets its own `.node-icon-pop`
+  keyframe that plays automatically whenever `done` flips — that's precisely when React mounts a
+  different icon component at that JSX position, so no extra state is needed to detect "just
+  completed" vs. "just undone."
+- **Hover (Task 2) and click (Task 3) are pure CSS**, layered onto `.node-pop` via
+  `.node-badge:hover .node-pop` (scale + drop-shadow glow, additive on top of the pre-existing
+  `.node-badge:hover circle.ring { r: 22 }`, not replacing it) and `.node-badge:active .node-pop`
+  (a quick pulse). No new JS state.
+- **Modal entrance/exit (Task 5) needed real state, since React unmounts a conditionally-rendered
+  modal instantly — before any CSS could animate it.** `src/hooks/useModalExit.js` keeps a modal
+  mounted for a short window after its `isOpen` flips false, exposing `{ rendered, closing }`, so
+  the caller can render its `-exit` CSS variant before actually disappearing.
+  `AddTaskModal.jsx` now takes an `isOpen` prop instead of being conditionally mounted by its
+  caller at all (Roadmap.jsx's three usages — plain "+ Add Task", the guide-suggested step
+  prompt, and the open-ended "add another step" — are now *always* rendered, gated by `isOpen`)
+  — it snapshots its own display props (`title`/`eyebrow`/etc.) into a ref while open so the
+  closing frame still has real text even after the caller has already nulled out whatever
+  selection those props were derived from, and re-seeds its form fields on every re-open (since
+  it no longer remounts fresh each time). Roadmap.jsx's other two inline modals (the node detail
+  panel, the project "guide exhausted" choice) apply the same retain-last-value pattern by hand
+  via a plain ref, since they aren't routed through AddTaskModal. `.overlay-exit`/`.modal-exit`
+  also set `pointer-events: none`, closing a real edge case: without it, a fast double-click
+  could land on a submit/complete button whose backing state (`selected`/`projectPrompt`) had
+  already been cleared, mid-fade.
+- **Button-triggered zoom/reset easing (Task 7) is a CSS class toggle, not a change to the zoom
+  math itself.** `zoomButton`/`handleResetView` call `markSmoothZoom()` first, which adds a
+  `view-smooth` class to `.roadmap-canvas-inner` for ~280ms (giving its `transform` a CSS
+  transition); `onWheel`, the touch-pinch handler, and the drag-start branch of `onPointerMove`
+  all explicitly clear it immediately, so manual wheel/pinch/drag interaction is guaranteed to
+  stay instant/1:1 even if a button-triggered transition happens to still be running. `fitView`
+  itself is untouched and still runs unmarked (instant) from the auto-fit-on-load/resize
+  `useEffect` — only the "Reset view" *button's* own click handler (`handleResetView`) wraps it
+  with the smooth marker, so the very first auto-fit on mount was never affected.
+- Task 8 (progress bar fill transition) already existed (`.bar-fill { transition: width ... }`)
+  before this pass — only its easing curve was refined, nothing structural changed there.
+- `src/hooks/useMediaQuery.js` was extracted from WelcomeScreen (identical behavior, just
+  shared) so Roadmap.jsx's own `prefers-reduced-motion` check doesn't duplicate it.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
