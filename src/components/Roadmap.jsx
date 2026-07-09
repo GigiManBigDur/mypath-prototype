@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2, Plus, Pencil,
+  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2, Plus, Pencil, Rocket,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { findProjectType } from '../data/projects';
 import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 
@@ -30,6 +31,12 @@ const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: '#A6491F', Ic
 // JSX below) so it's visually distinct from both the solid required ring and the dashed
 // opportunity ring at a glance.
 const CUSTOM_CONFIG = { label: 'Custom task', color: '#4B5D54', Icon: Pencil };
+// A started Project Builder project. Deliberately reuses the same ring styling as an opportunity
+// chain (see the ring-drawing JSX below — 'project' isn't special-cased there, so it falls into
+// the same hollow-dashed branch) per the growing-chain spec's explicit instruction to reuse
+// opportunity chain/sub-branch rendering; only the icon/label/color and the projectLabel subtitle
+// (below) differentiate it.
+const PROJECT_CONFIG = { label: 'Project', color: '#6E7F87', Icon: Rocket };
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
@@ -40,6 +47,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 function configFor(node) {
   if (node.category === 'core' || node.type === 'today') return CORE_TYPE_CONFIG[node.coreType || node.type];
   if (node.category === 'custom') return CUSTOM_CONFIG;
+  if (node.category === 'project') return PROJECT_CONFIG;
   if (node.isLast) return BRANCH_DEADLINE_CONFIG;
   if (node.category === 'opportunity') return OPPORTUNITY_CONFIG;
   return BRANCH_STEP_CONFIG;
@@ -53,6 +61,9 @@ export default function Roadmap({ roadmap }) {
   const { state, patch } = useApp();
   const [selected, setSelected] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  // { project, projectType, mode: 'guide' | 'choice' | 'customStep' } — the reveal-next-step
+  // flow for a started project; null when no prompt is open.
+  const [projectPrompt, setProjectPrompt] = useState(null);
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [dragging, setDragging] = useState(false);
   const viewportRef = useRef(null);
@@ -60,8 +71,51 @@ export default function Roadmap({ roadmap }) {
   const pinchState = useRef(null);
 
   const isDone = (id) => !!state.completedNodes[id];
-  const toggleDone = (id) =>
-    patch({ completedNodes: { ...state.completedNodes, [id]: !state.completedNodes[id] } });
+  // Completing a started project's current LAST step (its one active step — see
+  // buildProjectChain in roadmapGenerator.js, `steps` grows strictly in insertion order,
+  // untouched by the chronological re-sort used only for display) opens the reveal-next-step
+  // prompt instead of just toggling — a project's chain never pre-populates future steps, so
+  // finishing the one visible step is the trigger to reveal the next.
+  const toggleDone = (id) => {
+    const newValue = !state.completedNodes[id];
+    patch({ completedNodes: { ...state.completedNodes, [id]: newValue } });
+    if (!newValue) return;
+    const project = (state.startedProjects || []).find(
+      (p) => p.status !== 'completed' && p.steps.length && p.steps[p.steps.length - 1].id === id,
+    );
+    if (project) openNextStepPrompt(project);
+  };
+
+  const openNextStepPrompt = (project) => {
+    const found = findProjectType(project.categoryId, project.projectTypeId);
+    if (!found) return;
+    const { projectType } = found;
+    const mode = project.guideStepsUsed < projectType.steps.length ? 'guide' : 'choice';
+    setSelected(null);
+    setProjectPrompt({ project, projectType, mode });
+  };
+
+  // consumesGuideSlot: true for a guide-suggested step (even if the user edited/replaced its
+  // wording — it still fills that guide slot), false for a step added after the guide is
+  // exhausted, so guideStepsUsed only ever tracks real progress through the curated guide.
+  const appendProjectStep = (title, date, consumesGuideSlot, desc) => {
+    const { project } = projectPrompt;
+    const newStep = { id: makeTaskId('project-step'), title, date, desc };
+    patch({
+      startedProjects: state.startedProjects.map((p) => (p.id === project.id
+        ? { ...p, steps: [...p.steps, newStep], guideStepsUsed: consumesGuideSlot ? p.guideStepsUsed + 1 : p.guideStepsUsed }
+        : p)),
+    });
+    setProjectPrompt(null);
+  };
+
+  const markProjectComplete = () => {
+    const { project } = projectPrompt;
+    patch({
+      startedProjects: state.startedProjects.map((p) => (p.id === project.id ? { ...p, status: 'completed' } : p)),
+    });
+    setProjectPrompt(null);
+  };
 
   // Changing a date only ever writes an override string — roadmapGenerator.js re-derives that
   // node's position from it via the exact same date-to-y path every other node uses, nothing
@@ -316,7 +370,9 @@ export default function Roadmap({ roadmap }) {
                   <circle className="ring" r="13" fill={done ? cfg.color : 'none'} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                   {done ? <CheckCircle2 x="-7" y="-7" size={14} color="#fff" /> : <cfg.Icon x="-6" y="-6" size={12} color={cfg.color} />}
                   <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
-                  <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.due}</text>
+                  <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
+                    {s.category === 'project' ? `${s.projectLabel} · ${s.due}` : s.due}
+                  </text>
                 </g>
               );
             }))}
@@ -352,7 +408,9 @@ export default function Roadmap({ roadmap }) {
                       </>
                     )}
                     <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
-                    <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>{cfg.label} · {n.due}{n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}</text>
+                    <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
+                      {n.category === 'project' ? `${n.projectLabel} · ${n.due}` : `${cfg.label} · ${n.due}${n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}`}
+                    </text>
                   </g>
                 </g>
               );
@@ -395,6 +453,7 @@ export default function Roadmap({ roadmap }) {
               style={{ color: selected.type === 'today' ? 'var(--gold)' : configFor(selected).color }}
             >
               {selected.type === 'today' ? 'Today'
+                : selected.category === 'project' ? 'Project'
                 : selected.category === 'custom' ? 'Custom task'
                 : selected.category === 'opportunity' ? 'Opportunity · optional'
                 : selected.category === 'core' ? configFor(selected).label
@@ -464,6 +523,57 @@ export default function Roadmap({ roadmap }) {
           eyebrowColor={CUSTOM_CONFIG.color}
           onCancel={() => setShowAddForm(false)}
           onSubmit={addTask}
+        />
+      )}
+
+      {projectPrompt?.mode === 'guide' && (
+        <AddTaskModal
+          title={`What's next for ${projectPrompt.project.projectName}?`}
+          eyebrow="Next step"
+          eyebrowColor={PROJECT_CONFIG.color}
+          nameLabel="Step name"
+          submitLabel="Add this step"
+          initialTitle={projectPrompt.projectType.steps[projectPrompt.project.guideStepsUsed]}
+          onCancel={() => setProjectPrompt(null)}
+          onSubmit={(task) => appendProjectStep(task.title, task.date, true, task.desc)}
+        />
+      )}
+
+      {projectPrompt?.mode === 'choice' && (
+        <div className="overlay" onClick={() => setProjectPrompt(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setProjectPrompt(null)}><X size={18} /></button>
+            <div className="modal-eyebrow" style={{ color: PROJECT_CONFIG.color }}>Project</div>
+            <h2 className="modal-title">You've completed every guide step!</h2>
+            <p className="modal-desc">
+              {projectPrompt.project.projectName} doesn't have a fixed end date — wrap it up here,
+              or keep adding your own steps.
+            </p>
+            <div className="task-form-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setProjectPrompt((p) => ({ ...p, mode: 'customStep' }))}
+              >
+                + Add another step
+              </button>
+              <button type="button" className="btn btn-primary" onClick={markProjectComplete}>
+                Mark project complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {projectPrompt?.mode === 'customStep' && (
+        <AddTaskModal
+          title={`Add a step for ${projectPrompt.project.projectName}`}
+          eyebrow="Project step"
+          eyebrowColor={PROJECT_CONFIG.color}
+          nameLabel="Step name"
+          submitLabel="Add step"
+          onCancel={() => setProjectPrompt(null)}
+          onSubmit={(task) => appendProjectStep(task.title, task.date, false, task.desc)}
         />
       )}
     </div>

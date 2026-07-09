@@ -15,10 +15,14 @@ const DEFAULT_STATE = {
   completedNodes: {},
   nodeDateOverrides: {}, // { [nodeId]: 'YYYY-MM-DD' } — user-edited due date, keyed like completedNodes
   removedNodeIds: {}, // { [nodeId]: true } — user-deleted tasks, same flat-map shape as completedNodes
-  customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc, projectMeta?, parentProjectId? }] —
-  // tasks the user created themselves. `projectMeta: { categoryId, projectTypeId }` marks one as
-  // a started Project Builder project; `parentProjectId` (= that project task's own id) marks a
-  // milestone as belonging to it. Both are optional/absent on an ordinary custom task.
+  customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
+  startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
+  // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder
+  // project the user started. `steps` grows one at a time (see Roadmap.jsx's reveal-next-step
+  // flow) rather than being generated up front; `guideStepsUsed` tracks how many of the project
+  // type's own curated guide steps have been consumed so the next suggestion (and "guide
+  // exhausted" detection) can be derived without re-deriving it from `steps.length`, which also
+  // grows from user-authored steps added after the guide runs out.
 };
 
 function loadInitialState() {

@@ -2,22 +2,27 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 
 // Shared name/due-date/optional-description task creation form — originally lived inline in
-// Roadmap.jsx's "+ Add Task" flow, extracted so ProjectBuilderScreen's "Add a milestone" flow can
-// reuse the exact same mechanism (per its spec: "no new mechanism needed") rather than
-// duplicating the form. The caller owns what happens to the result — Roadmap.jsx patches a plain
-// custom task; ProjectBuilderScreen patches one tagged with `parentProjectId` so it's grouped
-// under a started project.
+// Roadmap.jsx's "+ Add Task" flow, extracted so it can be reused wherever the app needs the same
+// "name + date + optional notes" shape: Roadmap.jsx's own "+ Add Task", and Roadmap.jsx's
+// reveal-next-step flow for a started Project Builder project (both the guide-suggested step,
+// pre-filled via `initialTitle` but still fully editable, and the open-ended "add your own step"
+// once a project's guide is exhausted). The caller owns what happens to the submitted
+// `{ title, date, desc }` — this component has no opinion on projects/milestones/plain tasks.
 export default function AddTaskModal({
   title = 'Add a task',
   eyebrow = 'Custom task',
   eyebrowColor = 'var(--ink-soft)',
+  nameLabel = 'Task name',
   submitLabel = 'Add task',
+  initialTitle = '',
+  initialDate = '',
+  initialDesc = '',
   onSubmit,
   onCancel,
 }) {
-  const [taskName, setTaskName] = useState('');
-  const [taskDate, setTaskDate] = useState('');
-  const [taskDesc, setTaskDesc] = useState('');
+  const [taskName, setTaskName] = useState(initialTitle);
+  const [taskDate, setTaskDate] = useState(initialDate);
+  const [taskDesc, setTaskDesc] = useState(initialDesc);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -33,7 +38,7 @@ export default function AddTaskModal({
         <h2 className="modal-title">{title}</h2>
         <form onSubmit={handleSubmit}>
           <label className="task-form-field">
-            <span className="label">Task name</span>
+            <span className="label">{nameLabel}</span>
             <input
               type="text"
               value={taskName}

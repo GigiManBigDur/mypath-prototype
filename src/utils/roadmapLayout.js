@@ -135,7 +135,12 @@ export function layoutRoadmap({ today, spineItems }) {
   // other branch's steps placed so far — each chain routes around everything already on the
   // canvas instead of just avoiding itself.
   const rawPositioned = withPosition.map(({ item, y, labelSide }) => {
-    const hasBranch = !!(item.steps && item.steps.length > 1);
+    // `>= 1`, not `> 1` — a chain with exactly one branch step (e.g. a freshly-grown Project
+    // Builder project with 2 total revealed steps: one anchor + one branch step) still needs its
+    // one step rendered as a real branch point, not silently dropped. Every opportunity in
+    // practice has 2+ prepSteps, so this is a no-op for existing chains; it only fixes what was
+    // previously a latent "one-step chains vanish" bug.
+    const hasBranch = !!(item.steps && item.steps.length >= 1);
     let branchSteps = null;
     const side = hasBranch ? -labelSide : 0;
     if (hasBranch) {

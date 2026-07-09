@@ -96,8 +96,9 @@ export function generateRoadmap(state) {
   );
 
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
+  const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed);
 
-  const spineItems = [...coreItems, ...opportunityItems, ...customItems];
+  const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems];
 
   const { today: laidToday, spine, canvasHeight, canvasWidth } = layoutRoadmap({ today, spineItems });
 
@@ -146,6 +147,67 @@ function buildCustomItems(customTasks, dateOverrides, removed) {
         steps: null,
       };
     });
+}
+
+// A started Project Builder project (see ProjectBuilderScreen.jsx / Roadmap.jsx's reveal-next-
+// step flow). Unlike an opportunity, there's no separate "anchor" node distinct from its steps —
+// the FIRST revealed step doubles as the anchor, titled with its own actual step text (e.g.
+// "Define the problem your app will solve"), not the project's name. `project.steps` grows one
+// entry at a time in Roadmap.jsx as the user completes each one, so this only ever has to lay
+// out whatever's been revealed so far; a project with exactly one revealed step (freshly
+// started) renders as a plain point (`steps: null`, matching `hasBranch === false`), exactly
+// like a single custom task — the moment a second step is revealed, it becomes a real branch,
+// same connector/isLast machinery as an opportunity chain. Every step (including the one acting
+// as anchor) carries a `projectLabel` ("Name · Step X of Y") so Roadmap.jsx can show project
+// context under the title without overwriting it — recomputed after the date-sort below so the
+// numbering always matches what's actually rendered in order.
+function buildProjectItems(startedProjects, dateOverrides, removed) {
+  return startedProjects
+    .map((project) => buildProjectChain(project, dateOverrides, removed))
+    .filter(Boolean);
+}
+
+function buildProjectChain(project, dateOverrides, removed) {
+  let steps = project.steps
+    .map((step) => {
+      const realDate = dateOverrides[step.id] ? parseDateInputValue(dateOverrides[step.id]) : parseDateInputValue(step.date);
+      return {
+        id: step.id,
+        title: step.title,
+        date: realDate,
+        due: formatDate(realDate),
+        desc: step.desc || `Part of your ${project.projectName} project.`,
+        resources: [],
+      };
+    })
+    .filter((step) => !removed[step.id]);
+
+  if (steps.length === 0) return null;
+
+  steps.sort((a, b) => a.date.getTime() - b.date.getTime());
+  const total = steps.length;
+  steps = steps.map((step, i) => ({
+    ...step,
+    category: 'project',
+    isLast: i === total - 1,
+    projectLabel: `${project.projectName} · Step ${i + 1} of ${total}`,
+  }));
+
+  const [anchor, ...branchSteps] = steps;
+
+  return {
+    id: anchor.id,
+    title: anchor.title,
+    category: 'project',
+    required: false,
+    coreType: 'project',
+    date: anchor.date,
+    due: anchor.due,
+    desc: anchor.desc,
+    resources: [],
+    projectLabel: anchor.projectLabel,
+    steps: branchSteps.length ? branchSteps : null,
+  };
 }
 
 // Escalated milestone title for year N (yearIndex is 1-based among the escalation years — 1

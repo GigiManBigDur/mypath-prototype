@@ -117,8 +117,10 @@ map of node/step id → boolean, shared by every core spine item and every oppor
 steps alike), `nodeDateOverrides` (flat map of node/step id → `'YYYY-MM-DD'`, a user-edited due
 date that overrides the template-computed one), `removedNodeIds` (flat map of node/step id →
 `true`, a user-deleted task), `customTasks` (array of `{ id, title, date: 'YYYY-MM-DD', desc }`
-— tasks the user created themselves via the roadmap's "+ Add Task" control, see below), and
-`screen`. `reset()` clears storage and returns to the survey. The Survey screen's
+— tasks the user created themselves via the roadmap's "+ Add Task" control, see below),
+`startedProjects` (array of started Project Builder projects, each growing its own `steps` array
+over time — see the `ProjectBuilderScreen`/`buildProjectChain` section below, this is deliberately
+NOT part of `customTasks`), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
 "What year are you in?" pill group resets `schoolYear: null` whenever `educationLevel` changes
 (its options are conditional on level), so Continue stays disabled until both are picked.
 
@@ -460,27 +462,67 @@ an acceptable trade since nothing here is a consequential selection like the sur
 now" control (`.pb-skip`) renders at all 3 levels and always jumps straight to `patch({ screen:
 'plan' })`, per spec ("fully skippable at every level").
 
-**Starting a project reuses the exact same `customTasks` mechanism as a manually-added task —
-there's no separate "started projects" state.** Clicking "Start This Project!" and confirming a
-date pushes a `customTasks` entry exactly like `AddTaskModal` would, except tagged with
-`projectMeta: { categoryId, projectTypeId }`; `roadmapGenerator.js`'s existing `buildCustomItems`
-needed zero changes; the project shows up on the spine as an ordinary dotted-ring custom node.
-**Milestones are the same trick one level down**: `AddTaskModal` (see below) is reused verbatim
-for "+ Add a milestone," except the resulting task is tagged with `parentProjectId` set to the
-project task's own id. "Started" detection and a project's milestone list are just filters over
-`state.customTasks` (`t.projectMeta?.projectTypeId === projectType.id` /
-`t.parentProjectId === startedTask.id`) — no new top-level state field beyond `customTasks`
-itself. This is why the project has no fixed end date: its real checkpoints are whatever
-milestones the user adds over time, same as the spec asked for.
+**A started project is its own top-level state, `state.startedProjects`, and grows one step at a
+time instead of being generated up front — it is NOT a `customTasks` entry** (an earlier version
+of this feature modeled a started project as a single tagged custom task with freeform
+"milestones" added anytime; that was fully replaced once projects needed real chain/sub-branch
+rendering and strict one-active-step-at-a-time progression). Each entry is `{ id, categoryId,
+projectTypeId, projectName, status: 'active' | 'completed', guideStepsUsed, steps: [{ id, title,
+date, desc }] }`. Starting a project (`ProjectBuilderScreen`'s "Start This Project!" + date
+picker) creates exactly one step — the project type's own **first** guide step text (not the
+project's name; that's Task 1 of the growing-chain spec), dated to the chosen Start Date, with
+`guideStepsUsed: 1` since that first guide slot is already spent.
+
+**`roadmapGenerator.js`'s `buildProjectChain()` (`category: 'project'`) has no separate anchor
+distinct from its steps, unlike an opportunity.** The FIRST entry in `project.steps` doubles as
+the spine anchor (its own title, not a wrapper title) and every step after it becomes a
+`branchSteps` entry — so a freshly-started project (one step) renders as a plain point exactly
+like a custom task, and the moment a second step is revealed it becomes a real branch, same
+connector/`isLast` machinery an opportunity chain uses. Every step also carries a `projectLabel`
+string (`"${projectName} · Step X of Y"`, `Y` = however many steps are revealed so far,
+recomputed after the date-sort) that `Roadmap.jsx` renders in place of the generic `label · due`
+subtitle for `category === 'project'` nodes, so the project stays identifiable without
+overwriting the step's own real title.
+
+**Progression is driven entirely by `Roadmap.jsx`'s `toggleDone`, not by anything in
+`ProjectBuilderScreen`** — since "mark complete" can happen from the Academic Plan regardless of
+which screen the user started the project from. Completing a node checks whether its id is the
+CURRENT LAST entry of some `active` project's `steps` array (insertion order, read directly from
+`state.startedProjects` — deliberately NOT the chronologically-resorted view `buildProjectChain`
+builds for display, so a user editing an earlier step's date via `nodeDateOverrides` can never
+change which step counts as "active"). If so, it opens a reveal-next-step prompt instead of just
+toggling:
+- **Guide phase** (`guideStepsUsed < projectType.steps.length`): reuses `AddTaskModal` with
+  `initialTitle` pre-filled from `projectType.steps[guideStepsUsed]` — editable, not locked; can
+  be accepted as-is, tweaked, or replaced outright. Submitting appends the step and increments
+  `guideStepsUsed` regardless of whether the text was changed (it still fills that guide slot).
+- **Guide exhausted** (`guideStepsUsed === projectType.steps.length`): a small choice modal —
+  "Mark project complete" (sets `status: 'completed'`, permanently stops prompting) or "+ Add
+  another step" (the same `AddTaskModal`, blank this time, `guideStepsUsed` untouched since it's
+  no longer tracking a guide slot). Choosing to add another step re-enters this same choice cycle
+  once THAT step is completed — the custom-step phase is open-ended, not one-shot.
+
+At most one step per project is ever incomplete at a time by construction: nothing generates
+future steps ahead of where the user actually is, satisfying "never multiple future steps with
+guessed dates." Completed steps are never removed from `steps` — they stay on the spine exactly
+like any other completed node.
 
 **`AddTaskModal` (`src/components/AddTaskModal.jsx`) was extracted from `Roadmap.jsx`'s inline
-"+ Add Task" form** specifically so Project Builder's milestone flow could reuse the identical
-name/due-date/optional-description mechanism rather than duplicating it — the component takes
-`title`/`eyebrow`/`eyebrowColor`/`submitLabel` props for the two callers' different framing
-("Add a task" vs. "Add a milestone for X") but the field set and validation are identical.
-`Roadmap.jsx` and `ProjectBuilderScreen.jsx` each own their own id generation and tagging
-(`makeTaskId()` in `src/utils/ids.js`, shared) and decide what to do with the submitted
-`{ title, date, desc }` — the modal itself has no opinion on `projectMeta`/`parentProjectId`.
+"+ Add Task" form** and is now shared three ways: Roadmap's own "+ Add Task", the growing-chain
+guide-suggestion prompt (pre-filled via `initialTitle`/`initialDate`/`initialDesc`, all optional
+and empty by default so the plain "+ Add Task" caller is unaffected), and the post-guide
+open-ended "add another step" form. `title`/`eyebrow`/`eyebrowColor`/`nameLabel`/`submitLabel`
+let each caller frame the same field set differently; the component itself has no opinion on
+what the caller does with the submitted `{ title, date, desc }` (plain custom task vs. project
+step) or how ids are generated (`makeTaskId()` in `src/utils/ids.js`, called at each callsite).
+
+**`roadmapLayout.js`'s `hasBranch` check is `steps.length >= 1`, not `steps.length > 1`.** A
+project that has grown to exactly one revealed branch step (two total: anchor + one) needs that
+step to actually render as a branch, not silently vanish — the old `> 1` threshold was a latent
+bug for any one-step chain (harmless for opportunities in practice, since every real opportunity
+has 2+ prep steps, but real for a freshly-grown project). If you touch this, re-verify with a
+project that has exactly two revealed steps, not just three or more — that's the case the old
+threshold silently dropped.
 
 **The Project Start Date picker does a *soft* conflict check, never a hard block.** On every
 keystroke in the date input, `ProjectBuilderScreen` flattens `roadmap.spine` plus every
@@ -507,10 +549,16 @@ download). Cover at minimum:
   Culinary Arts, Community & Leadership, Media & Entertainment, Personal Development, Outdoors)
   and one opportunity-only tag (Fitness or Fashion, or "Law"), through all 6 screens.
 - Project Builder: browse into a category → a project type → confirm Overview/Time
-  Commitment/Steps/Resources all render; start a project and confirm it lands on the Academic
-  Plan spine at the chosen date; add a milestone and confirm it's tagged with the started
-  project's id (`parentProjectId`) and shows up in that project's milestone list; confirm "Skip
-  for now" at all 3 levels jumps straight to `plan` without creating anything.
+  Commitment/Steps/Resources all render; start a project and confirm its ONE node on the Academic
+  Plan is titled with the project type's actual first guide step (not the raw project name) at
+  the chosen Start Date. Mark that step complete and confirm a pre-filled, editable next-step
+  prompt opens (suggestion = the project type's next guide step); submit it and confirm exactly
+  one new node appears, dated to whatever was picked, while the completed step stays visible.
+  Repeat through every guide step to confirm the "Mark project complete" / "+ Add another step"
+  choice appears once exhausted, and that choosing to add another step opens a genuinely blank
+  form (no stale pre-fill). At every point in this cycle, confirm only one incomplete step exists
+  for that project — never multiple future/guessed-date steps at once. Confirm "Skip for now" at
+  all 3 browse levels jumps straight to `plan` without starting anything.
 - All three education levels at least once.
 - A multi-career/multi-major/multi-program selection spanning two tracks — confirm merged
   counts, a combined single plan, and (if programs differ in GPA) the max-benchmark logic.

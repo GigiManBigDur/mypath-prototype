@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette,
-  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Flag,
+  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PROJECT_CATEGORIES, findCategory, findProjectType } from '../data/projects';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { parseDateInputValue, realDaysBetween, formatDate } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
-import AddTaskModal from '../components/AddTaskModal';
 
 const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
 // Cycles through the app's existing accent tokens rather than introducing new colors — 6
@@ -30,7 +29,6 @@ export default function ProjectBuilderScreen() {
   const [projectTypeId, setProjectTypeId] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [startDate, setStartDate] = useState('');
-  const [showMilestoneForm, setShowMilestoneForm] = useState(false);
 
   const roadmap = useMemo(() => generateRoadmap(state), [state]);
   const allNodes = useMemo(() => {
@@ -53,12 +51,9 @@ export default function ProjectBuilderScreen() {
   const found = categoryId && projectTypeId ? findProjectType(categoryId, projectTypeId) : null;
   const projectType = found?.projectType || null;
 
-  const startedTask = projectType
-    ? (state.customTasks || []).find((t) => t.projectMeta?.projectTypeId === projectType.id)
+  const startedProject = projectType
+    ? (state.startedProjects || []).find((p) => p.projectTypeId === projectType.id)
     : null;
-  const milestones = startedTask
-    ? (state.customTasks || []).filter((t) => t.parentProjectId === startedTask.id)
-    : [];
 
   const findNearbyConflict = (dateStr) => {
     if (!dateStr) return null;
@@ -67,25 +62,24 @@ export default function ProjectBuilderScreen() {
   };
   const conflict = findNearbyConflict(startDate);
 
+  // Starting a project creates just its first node — the project type's own first guide step,
+  // dated to the chosen Start Date (Task 1/2 of the growing-chain spec) — not the whole guide
+  // pre-populated. `guideStepsUsed: 1` reflects that this first slot is already spent; every
+  // later step is revealed one at a time from Roadmap.jsx as the previous one is completed.
   const confirmStart = () => {
     if (!startDate || !category || !projectType) return;
-    const newTask = {
+    const newProject = {
       id: makeTaskId('project'),
-      title: projectType.name,
-      date: startDate,
-      desc: projectType.overview,
-      projectMeta: { categoryId: category.id, projectTypeId: projectType.id },
+      categoryId: category.id,
+      projectTypeId: projectType.id,
+      projectName: projectType.name,
+      status: 'active',
+      guideStepsUsed: 1,
+      steps: [{ id: makeTaskId('project-step'), title: projectType.steps[0], date: startDate, desc: projectType.overview }],
     };
-    patch({ customTasks: [...(state.customTasks || []), newTask] });
+    patch({ startedProjects: [...(state.startedProjects || []), newProject] });
     setShowStartPicker(false);
     setStartDate('');
-  };
-
-  const addMilestone = (task) => {
-    patch({
-      customTasks: [...(state.customTasks || []), { id: makeTaskId('milestone'), parentProjectId: startedTask.id, ...task }],
-    });
-    setShowMilestoneForm(false);
   };
 
   return (
@@ -107,7 +101,7 @@ export default function ProjectBuilderScreen() {
         <CategoryView
           category={category}
           onOpenProjectType={openProjectType}
-          customTasks={state.customTasks || []}
+          startedProjects={state.startedProjects || []}
         />
       )}
 
@@ -115,8 +109,7 @@ export default function ProjectBuilderScreen() {
         <ProjectTypeView
           category={category}
           projectType={projectType}
-          startedTask={startedTask}
-          milestones={milestones}
+          startedProject={startedProject}
           showStartPicker={showStartPicker}
           startDate={startDate}
           conflict={conflict}
@@ -124,19 +117,7 @@ export default function ProjectBuilderScreen() {
           onCancelStart={() => { setShowStartPicker(false); setStartDate(''); }}
           onChangeStartDate={setStartDate}
           onConfirmStart={confirmStart}
-          onAddMilestone={() => setShowMilestoneForm(true)}
           onGoToPlan={() => patch({ screen: 'plan' })}
-        />
-      )}
-
-      {showMilestoneForm && startedTask && (
-        <AddTaskModal
-          title={`Add a milestone for ${projectType.name}`}
-          eyebrow="Milestone"
-          eyebrowColor="var(--teal)"
-          submitLabel="Add milestone"
-          onCancel={() => setShowMilestoneForm(false)}
-          onSubmit={addMilestone}
         />
       )}
     </div>
@@ -175,7 +156,7 @@ function CategoriesView({ onOpenCategory }) {
   );
 }
 
-function CategoryView({ category, onOpenProjectType, customTasks }) {
+function CategoryView({ category, onOpenProjectType, startedProjects }) {
   const Icon = CATEGORY_ICONS[category.icon];
   return (
     <>
@@ -194,7 +175,7 @@ function CategoryView({ category, onOpenProjectType, customTasks }) {
       <div className="field-label" style={{ marginTop: 28 }}>Pick a project type</div>
       <div className="pb-projecttype-grid">
         {category.projectTypes.map((pt) => {
-          const started = customTasks.some((t) => t.projectMeta?.projectTypeId === pt.id);
+          const started = startedProjects.some((p) => p.projectTypeId === pt.id);
           return (
             <button
               type="button"
@@ -214,8 +195,8 @@ function CategoryView({ category, onOpenProjectType, customTasks }) {
 }
 
 function ProjectTypeView({
-  category, projectType, startedTask, milestones, showStartPicker, startDate, conflict,
-  onStartClick, onCancelStart, onChangeStartDate, onConfirmStart, onAddMilestone, onGoToPlan,
+  category, projectType, startedProject, showStartPicker, startDate, conflict,
+  onStartClick, onCancelStart, onChangeStartDate, onConfirmStart, onGoToPlan,
 }) {
   const Icon = CATEGORY_ICONS[category.icon];
   return (
@@ -250,13 +231,13 @@ function ProjectTypeView({
         </ul>
       </div>
 
-      {!startedTask && !showStartPicker && (
+      {!startedProject && !showStartPicker && (
         <button type="button" className="btn btn-primary pb-start-btn" onClick={onStartClick}>
           <Rocket size={16} /> Start This Project!
         </button>
       )}
 
-      {!startedTask && showStartPicker && (
+      {!startedProject && showStartPicker && (
         <div className="pb-start-panel">
           <label className="task-form-field">
             <span className="label">Project Start Date</span>
@@ -277,28 +258,27 @@ function ProjectTypeView({
         </div>
       )}
 
-      {startedTask && (
+      {startedProject && (
         <div className="pb-started-banner">
-          <div className="pb-started-headline">
-            <CheckCircle2 size={18} /> Started — on your Academic Plan for {formatDate(parseDateInputValue(startedTask.date))}
-          </div>
-
-          <div className="pb-milestones">
-            <div className="pb-milestones-title"><Flag size={14} /> Your milestones ({milestones.length})</div>
-            {milestones.length > 0 && (
-              <ul className="pb-milestone-list">
-                {milestones.map((m) => (
-                  <li key={m.id}>{m.title} <span className="pb-milestone-due">— {formatDate(parseDateInputValue(m.date))}</span></li>
-                ))}
-              </ul>
-            )}
-            <p className="field-hint" style={{ margin: '8px 0 0' }}>
-              This project has no fixed end date — add milestones as you go to track real progress.
-            </p>
-          </div>
+          {startedProject.status === 'completed' ? (
+            <div className="pb-started-headline">
+              <CheckCircle2 size={18} /> Project complete! Great work.
+            </div>
+          ) : (
+            <>
+              <div className="pb-started-headline">
+                <CheckCircle2 size={18} /> Started — on your Academic Plan
+              </div>
+              <p className="field-hint" style={{ margin: '8px 0 0' }}>
+                Current step: <strong>{startedProject.steps[startedProject.steps.length - 1].title}</strong>
+                {' '}(due {formatDate(parseDateInputValue(startedProject.steps[startedProject.steps.length - 1].date))}).
+                Mark it complete on your Academic Plan to reveal the next step — this project has
+                no fixed end date, so it only grows one step at a time.
+              </p>
+            </>
+          )}
 
           <div className="task-form-actions" style={{ justifyContent: 'flex-start', marginTop: 14 }}>
-            <button type="button" className="btn btn-ghost" onClick={onAddMilestone}>+ Add a milestone</button>
             <button type="button" className="btn btn-primary" onClick={onGoToPlan}>Go to my Academic Plan</button>
           </div>
         </div>
