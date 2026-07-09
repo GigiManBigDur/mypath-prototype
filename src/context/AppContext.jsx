@@ -13,6 +13,8 @@ const DEFAULT_STATE = {
   selectedProgramKeys: [], // `${institution}::${program}`
   selectedOpportunityIds: [],
   completedNodes: {},
+  nodeDateOverrides: {}, // { [nodeId]: 'YYYY-MM-DD' } — user-edited due date, keyed like completedNodes
+  removedNodeIds: {}, // { [nodeId]: true } — user-deleted tasks, same flat-map shape as completedNodes
 };
 
 function loadInitialState() {

@@ -4,6 +4,23 @@
 // deliberately place an item in the past). prepWeeks: how many weeks before the deadline the
 // prep chain's window opens. prepSteps: sequential sub-task names shown as a connected chain
 // leading up to the deadline/event node.
+//
+// `recurring: true` + `progressionType` marks club/competition-style opportunities that repeat
+// every year of a multi-year plan instead of appearing once — roadmapGenerator.js generates one
+// escalating instance per year-stage the plan spans (a 12th-grader still gets exactly one
+// instance, same as before this existed). Year 1 always uses the opportunity's own prepSteps/
+// date data completely unmodified; PROGRESSION_LADDERS below only supplies the escalated final-
+// step title for year 2 onward (index 0 = year 2), so there's no need to touch year-1 wording
+// for most entries — only a handful where the natural last prepStep didn't already read as a
+// real "compete/attend" milestone got that step's wording adjusted (see e.g. `deca`, `hosa`).
+// One-time programs (scholarships, single research placements, honor societies, internships)
+// are NOT tagged recurring and keep the original one-chain-in-its-nearest-year behavior exactly.
+export const PROGRESSION_LADDERS = {
+  competition: ['Compete at State', 'Compete at State', 'Compete at Nationals'],
+  leadership: ['Take on a project or committee role', 'Take on an officer role', 'Lead your chapter/team'],
+  // 'repeat' isn't in this map — it means "reuse year 1's own final step title every year," for
+  // activities already at their peak tier (e.g. Junior Nationals) rather than something to climb.
+};
 
 export const OPPORTUNITIES = {
   business: {
@@ -17,7 +34,9 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through your school's DECA chapter",
         resource: { label: 'deca.org', note: 'Official prep resources & practice cases' },
         prepWeeks: 3,
-        prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Practice your pitch'],
+        prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Compete at Regionals'],
+        recurring: true,
+        progressionType: 'competition',
       },
       {
         id: 'fbla',
@@ -28,7 +47,9 @@ export const OPPORTUNITIES = {
         howToApply: "Apply through your school's FBLA chapter",
         resource: { label: 'fbla.org', note: 'Competitive event guidelines' },
         prepWeeks: 3,
-        prepSteps: ['Register for FBLA', 'Choose your competitive event', 'Prepare your materials/presentation'],
+        prepSteps: ['Register for FBLA', 'Choose your competitive event', 'Prepare your materials/presentation', 'Compete at Regionals'],
+        recurring: true,
+        progressionType: 'competition',
       },
       {
         id: 'boa-leaders',
@@ -90,6 +111,8 @@ export const OPPORTUNITIES = {
         resource: null,
         prepWeeks: 4,
         prepSteps: ['Register your team', 'Build/test your event project', 'Take 2 practice exams', 'Compete at Regionals'],
+        recurring: true,
+        progressionType: 'competition',
       },
       {
         id: 'hackathons',
@@ -163,7 +186,9 @@ OPPORTUNITIES.healthcare = {
       howToApply: "Apply through your school's HOSA chapter",
       resource: { label: 'hosa.org', note: 'Competitive event guidelines' },
       prepWeeks: 3,
-      prepSteps: ['Register for HOSA', 'Choose your competitive event', 'Prepare your materials/presentation'],
+      prepSteps: ['Register for HOSA', 'Choose your competitive event', 'Prepare your materials/presentation', 'Compete at Regionals'],
+      recurring: true,
+      progressionType: 'competition',
     },
     {
       id: 'cna-training',
@@ -310,6 +335,8 @@ OPPORTUNITIES.sports = {
       resource: null,
       prepWeeks: 4,
       prepSteps: ['Confirm qualification requirements', 'Train with your team', 'Compete at Regionals'],
+      recurring: true,
+      progressionType: 'competition',
     },
     {
       id: 'junior-nationals',
@@ -321,6 +348,8 @@ OPPORTUNITIES.sports = {
       resource: null,
       prepWeeks: 6,
       prepSteps: ['Qualify at a regional meet', 'Register for Nationals', 'Train and taper', 'Compete at Nationals'],
+      recurring: true,
+      progressionType: 'repeat',
     },
     {
       id: 'youth-coaching-cert',
@@ -332,6 +361,8 @@ OPPORTUNITIES.sports = {
       resource: null,
       prepWeeks: 2,
       prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
+      recurring: true,
+      progressionType: 'leadership',
     },
   ],
   undergraduate: [
@@ -345,6 +376,8 @@ OPPORTUNITIES.sports = {
       resource: null,
       prepWeeks: 2,
       prepSteps: ['Attend a team meeting', 'Run for or accept an officer role'],
+      recurring: true,
+      progressionType: 'leadership',
     },
     {
       id: 'coaching-officiating-cert-adult',
@@ -356,6 +389,8 @@ OPPORTUNITIES.sports = {
       resource: null,
       prepWeeks: 3,
       prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
+      recurring: true,
+      progressionType: 'leadership',
     },
     {
       id: 'sports-management-internship',
@@ -391,6 +426,8 @@ OPPORTUNITIES.sports = {
       resource: null,
       prepWeeks: 4,
       prepSteps: ['Confirm qualification requirements', 'Train with your team', 'Compete at Regionals'],
+      recurring: true,
+      progressionType: 'competition',
     },
     {
       id: 'youth-coaching-cert-transfer',
@@ -400,6 +437,8 @@ OPPORTUNITIES.sports = {
       date: { month: 9, day: 1 },
       howToApply: 'Apply through your local league or governing body',
       resource: null,
+      recurring: true,
+      progressionType: 'leadership',
       prepWeeks: 2,
       prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
     },
@@ -418,6 +457,8 @@ OPPORTUNITIES.community = {
       resource: null,
       prepWeeks: 1,
       prepSteps: ['Sign up', 'Attend your first meeting'],
+      recurring: true,
+      progressionType: 'leadership',
     },
     {
       id: 'model-un-hs',
@@ -526,6 +567,8 @@ OPPORTUNITIES.media = {
       resource: null,
       prepWeeks: 1,
       prepSteps: ['Sign up', 'Attend your first meeting'],
+      recurring: true,
+      progressionType: 'leadership',
     },
     {
       id: 'student-film-festivals-hs',
@@ -561,6 +604,8 @@ OPPORTUNITIES.media = {
       resource: null,
       prepWeeks: 1,
       prepSteps: ['Sign up', 'Attend your first meeting'],
+      recurring: true,
+      progressionType: 'leadership',
     },
     {
       id: 'student-film-festivals-college',
@@ -596,6 +641,8 @@ OPPORTUNITIES.media = {
       resource: null,
       prepWeeks: 1,
       prepSteps: ['Sign up', 'Attend your first meeting'],
+      recurring: true,
+      progressionType: 'leadership',
     },
     {
       id: 'student-film-festivals-transfer',
@@ -1041,6 +1088,8 @@ OPPORTUNITIES.academic = {
       resource: null,
       prepWeeks: 4,
       prepSteps: ['Join the team', 'Study the annual topic', 'Take a practice exam', 'Compete at Regionals'],
+      recurring: true,
+      progressionType: 'competition',
     },
     {
       id: 'national-history-day',
@@ -1051,7 +1100,9 @@ OPPORTUNITIES.academic = {
       howToApply: 'Register through your school or independently',
       resource: { label: 'nhd.org', note: 'Official contest rules and topic guide' },
       prepWeeks: 5,
-      prepSteps: ['Choose your topic', 'Conduct your research', 'Submit your project'],
+      prepSteps: ['Choose your topic', 'Conduct your research', 'Compete at Regionals'],
+      recurring: true,
+      progressionType: 'competition',
     },
     {
       id: 'speech-debate-nsda',
@@ -1063,6 +1114,8 @@ OPPORTUNITIES.academic = {
       resource: { label: 'speechanddebate.org', note: 'National Speech & Debate Association' },
       prepWeeks: 3,
       prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
+      recurring: true,
+      progressionType: 'competition',
     },
   ],
   undergraduate: [
@@ -1098,6 +1151,8 @@ OPPORTUNITIES.academic = {
       resource: null,
       prepWeeks: 3,
       prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
+      recurring: true,
+      progressionType: 'competition',
     },
   ],
   transfer: [
@@ -1133,6 +1188,8 @@ OPPORTUNITIES.academic = {
       resource: null,
       prepWeeks: 3,
       prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
+      recurring: true,
+      progressionType: 'competition',
     },
   ],
 };
@@ -1159,7 +1216,9 @@ OPPORTUNITIES.business.transfer = [
     howToApply: 'Apply through your college DECA chapter',
     resource: { label: 'collegiatedeca.org', note: 'Competitive event guidelines' },
     prepWeeks: 3,
-    prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Practice your pitch'],
+    prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Compete at Regionals'],
+    recurring: true,
+    progressionType: 'competition',
   },
   {
     id: 'jkc-transfer-scholarship',

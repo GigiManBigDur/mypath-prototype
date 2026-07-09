@@ -51,6 +51,15 @@ export function formatDate(date) {
   return `${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`;
 }
 
+// Parses a plain 'YYYY-MM-DD' string (e.g. from <input type="date">) as LOCAL midnight — plain
+// `new Date('YYYY-MM-DD')` parses date-only ISO strings as UTC midnight, which silently shows as
+// the previous day in any timezone behind UTC. Used whenever a user-edited due date needs to
+// become a real Date object.
+export function parseDateInputValue(value) {
+  const [y, m, d] = value.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // The one place a stored template date turns into a real date the rest of the app uses.
 export function anchorDate(date, planStartDate) {
   const offset = 'offsetDays' in date ? date.offsetDays : templateOffsetDays(date);

@@ -1,11 +1,11 @@
 import { MAJORS } from '../data/majors';
 import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
-import { findOpportunity } from '../data/opportunities';
+import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
 import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
 import { layoutRoadmap } from './roadmapLayout';
-import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween } from './dates';
+import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
 
 // Single-stage label (unchanged behavior for the final-year case) vs. the multi-year label used
 // once earlier stages are prepended, so a freshman doesn't see "personalized senior-year plan".
@@ -25,6 +25,8 @@ export function generateRoadmap(state) {
   const builtTracks = getBuiltTracks(state.interestTags);
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const level = state.educationLevel;
+  const dateOverrides = state.nodeDateOverrides || {};
+  const removed = state.removedNodeIds || {};
 
   const careerPool = getCareerPool(builtTracks, level);
   const selectedCareers = careerPool.filter((c) => state.selectedCareerIds.includes(c.id));
@@ -53,29 +55,35 @@ export function generateRoadmap(state) {
 
   const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
   const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
+  const yearSpan = stageNames.length;
 
   // Required, single-step items — every core admissions/milestone task, flattened across
   // however many year-stages the student's schoolYear pulls in. None of these carry a `steps`
   // chain in the data, so they always render as plain points on the spine (see Task 2 rule in
-  // roadmapLayout.js / Roadmap.jsx).
+  // roadmapLayout.js / Roadmap.jsx). A user-removed core task is dropped entirely; a user-edited
+  // due date overrides the template-computed one, using the exact same anchorDate() call — the
+  // override is just a different input date, nothing about the positioning path changes.
   const coreItems = stageNames.flatMap((stageName, stageIndex) => {
     const stage = TRUNK_STAGES[level][stageName];
-    return stage.steps.map((step, stepIndex) => {
-      const realDate = anchorDate({ ...step.date, yearOffset: stageIndex }, planStartDate);
-      return {
-        id: step.id,
-        title: typeof step.title === 'function' ? step.title(ctx) : step.title,
-        category: 'core',
-        required: true,
-        coreType: step.type,
-        date: realDate,
-        due: formatDate(realDate),
-        desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
-        resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
-        stageLabel: stepIndex === 0 && stageNames.length > 1 ? stage.label : undefined,
-        steps: null,
-      };
-    });
+    return stage.steps
+      .filter((step) => !removed[step.id])
+      .map((step, stepIndex) => {
+        const templateDate = anchorDate({ ...step.date, yearOffset: stageIndex }, planStartDate);
+        const realDate = dateOverrides[step.id] ? parseDateInputValue(dateOverrides[step.id]) : templateDate;
+        return {
+          id: step.id,
+          title: typeof step.title === 'function' ? step.title(ctx) : step.title,
+          category: 'core',
+          required: true,
+          coreType: step.type,
+          date: realDate,
+          due: formatDate(realDate),
+          desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
+          resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
+          stageLabel: stepIndex === 0 && stageNames.length > 1 ? stage.label : undefined,
+          steps: null,
+        };
+      });
   });
 
   // Transfer students 2+ years out still get the single application-year trunk (transfer
@@ -83,7 +91,9 @@ export function generateRoadmap(state) {
   // otherwise.
   const caveatNote = level === 'transfer' && schoolYear >= 2 ? TRANSFER_CAVEAT : null;
 
-  const opportunityItems = buildOpportunityItems(opportunityTracks, level, state.selectedOpportunityIds, planStartDate);
+  const opportunityItems = buildOpportunityItems(
+    opportunityTracks, level, state.selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
+  );
 
   const spineItems = [...coreItems, ...opportunityItems];
 
@@ -109,60 +119,122 @@ function titleFor(selectedCareers) {
   return 'Your Personalized Academic Plan';
 }
 
-// Each selected opportunity becomes one optional spine item, anchored at the date of its
-// EARLIEST step (its "starting point" — e.g. "Register for DECA") rather than its deadline, and
-// carrying its full ordered step chain as data. Prep steps are spread across the `prepWeeks`
-// window before the deadline (clamped to start after today) — the LAST prep step IS the
-// deadline/event itself (e.g. "Compete at Regionals") rather than a separate trailing node, since
-// that step already represents the opportunity's actual terminal action; it carries the real
-// `opp.date` directly instead of an interpolated date. When there's more than one step,
-// roadmapLayout.js gives this item its own isolated diagonal sub-branch; the branch's positioning
-// never depends on any other item.
-function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate) {
+// Escalated milestone title for year N (yearIndex is 1-based among the escalation years — 1
+// means "year 2 overall", since year 1 always keeps the opportunity's own unmodified data).
+// 'repeat' activities (already at their peak tier, e.g. Junior Nationals) just reuse year 1's own
+// final step every year instead of climbing a ladder.
+function progressionTitle(opp, yearIndex) {
+  if (opp.progressionType === 'repeat') return opp.prepSteps[opp.prepSteps.length - 1];
+  const ladder = PROGRESSION_LADDERS[opp.progressionType] || [];
+  return ladder[Math.min(yearIndex - 1, ladder.length - 1)] || opp.prepSteps[opp.prepSteps.length - 1];
+}
+
+// Each selected opportunity becomes one optional spine item for its FIRST year, anchored at the
+// date of its EARLIEST step (its "starting point" — e.g. "Register for DECA") rather than its
+// deadline, carrying its full ordered step chain as data — completely unmodified from before
+// multi-year progression existed. Prep steps are spread across the `prepWeeks` window before the
+// deadline (clamped to start after today) — the LAST prep step IS the deadline/event itself (e.g.
+// "Compete at Regionals") rather than a separate trailing node, since that step already
+// represents the opportunity's actual terminal action.
+//
+// For `recurring` opportunities (club/competition activities — see PROGRESSION_LADDERS in
+// opportunities.js) on a plan spanning more than one year-stage, every additional year gets one
+// more single-step spine item at the same time-of-year, one calendar year later each time, with
+// an escalating milestone title ("Compete at State", then "Compete at Nationals", etc.) — not a
+// second full prep chain; a returning competitor doesn't re-walk "register / prepare / practice"
+// every single year on the plan. Non-recurring opportunities are entirely unaffected: exactly one
+// chain, in its nearest year, same as always.
+function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed) {
   const items = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
 
-    const deadlineDate = anchorDate(opp.date, planStartDate);
-    const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
+    const firstYearId = opp.id;
+    if (!removed[firstYearId]) {
+      const item = buildFirstYearChain(opp, planStartDate, dateOverrides, removed);
+      if (item) items.push(item);
+    }
 
-    const earliestStart = realAddDays(planStartDate, 1);
-    let windowStart = realAddDays(deadlineDate, -opp.prepWeeks * 7);
-    if (windowStart < earliestStart) windowStart = earliestStart;
-    const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), stepNames.length);
+    if (opp.recurring) {
+      for (let yearIndex = 1; yearIndex < yearSpan; yearIndex += 1) {
+        const stepId = `${opp.id}-y${yearIndex + 1}`;
+        if (removed[stepId]) continue;
+        const templateDate = anchorDate({ ...opp.date, yearOffset: yearIndex }, planStartDate);
+        const realDate = dateOverrides[stepId] ? parseDateInputValue(dateOverrides[stepId]) : templateDate;
+        const milestone = progressionTitle(opp, yearIndex);
+        items.push({
+          id: stepId,
+          title: `${opp.name} — ${milestone} (Year ${yearIndex + 1})`,
+          category: 'opportunity',
+          required: false,
+          coreType: 'opportunity',
+          date: realDate,
+          due: formatDate(realDate),
+          desc: `Your year ${yearIndex + 1} milestone for ${opp.name}: ${milestone.toLowerCase()}. ${opp.howToApply}.`,
+          resources: [],
+          steps: null,
+        });
+      }
+    }
+  });
+  return items;
+}
 
-    const steps = stepNames.map((stepName, i) => {
-      const isLast = i === stepNames.length - 1;
-      const stepDate = isLast ? deadlineDate : realAddDays(windowStart, Math.round(spanDays * ((i + 1) / stepNames.length)));
+// Builds the original full prep-chain item (year 1) for one opportunity, applying any per-step
+// date overrides/removals. Steps are re-sorted by their real (possibly user-edited) date before
+// being returned — the spine/branch connector logic in roadmapLayout.js and Roadmap.jsx connects
+// consecutive array entries, so editing a step's date to fall before/after a sibling has to
+// reorder the array itself for the connector to "reflow" correctly, not just update that one
+// step's position in place.
+function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
+  const deadlineDate = anchorDate(opp.date, planStartDate);
+  const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
+
+  const earliestStart = realAddDays(planStartDate, 1);
+  let windowStart = realAddDays(deadlineDate, -opp.prepWeeks * 7);
+  if (windowStart < earliestStart) windowStart = earliestStart;
+  const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), stepNames.length);
+
+  let steps = stepNames
+    .map((stepName, i) => {
+      const isLastByDefault = i === stepNames.length - 1;
+      const templateDate = isLastByDefault ? deadlineDate : realAddDays(windowStart, Math.round(spanDays * ((i + 1) / stepNames.length)));
+      const stepId = `${opp.id}-prep-${i}`;
+      const realDate = dateOverrides[stepId] ? parseDateInputValue(dateOverrides[stepId]) : templateDate;
       return {
-        id: `${opp.id}-prep-${i}`,
+        id: stepId,
         title: stepName,
-        date: stepDate,
-        due: formatDate(stepDate),
-        desc: isLast
+        date: realDate,
+        due: formatDate(realDate),
+        desc: isLastByDefault
           ? `This is when ${opp.name} opens or is due. ${opp.howToApply}.`
           : i === 0
             ? `${opp.description} This is the first step in preparing for ${opp.name}.`
             : `Step ${i + 1} of ${stepNames.length} in preparing for ${opp.name}.`,
         resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
-        isLast,
       };
-    });
+    })
+    .filter((step) => !removed[step.id]);
 
-    const startDate = steps[0].date;
-    items.push({
-      id: opp.id,
-      title: opp.name,
-      category: 'opportunity',
-      required: false,
-      coreType: 'opportunity',
-      date: startDate,
-      due: formatDate(startDate),
-      desc: opp.description,
-      resources: [],
-      steps,
-    });
-  });
-  return items;
+  if (steps.length === 0) return null;
+
+  steps.sort((a, b) => a.date.getTime() - b.date.getTime());
+  steps = steps.map((step, i) => ({ ...step, isLast: i === steps.length - 1 }));
+
+  const anchorId = opp.id;
+  const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
+
+  return {
+    id: anchorId,
+    title: opp.name,
+    category: 'opportunity',
+    required: false,
+    coreType: 'opportunity',
+    date: startDate,
+    due: formatDate(startDate),
+    desc: opp.description,
+    resources: [],
+    steps,
+  };
 }

@@ -111,7 +111,9 @@ how many trunk stages get prepended, see "Multi-year trunk" below), `gpa`,
 `selectedCareerIds` / `selectedMajorIds` / `selectedProgramKeys` (all **arrays** — Screens 3a/
 3b/3c are multi-select, not single-select), `selectedOpportunityIds`, `completedNodes` (flat
 map of node/step id → boolean, shared by every core spine item and every opportunity's branch
-steps alike), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
+steps alike), `nodeDateOverrides` (flat map of node/step id → `'YYYY-MM-DD'`, a user-edited due
+date that overrides the template-computed one), `removedNodeIds` (flat map of node/step id →
+`true`, a user-deleted task), and `screen`. `reset()` clears storage and returns to the survey. The Survey screen's
 "What year are you in?" pill group resets `schoolYear: null` whenever `educationLevel` changes
 (its options are conditional on level), so Continue stays disabled until both are picked.
 
@@ -190,6 +192,19 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   those two sub-tags would have quietly emptied their opportunity pool. `getOpportunityPool`
   already dedupes merged tracks by id, so selecting e.g. both "Cooking" and "Fitness" together
   still shows each real opportunity once, not twice.
+- **Recurring competitions/clubs escalate across multi-year plans instead of clustering into
+  year 1.** An opportunity can carry `recurring: true, progressionType: 'competition' |
+  'leadership' | 'repeat'` (e.g. `deca`, `fbla`, `science-olympiad`, `hosa`,
+  `academic-decathlon`, `speech-debate-nsda`, `key-interact-club`, `school-media-club`,
+  `regional-state-championships`, `junior-nationals`, and their undergraduate/transfer
+  equivalents). One-time opportunities (Bank of America Student Leaders, YoungArts, Scholastic
+  Art & Writing, NSLI-Y, CNA training, etc.) simply don't have this flag and are entirely
+  unaffected. `PROGRESSION_LADDERS` (exported from `opportunities.js`) maps `'competition'` →
+  `['Compete at State', 'Compete at State', 'Compete at Nationals']` and `'leadership'` → an
+  officer/project/lead-your-chapter ladder; `'repeat'` isn't in the map — it means "reuse year
+  1's own final prepStep title every year" (for activities already at their peak tier, e.g.
+  Junior Nationals). `roadmapGenerator.js`'s `progressionTitle(opp, yearIndex)` reads that
+  ladder, clamped to its last rung if the plan runs longer than the ladder does.
 
 **Dates are "today"-anchored, not fixed-calendar.** `src/utils/dates.js`: data files store
 template dates as `{month, day, yearOffset?}` (interpreted as N days after Aug 15 on an
@@ -245,7 +260,21 @@ in `Roadmap.jsx` — see Task 3 of the restructure this became):
   `${opp.id}-deadline` node with its own near-duplicate date; that used to be a genuine leftover
   from before chains existed, when each opportunity was a single hardcoded-date node. `isLast` is
   also what `Roadmap.jsx`'s `configFor()` uses to give that step the "deadline" icon/label — don't
-  go back to sniffing `id.endsWith('-deadline')`, that id no longer exists.
+  go back to sniffing `id.endsWith('-deadline')`, that id no longer exists. `buildFirstYearChain()`
+  in `roadmapGenerator.js` applies any per-step `nodeDateOverrides`/`removedNodeIds` first, then
+  **re-sorts `steps` by real date and recomputes `isLast` on the sorted array** before returning —
+  the branch connector logic connects consecutive *array* entries, not consecutive *by-date*
+  entries, so a user dragging a step's due date past a sibling's has to reorder the array itself
+  or the connector won't reflow to match the new visual order. If every step of a chain gets
+  removed, the function returns `null` and the whole item is omitted from the roadmap.
+  For `recurring` opportunities on a plan spanning more than one year-stage
+  (`yearSpan = stageNames.length`, from the multi-year trunk below), `buildOpportunityItems()`
+  appends one extra single-step spine item per additional year — id `${opp.id}-y${n}`, date one
+  calendar year later each time, title carrying the escalated `progressionTitle()` milestone —
+  rather than a second full prep chain; a returning competitor doesn't re-walk "register /
+  prepare / practice" every year. A 1-year plan (`yearSpan === 1`) never generates any of these,
+  so this is a no-op for a senior/4th-year/non-transfer-2nd-3rd-year student regardless of which
+  opportunities they pick.
 
 `roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
 up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
@@ -315,6 +344,20 @@ than introducing a separate completion concept. `completedNodes` is flat and sha
 (`${opp.id}-prep-${i}`) just need to be unique — no separate tracking structure. The Today node
 is never completable and core-progress counting only considers `required` spine items
 (`roadmap.spine.filter(n => n.required)`), matching the old trunk-only progress count.
+
+**Every node is fully editable, not just a chain's starting anchor.** The detail modal (for
+every node except Today) renders a due-date `<input type="date">` plus a "Remove task" button.
+Editing the date calls `patch({ nodeDateOverrides: { ...state.nodeDateOverrides, [id]: value } })`
+— on the next `generateRoadmap()` run this flows through the exact same `anchorDate()`/position
+path as a template date, nothing special-cased for user-edited ones (see `buildFirstYearChain`/
+`coreItems` above). Removing calls `window.confirm(...)` first only when `selected.required` is
+true ("This is a required step — are you sure you want to remove it?"); optional
+(opportunity/branch) nodes remove immediately with no dialog. Both actions apply to core spine
+items, an opportunity's own anchor node, and any individual step inside its chain uniformly —
+there's no separate code path for "editing a chain" vs. "editing a single point." Use
+`parseDateInputValue()` (`src/utils/dates.js`), not `new Date('YYYY-MM-DD')` directly, whenever
+turning a date-input string back into a `Date` — plain ISO date-only strings parse as UTC
+midnight in JS, which silently renders one day early in any timezone behind UTC.
 
 **Zoom, pan, and drag** replace the old fixed-scale, horizontal-scroll-only canvas (`.canvas-
 scroll`), since a multi-year plan with several opportunities can now run to several thousand

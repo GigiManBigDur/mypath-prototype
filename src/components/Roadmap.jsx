@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2,
+  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+
+// input[type=date] wants a plain YYYY-MM-DD string in LOCAL time — toISOString() would shift by
+// the timezone offset and silently show the wrong day, so build the string from local getters.
+function toDateInputValue(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 const CORE_TYPE_CONFIG = {
   today: { label: 'You are here', color: '#C98A2B', Icon: Compass },
@@ -44,6 +53,22 @@ export default function Roadmap({ roadmap }) {
   const isDone = (id) => !!state.completedNodes[id];
   const toggleDone = (id) =>
     patch({ completedNodes: { ...state.completedNodes, [id]: !state.completedNodes[id] } });
+
+  // Changing a date only ever writes an override string — roadmapGenerator.js re-derives that
+  // node's position from it via the exact same date-to-y path every other node uses, nothing
+  // special-cased for edited nodes.
+  const updateNodeDate = (id, value) => {
+    if (!value) return;
+    patch({ nodeDateOverrides: { ...state.nodeDateOverrides, [id]: value } });
+  };
+  // Required tasks get a light confirmation since removing one changes the core-progress count;
+  // optional tasks (opportunity anchors and their steps) remove immediately — same distinction
+  // the rest of the app already draws between required and optional nodes.
+  const removeNode = (id, required) => {
+    if (required && !window.confirm('This is a required step — are you sure you want to remove it?')) return;
+    patch({ removedNodeIds: { ...state.removedNodeIds, [id]: true } });
+    setSelected(null);
+  };
 
   const requiredNodes = roadmap.spine.filter((n) => n.required);
   const trunkDoneCount = requiredNodes.filter((n) => isDone(n.id)).length;
@@ -352,6 +377,26 @@ export default function Roadmap({ roadmap }) {
               <div className="modal-resources">
                 Recommended resources:
                 <ul>{selected.resources.map((r) => <li key={r}>{r}</li>)}</ul>
+              </div>
+            )}
+
+            {selected.type !== 'today' && (
+              <div className="modal-edit-row">
+                <label className="modal-edit-date">
+                  <span className="label">Due date</span>
+                  <input
+                    type="date"
+                    value={toDateInputValue(selected.date)}
+                    onChange={(e) => updateNodeDate(selected.id, e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="remove-btn"
+                  onClick={() => removeNode(selected.id, selected.required)}
+                >
+                  <Trash2 size={14} /> Remove task
+                </button>
               </div>
             )}
 
