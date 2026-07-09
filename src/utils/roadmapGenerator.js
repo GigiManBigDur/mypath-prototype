@@ -138,61 +138,45 @@ function progressionTitle(opp, yearIndex) {
 // represents the opportunity's actual terminal action.
 //
 // For `recurring` opportunities (club/competition activities — see PROGRESSION_LADDERS in
-// opportunities.js) on a plan spanning more than one year-stage, every additional year gets one
-// more single-step spine item at the same time-of-year, one calendar year later each time, with
-// an escalating milestone title ("Compete at State", then "Compete at Nationals", etc.) — not a
-// second full prep chain; a returning competitor doesn't re-walk "register / prepare / practice"
-// every single year on the plan. Non-recurring opportunities are entirely unaffected: exactly one
-// chain, in its nearest year, same as always.
+// opportunities.js) on a plan spanning more than one year-stage, every additional year gets its
+// OWN chain too — shorter than year 1's (no "register"/"build from scratch" step, since the
+// student isn't starting over), built from that opportunity's `progressionPrepSteps` data plus
+// the escalated milestone title as the final step. A bare single-point node would read as "no
+// prep needed for the harder tier," which isn't true. Non-recurring opportunities are entirely
+// unaffected: exactly one chain, in its nearest year, same as always.
 function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed) {
   const items = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
 
-    const firstYearId = opp.id;
-    if (!removed[firstYearId]) {
+    if (!removed[opp.id]) {
       const item = buildFirstYearChain(opp, planStartDate, dateOverrides, removed);
       if (item) items.push(item);
     }
 
     if (opp.recurring) {
       for (let yearIndex = 1; yearIndex < yearSpan; yearIndex += 1) {
-        const stepId = `${opp.id}-y${yearIndex + 1}`;
-        if (removed[stepId]) continue;
-        const templateDate = anchorDate({ ...opp.date, yearOffset: yearIndex }, planStartDate);
-        const realDate = dateOverrides[stepId] ? parseDateInputValue(dateOverrides[stepId]) : templateDate;
-        const milestone = progressionTitle(opp, yearIndex);
-        items.push({
-          id: stepId,
-          title: `${opp.name} — ${milestone} (Year ${yearIndex + 1})`,
-          category: 'opportunity',
-          required: false,
-          coreType: 'opportunity',
-          date: realDate,
-          due: formatDate(realDate),
-          desc: `Your year ${yearIndex + 1} milestone for ${opp.name}: ${milestone.toLowerCase()}. ${opp.howToApply}.`,
-          resources: [],
-          steps: null,
-        });
+        const item = buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed);
+        if (item) items.push(item);
       }
     }
   });
   return items;
 }
 
-// Builds the original full prep-chain item (year 1) for one opportunity, applying any per-step
-// date overrides/removals. Steps are re-sorted by their real (possibly user-edited) date before
-// being returned — the spine/branch connector logic in roadmapLayout.js and Roadmap.jsx connects
-// consecutive array entries, so editing a step's date to fall before/after a sibling has to
-// reorder the array itself for the connector to "reflow" correctly, not just update that one
-// step's position in place.
-function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
-  const deadlineDate = anchorDate(opp.date, planStartDate);
-  const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
-
+// Shared step-array builder for both a year-1 chain and a later-year escalation chain: spreads
+// `stepNames` across the `prepWeeks` window before `deadlineDate` (clamped to start after today,
+// last step pinned to the deadline itself), applies any per-step date overrides/removals, then
+// re-sorts by real date and recomputes `isLast` on the sorted array. The spine/branch connector
+// logic in roadmapLayout.js and Roadmap.jsx connects consecutive ARRAY entries, not consecutive
+// BY-DATE entries, so a user dragging a step's due date past a sibling's has to reorder the array
+// itself for the connector to reflow correctly. Returns null (chain omitted) if every step in it
+// was removed. `stepId(i)` generates each step's id; `describe(...)` returns its title/desc/
+// resources — the two callers differ only in wording, not in the date/sort/override mechanics.
+function buildStepsChain(stepNames, deadlineDate, prepWeeks, planStartDate, dateOverrides, removed, stepId, describe) {
   const earliestStart = realAddDays(planStartDate, 1);
-  let windowStart = realAddDays(deadlineDate, -opp.prepWeeks * 7);
+  let windowStart = realAddDays(deadlineDate, -prepWeeks * 7);
   if (windowStart < earliestStart) windowStart = earliestStart;
   const spanDays = Math.max(realDaysBetween(deadlineDate, windowStart), stepNames.length);
 
@@ -200,27 +184,38 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
     .map((stepName, i) => {
       const isLastByDefault = i === stepNames.length - 1;
       const templateDate = isLastByDefault ? deadlineDate : realAddDays(windowStart, Math.round(spanDays * ((i + 1) / stepNames.length)));
-      const stepId = `${opp.id}-prep-${i}`;
-      const realDate = dateOverrides[stepId] ? parseDateInputValue(dateOverrides[stepId]) : templateDate;
-      return {
-        id: stepId,
-        title: stepName,
-        date: realDate,
-        due: formatDate(realDate),
-        desc: isLastByDefault
-          ? `This is when ${opp.name} opens or is due. ${opp.howToApply}.`
-          : i === 0
-            ? `${opp.description} This is the first step in preparing for ${opp.name}.`
-            : `Step ${i + 1} of ${stepNames.length} in preparing for ${opp.name}.`,
-        resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
-      };
+      const id = stepId(i);
+      const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+      const { title, desc, resources } = describe(stepName, i, isLastByDefault, stepNames.length);
+      return { id, title, date: realDate, due: formatDate(realDate), desc, resources: resources || [] };
     })
     .filter((step) => !removed[step.id]);
 
   if (steps.length === 0) return null;
 
   steps.sort((a, b) => a.date.getTime() - b.date.getTime());
-  steps = steps.map((step, i) => ({ ...step, isLast: i === steps.length - 1 }));
+  return steps.map((step, i) => ({ ...step, isLast: i === steps.length - 1 }));
+}
+
+// Builds the original full prep-chain item (year 1) for one opportunity.
+function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
+  const deadlineDate = anchorDate(opp.date, planStartDate);
+  const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
+
+  const steps = buildStepsChain(
+    stepNames, deadlineDate, opp.prepWeeks, planStartDate, dateOverrides, removed,
+    (i) => `${opp.id}-prep-${i}`,
+    (stepName, i, isLastByDefault, total) => ({
+      title: stepName,
+      desc: isLastByDefault
+        ? `This is when ${opp.name} opens or is due. ${opp.howToApply}.`
+        : i === 0
+          ? `${opp.description} This is the first step in preparing for ${opp.name}.`
+          : `Step ${i + 1} of ${total} in preparing for ${opp.name}.`,
+      resources: i === 0 && opp.resource ? [`${opp.resource.label} — ${opp.resource.note}`] : [],
+    }),
+  );
+  if (!steps) return null;
 
   const anchorId = opp.id;
   const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
@@ -237,4 +232,53 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
     resources: [],
     steps,
   };
+}
+
+// Builds a shorter chain for escalation year `yearIndex` (1-based among escalation years — 1
+// means "year 2 overall") of a `recurring` opportunity: `opp.progressionPrepSteps[rung]` (clamped
+// to its last rung, same pattern as PROGRESSION_LADDERS) supplies the prep-step titles, and the
+// escalated milestone from `progressionTitle()` is appended as the final step. Removing the
+// anchor id removes the whole year's chain, same as `buildFirstYearChain`.
+function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed) {
+  const anchorId = `${opp.id}-y${yearIndex + 1}`;
+  if (removed[anchorId]) return null;
+
+  const deadlineDate = anchorDate({ ...opp.date, yearOffset: yearIndex }, planStartDate);
+  const milestone = progressionTitle(opp, yearIndex);
+  const prepStepNames = progressionPrepStepNames(opp, yearIndex);
+  const stepNames = [...prepStepNames, milestone];
+
+  const steps = buildStepsChain(
+    stepNames, deadlineDate, opp.prepWeeks, planStartDate, dateOverrides, removed,
+    (i) => `${anchorId}-prep-${i}`,
+    (stepName, i, isLastByDefault, total) => ({
+      title: stepName,
+      desc: isLastByDefault
+        ? `Your year ${yearIndex + 1} milestone for ${opp.name}: ${stepName.toLowerCase()}. ${opp.howToApply}.`
+        : `Step ${i + 1} of ${total} preparing for year ${yearIndex + 1} of ${opp.name}.`,
+      resources: [],
+    }),
+  );
+  if (!steps) return null;
+
+  const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
+
+  return {
+    id: anchorId,
+    title: `${opp.name} (Year ${yearIndex + 1})`,
+    category: 'opportunity',
+    required: false,
+    coreType: 'opportunity',
+    date: startDate,
+    due: formatDate(startDate),
+    desc: `Your year ${yearIndex + 1} milestone for ${opp.name}: ${milestone.toLowerCase()}. ${opp.howToApply}.`,
+    resources: [],
+    steps,
+  };
+}
+
+function progressionPrepStepNames(opp, yearIndex) {
+  const rungs = opp.progressionPrepSteps || [];
+  if (!rungs.length) return [];
+  return rungs[Math.min(yearIndex - 1, rungs.length - 1)];
 }

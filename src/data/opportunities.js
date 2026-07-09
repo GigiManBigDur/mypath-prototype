@@ -37,6 +37,11 @@ export const OPPORTUNITIES = {
         prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Compete at Regionals'],
         recurring: true,
         progressionType: 'competition',
+        progressionPrepSteps: [
+          ["Refine your presentation/event materials based on last year's results", 'Take a practice exam'],
+          ['Update your presentation/event materials', 'Take a practice exam'],
+          ['Mentor newer chapter members', 'Take a practice exam'],
+        ],
       },
       {
         id: 'fbla',
@@ -50,6 +55,11 @@ export const OPPORTUNITIES = {
         prepSteps: ['Register for FBLA', 'Choose your competitive event', 'Prepare your materials/presentation', 'Compete at Regionals'],
         recurring: true,
         progressionType: 'competition',
+        progressionPrepSteps: [
+          ["Refine your materials/presentation based on last year's results", 'Take a practice exam'],
+          ['Update your materials/presentation', 'Take a practice exam'],
+          ['Mentor newer chapter members', 'Take a practice exam'],
+        ],
       },
       {
         id: 'boa-leaders',
@@ -113,6 +123,11 @@ export const OPPORTUNITIES = {
         prepSteps: ['Register your team', 'Build/test your event project', 'Take 2 practice exams', 'Compete at Regionals'],
         recurring: true,
         progressionType: 'competition',
+        progressionPrepSteps: [
+          ["Refine your event project based on last year's results", 'Take 2 practice exams'],
+          ['Update your event project', 'Take 2 practice exams'],
+          ['Mentor newer team members', 'Take 2 practice exams'],
+        ],
       },
       {
         id: 'hackathons',
@@ -189,6 +204,11 @@ OPPORTUNITIES.healthcare = {
       prepSteps: ['Register for HOSA', 'Choose your competitive event', 'Prepare your materials/presentation', 'Compete at Regionals'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ["Refine your materials/presentation based on last year's results", 'Take a practice exam'],
+        ['Update your materials/presentation', 'Take a practice exam'],
+        ['Mentor newer chapter members', 'Take a practice exam'],
+      ],
     },
     {
       id: 'cna-training',
@@ -337,6 +357,11 @@ OPPORTUNITIES.sports = {
       prepSteps: ['Confirm qualification requirements', 'Train with your team', 'Compete at Regionals'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ['Confirm qualification requirements', 'Train with your team'],
+        ['Confirm qualification requirements', 'Train with your team'],
+        ['Confirm qualification requirements', 'Train and taper'],
+      ],
     },
     {
       id: 'junior-nationals',
@@ -350,6 +375,9 @@ OPPORTUNITIES.sports = {
       prepSteps: ['Qualify at a regional meet', 'Register for Nationals', 'Train and taper', 'Compete at Nationals'],
       recurring: true,
       progressionType: 'repeat',
+      progressionPrepSteps: [
+        ['Qualify at a regional meet', 'Train and taper'],
+      ],
     },
     {
       id: 'youth-coaching-cert',
@@ -363,6 +391,11 @@ OPPORTUNITIES.sports = {
       prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Continue coaching/officiating for the league'],
+        ['Take on more coaching/officiating responsibilities'],
+        ['Mentor newer coaches/officials'],
+      ],
     },
   ],
   undergraduate: [
@@ -378,6 +411,11 @@ OPPORTUNITIES.sports = {
       prepSteps: ['Attend a team meeting', 'Run for or accept an officer role'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Stay active with the team'],
+        ['Take on more team responsibilities'],
+        ['Mentor newer teammates'],
+      ],
     },
     {
       id: 'coaching-officiating-cert-adult',
@@ -391,6 +429,11 @@ OPPORTUNITIES.sports = {
       prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Continue coaching/officiating'],
+        ['Take on more coaching/officiating responsibilities'],
+        ['Mentor newer coaches/officials'],
+      ],
     },
     {
       id: 'sports-management-internship',
@@ -428,6 +471,11 @@ OPPORTUNITIES.sports = {
       prepSteps: ['Confirm qualification requirements', 'Train with your team', 'Compete at Regionals'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ['Confirm qualification requirements', 'Train with your team'],
+        ['Confirm qualification requirements', 'Train with your team'],
+        ['Confirm qualification requirements', 'Train and taper'],
+      ],
     },
     {
       id: 'youth-coaching-cert-transfer',
@@ -439,6 +487,11 @@ OPPORTUNITIES.sports = {
       resource: null,
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Continue coaching/officiating'],
+        ['Take on more coaching/officiating responsibilities'],
+        ['Mentor newer coaches/officials'],
+      ],
       prepWeeks: 2,
       prepSteps: ['Enroll in the certification course', 'Complete the certification exam'],
     },
@@ -459,6 +512,11 @@ OPPORTUNITIES.community = {
       prepSteps: ['Sign up', 'Attend your first meeting'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Stay active in the club'],
+        ['Take on more responsibility in the club'],
+        ['Mentor newer members'],
+      ],
     },
     {
       id: 'model-un-hs',
@@ -569,6 +627,11 @@ OPPORTUNITIES.media = {
       prepSteps: ['Sign up', 'Attend your first meeting'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Stay active on staff'],
+        ['Take on an editing/production role'],
+        ['Mentor newer staff members'],
+      ],
     },
     {
       id: 'student-film-festivals-hs',
@@ -606,6 +669,11 @@ OPPORTUNITIES.media = {
       prepSteps: ['Sign up', 'Attend your first meeting'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Stay active on staff'],
+        ['Take on an editing/production role'],
+        ['Mentor newer staff members'],
+      ],
     },
     {
       id: 'student-film-festivals-college',
@@ -643,6 +711,11 @@ OPPORTUNITIES.media = {
       prepSteps: ['Sign up', 'Attend your first meeting'],
       recurring: true,
       progressionType: 'leadership',
+      progressionPrepSteps: [
+        ['Stay active on staff'],
+        ['Take on an editing/production role'],
+        ['Mentor newer staff members'],
+      ],
     },
     {
       id: 'student-film-festivals-transfer',
@@ -1090,6 +1163,11 @@ OPPORTUNITIES.academic = {
       prepSteps: ['Join the team', 'Study the annual topic', 'Take a practice exam', 'Compete at Regionals'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ["Study this year's topic", 'Take a practice exam'],
+        ["Study this year's topic", 'Take a practice exam'],
+        ['Mentor newer team members', 'Take a practice exam'],
+      ],
     },
     {
       id: 'national-history-day',
@@ -1103,6 +1181,11 @@ OPPORTUNITIES.academic = {
       prepSteps: ['Choose your topic', 'Conduct your research', 'Compete at Regionals'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ['Choose your topic', 'Conduct your research'],
+        ['Choose your topic', 'Conduct your research'],
+        ['Mentor newer researchers', 'Conduct your research'],
+      ],
     },
     {
       id: 'speech-debate-nsda',
@@ -1116,6 +1199,11 @@ OPPORTUNITIES.academic = {
       prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ['Prepare your case/piece'],
+        ['Prepare your case/piece'],
+        ['Prepare your case/piece', 'Mentor newer teammates'],
+      ],
     },
   ],
   undergraduate: [
@@ -1153,6 +1241,11 @@ OPPORTUNITIES.academic = {
       prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ['Prepare your case/piece'],
+        ['Prepare your case/piece'],
+        ['Prepare your case/piece', 'Mentor newer teammates'],
+      ],
     },
   ],
   transfer: [
@@ -1190,6 +1283,11 @@ OPPORTUNITIES.academic = {
       prepSteps: ['Join the team', 'Prepare your case/piece', 'Compete at your first tournament'],
       recurring: true,
       progressionType: 'competition',
+      progressionPrepSteps: [
+        ['Prepare your case/piece'],
+        ['Prepare your case/piece'],
+        ['Prepare your case/piece', 'Mentor newer teammates'],
+      ],
     },
   ],
 };
@@ -1219,6 +1317,11 @@ OPPORTUNITIES.business.transfer = [
     prepSteps: ['Register for DECA', 'Prepare your presentation/event materials', 'Take a practice exam', 'Compete at Regionals'],
     recurring: true,
     progressionType: 'competition',
+    progressionPrepSteps: [
+      ["Refine your presentation/event materials based on last year's results", 'Take a practice exam'],
+      ['Update your presentation/event materials', 'Take a practice exam'],
+      ['Mentor newer chapter members', 'Take a practice exam'],
+    ],
   },
   {
     id: 'jkc-transfer-scholarship',

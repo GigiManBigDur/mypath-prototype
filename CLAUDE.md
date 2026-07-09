@@ -204,7 +204,17 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   officer/project/lead-your-chapter ladder; `'repeat'` isn't in the map — it means "reuse year
   1's own final prepStep title every year" (for activities already at their peak tier, e.g.
   Junior Nationals). `roadmapGenerator.js`'s `progressionTitle(opp, yearIndex)` reads that
-  ladder, clamped to its last rung if the plan runs longer than the ladder does.
+  ladder, clamped to its last rung if the plan runs longer than the ladder does. Every recurring
+  opportunity also carries `progressionPrepSteps`: an array of rungs (same 1-based/clamped
+  indexing as the milestone ladder), each rung a short list of prep-step titles for that
+  escalation year — e.g. Science Olympiad's rung 0 is `["Refine your event project based on
+  last year's results", 'Take 2 practice exams']`. This exists so a later year renders as a
+  real (if shorter) branch instead of a bare point — a student shouldn't need zero prep for a
+  harder tier. `roadmapGenerator.js`'s `buildEscalationChain()` appends the escalated milestone
+  from `progressionTitle()` as that rung's final step and builds the whole thing through the
+  same `buildStepsChain()` helper `buildFirstYearChain()` uses (spread-across-`prepWeeks`,
+  override/removal application, re-sort-by-date-then-recompute-`isLast`) — an escalation year's
+  chain is a first-class branch like year 1's, just shorter, not a different kind of spine item.
 
 **Dates are "today"-anchored, not fixed-calendar.** `src/utils/dates.js`: data files store
 template dates as `{month, day, yearOffset?}` (interpreted as N days after Aug 15 on an
@@ -269,12 +279,15 @@ in `Roadmap.jsx` — see Task 3 of the restructure this became):
   removed, the function returns `null` and the whole item is omitted from the roadmap.
   For `recurring` opportunities on a plan spanning more than one year-stage
   (`yearSpan = stageNames.length`, from the multi-year trunk below), `buildOpportunityItems()`
-  appends one extra single-step spine item per additional year — id `${opp.id}-y${n}`, date one
-  calendar year later each time, title carrying the escalated `progressionTitle()` milestone —
-  rather than a second full prep chain; a returning competitor doesn't re-walk "register /
-  prepare / practice" every year. A 1-year plan (`yearSpan === 1`) never generates any of these,
-  so this is a no-op for a senior/4th-year/non-transfer-2nd-3rd-year student regardless of which
-  opportunities they pick.
+  appends one extra chain per additional year via `buildEscalationChain()` — id `${opp.id}-y${n}`,
+  anchored one calendar year later each time, its steps drawn from that opportunity's
+  `progressionPrepSteps` (see the `opportunities.js` bullet above) plus the escalated
+  `progressionTitle()` milestone as the final step. It's shorter than year 1's chain (no
+  "register"/"build from scratch" step — a returning competitor doesn't re-walk that), but it's
+  never a single bare point: a student always sees real prep leading into the harder tier, not
+  just a milestone with nothing behind it. A 1-year plan (`yearSpan === 1`) never generates any
+  of these, so this is a no-op for a senior/4th-year/non-transfer-2nd-3rd-year student regardless
+  of which opportunities they pick.
 
 `roadmapLayout.js` positions everything by real date — today at the bottom, later dates higher
 up, same "latitude = time" principle used everywhere else in this app (`PIXELS_PER_DAY`) — with
