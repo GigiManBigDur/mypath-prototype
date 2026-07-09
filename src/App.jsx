@@ -1,5 +1,6 @@
 import { Compass } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
+import WelcomeScreen from './screens/WelcomeScreen';
 import SurveyScreen from './screens/SurveyScreen';
 import AdmissionsOverviewScreen from './screens/AdmissionsOverviewScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
@@ -8,6 +9,7 @@ import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
 
 const SCREENS = {
+  welcome: WelcomeScreen,
   survey: SurveyScreen,
   admissions: AdmissionsOverviewScreen,
   discovery: DiscoveryScreen,
@@ -22,10 +24,12 @@ function AppShell() {
 
   return (
     <div className="app-shell">
-      <div className="brand">
-        <Compass />
-        MyPath — prototype
-      </div>
+      {state.screen !== 'welcome' && (
+        <div className="brand">
+          <Compass />
+          MyPath — prototype
+        </div>
+      )}
       <Screen />
     </div>
   );

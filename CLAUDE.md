@@ -94,9 +94,15 @@ is secondary and manual only.
 
 **Screen flow is a single-page state machine, not a router.** `App.jsx` reads
 `state.screen` from `AppContext` and renders the matching component from a `SCREENS` map
-(`survey → admissions → discovery → opportunities → projectBuilder → plan`). Screens advance by
-calling `patch({ screen: 'next' })` — there's no URL routing, back/forward is handled by explicit
-"Back" buttons that patch `screen` backwards. **The `discovery` screen is conditionally
+(`welcome → survey → admissions → discovery → opportunities → projectBuilder → plan`). Screens
+advance by calling `patch({ screen: 'next' })` — there's no URL routing, back/forward is handled
+by explicit "Back" buttons that patch `screen` backwards. `welcome` is `DEFAULT_STATE.screen`
+(`AppContext.jsx`), but only ever shown to a genuinely fresh visitor — `loadInitialState()`
+spreads any stored state *over* the default, so a returning user whose saved `screen` is
+anything else (e.g. `'plan'`) resumes exactly where they left off, never bounced back to the
+welcome hero. `App.jsx`'s small persistent "MyPath — prototype" brand bar is hidden specifically
+on `welcome` (`state.screen !== 'welcome'`) since that screen has its own large "MyPath" hero
+title — showing both stacked would read as duplicated branding. **The `discovery` screen is conditionally
 skipped**: `AdmissionsOverviewScreen`'s Continue button routes straight to `opportunities`
 when the user has no built-track interest selected, and `OpportunityFinderScreen`'s Back
 button routes to `admissions` (not `discovery`) in that same case. `DiscoveryScreen` also
@@ -570,6 +576,56 @@ keystroke in the date input, `ProjectBuilderScreen` flattens `roadmap.spine` plu
 naming that node, but the "Confirm Start" button is never disabled by it — this mirrors the
 spec's "a heads-up if it lands close to something else, not a hard block."
 
+**`WelcomeScreen` (`src/screens/WelcomeScreen.jsx`) is the app's entry hero — a single
+orchestrated animation sequence, not several independent effects.** An SVG trail (the same
+winding-path visual language as the real roadmap's branches) draws itself in via
+`stroke-dasharray`/`stroke-dashoffset`, 3 ghost milestone markers pop in along it on their own
+staggered timers, then the title/tagline/CTA fade in once both have resolved. **Every one of
+those stages uses the same "enter" class pattern**: an element starts with a modifier class
+holding its hidden/undrawn state, and a piece of React state removes that class after a delay —
+a CSS `transition-delay` alone does NOT work here, since a transition only fires on an actual
+property *change*, and a class applied once at mount and never removed has nothing to transition
+from (this was a real bug during development: markers set up with `transition-delay` but no
+later class removal just stayed invisible forever). The trail's own draw-in needs one extra
+wrinkle beyond that — a **double `requestAnimationFrame`** before flipping its class, so the
+browser actually paints the fully-undrawn state on one frame before the transition starts on the
+next; collapsing that to a single rAF (or `setTimeout(0)`) risks both style changes landing in
+the same paint, which skips the animation rather than playing it.
+
+Marker positions are computed for real, not eyeballed: `pathRef.current.getTotalLength()` /
+`getPointAtLength()` (measured in a `useLayoutEffect`, not `useEffect`, to avoid a one-frame
+flash of unpositioned markers) place each ghost milestone exactly on the rendered curve at a
+fractional distance (`MILESTONES[].t`, 0 = base/today, 1 = the top). **Marker position and its
+pop-in scale animation are both driven through ONE CSS `transform`, never an SVG `transform`
+attribute plus a separate CSS transform on the same element** — a CSS `transform` property
+replaces an element's presentation-attribute `transform` rather than composing with it, so
+mixing "attribute translate + CSS scale" would silently drop the positioning the moment the
+pop-in animation's scale kicked in. Position is passed in as `--mx`/`--my` custom properties
+(with explicit `px` units) and consumed by `transform: translate(var(--mx), var(--my)) scale(...)`
+in CSS instead.
+
+**The mobile trail is a genuinely different path (`TRAIL_PATH_MOBILE`), not the desktop one
+CSS-scaled down** — narrower horizontal amplitude relative to its height, so the winding S-curve
+reads as intentional on a narrow screen. Marker labels *also* switch layout strategy on mobile:
+desktop alternates each label to the left/right of its marker, but on a narrow viewport a
+marker sitting close to the trail's (already narrower) horizontal edges has no room for a label
+extending sideways — a long label would clip off the actual screen edge (a real bug caught
+during testing: "Explore what excites you" rendered as "at excites you"). Mobile instead stacks
+every label centered *below* its marker, trading the horizontal space it doesn't have for the
+vertical space a tall trail always has plenty of.
+
+The base of the trail echoes the real roadmap's "You are here" marker exactly (gold filled
+circle, `Compass` icon, same colors) plus a continuous pulse ring animating its own `r`
+attribute via CSS `@keyframes` — the one piece of visual continuity connecting this screen to
+the actual product. **`prefers-reduced-motion: reduce` disables all of it at once**: a
+`useMediaQuery` hook seeds every "have we animated yet" state to its *already-finished* value
+(trail fully drawn, all markers revealed, hero content visible) so the final composition renders
+immediately with no animation ever starting, and the continuous pulse ring isn't rendered at
+all (a static ring wouldn't violate reduced-motion, but there's no reason to render an inert
+element either) — a redundant `@media (prefers-reduced-motion: reduce)` CSS block also zeroes
+out the relevant `transition`/`animation` properties directly, so the page is correct even if
+JS is slow to hydrate.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -584,6 +640,15 @@ drive it with a headless browser (Playwright works; `chromium-cli` was not avail
 environment — the Chromium binary it installs is cached under `~/Library/Caches/ms-playwright`,
 so reinstalling only needs `npm install playwright` in a scratch dir, not a fresh browser
 download). Cover at minimum:
+- Welcome screen: fresh load (cleared `localStorage`) shows the trail undrawn at t=0, markers
+  revealed on their own staggered timers (not all at once — check an early marker's opacity
+  mid-sequence against a later one still at 0), hero content settling in only after both resolve.
+  Emulate `prefers-reduced-motion: reduce` (Playwright's `reducedMotion: 'reduce'` context option)
+  and confirm the whole composition renders in its finished state immediately, with the pulse
+  ring absent. Check a narrow (~375px) viewport specifically for label clipping — marker labels
+  are positioned in SVG user-space, which scales with the viewBox, so a layout that fits at
+  desktop width doesn't automatically fit on a phone. Confirm a returning user with non-`welcome`
+  stored state is never bounced back to it.
 - One run per built track (Business, STEM, Healthcare, Creative, Academic/Humanities, Sports,
   Culinary Arts, Community & Leadership, Media & Entertainment, Personal Development, Outdoors)
   and one opportunity-only tag (Fitness or Fashion, or "Law"), through all 6 screens.

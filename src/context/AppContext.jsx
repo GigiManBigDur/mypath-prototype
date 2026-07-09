@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const STORAGE_KEY = 'mypath-prototype-state';
 
 const DEFAULT_STATE = {
-  screen: 'survey', // survey | admissions | discovery | opportunities | projectBuilder | plan
+  screen: 'welcome', // welcome | survey | admissions | discovery | opportunities | projectBuilder | plan
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer

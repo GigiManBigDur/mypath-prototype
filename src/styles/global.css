@@ -548,3 +548,125 @@ button.card.passed:hover {
 .pb-community-name { font-family:'Fraunces', serif; font-size:15px; font-weight:600; margin-bottom:4px; }
 .pb-community-blurb { font-size:13px; line-height:1.5; color: var(--ink-soft); margin:0 0 10px; }
 .pb-community-footer { display:flex; align-items:center; gap:5px; font-size:12.5px; color: var(--rust); font-weight:600; }
+
+/* Welcome screen — the app's entry hero. Reuses every existing token (palette/fonts/background
+   texture already come from :root and body); the only new thing here is the animated trail. */
+.welcome-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 0 24px;
+  min-height: calc(100vh - 180px);
+  justify-content: center;
+}
+
+.welcome-trail-wrap {
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+}
+.welcome-trail-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.welcome-trail-path {
+  fill: none;
+  stroke: var(--teal);
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0.85;
+  stroke-dasharray: var(--path-length, 1000);
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1.8s cubic-bezier(0.65, 0, 0.35, 1);
+}
+/* Starting state for the draw-in animation only — WelcomeScreen.jsx adds this class for exactly
+   one frame (before flipping to the base class above) so the browser actually paints the fully
+   undrawn trail before transitioning it away; without that the offset change and the class that
+   makes it visible would land in the same paint and the animation just wouldn't play. */
+.welcome-trail-path.enter {
+  stroke-dashoffset: var(--path-length, 1000);
+  transition: none;
+}
+
+.welcome-marker {
+  opacity: 1;
+  transform: translate(var(--mx), var(--my)) scale(1);
+  transition: opacity 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Starting (hidden) state — WelcomeScreen.jsx removes this class per-marker on its own staggered
+   timer (see `revealed` state), which is what actually triggers the transition above; this class
+   alone never animates anything, same "enter" pattern as .welcome-trail-path. */
+.welcome-marker.enter {
+  opacity: 0;
+  transform: translate(var(--mx), var(--my)) scale(0.3);
+}
+.welcome-marker-ring {
+  fill: var(--card);
+  stroke: var(--stone);
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+.welcome-marker-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--ink-soft);
+}
+
+.welcome-here-pulse {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 3;
+  opacity: 0.55;
+  animation: welcome-pulse 2.4s ease-out infinite;
+}
+@keyframes welcome-pulse {
+  0% { r: 18; opacity: 0.55; }
+  100% { r: 32; opacity: 0; }
+}
+
+.welcome-hero-content {
+  margin-top: 8px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.welcome-hero-content.enter {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.welcome-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: clamp(36px, 7vw, 52px);
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+.welcome-tagline {
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 44ch;
+  margin: 0 auto 26px;
+}
+.welcome-cta {
+  font-size: 15px;
+  padding: 14px 30px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.welcome-cta:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 24px -12px rgba(30, 61, 50, 0.45);
+}
+.welcome-cta:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-trail-path, .welcome-marker, .welcome-hero-content { transition: none; }
+  .welcome-here-pulse { animation: none; opacity: 0; }
+}
