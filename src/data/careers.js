@@ -455,7 +455,20 @@ for (const t of ['sports', 'culinary', 'community', 'media', 'personal', 'outdoo
 }
 
 // Merged career list across the given built tracks for one education level — the pool that
-// Screen 3a (multi-select) renders, and that callers filter by selectedCareerIds against.
+// callers filter by selectedCareerIds against (roadmapGenerator.js, DiscoveryScreen's own
+// toggle/id logic). Flat and un-grouped, since those consumers only care about ids.
 export function getCareerPool(tracks, level) {
   return tracks.flatMap((t) => CAREERS[t]?.[level] || []);
+}
+
+// Same pool, grouped by source track instead of flattened — what CareersStep.jsx actually
+// renders. Removing the interest-tag cap means a student can realistically select tags across
+// many tracks at once, so Screen 3a groups results under a header per track (in the order the
+// student's tags produced them, via `tracks` — see getBuiltTracks) rather than one flat,
+// undifferentiated list. Tracks with no careers for this level are simply omitted, same as they
+// always were in the flat pool.
+export function getCareerGroups(tracks, level) {
+  return tracks
+    .map((t) => ({ track: t, careers: CAREERS[t]?.[level] || [] }))
+    .filter((g) => g.careers.length > 0);
 }

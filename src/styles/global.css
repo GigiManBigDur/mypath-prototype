@@ -311,6 +311,23 @@ button.card.passed:hover {
   margin-bottom: 18px;
 }
 
+/* Groups the merged Careers of Interest pool by source track (see getCareerGroups in
+   careers.js) — needed once the interest-tag cap was removed, since a student can now
+   realistically select tags across many tracks and land a much larger merged pool. */
+.career-group { margin-bottom: 28px; }
+.career-group:last-child { margin-bottom: 0; }
+.career-group-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 700;
+  color: var(--teal);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--paper-line);
+}
+
 .prose p { font-size: 15px; line-height: 1.7; color: var(--ink); margin: 0 0 16px; }
 .prose { max-width: 62ch; }
 

@@ -132,10 +132,27 @@ NOT part of `customTasks`), and `screen`. `reset()` clears storage and returns t
   or nothing) falls back to `GENERIC_OPPORTUNITIES`.
 
 Both are *merging*, not single-value: selecting 2+ built-track tags merges their career cards
-on Screen 3a (`getCareerPool(tracks, level)` in `careers.js`, then filtered by
-`selectedCareerIds`); mixing a built and unbuilt tag silently drops the unbuilt one. Once a
-career is picked, downstream steps don't need to know which track it came from — `MAJORS` is
-one flat namespace keyed by major id regardless of track.
+on Screen 3a, then filtered by `selectedCareerIds`; mixing a built and unbuilt tag silently
+drops the unbuilt one. Once a career is picked, downstream steps don't need to know which track
+it came from — `MAJORS` is one flat namespace keyed by major id regardless of track.
+
+**The Survey's interest-tag picker has no selection cap** (it did originally — `MAX_TAGS = 3` —
+removed since it only ever constrained which tracks feed Screen 3a's career pool, not how much
+ends up on the Academic Plan; that's still gated separately by which careers/majors/programs/
+opportunities the student actually selects downstream, unaffected by how many tags they start
+from). Because a student can now realistically select tags spanning many tracks at once,
+`careers.js` exports two pool builders instead of one: `getCareerPool(tracks, level)` stays the
+flat, deduped-by-nothing-in-particular list existing id-based consumers need (`selectedCareerIds`
+filtering in `DiscoveryScreen.jsx`, `roadmapGenerator.js`'s `selectedCareers` lookup) — untouched.
+`getCareerGroups(tracks, level)` is the new one, `[{ track, careers }]` in the same order
+`getBuiltTracks` produced `tracks` (i.e. the order the student's tags first introduced each
+track) — this is what `CareersStep.jsx` actually renders, one section header (`TRACK_LABELS[track]`,
+exported from `interests.js`) per group, so a large merged pool stays scannable instead of one
+undifferentiated grid. A single "Academic" category tag group in `CATEGORIES` can still route to
+two different tracks (Mathematics → `stem`, History → `academic`), so selecting both can produce
+two separate group sections even though the student only opened one category on the Survey —
+that's correct, matching how `getBuiltTracks` already treated them as distinct tracks before this
+change; grouping just makes it visible now.
 
 **Self-Discovery (Screen 3) is multi-select end to end**, with pruning on the way back up:
 `DiscoveryScreen.jsx`'s `toggleCareer`/`toggleMajor` handlers recompute which majors/programs

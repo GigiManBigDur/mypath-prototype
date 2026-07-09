@@ -20,6 +20,23 @@ export const OPPORTUNITY_TRACKS = [
   'lifestyle',
 ];
 
+// Human-readable track names — used to group the merged Careers of Interest pool by source track
+// once the interest-tag cap was removed (Screen 3a can now realistically show cards from many
+// tracks at once). Matches the track names already used in CLAUDE.md's testing checklist.
+export const TRACK_LABELS = {
+  business: 'Business',
+  stem: 'STEM',
+  healthcare: 'Healthcare',
+  creative: 'Creative',
+  academic: 'Academic/Humanities',
+  sports: 'Sports',
+  culinary: 'Culinary Arts',
+  community: 'Community & Leadership',
+  media: 'Media & Entertainment',
+  personal: 'Personal Development',
+  outdoors: 'Outdoors',
+};
+
 export const CATEGORIES = [
   {
     id: 'sports',
@@ -82,8 +99,6 @@ export const CATEGORIES = [
 function tag(names, track) {
   return names.map((name) => ({ name, track }));
 }
-
-export const MAX_TAGS = 3;
 
 const ALL_TAGS = CATEGORIES.flatMap((c) => c.tags);
 

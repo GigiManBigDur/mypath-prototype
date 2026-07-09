@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getBuiltTracks } from '../data/interests';
-import { getCareerPool } from '../data/careers';
+import { getCareerPool, getCareerGroups } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
@@ -43,6 +43,7 @@ export default function DiscoveryScreen() {
 
   const level = state.educationLevel;
   const careers = getCareerPool(tracks, level);
+  const careerGroups = getCareerGroups(tracks, level);
   const selectedCareers = careers.filter((c) => state.selectedCareerIds.includes(c.id));
   const majorIds = [...new Set(selectedCareers.flatMap((c) => c.relevantMajors))];
 
@@ -119,7 +120,7 @@ export default function DiscoveryScreen() {
 
       {subStep === 'careers' && (
         <CareersStep
-          careers={careers}
+          careerGroups={careerGroups}
           selectedCareerIds={state.selectedCareerIds}
           onToggle={toggleCareer}
         />

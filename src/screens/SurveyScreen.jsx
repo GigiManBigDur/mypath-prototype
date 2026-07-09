@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { CATEGORIES, MAX_TAGS } from '../data/interests';
+import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 
 const LEVELS = [
@@ -35,11 +35,11 @@ export default function SurveyScreen() {
 
   const toggleTag = (name) => {
     const has = state.interestTags.includes(name);
-    if (has) {
-      patch({ interestTags: state.interestTags.filter((t) => t !== name) });
-    } else if (state.interestTags.length < MAX_TAGS) {
-      patch({ interestTags: [...state.interestTags, name] });
-    }
+    patch({
+      interestTags: has
+        ? state.interestTags.filter((t) => t !== name)
+        : [...state.interestTags, name],
+    });
   };
 
   const canContinue = state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear;
@@ -55,8 +55,8 @@ export default function SurveyScreen() {
 
       <div className="field-block">
         <div className="field-label">What are your biggest passions or interests?</div>
-        <p className="field-hint">Pick 1–3 tags across any categories below.</p>
-        <div className="selection-count">{state.interestTags.length} / {MAX_TAGS} selected</div>
+        <p className="field-hint">Pick as many as you'd like, across any categories below.</p>
+        <div className="selection-count">{state.interestTags.length} selected</div>
 
         {CATEGORIES.map((cat) => {
           const isOpen = openCategory === cat.id;
@@ -78,13 +78,11 @@ export default function SurveyScreen() {
                 <div className="tag-list">
                   {cat.tags.map((t) => {
                     const selected = state.interestTags.includes(t.name);
-                    const disabled = !selected && state.interestTags.length >= MAX_TAGS;
                     return (
                       <button
                         type="button"
                         key={t.name}
                         className={`tag${selected ? ' selected' : ''}`}
-                        disabled={disabled}
                         onClick={() => toggleTag(t.name)}
                       >
                         {t.name}
