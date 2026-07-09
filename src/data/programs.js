@@ -290,6 +290,68 @@ export const PROGRAMS = {
     { institution: 'Wright State University', program: 'PsyD in Clinical Psychology (School of Professional Psychology)', overview: 'Public PsyD program with accessible admission and practitioner-focused training.', selectivity: 'Moderately Selective', location: 'Dayton, OH', degreeLevels: ['PsyD'], gpaValue: 3.3 },
     { institution: 'University of Indianapolis', program: 'PsyD in Clinical Psychology', overview: 'Private, practitioner-focused PsyD program with a comparatively accessible admissions profile.', selectivity: 'Less Selective', location: 'Indianapolis, IN', degreeLevels: ['PsyD'], gpaValue: 3.0 },
   ],
+
+  // ---- Sports: undergraduate ----
+  'sports-management': [
+    { institution: 'University of Michigan', program: 'Sports Management', overview: 'Renowned public sports management program in a major college-athletics town.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
+    { institution: 'Ohio State University', program: 'Sports Management', overview: 'Large public program with deep ties to one of the country\'s biggest athletic departments.', selectivity: 'Moderately Selective', location: 'Columbus, OH', degreeLevels: ["Bachelor's"], gpaValue: 3.3 },
+    { institution: 'Indiana University', program: 'Sports Management', overview: 'Well-regarded public program with strong industry placement.', selectivity: 'Moderately Selective', location: 'Bloomington, IN', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+  ],
+
+  // ---- Culinary Arts: undergraduate ----
+  'culinary-arts': [
+    { institution: 'Culinary Institute of America', program: 'Culinary Arts', overview: 'World-renowned culinary school — admission weighs passion and kitchen readiness alongside academics.', selectivity: 'Highly Selective', location: 'Hyde Park, NY', degreeLevels: ["Associate's", "Bachelor's"], gpaValue: 3.2, gpaWeighted: 'portfolio' },
+    { institution: 'Auguste Escoffier School of Culinary Arts', program: 'Culinary Arts', overview: 'Career-focused culinary school with an accessible, hands-on admissions process.', selectivity: 'Less Selective', location: 'Boulder, CO', degreeLevels: ['Certificate', "Associate's"], gpaValue: 2.7, gpaWeighted: 'portfolio' },
+    { institution: 'Johnson & Wales University', program: 'Culinary Arts', overview: 'Well-regarded culinary program with strong industry placement and an accessible admissions profile.', selectivity: 'Moderately Selective', location: 'Providence, RI', degreeLevels: ["Associate's", "Bachelor's"], gpaValue: 2.8, gpaWeighted: 'portfolio' },
+  ],
+  'food-science': [
+    { institution: 'Cornell University', program: 'Food Science', overview: 'One of the most renowned food science programs in the country.', selectivity: 'Extremely Selective', location: 'Ithaca, NY', degreeLevels: ["Bachelor's"], gpaValue: 3.8 },
+    { institution: 'Penn State University', program: 'Food Science', overview: 'Strong public food science program with deep industry research ties.', selectivity: 'Moderately Selective', location: 'University Park, PA', degreeLevels: ["Bachelor's"], gpaValue: 3.3 },
+    { institution: 'University of Georgia', program: 'Food Science and Technology', overview: 'Accessible public program backed by a strong agricultural research college.', selectivity: 'Less Selective', location: 'Athens, GA', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+  'hospitality-management': [
+    { institution: 'Cornell University', program: 'School of Hotel Administration', overview: 'The original and most prestigious hospitality management program in the US.', selectivity: 'Extremely Selective', location: 'Ithaca, NY', degreeLevels: ["Bachelor's"], gpaValue: 3.8 },
+    { institution: 'Michigan State University', program: 'School of Hospitality Business', overview: 'One of the oldest and most respected hospitality programs, with strong industry recruiting.', selectivity: 'Moderately Selective', location: 'East Lansing, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+    { institution: 'University of Nevada, Las Vegas (UNLV)', program: 'Hospitality Management', overview: 'Accessible public program deeply tied to Las Vegas\'s hospitality and gaming industry.', selectivity: 'Less Selective', location: 'Las Vegas, NV', degreeLevels: ["Bachelor's"], gpaValue: 2.8 },
+  ],
+
+  // ---- Community & Leadership: undergraduate ----
+  'nonprofit-management': [
+    { institution: 'University of Michigan', program: 'Gerald R. Ford School of Public Policy', overview: 'Highly-ranked public policy school with a strong nonprofit/public administration track.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.6 },
+    { institution: 'Indiana University', program: 'Lilly Family School of Philanthropy', overview: 'The first and only school in the world dedicated entirely to the study of philanthropy — a genuinely well-known standalone nonprofit studies program.', selectivity: 'Moderately Selective', location: 'Indianapolis, IN', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+    { institution: 'University of Georgia', program: 'Public Administration', overview: 'Accessible public program with a solid nonprofit/public-sector career pipeline.', selectivity: 'Less Selective', location: 'Athens, GA', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+  'social-work': [
+    { institution: 'University of Michigan', program: 'School of Social Work', overview: 'Top-ranked social work program with extensive field-placement partnerships.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.6 },
+    { institution: 'University of Washington', program: 'School of Social Work', overview: 'Well-regarded public social work program with strong community ties.', selectivity: 'Moderately Selective', location: 'Seattle, WA', degreeLevels: ["Bachelor's"], gpaValue: 3.3 },
+    { institution: 'Ohio State University', program: 'College of Social Work', overview: 'Large, accessible public social work program with broad field-placement options.', selectivity: 'Less Selective', location: 'Columbus, OH', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+
+  // ---- Media & Entertainment: undergraduate ----
+  journalism: [
+    { institution: 'Northwestern University', program: 'Medill School of Journalism', overview: 'One of the most recognized journalism schools in the country.', selectivity: 'Extremely Selective', location: 'Evanston, IL', degreeLevels: ["Bachelor's"], gpaValue: 3.8 },
+    { institution: 'University of Missouri', program: 'School of Journalism', overview: 'One of the oldest and most respected journalism schools in the US, with real hands-on newsroom experience.', selectivity: 'Moderately Selective', location: 'Columbia, MO', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+    { institution: 'Arizona State University', program: 'Walter Cronkite School of Journalism and Mass Communication', overview: 'Large, well-regarded public journalism school with accessible admission.', selectivity: 'Less Selective', location: 'Phoenix, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+
+  // ---- Personal Development: undergraduate ----
+  'human-resources': [
+    { institution: 'Cornell University', program: 'ILR School (Industrial and Labor Relations)', overview: 'The top HR-specific undergraduate program in the US.', selectivity: 'Extremely Selective', location: 'Ithaca, NY', degreeLevels: ["Bachelor's"], gpaValue: 3.8 },
+    { institution: 'Michigan State University', program: 'School of Human Resources and Labor Relations', overview: 'Well-regarded public HR program with strong corporate recruiting.', selectivity: 'Moderately Selective', location: 'East Lansing, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+    { institution: 'Ohio State University', program: 'Human Resources Management', overview: 'Large, accessible public HR program within a well-ranked business school.', selectivity: 'Less Selective', location: 'Columbus, OH', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+
+  // ---- Outdoors (Gardening / Travel): undergraduate ----
+  horticulture: [
+    { institution: 'Cornell University', program: 'Horticulture', overview: 'Renowned horticulture program within a top agricultural sciences college.', selectivity: 'Highly Selective', location: 'Ithaca, NY', degreeLevels: ["Bachelor's"], gpaValue: 3.6 },
+    { institution: 'Purdue University', program: 'Horticulture', overview: 'Well-regarded public horticulture program with strong greenhouse and field research facilities.', selectivity: 'Moderately Selective', location: 'West Lafayette, IN', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+    { institution: 'Michigan State University', program: 'Horticulture', overview: 'Strong land-grant agricultural program with accessible admission.', selectivity: 'Less Selective', location: 'East Lansing, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+  'tourism-management': [
+    { institution: 'George Washington University', program: 'International Tourism and Hospitality Management', overview: 'Strong DC-based tourism and event-management program with real policy/industry ties.', selectivity: 'Highly Selective', location: 'Washington, DC', degreeLevels: ["Bachelor's"], gpaValue: 3.5 },
+    { institution: 'Purdue University', program: 'Hospitality and Tourism Management', overview: 'Well-regarded public tourism management program.', selectivity: 'Moderately Selective', location: 'West Lafayette, IN', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
+    { institution: 'University of Central Florida', program: 'Rosen College of Hospitality Management', overview: 'Genuinely well-known tourism/hospitality program given Orlando\'s tourism industry, with accessible admission.', selectivity: 'Less Selective', location: 'Orlando, FL', degreeLevels: ["Bachelor's"], gpaValue: 2.9 },
+  ],
 };
 
 export function getPrograms(majorId, educationLevel) {

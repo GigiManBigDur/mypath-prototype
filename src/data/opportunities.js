@@ -731,6 +731,195 @@ OPPORTUNITIES.lifestyle = {
   ],
 };
 
+// Culinary Arts and Outdoors (Gardening/Travel) below intentionally reuse the same ids as their
+// counterparts still living in OPPORTUNITIES.lifestyle above (kept there, unmodified, so
+// Fitness/Fashion — the two Lifestyle & Hobbies sub-tags NOT covered by either new track — don't
+// lose the content they've always shown). getOpportunityPool() dedupes merged tracks by id, so
+// selecting e.g. both "Cooking" and "Fitness" together still shows each real opportunity once.
+OPPORTUNITIES.culinary = {
+  highschool: [
+    {
+      id: 'culinary-youth-programs',
+      name: 'Local Culinary/Cooking Youth Programs',
+      type: 'Youth program',
+      description: 'Community college or culinary school outreach programs for teens.',
+      date: { month: 10, day: 1 },
+      howToApply: 'Contact a local community college or culinary school',
+      resource: null,
+      prepWeeks: 2,
+      prepSteps: ['Contact the program', 'Enroll'],
+    },
+    {
+      id: 'prostart',
+      name: 'ProStart',
+      type: 'Competition / Certificate program',
+      description: 'National Restaurant Association Educational Foundation program pairing classroom culinary/management instruction with an industry mentorship and a national student invitational competition.',
+      date: { month: 4, day: 1 },
+      howToApply: "Join through your school's ProStart program (if offered) or ask your counselor about starting one",
+      resource: { label: 'chooserestaurants.org/prostart', note: 'Program overview and state affiliate directory' },
+      prepWeeks: 4,
+      prepSteps: ['Register your team', 'Prepare your dish/presentation', 'Compete at the state invitational'],
+    },
+    {
+      id: 'servsafe-cert-hs',
+      name: 'ServSafe Food Handler Certification',
+      type: 'Certification program',
+      description: 'Widely-recognized, entry-level food safety credential — a real first line on a kitchen resume.',
+      date: { month: 9, day: 1 },
+      howToApply: 'Register through the ServSafe website or a local training provider',
+      resource: { label: 'servsafe.com', note: 'Official certification exam registration' },
+      prepWeeks: 2,
+      prepSteps: ['Complete the training course', 'Pass the certification exam'],
+    },
+  ],
+  undergraduate: [
+    {
+      id: 'culinary-certificate',
+      name: 'Culinary/Hospitality Certificate Programs',
+      type: 'Certificate program',
+      description: 'Community college or culinary school certificate programs.',
+      date: { month: 10, day: 1 },
+      howToApply: 'Enroll through a local community college or culinary school',
+      resource: null,
+      prepWeeks: 2,
+      prepSteps: ['Contact the program', 'Enroll'],
+    },
+    {
+      id: 'acf-student-chapter',
+      name: 'American Culinary Federation Student Chapter',
+      type: 'Professional organization',
+      description: 'Student membership in the country\'s leading professional chefs organization — mentorship, competitions, and certification pathways.',
+      date: { month: 9, day: 15 },
+      howToApply: 'Join through your program\'s ACF student chapter or apply directly via acfchefs.org',
+      resource: { label: 'acfchefs.org', note: 'Student membership and certification info' },
+      prepWeeks: 1,
+      prepSteps: ['Sign up', 'Attend your first chapter event'],
+    },
+    {
+      id: 'restaurant-internship',
+      name: 'Restaurant / Hospitality Internship',
+      type: 'Internship',
+      description: 'Paid or credit-bearing kitchen or front-of-house internship at a restaurant or hotel.',
+      date: { month: 11, day: 1 },
+      howToApply: "Apply directly to local restaurants/hotels or through your program's career office",
+      resource: null,
+      prepWeeks: 4,
+      prepSteps: ['Update your resume', 'Submit your application', 'Prepare for the interview'],
+    },
+  ],
+  transfer: [
+    {
+      id: 'culinary-youth-programs-transfer',
+      name: 'Local Culinary/Cooking Programs',
+      type: 'Certificate program',
+      description: 'Community college or culinary school programs.',
+      date: { month: 10, day: 1 },
+      howToApply: 'Contact a local community college or culinary school',
+      resource: null,
+      prepWeeks: 2,
+      prepSteps: ['Contact the program', 'Enroll'],
+    },
+    {
+      id: 'servsafe-cert-transfer',
+      name: 'ServSafe Food Handler / Manager Certification',
+      type: 'Certification program',
+      description: 'Widely-recognized food safety credential — a real line on a kitchen or management resume.',
+      date: { month: 9, day: 1 },
+      howToApply: 'Register through the ServSafe website or a local training provider',
+      resource: { label: 'servsafe.com', note: 'Official certification exam registration' },
+      prepWeeks: 2,
+      prepSteps: ['Complete the training course', 'Pass the certification exam'],
+    },
+    {
+      id: 'restaurant-internship-transfer',
+      name: 'Restaurant / Hospitality Internship',
+      type: 'Internship',
+      description: 'Paid or credit-bearing kitchen or front-of-house internship, open to community college students.',
+      date: { month: 11, day: 1 },
+      howToApply: 'Apply directly to local restaurants/hotels',
+      resource: null,
+      prepWeeks: 4,
+      prepSteps: ['Update your resume', 'Submit your application', 'Prepare for the interview'],
+    },
+  ],
+};
+
+OPPORTUNITIES.outdoors = {
+  highschool: [
+    {
+      id: '4h-programs',
+      name: '4-H Programs',
+      type: 'Youth program',
+      description: 'For agriculture, gardening, and animal-care interests — local chapter based.',
+      // Deliberately in the past — always shows as a "Deadline passed" example in Opportunity Finder.
+      date: { offsetDays: -10 },
+      howToApply: 'Join through your local 4-H chapter',
+      resource: { label: '4-h.org', note: 'Find a local chapter' },
+      prepWeeks: 1,
+      prepSteps: ['Join your local chapter', 'Attend your first meeting'],
+    },
+    {
+      id: 'nsliy',
+      name: 'NSLI-Y (National Security Language Initiative for Youth)',
+      type: 'Funded immersion program',
+      description: 'Funded summer or academic-year language immersion abroad.',
+      date: { month: 11, day: 1 },
+      howToApply: 'Apply via the NSLI-Y official website',
+      resource: { label: 'nsliforyouth.org', note: 'Official program application' },
+      prepWeeks: 6,
+      prepSteps: ['Draft your application essay', 'Request a recommendation letter', 'Submit your application'],
+    },
+  ],
+  undergraduate: [
+    {
+      id: 'study-abroad-immersion',
+      name: 'Study Abroad / Language Immersion Programs',
+      type: 'Funded immersion program',
+      description: 'Many universities offer funded or credit-bearing language immersion programs.',
+      date: { month: 11, day: 1 },
+      howToApply: "Apply through your university's study abroad office",
+      resource: null,
+      prepWeeks: 6,
+      prepSteps: ['Research program options', 'Draft your application essay', 'Submit your application'],
+    },
+    {
+      id: '4h-collegiate',
+      name: '4-H Collegiate / Extension Volunteer Programs',
+      type: 'Volunteering',
+      description: 'University extension programs affiliated with 4-H for older students.',
+      date: { month: 9, day: 1 },
+      howToApply: "Contact your university's extension office",
+      resource: null,
+      prepWeeks: 1,
+      prepSteps: ['Contact the extension office', 'Attend your first meeting'],
+    },
+  ],
+  transfer: [
+    {
+      id: 'study-abroad-immersion-transfer',
+      name: 'Study Abroad / Language Immersion Programs',
+      type: 'Funded immersion program',
+      description: 'Community college partnership programs for language immersion abroad.',
+      date: { month: 11, day: 1 },
+      howToApply: "Apply through your college's study abroad or international programs office",
+      resource: null,
+      prepWeeks: 6,
+      prepSteps: ['Research program options', 'Draft your application essay', 'Submit your application'],
+    },
+    {
+      id: '4h-collegiate-transfer',
+      name: 'Community Extension Programs (4-H Collegiate, Gardening/Agriculture Clubs)',
+      type: 'Volunteering',
+      description: 'Local extension and community programs open to community college students.',
+      date: { month: 9, day: 1 },
+      howToApply: 'Contact your local extension office',
+      resource: null,
+      prepWeeks: 1,
+      prepSteps: ['Contact the extension office', 'Attend your first meeting'],
+    },
+  ],
+};
+
 OPPORTUNITIES.personal = {
   highschool: [
     {

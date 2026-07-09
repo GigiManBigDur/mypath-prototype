@@ -8,10 +8,12 @@ This is a click-through prototype to validate the concept, not the production ap
 no backend, no database, no accounts, no AI calls. Everything is hardcoded data and
 conditional logic, and state lives in React (optionally persisted to `localStorage`).
 
-The **Business**, **STEM**, **Healthcare**, **Creative/Arts**, and **Academic/Humanities**
-interest tracks have full career/major/program/opportunity data; selecting multiple built
-tracks merges their career options, and every other interest falls back to real (but simpler)
-opportunities or, as a last resort, a small set of generic ones instead of a dead end.
+**11 of the app's interest tracks** — Business, STEM, Healthcare, Creative/Arts,
+Academic/Humanities, Sports, Culinary Arts, Community & Leadership, Media & Entertainment,
+Personal Development, and Outdoors (Gardening/Travel) — have full career/major/program/
+opportunity data; selecting multiple built tracks merges their career options. The remaining
+interests (Fitness, Fashion, Law) fall back to real (but simpler) opportunities or, as a last
+resort, a small set of generic ones instead of a dead end.
 
 
 ## Commands

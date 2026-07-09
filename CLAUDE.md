@@ -16,16 +16,23 @@ change direction:
 - **State lives in React** (`src/context/AppContext.jsx`, `useState`), persisted to
   `localStorage` on every change. Refreshing mid-flow restores where the user left off;
   there is no requirement to preserve it beyond that.
-- **Business, STEM, Healthcare, Creative/Arts, and Academic/Humanities have full
-  career/major/program content** (`BUILT_TRACKS` in `interests.js`). Five more interest tracks
-  (Sports, Community & Leadership, Media & Entertainment, Lifestyle & Hobbies, Personal
-  Development) have real opportunities but no career/major/program chain — see "Track
-  resolution" below. Only "Law" falls all the way back to the fully generic opportunity list.
+- **11 of the app's interest tracks have full career/major/program content**
+  (`BUILT_TRACKS` in `interests.js`): Business, STEM, Healthcare, Creative/Arts,
+  Academic/Humanities, Sports, Culinary Arts, Community & Leadership, Media & Entertainment,
+  Personal Development, and Outdoors (Gardening/Travel). Only two things remain opportunity-only
+  now: "Law" (falls all the way back to the fully generic opportunity list — `track: 'other'`)
+  and Fitness/Fashion under Lifestyle & Hobbies (`track: 'lifestyle'`, real opportunity content,
+  no career/major/program chain — parked until they come up, same as Law). See "Track
+  resolution" below.
   Note the `academic` track key is reused for both category concepts: it's the id of the
   "Academic" interest *category* in `CATEGORIES` (which also contains the math-leaning
   "Mathematics" tag that routes to `stem` instead) and separately the *track* key that the
   humanities-leaning tags in that category (History, Philosophy, Political Science, Psychology,
-  Literature) route to — don't conflate the two when reading `interests.js`.
+  Literature) route to — don't conflate the two when reading `interests.js`. **The Lifestyle &
+  Hobbies category is the one place a single `CATEGORIES` entry maps its tags to more than one
+  track** — Gardening/Travel → `outdoors`, Cooking → `culinary`, Fitness/Fashion → `lifestyle` —
+  specifically so the built `outdoors`/`culinary` tracks don't accidentally pull Fitness/Fashion
+  along with them just because they share a category label.
 
 ## Commands
 
@@ -109,11 +116,11 @@ steps alike), and `screen`. `reset()` clears storage and returns to the survey. 
 (its options are conditional on level), so Continue stays disabled until both are picked.
 
 **Track resolution has two tiers, not one.** `src/data/interests.js` exports:
-- `getBuiltTracks(tags)` — tracks with full career/major/program data (`business` / `stem` /
-  `healthcare` / `creative`). Drives Screen 3's routing/content and the Back-button target.
-- `getOpportunityTracks(tags)` — a superset also including the six opportunity-only tracks.
-  Drives Screen 4's content. An empty result (only "Law" selected, or nothing) falls back to
-  `GENERIC_OPPORTUNITIES`.
+- `getBuiltTracks(tags)` — the 11 tracks with full career/major/program data. Drives Screen 3's
+  routing/content and the Back-button target.
+- `getOpportunityTracks(tags)` — a superset also including `lifestyle` (Fitness/Fashion, the
+  one opportunity-only track). Drives Screen 4's content. An empty result (only "Law" selected,
+  or nothing) falls back to `GENERIC_OPPORTUNITIES`.
 
 Both are *merging*, not single-value: selecting 2+ built-track tags merges their career cards
 on Screen 3a (`getCareerPool(tracks, level)` in `careers.js`, then filtered by
@@ -134,14 +141,21 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
 - `careers.js` / `programs.js` (via `getPrograms()`) / `opportunities.js` all branch on
   `educationLevel` (`highschool` / `undergraduate` / `transfer`). Transfer reuses the
   `highschool` careers/majors data directly; only `programs.js` adds a transfer-specific note
-  at read time, not duplicated data.
+  at read time, not duplicated data. **The 6 tracks added after the original 5** (Sports,
+  Culinary Arts, Community & Leadership, Media & Entertainment, Personal Development, Outdoors)
+  go one step further and alias `undergraduate` to `highschool` too, not just `transfer` — their
+  source spec gave one career list per track, not a distinct "requires a grad degree next" tier
+  the way business/stem/healthcare/creative/academic do, so there's no separate advanced tier to
+  fabricate. See the comment at the top of the `sports:` block in `careers.js`.
 - `programs.js` entries carry a real numeric `gpaValue` (illustrative, from a fixed benchmark
   table) instead of a selectivity-tier string, plus optional `gpaWeighted: 'portfolio' |
   'audition'` for programs where GPA is secondary to a submission (e.g. Juilliard has
-  `gpaValue: null`). **Every major has 5 programs, not 3** — the original 3 flagship-tier
-  options plus 2 added afterward at the `Moderately Selective` (~3.2-3.3) / `Less Selective`
-  (~3.0-3.1) tiers specifically so a lower GPA doesn't see the same MIT/Stanford-only list a 4.0
-  would. `selectProgramsForGpa(programs, gpaString, majorCount)` (called from
+  `gpaValue: null`). **Most majors have 5 programs; the 10 majors added for the 6 newer tracks
+  have 3 each** (their source spec gave an already-appropriate selectivity spread per major
+  up front — Extremely/Highly Selective flagship down to Moderately/Less Selective accessible
+  options — rather than needing the "3 flagship-only + 2 accessible added later" pattern the
+  original 24 majors went through). Don't assume every `PROGRAMS[majorId]` array has the same
+  length. `selectProgramsForGpa(programs, gpaString, majorCount)` (called from
   `ProgramsStep.jsx`, not `getMergedPrograms` itself, which stays a pure merge/dedupe) then picks
   which of those to actually show: mostly programs at-or-below the entered GPA plus one
   aspirational reach pick for motivation, backfilling from further reach options only if there
@@ -169,7 +183,13 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   `prepSteps` (2-4 ordered sub-task names). `getOpportunityPool(tracks, level)` /
   `findOpportunity(id, tracks, level)` merge/dedupe across tracks or fall back to
   `GENERIC_OPPORTUNITIES` — both `OpportunityFinderScreen` and `roadmapGenerator.js` use these
-  rather than reading `OPPORTUNITIES[track][level]` directly.
+  rather than reading `OPPORTUNITIES[track][level]` directly. **`OPPORTUNITIES.culinary` and
+  `.outdoors` deliberately reuse some ids already present in `OPPORTUNITIES.lifestyle`**
+  (e.g. `culinary-youth-programs`, `4h-programs`) rather than moving them — `lifestyle` still
+  covers Fitness/Fashion (see "Track resolution" above) and stripping its content out from under
+  those two sub-tags would have quietly emptied their opportunity pool. `getOpportunityPool`
+  already dedupes merged tracks by id, so selecting e.g. both "Cooking" and "Fitness" together
+  still shows each real opportunity once, not twice.
 
 **Dates are "today"-anchored, not fixed-calendar.** `src/utils/dates.js`: data files store
 template dates as `{month, day, yearOffset?}` (interpreted as N days after Aug 15 on an
@@ -337,8 +357,9 @@ drive it with a headless browser (Playwright works; `chromium-cli` was not avail
 environment — the Chromium binary it installs is cached under `~/Library/Caches/ms-playwright`,
 so reinstalling only needs `npm install playwright` in a scratch dir, not a fresh browser
 download). Cover at minimum:
-- One run per built track (Business, STEM, Healthcare, Creative, Academic/Humanities) and one opportunity-only
-  track, through all 5 screens.
+- One run per built track (Business, STEM, Healthcare, Creative, Academic/Humanities, Sports,
+  Culinary Arts, Community & Leadership, Media & Entertainment, Personal Development, Outdoors)
+  and one opportunity-only tag (Fitness or Fashion, or "Law"), through all 5 screens.
 - All three education levels at least once.
 - A multi-career/multi-major/multi-program selection spanning two tracks — confirm merged
   counts, a combined single plan, and (if programs differ in GPA) the max-benchmark logic.

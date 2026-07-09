@@ -184,7 +184,7 @@ export const MAJORS = {
     name: 'Kinesiology / Exercise Science',
     overview: 'Study of human movement and physical performance.',
     skills: ['Biomechanics', 'Injury prevention', 'Exercise programming'],
-    potentialCareers: ['Physical Therapist', 'Athletic Trainer', 'Wellness Coach'],
+    potentialCareers: ['Physical Therapist', 'Athletic Trainer', 'Coach', 'Wellness Coach'],
     timeToComplete: '4 years (+3 for DPT)',
   },
 
@@ -272,7 +272,7 @@ export const MAJORS = {
     name: 'Political Science / Pre-Law',
     overview: 'Study of government, law, and political systems.',
     skills: ['Critical thinking', 'Argumentation', 'Research', 'Writing'],
-    potentialCareers: ['Lawyer', 'Policy Analyst', 'Diplomat'],
+    potentialCareers: ['Lawyer', 'Policy Analyst', 'Community Organizer / Policy Advocate', 'Diplomat'],
     timeToComplete: '4 years (+3 for Law School)',
   },
   history: {
@@ -288,7 +288,7 @@ export const MAJORS = {
     name: 'Psychology',
     overview: 'Study of the mind and behavior.',
     skills: ['Research design', 'Statistics', 'Communication/empathy'],
-    potentialCareers: ['Psychologist', 'Counselor', 'Researcher'],
+    potentialCareers: ['Psychologist', 'Counselor / Therapist', 'Life / Wellness Coach', 'Researcher'],
     timeToComplete: '4 years (+5–6 for PhD/PsyD)',
   },
 
@@ -316,5 +316,97 @@ export const MAJORS = {
     skills: ['Clinical assessment', 'Psychotherapy', 'Research methods', 'Ethics'],
     potentialCareers: ['Clinical Psychologist'],
     timeToComplete: '5–6 years',
+  },
+
+  // ---- Sports majors ----
+  'sports-management': {
+    id: 'sports-management',
+    name: 'Sports Management',
+    overview: 'The business side of athletics — operations, marketing, and event management for teams, leagues, and departments.',
+    skills: ['Event planning', 'Sports marketing', 'Operations management', 'Budget management'],
+    potentialCareers: ['Sports Management / Athletics Administrator', 'Sports Agent'],
+    timeToComplete: '4 years',
+  },
+
+  // ---- Culinary Arts majors ----
+  'culinary-arts': {
+    id: 'culinary-arts',
+    name: 'Culinary Arts',
+    overview: 'Hands-on training in cooking techniques, kitchen management, and menu design.',
+    skills: ['Knife skills', 'Menu planning', 'Kitchen management', 'Food safety'],
+    potentialCareers: ['Chef / Culinary Professional', 'Restaurant Owner'],
+    timeToComplete: '1–4 years depending on program (certificate, Associate\'s, or Bachelor\'s)',
+  },
+  'food-science': {
+    id: 'food-science',
+    name: 'Food Science',
+    overview: 'The science behind food production, safety, and quality processes.',
+    skills: ['Lab research', 'Food chemistry', 'Quality control', 'Regulatory compliance'],
+    potentialCareers: ['Food Scientist', 'QA Manager'],
+    timeToComplete: '4 years',
+  },
+  'hospitality-management': {
+    id: 'hospitality-management',
+    name: 'Hospitality Management',
+    overview: 'Business operations for restaurants, hotels, and event venues.',
+    skills: ['Operations management', 'Customer service', 'Business finance', 'Event coordination'],
+    potentialCareers: ['Restaurant / Hotel Manager', 'Event Planner'],
+    timeToComplete: '4 years',
+  },
+
+  // ---- Community & Leadership majors ----
+  'nonprofit-management': {
+    id: 'nonprofit-management',
+    name: 'Nonprofit Management / Public Administration',
+    overview: 'Running nonprofit and government organizations effectively — programs, funding, and policy.',
+    skills: ['Program management', 'Grant writing', 'Budgeting', 'Stakeholder communication'],
+    potentialCareers: ['Nonprofit Program Manager', 'Policy Analyst'],
+    timeToComplete: '4 years (+2 for MPA)',
+  },
+  'social-work': {
+    id: 'social-work',
+    name: 'Social Work',
+    overview: 'Helping individuals and communities access resources and navigate challenges.',
+    skills: ['Casework', 'Counseling basics', 'Advocacy', 'Crisis intervention'],
+    potentialCareers: ['Social Worker', 'Case Manager'],
+    timeToComplete: '4 years (+2 for MSW)',
+  },
+
+  // ---- Media & Entertainment majors ----
+  journalism: {
+    id: 'journalism',
+    name: 'Journalism / Communications',
+    overview: 'Researching, writing, and producing media content across platforms.',
+    skills: ['Writing', 'Interviewing', 'Research', 'Digital media production'],
+    potentialCareers: ['Journalist / Content Creator', 'PR Specialist'],
+    timeToComplete: '4 years',
+  },
+
+  // ---- Personal Development majors ----
+  'human-resources': {
+    id: 'human-resources',
+    name: 'Human Resources / Organizational Development',
+    overview: 'Helping organizations manage and develop their people.',
+    skills: ['Communication', 'Training design', 'Conflict resolution', 'Employment law basics'],
+    potentialCareers: ['HR Specialist', 'Organizational Development Consultant'],
+    timeToComplete: '4 years',
+  },
+
+  // ---- Outdoors (Gardening / Travel) majors ----
+  horticulture: {
+    id: 'horticulture',
+    name: 'Horticulture / Landscape Architecture',
+    overview: 'The science and design of growing plants and landscapes.',
+    skills: ['Plant science', 'Landscape design', 'Sustainability practices', 'Site planning'],
+    potentialCareers: ['Horticulturist', 'Landscape Architect'],
+    timeToComplete: '4 years',
+  },
+  'tourism-management': {
+    id: 'tourism-management',
+    name: 'Tourism Management',
+    overview: 'Planning and managing travel and tourism experiences.',
+    skills: ['Destination marketing', 'Logistics', 'Customer service', 'Event coordination'],
+    potentialCareers: ['Travel Manager', 'Tourism Director'],
+    timeToComplete: '4 years',
   },
 };

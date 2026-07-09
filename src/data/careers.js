@@ -273,6 +273,171 @@ export const CAREERS = {
       },
     ],
   },
+  // ---- Sports, Culinary Arts, Community & Leadership, Media & Entertainment, Personal
+  // Development, and Outdoors (Gardening/Travel) don't currently distinguish an "advanced,
+  // requires a grad degree next" undergraduate tier the way the original 5 tracks do — the
+  // source spec for these gave one career list, not two, so `undergraduate` below is a
+  // deliberate direct reuse of `highschool`, not a placeholder waiting to be filled in.
+  sports: {
+    highschool: [
+      {
+        id: 'athletic-trainer',
+        name: 'Athletic Trainer',
+        overview: 'Prevents and treats injuries for athletes, working closely with teams and sports medicine staff.',
+        salary: '~$50k–$60k',
+        requiredEducation: "Master's in Athletic Training + certification (current entry standard)",
+        relevantMajors: ['kinesiology'],
+      },
+      {
+        id: 'sports-management-admin',
+        name: 'Sports Management / Athletics Administrator',
+        overview: 'Manages operations for sports teams, leagues, or school/college athletic departments.',
+        salary: '~$45k–$70k+ (higher at pro level)',
+        requiredEducation: "Bachelor's in Sports Management or Business",
+        relevantMajors: ['sports-management', 'business-administration'],
+      },
+      {
+        id: 'coach',
+        name: 'Coach',
+        overview: 'Trains and leads athletes or teams in a specific sport.',
+        salary: '~$40k–$60k (varies widely by level)',
+        requiredEducation: 'Bachelor\'s often preferred; certification varies by sport',
+        relevantMajors: ['kinesiology'],
+      },
+    ],
+  },
+  culinary: {
+    highschool: [
+      {
+        id: 'chef',
+        name: 'Chef / Culinary Professional',
+        overview: 'Prepares food and leads kitchen operations at restaurants or hotels.',
+        salary: '~$45k–$65k (executive chefs higher)',
+        requiredEducation: 'Culinary degree/certificate or apprenticeship — not always a 4-year degree',
+        relevantMajors: ['culinary-arts', 'hospitality-management'],
+      },
+      {
+        id: 'food-scientist',
+        name: 'Food Scientist',
+        overview: 'Researches and develops food products, safety, and quality processes.',
+        salary: '~$65k–$85k',
+        requiredEducation: "Bachelor's in Food Science or related field",
+        relevantMajors: ['food-science'],
+      },
+      {
+        id: 'restaurant-manager',
+        name: 'Restaurant / Hospitality Manager',
+        overview: 'Oversees operations of restaurants or hospitality venues.',
+        salary: '~$50k–$70k',
+        requiredEducation: "Bachelor's in Hospitality Management or Business",
+        relevantMajors: ['hospitality-management', 'business-administration'],
+      },
+    ],
+  },
+  community: {
+    highschool: [
+      {
+        id: 'nonprofit-program-manager',
+        name: 'Nonprofit Program Manager',
+        overview: 'Manages programs and operations for nonprofit organizations.',
+        salary: '~$50k–$70k',
+        requiredEducation: "Bachelor's in Nonprofit Management, Public Administration, or related",
+        relevantMajors: ['nonprofit-management'],
+      },
+      {
+        id: 'social-worker',
+        name: 'Social Worker',
+        overview: 'Helps individuals, families, and communities navigate challenges and access resources.',
+        salary: '~$50k–$60k',
+        requiredEducation: 'Bachelor\'s (BSW) minimum; Master\'s (MSW) for clinical practice',
+        relevantMajors: ['social-work'],
+      },
+      {
+        id: 'community-organizer',
+        name: 'Community Organizer / Policy Advocate',
+        overview: 'Organizes communities around causes; works with advocacy organizations or campaigns.',
+        salary: '~$40k–$65k',
+        requiredEducation: "Bachelor's in Political Science, Public Policy, or related",
+        relevantMajors: ['political-science-prelaw'],
+      },
+    ],
+  },
+  media: {
+    highschool: [
+      {
+        id: 'journalist',
+        name: 'Journalist / Content Creator',
+        overview: 'Researches, writes, and produces news or media content across platforms.',
+        salary: '~$45k–$65k',
+        requiredEducation: "Bachelor's in Journalism, Communications, or English",
+        relevantMajors: ['journalism'],
+      },
+      {
+        id: 'podcast-producer',
+        name: 'Audio/Podcast Producer',
+        overview: 'Plans, records, and edits audio content and podcasts.',
+        salary: '~$45k–$65k',
+        requiredEducation: 'Bachelor\'s in Communications or Media Production helpful, not always required',
+        relevantMajors: ['journalism', 'film-production'],
+      },
+      {
+        id: 'film-video-producer',
+        name: 'Film/Video Producer or Director',
+        overview: 'Oversees the creative and logistical process of making film or video content.',
+        salary: 'Highly variable',
+        requiredEducation: "Bachelor's in Film common, not required",
+        relevantMajors: ['film-production'],
+      },
+    ],
+  },
+  personal: {
+    highschool: [
+      {
+        id: 'life-coach',
+        name: 'Life / Wellness Coach',
+        overview: 'Helps individuals set and achieve personal or professional goals.',
+        salary: '~$40k–$60k (highly variable, many self-employed)',
+        requiredEducation: 'No formal degree required; certification programs common (e.g., ICF)',
+        relevantMajors: ['psychology'],
+      },
+      {
+        id: 'counselor-therapist',
+        name: 'Counselor / Therapist',
+        overview: 'Helps individuals work through mental health, behavioral, or life challenges.',
+        salary: '~$50k–$60k',
+        requiredEducation: "Master's in Counseling or related, plus licensure",
+        relevantMajors: ['psychology'],
+      },
+      {
+        id: 'hr-od-specialist',
+        name: 'HR / Organizational Development Specialist',
+        overview: 'Helps organizations build employee wellness, training, and development programs.',
+        salary: '~$55k–$70k',
+        requiredEducation: "Bachelor's in HR, Psychology, or Business",
+        relevantMajors: ['human-resources', 'psychology'],
+      },
+    ],
+  },
+  outdoors: {
+    highschool: [
+      {
+        id: 'horticulturist',
+        name: 'Horticulturist / Landscape Architect',
+        overview: 'Designs, grows, and maintains plants, gardens, and landscapes professionally.',
+        salary: '~$50k–$70k (landscape architects often higher)',
+        requiredEducation: "Bachelor's in Horticulture or Landscape Architecture",
+        relevantMajors: ['horticulture'],
+      },
+      {
+        id: 'travel-tourism-manager',
+        name: 'Travel / Tourism Manager',
+        overview: 'Plans and manages travel experiences, tourism operations, or destination marketing.',
+        salary: '~$45k–$65k',
+        requiredEducation: "Bachelor's in Tourism Management, Hospitality, or Business",
+        relevantMajors: ['tourism-management'],
+      },
+    ],
+  },
 };
 
 // Transfer students see the same undergraduate-level careers as high schoolers.
@@ -281,6 +446,13 @@ CAREERS.stem.transfer = CAREERS.stem.highschool;
 CAREERS.healthcare.transfer = CAREERS.healthcare.highschool;
 CAREERS.creative.transfer = CAREERS.creative.highschool;
 CAREERS.academic.transfer = CAREERS.academic.highschool;
+
+// These 6 tracks use one career list for every education level (see the comment above) — wire
+// undergraduate/transfer to the same array reference rather than duplicating it.
+for (const t of ['sports', 'culinary', 'community', 'media', 'personal', 'outdoors']) {
+  CAREERS[t].undergraduate = CAREERS[t].highschool;
+  CAREERS[t].transfer = CAREERS[t].highschool;
+}
 
 // Merged career list across the given built tracks for one education level — the pool that
 // Screen 3a (multi-select) renders, and that callers filter by selectedCareerIds against.

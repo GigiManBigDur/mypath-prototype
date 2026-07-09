@@ -3,16 +3,21 @@
 // tailored content in Screen 4 (Opportunity Finder) even if it has no career/major/program data
 // of its own. A tag whose track is 'other' (currently just "Law") falls back to the fully
 // generic opportunity list — see getOpportunityTracks below.
+//
+// 'lifestyle' is the one remaining opportunity-only track: it now covers only Fitness/Fashion
+// (Gardening/Travel moved to the built 'outdoors' track, Cooking moved to the built 'culinary'
+// track — see the Lifestyle & Hobbies category below). Fitness/Fashion stay parked on generic
+// opportunity content until they come up, same as "Law" — don't route them into a built track
+// just because 'lifestyle' shares a name with the category.
 
-export const BUILT_TRACKS = ['business', 'stem', 'healthcare', 'creative', 'academic'];
+export const BUILT_TRACKS = [
+  'business', 'stem', 'healthcare', 'creative', 'academic',
+  'sports', 'culinary', 'community', 'media', 'personal', 'outdoors',
+];
 
 export const OPPORTUNITY_TRACKS = [
   ...BUILT_TRACKS,
-  'sports',
-  'community',
-  'media',
   'lifestyle',
-  'personal',
 ];
 
 export const CATEGORIES = [
@@ -56,7 +61,11 @@ export const CATEGORIES = [
   {
     id: 'lifestyle',
     label: 'Lifestyle & Hobbies',
-    tags: tag(['Gardening', 'Travel', 'Cooking', 'Fitness', 'Fashion'], 'lifestyle'),
+    tags: [
+      ...tag(['Gardening', 'Travel'], 'outdoors'),
+      ...tag(['Cooking'], 'culinary'),
+      ...tag(['Fitness', 'Fashion'], 'lifestyle'),
+    ],
   },
   {
     id: 'media',
