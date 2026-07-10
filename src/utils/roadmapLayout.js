@@ -28,7 +28,15 @@ export const PIXELS_PER_DAY = 5;
 // was previously 90 (a 30-day floor), which dominated realistic data hard enough that long
 // stretches of genuinely-varied real dates rendered as evenly-spaced.
 const MIN_SPINE_GAP = 25;
-const MIN_BRANCH_GAP = 46;
+// Two different roles, previously conflated into one MIN_BRANCH_GAP constant:
+//   1. Clearance from the anchor node to the FIRST prep step — this is NOT date math, it's just
+//      enough room that the first step's dot/label doesn't render on top of the anchor's own
+//      (larger) circle. Left at 46 regardless of PIXELS_PER_DAY.
+//   2. The floor BETWEEN two consecutive branch steps — this one IS date math, and is kept at
+//      exactly 1 real day's worth of pixels so branch spacing reads as day-proportional down to
+//      a single day apart, only stepping in for genuinely same-day duplicates.
+const BRANCH_ANCHOR_OFFSET = 46;
+const BRANCH_STEP_MIN_GAP = PIXELS_PER_DAY * 1;
 // Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
 // constant slope for a whole branch makes every point in it exactly colinear with the anchor, so
 // "connect step to previous step" and "connect every step straight back to the anchor" render as
@@ -55,7 +63,12 @@ const BRANCH_SPACING_MULTIPLIER = 2;
 // under 6.3px/char, so this errs generous).
 const CHAR_PX = 6.3;
 const LABEL_PAD = 16;
-const LABEL_BLOCK_HEIGHT = 30;
+// Bumped from 30 — with branch steps now allowed as close as 1 real day apart (BRANCH_STEP_MIN_GAP),
+// pairs can land exactly at this boundary, and 30 turned out to be too tight a "safe overestimate":
+// the idealized box math said "just clears," but real rendered two-line labels (title + due date,
+// actual font metrics/line-height) came out a hair taller, causing a genuine pixel overlap the
+// approximate check didn't catch. 36 gives real margin instead of an exact boundary case.
+const LABEL_BLOCK_HEIGHT = 36;
 const SPINE_EDGE_GAP = 26;
 const BRANCH_EDGE_GAP = 20;
 const NUDGE_STEP = 18;
@@ -124,8 +137,8 @@ function layoutBranch(steps, anchorY, side, placedLabels) {
   let prevRel = 0;
   let prevX = 0;
   return steps.map((step, i) => {
-    let rel = MIN_BRANCH_GAP + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
-    if (i > 0 && rel - prevRel < MIN_BRANCH_GAP) rel = prevRel + MIN_BRANCH_GAP;
+    let rel = BRANCH_ANCHOR_OFFSET + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
+    if (i > 0 && rel - prevRel < BRANCH_STEP_MIN_GAP) rel = prevRel + BRANCH_STEP_MIN_GAP;
 
     const slope = BRANCH_SLOPES[i % BRANCH_SLOPES.length];
     const width = blockWidth(step.title, step.due);

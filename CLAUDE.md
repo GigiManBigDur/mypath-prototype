@@ -365,8 +365,8 @@ a light forward-only minimum-gap pass so two items landing on the same day don't
 is a genuine change from the old trunk, which used fixed per-node spacing; the old trunk had no
 branches to route around, this one does, so position now has to track real elapsed time.
 **If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
-(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
-always derived from actual content afterward, never assumed.**
+(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `BRANCH_ANCHOR_OFFSET`, `BRANCH_STEP_MIN_GAP`, `BRANCH_SLOPES`)
+— canvas width/height are always derived from actual content afterward, never assumed.**
 
 **Spine node spacing is exact linear proportionality — `y = -daysFromToday(item.date) *
 PIXELS_PER_DAY` — with no index/order-based fallback anywhere.** `PIXELS_PER_DAY = 5` and
@@ -391,6 +391,24 @@ no longer bites this app's actual, realistic milestone spacing. Verified empiric
 tasks 5 real days apart and two others 19 real days apart render at a 3.800 vertical-gap ratio
 (exactly `19/5`), and a 4-year (9th-grade) plan's canvas comes out ~4.9× taller than a 1-year
 (senior) plan's, both confirming true proportionality rather than an approximation.
+
+**Branch (chain) step vertical spacing was split into two constants that used to be one
+(`MIN_BRANCH_GAP`), because they serve genuinely different purposes.** `BRANCH_ANCHOR_OFFSET`
+(46) is pure visual clearance from the anchor node's own (larger) circle to the first prep
+step — not date math at all, and unrelated to `PIXELS_PER_DAY`. `BRANCH_STEP_MIN_GAP` is the
+floor *between* two consecutive steps within the same chain, and is deliberately kept at exactly
+`PIXELS_PER_DAY * 1` (one real day's worth of pixels) — branch spacing reads as day-proportional
+down to a single day apart, only stepping in for genuinely same-day duplicates. **This tight
+floor surfaced a real, separate bug the first time it was tried**: two adjacent chain steps a
+handful of days apart landed close enough that the *approximate* label-collision box
+(`LABEL_BLOCK_HEIGHT`, used only to decide "would these two labels visually collide," not
+pixel-perfect by design) said "just clears" while the real rendered two-line label (actual font
+metrics/line-height) came out a hair taller, producing a genuine on-screen overlap the check
+never caught. `LABEL_BLOCK_HEIGHT` went from 30 to 36 to restore real safety margin — confirmed
+this resolves it (zero label overlaps on a dense 4-year-escalation DECA test plan that reproduced
+it) without affecting spine positions (spine has no nudge loop; `LABEL_BLOCK_HEIGHT` only feeds
+the branch nudge loop and what gets registered in `placedLabels`) or reducing exact day-math gaps
+between steps that already had enough clearance.
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
@@ -422,9 +440,9 @@ fixed, uniformly scaling every branch step's `x` by the same `K > 1` can only wi
 already-validated gap between two boxes, never close one — see the three-case proof in
 `layoutBranch`'s own comment (same-side, opposite-side, vs. a same-side spine label) if you need
 to touch either constant. Each branch is still computed in true
-isolation from every *other* branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal),
-which is what actually fixes the old collapsed-chip overlap bug (multiple opportunities' prep
-steps used to compete for the same lateral space). But branches still have to share the canvas with the
+isolation from every *other* branch's step-vs-step spacing (own `BRANCH_STEP_MIN_GAP`, own
+diagonal), which is what actually fixes the old collapsed-chip overlap bug (multiple
+opportunities' prep steps used to compete for the same lateral space). But branches still have to share the canvas with the
 spine's own labels and with each other's labels, so there's a second layer:
 `roadmapLayout.js` maintains a running `placedLabels` list of every label's *approximate*
 rendered bounding box (character-count-based width estimate, not real DOM measurement) — every
