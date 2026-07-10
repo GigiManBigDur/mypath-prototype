@@ -23,6 +23,11 @@ const DEFAULT_STATE = {
   // type's own curated guide steps have been consumed so the next suggestion (and "guide
   // exhausted" detection) can be derived without re-deriving it from `steps.length`, which also
   // grows from user-authored steps added after the guide runs out.
+  roadmapTooltipsSeen: false, // the Academic Plan's paired first-visit callouts (full-bleed
+  // canvas + pan/zoom controls) — dismissing either one sets this true and hides both, since
+  // they're shown/dismissed as one onboarding moment. Persisted (not just session-scoped) so a
+  // dismissal survives a reload; "Start over" resets it like everything else, which is fine —
+  // that's a fresh run of the app.
 };
 
 function loadInitialState() {

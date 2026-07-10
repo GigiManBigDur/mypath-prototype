@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Maximize2, Trash2, Plus, Pencil, Rocket,
+  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
+  Maximize2, Minimize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -50,7 +51,7 @@ const VIEWPORT_HEIGHT = 620;
 // that already spans 2 years or less is unaffected (see fitView).
 const DEFAULT_WINDOW_DAYS = 365 * 2;
 
-// --- Visual-polish-only entrance sequencing (Task 1/6 of the Academic Plan animation pass) ----
+// --- Visual-polish-only entrance sequencing (from an earlier animation pass) ------------------
 // This never changes what x/y a node sits at (layoutRoadmap in roadmapLayout.js is untouched) —
 // it only decides, on top of those already-correct coordinates, how long to delay each node's/
 // segment's reveal animation. Plays once per session (module-level flag, same pattern as
@@ -87,7 +88,23 @@ function line(x1, y1, x2, y2) {
   return `M ${x1} ${y1} L ${x2} ${y2}`;
 }
 
-export default function Roadmap({ roadmap }) {
+// Bottom-right floating zoom-control stack needs to clear the bottom panel, which floats as an
+// overlay above the canvas rather than pushing it — these are just the two resting positions for
+// that stack (collapsed strip vs. expanded panel), not anything derived from real layout
+// measurement, so they're kept in sync by hand with the panel's own CSS sizing.
+const ZOOM_CONTROLS_BOTTOM_COLLAPSED = 84;
+const ZOOM_CONTROLS_BOTTOM_EXPANDED = 240;
+
+// The floating bottom panel covers the same region "today" and other near-term nodes render in
+// by default (they're the ones closest to the bottom of the canvas, same "latitude = time"
+// principle roadmapLayout.js uses everywhere) — without this, the default view would land with
+// today's own node hidden and unclickable behind the panel. This only nudges fitView's *final*
+// panY by a constant, leaving the zoom level, effectiveTop/windowHeight fit, and panX completely
+// untouched — it's clearance for a floating control, not a change to the date-to-y mapping.
+const BOTTOM_PANEL_CLEARANCE_EXPANDED = 230;
+const BOTTOM_PANEL_CLEARANCE_COLLAPSED = 70;
+
+export default function Roadmap({ roadmap, onBack, onReset }) {
   const { state, patch } = useApp();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const entranceEnabled = !reducedMotion && !hasPlayedRoadmapEntrance;
@@ -103,6 +120,9 @@ export default function Roadmap({ roadmap }) {
   // onWheel/onPointerMove/onTouchMove) so direct manipulation always stays instant/1:1.
   const [smoothZoom, setSmoothZoom] = useState(false);
   const smoothZoomTimer = useRef(null);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const rootRef = useRef(null);
   const viewportRef = useRef(null);
   const dragState = useRef(null);
   const pinchState = useRef(null);
@@ -112,6 +132,19 @@ export default function Roadmap({ roadmap }) {
     const t = setTimeout(() => { hasPlayedRoadmapEntrance = true; }, ENTRANCE_TOTAL_MS);
     return () => clearTimeout(t);
   }, [reducedMotion]);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    } else {
+      rootRef.current?.requestFullscreen?.().catch(() => {});
+    }
+  };
 
   const isDone = (id) => !!state.completedNodes[id];
   // Completing a started project's current LAST step (its one active step — see
@@ -206,9 +239,10 @@ export default function Roadmap({ roadmap }) {
 
     const zoom = clamp(Math.min(vw / roadmap.canvasWidth, vh / windowHeight), MIN_ZOOM, 1);
     const panX = (vw - roadmap.canvasWidth * zoom) / 2;
-    const panY = (vh - windowHeight * zoom) / 2 - effectiveTop * zoom;
+    const panelClearance = panelCollapsed ? BOTTOM_PANEL_CLEARANCE_COLLAPSED : BOTTOM_PANEL_CLEARANCE_EXPANDED;
+    const panY = (vh - windowHeight * zoom) / 2 - effectiveTop * zoom - panelClearance;
     setView({ zoom, panX, panY });
-  }, [roadmap.canvasWidth, roadmap.canvasHeight, roadmap.today.y]);
+  }, [roadmap.canvasWidth, roadmap.canvasHeight, roadmap.today.y, panelCollapsed]);
 
   useEffect(() => { fitView(); }, [fitView]);
 
@@ -384,39 +418,15 @@ export default function Roadmap({ roadmap }) {
       ? 'Completed — undo'
       : `Continue — mark next step complete (${anchorDone}/${anchorTotal})`;
 
+  // Layout-restructure-only state: the paired first-visit callouts (below) share the exact same
+  // "stay mounted through an exit animation" need as every modal, so they reuse useModalExit
+  // rather than a bespoke fade mechanism.
+  const tooltipsOpen = !state.roadmapTooltipsSeen;
+  const { rendered: tooltipsRendered, closing: tooltipsClosing } = useModalExit(tooltipsOpen);
+  const dismissTooltips = () => patch({ roadmapTooltipsSeen: true });
+
   return (
-    <div>
-      <div className="roadmap-header">
-        <div>
-          <h1 className="rm-title">{roadmap.title}</h1>
-          <p className="rm-sub">{roadmap.subtitle}</p>
-        </div>
-        <div className="progress-box">
-          <div className="progress-num">{trunkDoneCount} / {trunkTotal}</div>
-          <div className="progress-label">Core steps complete</div>
-        </div>
-      </div>
-      <div className="bar">
-        <div className="bar-fill" style={{ width: `${(trunkDoneCount / trunkTotal) * 100}%` }} />
-      </div>
-
-      <div className="legend">
-        <span className="legend-item"><span className="dot" style={{ background: 'var(--teal)' }} /> Required — solid ring</span>
-        <span className="legend-item"><span className="dot" style={{ background: 'var(--stone)', border: '2px solid var(--stone)' }} /> Optional — hollow ring</span>
-        <span className="legend-item"><span className="dot" style={{ background: 'var(--ink-soft)', border: '2px dotted var(--ink-soft)' }} /> Custom — dotted ring</span>
-        <span className="legend-item"><span className="dot" style={{ background: 'var(--gold)' }} /> You are here</span>
-      </div>
-
-      <div className="add-task-row">
-        <button type="button" className="btn btn-primary" onClick={() => setShowAddForm(true)}>
-          <Plus size={16} /> Add Task
-        </button>
-      </div>
-
-      {roadmap.caveatNote && (
-        <div className="caveat-banner">{roadmap.caveatNote}</div>
-      )}
-
+    <div className="roadmap-fullscreen-root" ref={rootRef}>
       <div className="roadmap-viewport-wrap">
         <div
           className={`roadmap-viewport${dragging ? ' dragging' : ''}`}
@@ -432,7 +442,7 @@ export default function Roadmap({ roadmap }) {
           >
             <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
             {/* Spine connective line: today up through every spine item, in chronological order.
-                Task 1: on first load only, each segment draws in via stroke-dashoffset instead of
+                On first load only, each segment draws in via stroke-dashoffset instead of
                 appearing solid immediately — the `d`/coordinates themselves are untouched. */}
             <path
               className={entranceEnabled ? 'roadmap-draw-line' : undefined}
@@ -578,19 +588,118 @@ export default function Roadmap({ roadmap }) {
           </div>
         </div>
 
-        <div className="zoom-controls">
+        <div
+          className="zoom-controls"
+          style={{ bottom: panelCollapsed ? ZOOM_CONTROLS_BOTTOM_COLLAPSED : ZOOM_CONTROLS_BOTTOM_EXPANDED }}
+        >
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1.25)} aria-label="Zoom in"><ZoomIn size={16} /></button>
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1 / 1.25)} aria-label="Zoom out"><ZoomOut size={16} /></button>
-          <button type="button" className="zoom-btn" onClick={handleResetView} aria-label="Reset view"><Maximize2 size={16} /></button>
+          <button type="button" className="zoom-btn" onClick={handleResetView} aria-label="Recenter / reset view"><Crosshair size={16} /></button>
+          <button type="button" className="zoom-btn" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}>
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
         </div>
+
+        {tooltipsRendered && (
+          <>
+            <div className={`roadmap-callout roadmap-callout-tl${tooltipsClosing ? ' callout-exit' : ''}`}>
+              <button type="button" className="roadmap-callout-close" onClick={dismissTooltips} aria-label="Dismiss">
+                <X size={12} />
+              </button>
+              <Maximize2 size={16} className="roadmap-callout-icon" />
+              <div className="roadmap-callout-text">
+                <strong>Full-screen roadmap</strong>
+                No UI blocking the map.
+              </div>
+              <svg className="roadmap-callout-arrow roadmap-callout-arrow-tl" viewBox="0 0 44 44" aria-hidden="true">
+                <path d="M 4 4 C 4 26 8 34 30 36" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path d="M 22 33 L 31 37 L 27 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className={`roadmap-callout roadmap-callout-tr${tooltipsClosing ? ' callout-exit' : ''}`}>
+              <button type="button" className="roadmap-callout-close" onClick={dismissTooltips} aria-label="Dismiss">
+                <X size={12} />
+              </button>
+              <Move size={16} className="roadmap-callout-icon" />
+              <div className="roadmap-callout-text">
+                <strong>Pan, zoom, and explore</strong>
+                Use these controls to navigate the map.
+              </div>
+              <svg className="roadmap-callout-arrow roadmap-callout-arrow-tr" viewBox="0 0 44 44" aria-hidden="true">
+                <path d="M 40 4 C 40 26 36 34 14 36" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path d="M 22 33 L 13 37 L 17 28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </>
+        )}
       </div>
 
-      {trunkDoneCount === trunkTotal && (
-        <div className="win-banner">
-          <b>Path complete.</b>
-          Every core step is checked off — nothing left to figure out on your own.
+      <div className={`roadmap-panel${panelCollapsed ? ' collapsed' : ''}`}>
+        <button
+          type="button"
+          className="roadmap-panel-toggle"
+          onClick={() => setPanelCollapsed((c) => !c)}
+          aria-label={panelCollapsed ? 'Expand panel' : 'Collapse panel'}
+        >
+          <ChevronDown size={16} />
+        </button>
+
+        <div className="roadmap-panel-content">
+          {trunkDoneCount === trunkTotal && (
+            <div className="win-banner">
+              <b>Path complete.</b>
+              Every core step is checked off — nothing left to figure out on your own.
+            </div>
+          )}
+
+          {roadmap.caveatNote && (
+            <div className="caveat-banner">{roadmap.caveatNote}</div>
+          )}
+
+          <div className="roadmap-panel-top">
+            <div className="roadmap-panel-info">
+              <div className="roadmap-panel-eyebrow-row">
+                <span className="roadmap-panel-icon-badge"><Compass size={12} /></span>
+                <span className="eyebrow" style={{ margin: 0 }}>Step 6 of 6</span>
+              </div>
+              <h1 className="rm-title">{roadmap.title}</h1>
+              <p className="rm-sub">{roadmap.subtitle}</p>
+            </div>
+
+            <div className="roadmap-panel-side">
+              <div className="roadmap-panel-progress">
+                <div className="progress-box">
+                  <div className="progress-num">{trunkDoneCount} / {trunkTotal}</div>
+                  <div className="progress-label">Core steps complete</div>
+                </div>
+                <div className="bar">
+                  <div className="bar-fill" style={{ width: `${(trunkDoneCount / trunkTotal) * 100}%` }} />
+                </div>
+              </div>
+              <div className="roadmap-panel-actions">
+                <button type="button" className="btn btn-ghost" onClick={onBack}>
+                  <ArrowLeft size={14} /> Back
+                </button>
+                <button type="button" className="btn btn-outline" onClick={onReset}>
+                  <RotateCcw size={14} /> Start over
+                </button>
+                <button type="button" className="btn btn-primary" onClick={() => setShowAddForm(true)}>
+                  <Plus size={16} /> Add Task
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="roadmap-panel-divider" />
+
+          <div className="legend">
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--teal)' }} /> Required — solid ring</span>
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--stone)', border: '2px solid var(--stone)' }} /> Optional — hollow ring</span>
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--ink-soft)', border: '2px dotted var(--ink-soft)' }} /> Custom — dotted ring</span>
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--gold)' }} /> You are here</span>
+          </div>
         </div>
-      )}
+      </div>
 
       {selectedRendered && modalNode && (
         <div className={`overlay${selectedClosing ? ' overlay-exit' : ''}`} onClick={() => setSelected(null)}>

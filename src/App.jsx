@@ -29,8 +29,10 @@ function AppShell() {
   const Screen = SCREENS[screenKey];
   const isPlan = screenKey === 'plan';
 
+  // The Plan screen is full-bleed/full-viewport (see .app-shell-plan in global.css) — every
+  // other screen keeps the normal centered/padded/scrolling .app-shell untouched.
   return (
-    <div className={`app-shell${isPlan ? '' : ' polish'}`}>
+    <div className={`app-shell${isPlan ? ' app-shell-plan' : ' polish'}`}>
       {state.screen !== 'welcome' && (
         <div className="brand">
           <Compass />

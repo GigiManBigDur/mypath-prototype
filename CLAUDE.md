@@ -736,6 +736,70 @@ session). Key pieces:
 - `src/hooks/useMediaQuery.js` was extracted from WelcomeScreen (identical behavior, just
   shared) so Roadmap.jsx's own `prefers-reduced-motion` check doesn't duplicate it.
 
+**The Academic Plan is a full-viewport, chrome-restructured layout, not a normal scrolling
+screen inside `.app-shell` — same "style/layout only, don't touch positioning math" boundary as
+the animation pass above.** `App.jsx` gives `.app-shell` a class of `app-shell-plan` (instead of
+`polish`) whenever `state.screen === 'plan'`; `.app-shell.app-shell-plan` in `global.css`
+overrides the shell's normal centered/padded/scrolling box with a `height: 100vh; display: flex;
+flex-direction: column;` full-viewport one — every other screen's `.app-shell` is untouched.
+`AcademicPlanScreen.jsx` is now just wiring (`roadmap` + `onBack`/`onReset` handed to `Roadmap`);
+the step indicator, title/subtitle, progress, legend, Back, and Start Over all moved from that
+screen's own header into `Roadmap.jsx`'s new bottom panel, described below. **Note the legend
+already only ever had the real 4 categories (Required/Optional/Custom/You are here) and the ring
+rendering never had letter badges** — an earlier AI-generated mockup that prompted this
+restructure got both of those wrong, but the actual data/rendering needed no correction, only
+repositioning.
+- **`.roadmap-fullscreen-root`** (`flex: 1; min-height: 0; position: relative;`) is the single
+  positioning context for everything the canvas now shares the screen with: the canvas itself
+  (`.roadmap-viewport-wrap`, `position: absolute; inset: 0;`), the floating zoom-control stack,
+  the paired first-visit callouts, and the bottom panel — all direct children, all
+  `position: absolute`, so the panel and callouts float *over* the canvas rather than pushing it
+  (nothing here changes canvas sizing based on panel state, deliberately — see the fitView note
+  below for the one place that does matter). `.roadmap-viewport` itself dropped its border/
+  card-background/fixed-620px-height entirely — no visible frame, so the parchment/contour
+  texture painted on `<body>` shows straight through behind every node, and it now sizes to
+  `100%`/`100%` of its full-bleed parent instead of a fixed box.
+- **The bottom panel (`.roadmap-panel`) is collapsible via a chevron (`.roadmap-panel-toggle`,
+  rotates 180° when collapsed) that only animates `.roadmap-panel-content`'s own
+  `max-height`/`opacity`/`padding`** — the outer `.roadmap-panel` keeps a fixed `min-height` so
+  there's always a legible strip left for the toggle once collapsed, instead of the whole panel
+  animating to zero and clipping its own toggle button. Collapse state (`panelCollapsed`) is
+  local, unpersisted `useState` — a session-only UI convenience, not data worth surviving a
+  reload. The panel's top row (title/subtitle/progress/legend/buttons) is unchanged content,
+  just reflowed into `.roadmap-panel-top` (`.roadmap-panel-info` left, `.roadmap-panel-side`
+  right) instead of the old `.roadmap-header`/`.add-task-row` (both now dead and removed). Start
+  Over is a new `.btn-outline` variant (a real border, not `.btn-ghost`'s plain colored-text
+  style) — reuses existing ink/paper tokens, no new color introduced.
+- **The floating zoom-control stack gained a 4th button and two icon changes**: `Crosshair`
+  replaces `Maximize2` for "recenter/reset view" (unchanged behavior, `handleResetView` →
+  `fitView`), and `Maximize2`/`Minimize2` now toggle *real* browser fullscreen on
+  `.roadmap-fullscreen-root` via the Fullscreen API (`requestFullscreen`/`exitFullscreen`,
+  wrapped in `?.()` + `.catch(() => {})` since some embedding contexts block it outright — this
+  fails silently rather than throwing). Its `bottom` offset switches between two constants
+  (`ZOOM_CONTROLS_BOTTOM_COLLAPSED`/`_EXPANDED`) based on `panelCollapsed` and transitions
+  smoothly rather than jumping — these are hand-picked to match the panel's own CSS sizing, not
+  derived from a real measurement.
+- **The first-visit callouts (`roadmapTooltipsSeen` in `AppContext`, persisted like everything
+  else) are a *paired* onboarding moment, not two independently-tracked tooltips** — dismissing
+  either one's close button sets the same shared flag and hides both together, matching how the
+  spec described them as shown/dismissed as one moment. They reuse `useModalExit` (see above) for
+  their own fade in/out rather than a bespoke mechanism, exactly like every modal in this file.
+- **`fitView`'s default framing needed one deliberate, isolated adjustment because of this
+  restructure — this is the one place layout and positioning code actually touch, so read it
+  carefully before changing either.** Since the bottom panel now *floats over* the canvas instead
+  of reserving its own space above it, and "today" plus every near-term node render closest to
+  the bottom of the canvas (same date-to-y principle as always — nothing about *that* changed),
+  the default view used to land with today's own node hidden and unclickable behind the panel.
+  The fix is a single constant subtracted from the *already-computed* `panY` — `BOTTOM_PANEL_
+  CLEARANCE_EXPANDED`/`_COLLAPSED` (matching current `panelCollapsed` state, both hand-picked to
+  clear the panel's real rendered height) — applied *after* `zoom`/`effectiveTop`/`windowHeight`
+  are computed exactly as before. It does not change the zoom level, `effectiveTop`'s 2-year-
+  window cap, or `panX` — only shifts the vertical framing up enough to guarantee "today" isn't
+  covered by default. `handleResetView`/the crosshair button re-run this (picking up the current
+  collapse state); toggling the panel itself does not trigger a re-fit (no `fitView` call on
+  `panelCollapsed` change), so the clearance is deliberately generous enough to be correct in
+  both states without needing to react to every toggle.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
