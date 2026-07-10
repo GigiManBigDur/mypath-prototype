@@ -20,7 +20,7 @@ const LABEL_BUFFER = 300; // horizontal room for node/branch label text extendin
 // anchored at today, see fitView) can convert a day-span into the same pixel units this file
 // positions everything in, instead of hardcoding a second copy that could drift out of sync.
 export const PIXELS_PER_DAY = 3;
-const MIN_SPINE_GAP = 90;
+const MIN_SPINE_GAP = 45;
 const MIN_BRANCH_GAP = 46;
 // Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
 // constant slope for a whole branch makes every point in it exactly colinear with the anchor, so

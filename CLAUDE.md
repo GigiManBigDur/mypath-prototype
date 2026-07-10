@@ -360,6 +360,30 @@ branches to route around, this one does, so position now has to track real elaps
 (`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
 always derived from actual content afterward, never assumed.**
 
+**`MIN_SPINE_GAP` was lowered from 90 to 45 after a real bug: the forward-only minimum-gap pass
+can compound.** Every spine item's clamp check compares its own raw date-based y against the
+*previous item's actual rendered y* (necessarily — that's the only way to guarantee no visual
+overlap), not against the previous item's own true date. When several real gaps in a row each
+fall just under the floor (a genuinely common pattern in this app's trunk data — many core
+milestones are naturally 2–4 weeks apart), each clamp nudges the next item forward a little, and
+that nudge carries into the *next* check too. Confirmed empirically on a real senior-year stretch:
+after 5-6 chained clamps, one milestone with a perfectly comfortable true 49-day/147px gap from
+its predecessor still got compressed all the way down to the 90px floor, purely because its
+predecessor had already drifted 129px off its own true position — i.e. that node's position was
+no longer "calculated independently from its own real date," which is exactly the invariant this
+file exists to guarantee. This wasn't a stray uniform/index-based formula anywhere (there never
+was one — `y = -t * PIXELS_PER_DAY` was always the base case) — it was this compounding making
+long stretches of genuinely-varied real dates visually read as evenly spaced. Halving the floor
+to 45 (≈15 real days, still comfortably more than the ~44px a node's largest animated hit-target
+reaches, so dot-to-dot collision is still prevented) resolved it for realistic data: verified with
+the same senior-year stretch that no milestone falsely clamps anymore, gaps now visibly range from
+~45px (a couple of weeks apart) up to 585px (Freshman → Sophomore GPA checks), and label overlap
+count stayed at zero on a dense multi-opportunity plan. Some compounding across a *long run* of
+genuinely sub-15-day real gaps is still mathematically possible (a hard floor for legibility and
+perfect date-proportionality can't both hold for an arbitrarily dense cluster) — that's an
+inherent trade-off of any minimum-gap system, not a bug, and 45 was chosen specifically so it no
+longer bites this app's actual, realistic milestone spacing.
+
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
 "collapsible chip that expands on click" — density is now handled by zoom/pan (below), not by
