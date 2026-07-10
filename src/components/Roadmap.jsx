@@ -509,6 +509,11 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                 const delay = entranceEnabled ? anchorDelay + (i + 1) * ENTRANCE_STEP_MS : 0;
                 return (
                   <g key={s.id} className="node-badge" onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
+                    {/* Invisible hit target, sized to match the click-pulse animation's peak
+                        scale (1.22× the r=13 ring) — kept as a plain sibling, not inside
+                        .node-pop, so the actual clickable area is always this size, not just
+                        whatever the ring happens to be mid-animation. */}
+                    <circle className="hit-target" r="16" fill="none" pointerEvents="all" />
                     <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
                       <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                       {done
@@ -539,6 +544,11 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     <text className="stage-label" x={n.x} y={n.y + 46} textAnchor="middle">— {n.stageLabel} —</text>
                   )}
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
+                    {/* Invisible hit target, sized to match the click-pulse animation's peak
+                        scale (1.22× the ring — 18 for required, 16 for everything else) — a
+                        plain sibling of .node-pop, not inside it, so it's always this size
+                        rather than only reaching it mid-animation. */}
+                    <circle className="hit-target" r={n.required ? 22 : 20} fill="none" pointerEvents="all" />
                     <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
                       {n.required ? (
                         <>
@@ -577,6 +587,8 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               onClick={() => setSelected({ ...roadmap.today, isToday: true })}
               transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
             >
+              {/* Same fixed, always-present hit target as every other node — see comments above. */}
+              <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
               <g className="node-pop">
                 <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
                 <Compass x="-8" y="-8" size={16} color="#fff" />

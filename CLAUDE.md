@@ -429,7 +429,14 @@ alone (which only supplies icon/color/label, not ring geometry). **Every ring `<
 only hit-tests its stroke by default SVG behavior, not its interior, so without this a hollow
 node's clickable area was a thin ring around the edge instead of matching its visual size; solid
 circles always have a real fill so they never needed it, but it's applied everywhere now for
-consistency. Every node is independently clickable — a core node or a branch step opens the
+consistency. **Every node also has its own invisible `circle.hit-target`** (`fill="none"
+pointerEvents="all"`, no stroke), rendered as a plain sibling *before* `.node-pop` rather than
+inside it — sized to each node type's ring radius times ~1.22 (the peak scale the `node-click-
+pulse` animation reaches: 22 for the r=18 required/today rings, 20 for the r=16 custom/
+opportunity rings, 16 for the r=13 branch-step rings) so the actual clickable area matches the
+full visual area that reacts on click, not just the ring's resting size. It's a plain sibling of
+`.node-pop` specifically so it stays this fixed, generous size at rest instead of only reaching
+it transiently mid-animation. Every node is independently clickable — a core node or a branch step opens the
 standard modal (desc + resources + complete-toggle). An opportunity's own anchor node has no
 single id of its own to toggle (its completion is derived from its steps), so its modal instead
 gets a status-driven action button: **"Start"** (0 steps done, marks the first step complete),
