@@ -70,6 +70,7 @@ export function generateRoadmap(state) {
       .map((step, stepIndex) => {
         const templateDate = anchorDate({ ...step.date, yearOffset: stageIndex }, planStartDate);
         const realDate = dateOverrides[step.id] ? parseDateInputValue(dateOverrides[step.id]) : templateDate;
+        const isStageLabelCarrier = stepIndex === 0 && stageNames.length > 1;
         return {
           id: step.id,
           title: typeof step.title === 'function' ? step.title(ctx) : step.title,
@@ -80,7 +81,13 @@ export function generateRoadmap(state) {
           due: formatDate(realDate),
           desc: typeof step.desc === 'function' ? step.desc(ctx) : step.desc,
           resources: typeof step.resources === 'function' ? step.resources(ctx) : step.resources,
-          stageLabel: stepIndex === 0 && stageNames.length > 1 ? stage.label : undefined,
+          stageLabel: isStageLabelCarrier ? stage.label : undefined,
+          // The stage's own real transition date (start of that school year — Aug 15, the same
+          // implied-academic-year epoch every template date is anchored to, shifted by this
+          // stage's yearOffset) — deliberately NOT this step's own `realDate` above, which is
+          // just whichever task happens to be first in the stage and can land on any date.
+          // roadmapLayout.js positions the divider from this date alone, independent of `date`.
+          stageLabelDate: isStageLabelCarrier ? anchorDate({ month: 8, day: 15, yearOffset: stageIndex }, planStartDate) : undefined,
           steps: null,
         };
       });
