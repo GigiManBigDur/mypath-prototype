@@ -380,17 +380,10 @@ real days apart could still get floored again — purely because the earlier dri
 real days all rendered identically, and even a 5-day gap only barely cleared the floor, before
 this fix). Comparing true day-gaps instead makes each item's floor decision independent of
 whatever happened earlier in the sequence. `MIN_SPINE_GAP` itself is derived as
-`PIXELS_PER_DAY * 1.9` rather than a bare literal, specifically to stay strictly between the
+`PIXELS_PER_DAY * 1.5` rather than a bare literal, specifically to stay strictly between the
 1-day and 2-day proportional values (1× < floor < 2×) — if it ever crept to ≥ 2×, a 2-day gap
 could render smaller than or equal to the 0/1-day floor, which would look like a proportionality
-bug even though the "only floor at ≤1 day" rule was technically still being followed. It's kept
-close to the 2× ceiling rather than the middle of that range (an earlier pass tried 1.5×) because
-every non-required ring — opportunity anchors AND custom tasks alike, both r=16 → 32px diameter —
-needs a genuinely visible gap between two 0/1-day-apart nodes, not just a numerically-nonzero one;
-1.5× (30px) sat barely inside the ring's own diameter, reading as touching/overlapping at typical
-zoom. This was never a per-node-type discrepancy — opportunities and custom tasks were already
-using this exact same formula and rendering the identical gap (confirmed by direct comparison) —
-the floor value itself was just too tight to look right for any node type at that spacing.
+bug even though the "only floor at ≤1 day" rule was technically still being followed.
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
