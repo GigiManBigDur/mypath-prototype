@@ -27,7 +27,21 @@ const MIN_BRANCH_GAP = 46;
 // "connect step to previous step" and "connect every step straight back to the anchor" render as
 // the same single straight ray. Alternating slopes give each segment its own direction, so the
 // chain actually bends at every node instead of looking like one long spoke.
+// LEFT AT ITS ORIGINAL VALUES ON PURPOSE — do not bump this up to widen branches. `rel` (used for
+// both the collision-avoidance nudge loop AND `y`) is derived independently of slope, but the
+// nudge loop's OUTCOME (how many times it fires) is not: widening x here changes which label
+// boxes collide, which can change how many times a step gets nudged, which changes its final
+// `rel` and therefore its `y` — verified empirically (a dense FBLA/DECA test plan) to shift `y`
+// for a real subset of steps. BRANCH_SPACING_MULTIPLIER below widens branches instead, applied
+// only to each step's already-finalized `x` after every collision decision is locked in, so the
+// nudge loop keeps making the exact same decisions (and therefore the exact same `y`) it always
+// has — see the proof in layoutBranch's own comment.
 const BRANCH_SLOPES = [0.65, 0.2];
+// Uniformly stretches every branch's x further from the spine, applied only after layoutBranch's
+// nudge loop has already finalized rel/y using the untouched BRANCH_SLOPES above — see the proof
+// there for why this can only ever increase separation between labels, never introduce a new
+// overlap. Doubling gives noticeably more horizontal breathing room on both sides.
+const BRANCH_SPACING_MULTIPLIER = 2;
 
 // Rough label-block geometry, used only to decide "would these two labels visually collide" —
 // doesn't need to be pixel-perfect, just a safe overestimate (IBM Plex Sans at 13px averages
@@ -73,6 +87,26 @@ function intersects(a, b) {
 // `placedLabels` accumulates every label bbox placed so far (across every item, not just this
 // branch) so each step can route around anything already on the canvas — including labels from
 // other chains — instead of only avoiding itself.
+//
+// Every collision decision below (rel/y, the nudge loop, what gets pushed to placedLabels) runs
+// entirely in this "narrow" coordinate system, using the original BRANCH_SLOPES — none of that
+// changed for the wider-spacing tweak. Only the RETURNED x is widened, by a flat
+// BRANCH_SPACING_MULTIPLIER applied once at the very end. This is safe rather than cosmetic
+// hand-waving: every already-validated non-overlap in this function falls into one of three
+// cases, and multiplying every branch step's x by the same K>1 (y, spine positions at x=0, and
+// label widths/edgeGap all held fixed) can only ever widen that gap, never close it —
+//   1. Same-side boxes not overlapping because one is fully left of the other (x1+width1 <= x2):
+//      scaling both by K preserves x1*K+width1 <= x2*K whenever x2 > x1 >= 0 and K > 1, since the
+//      required gap (width1) doesn't grow but the actual gap (x2-x1) does.
+//   2. Opposite-side boxes: one side's x values are ~positive, the other's ~negative, so they're
+//      already separated by construction — scaling in place (each side keeps its own sign)
+//      only pushes them further apart.
+//   3. A branch box vs. a same-side spine label (fixed at x=0, never scaled): moving the branch
+//      step further from x=0 only increases its distance from the spine label.
+// In short: scaling here can't introduce a new overlap between anything that didn't already
+// overlap before scaling, so the "no label overlaps" invariant this file already guaranteed keeps
+// holding — and because rel/y are computed before this multiply ever applies, every node's
+// vertical position is provably untouched by it.
 function layoutBranch(steps, anchorY, side, placedLabels) {
   const base = steps[0].date;
   let prevRel = 0;
@@ -97,7 +131,7 @@ function layoutBranch(steps, anchorY, side, placedLabels) {
     placedLabels.push(bbox);
     prevRel = rel;
     prevX = x;
-    return { ...step, x, y };
+    return { ...step, x: x * BRANCH_SPACING_MULTIPLIER, y };
   });
 }
 

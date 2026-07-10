@@ -373,7 +373,23 @@ drawing every step straight back to the anchor (a fan/starburst), even though th
 already connecting them in sequence; the visual bug is geometric, not in which points get
 connected. Alternating the slope per segment breaks that colinearity so the chain actually bends
 at each node — **don't collapse `BRANCH_SLOPES` back down to one constant, or the fan comes
-back even though the connecting code looks correct.** Each branch is still computed in true
+back even though the connecting code looks correct.** `BRANCH_SLOPES` itself is intentionally
+left at its original values, though — **don't bump it up to widen branches either.** `rel` (used
+for both the collision-avoidance nudge loop below and `y`) doesn't depend on slope directly, but
+the nudge loop's *outcome* — how many times a given step gets nudged — does, since nudging is
+triggered by whether the step's label box (computed from `x`, which does depend on slope)
+collides with anything already placed. Widening `BRANCH_SLOPES` changes which boxes collide,
+which can change a step's final `rel`, which changes its `y` — confirmed empirically once (a
+dense FBLA/DECA test plan) to shift several nodes' vertical positions when this was tried.
+Horizontal branch spacing is instead controlled by **`BRANCH_SPACING_MULTIPLIER`**, applied to
+each step's `x` only *after* `layoutBranch`'s nudge loop has already locked in `rel`/`y` using the
+untouched `BRANCH_SLOPES` — so every collision decision (and therefore every `y`) is byte-for-byte
+identical to what it would be without the multiplier. This is provably safe, not just
+cosmetically safe: with `y`, spine positions (fixed at `x=0`), and label widths/edge-gaps all held
+fixed, uniformly scaling every branch step's `x` by the same `K > 1` can only widen an
+already-validated gap between two boxes, never close one — see the three-case proof in
+`layoutBranch`'s own comment (same-side, opposite-side, vs. a same-side spine label) if you need
+to touch either constant. Each branch is still computed in true
 isolation from every *other* branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal),
 which is what actually fixes the old collapsed-chip overlap bug (multiple opportunities' prep
 steps used to compete for the same lateral space). But branches still have to share the canvas with the
