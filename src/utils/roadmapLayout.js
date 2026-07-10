@@ -20,7 +20,14 @@ const LABEL_BUFFER = 300; // horizontal room for node/branch label text extendin
 // anchored at today, see fitView) can convert a day-span into the same pixel units this file
 // positions everything in, instead of hardcoding a second copy that could drift out of sync.
 export const PIXELS_PER_DAY = 20;
-const MIN_SPINE_GAP = 90;
+// The floor must apply ONLY when two spine items are 0 or 1 real day apart — anything 2+ days
+// apart uses pure `PIXELS_PER_DAY * daysBetween` math with zero flooring (see the withPosition
+// loop below). Deriving this from PIXELS_PER_DAY rather than a bare literal keeps it pinned
+// strictly between the 1-day and 2-day proportional values (1x < MIN_SPINE_GAP < 2x) regardless
+// of future PIXELS_PER_DAY changes — if it ever crept to >= 2x, a 2-day gap could render smaller
+// than or equal to the 0/1-day floor, which would look like a proportionality bug even though the
+// math is "correct" by the letter of the rule.
+const MIN_SPINE_GAP = PIXELS_PER_DAY * 1.5;
 const MIN_BRANCH_GAP = 46;
 // Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
 // constant slope for a whole branch makes every point in it exactly colinear with the anchor, so
@@ -148,16 +155,27 @@ export function layoutRoadmap({ today, spineItems }) {
   // always dead-center, so without alternating, every spine label would permanently claim the
   // same side, guaranteeing a collision with any branch that happens to peel toward it).
   //
+  // The floor decision compares TRUE day-gap (`t - prevT`, both real `daysFromToday` values) to
+  // the previous item's real date, NOT the previous item's rendered `prevY` — comparing against
+  // `prevY` was the actual bug: if an earlier item had already been floored (pushed further from
+  // its true position), that drift carried into `prevY`, so a LATER pair of items that were
+  // genuinely several real days apart could still get floored again, simply because the earlier
+  // drift hadn't been "paid off" yet. Using the true day-gap for the decision means only a pair
+  // that is ACTUALLY 0 or 1 real days apart ever floors — every 2+ day gap is pure
+  // `PIXELS_PER_DAY * t`, independent of whatever happened earlier in the sequence.
+  //
   // All spine labels get placed into `placedLabels` up front, in this same pass, before any
   // branch is laid out — a branch needs to know about EVERY spine label (including ones later in
   // time than its own anchor) to route around them, not just the ones already processed.
   let prevY = 0;
+  let prevT = 0;
   let sideToggle = 0;
   const placedLabels = [];
   const withPosition = withT.map(({ item, t }) => {
     let y = -t * PIXELS_PER_DAY;
-    if (prevY - y < MIN_SPINE_GAP) y = prevY - MIN_SPINE_GAP;
+    if (t - prevT <= 1) y = prevY - MIN_SPINE_GAP;
     prevY = y;
+    prevT = t;
 
     const labelSide = sideToggle % 2 === 0 ? 1 : -1;
     sideToggle += 1;
