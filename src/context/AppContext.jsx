@@ -28,6 +28,10 @@ const DEFAULT_STATE = {
   // they're shown/dismissed as one onboarding moment. Persisted (not just session-scoped) so a
   // dismissal survives a reload; "Start over" resets it like everything else, which is fine —
   // that's a fresh run of the app.
+  planYearIndex: null, // null = viewing Map 1 (the Year Overview); a stage index (0 = the
+  // current year, matching STAGE_PLAN's ordering) = viewing Map 2 (Roadmap.jsx) scoped to that
+  // one year. Persisted like every other navigation field so a returning user resumes on
+  // whichever year they were looking at, not bounced back to the overview.
 };
 
 function loadInitialState() {

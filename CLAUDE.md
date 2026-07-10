@@ -649,6 +649,43 @@ element either) — a redundant `@media (prefers-reduced-motion: reduce)` CSS bl
 out the relevant `transition`/`animation` properties directly, so the page is correct even if
 JS is slow to hydrate.
 
+**The Academic Plan is two sequential sub-views, Map 1 (Year Overview) then Map 2 (Per-Year
+Detail), not one screen** — `AcademicPlanScreen.jsx` routes between them purely on
+`state.planYearIndex` (`null` = Map 1, a stage index = Map 2 scoped to that year), added to
+`DEFAULT_STATE`/persisted like every other navigation field so a returning user resumes on
+whichever view they left. This split exists because one canvas rendering everything from 1-day
+task gaps up to a 4-year span at once was the root cause behind the recurring spacing bugs the
+old single-canvas roadmap kept hitting.
+
+- **Map 1** (`src/components/YearOverview.jsx`, data from `src/utils/yearOverview.js`'s
+  `getYearOverview(state)`) is a small, lightweight screen showing one node per year the plan
+  spans (`STAGE_PLAN[level][schoolYear]`, the same stage-resolution data `generateRoadmap()`
+  already uses, so the two views can never disagree on year count/names), connected by a
+  winding SVG trail — the same stroke-dasharray draw-in + staggered marker pop-in technique as
+  `WelcomeScreen`'s hero, scaled down to discrete points instead of one continuous curve.
+  `getYearOverview` does no date-of-task math at all, only which years exist and which is
+  current; **stage index 0 is always "the year containing today" by construction** (every
+  stage already gets `yearOffset: stageIndex` elsewhere, and `yearOffset: 0` is defined as
+  "starts now"), so the current year needs no date comparison to find — it's always the first
+  entry, rendered gold-filled with a `Compass` icon, a pulsing ring, and a "You are here" tag,
+  matching the real roadmap's own "You are here" marker. Each marker also carries
+  `yearStartDate` (`anchorDate({month: 8, day: 15, yearOffset: stageIndex}, ...)`) for Map 2's
+  filtering to consume, even though Map 1 itself doesn't need it beyond ordering. Clicking a
+  marker sets `planYearIndex`; each marker group has an invisible, generously-sized hit-target
+  circle (`r=34`, same pattern as `Roadmap.jsx`'s nodes) since the visible ring+offset-label
+  combo has an asymmetric bounding box that would otherwise let clicks between them fall through
+  to the bare canvas. A 1-year plan renders exactly one marker and no path (`n < 2`). Map 1 gets
+  the normal `.polish` shell and the shared page-transition, unlike Map 2 (below).
+- **Map 2** (`Roadmap.jsx`, unchanged component) is reached by clicking a year in Map 1 and its
+  `onBack` now returns to Map 1, not out of the Plan screen entirely (that exit — to
+  `projectBuilder` — moved to Map 1's own Back button). **As of this writing Map 2 still renders
+  the full unfiltered multi-year roadmap regardless of which year was clicked** — per-year
+  filtering (scoping `spineItems` to tasks whose real date falls within the selected year's
+  `[yearStartDate, nextYearStartDate)` range, suppressing "You are here" outside the current
+  year, adding prev/next-year navigation) is a deliberate, separate follow-up pass, not yet
+  built. Only Map 2 gets the full-bleed `.app-shell-plan` layout (`App.jsx`'s `isPlanDetail`
+  check, `screenKey === 'plan' && state.planYearIndex !== null`); Map 1 does not.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

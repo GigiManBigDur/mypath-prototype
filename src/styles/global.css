@@ -940,6 +940,86 @@ button.card.passed:hover {
   .welcome-here-pulse { animation: none; opacity: 0; }
 }
 
+/* Year Overview (Map 1) — the same winding-trail visual language as the Welcome screen's hero,
+   at a much smaller scale (a handful of discrete year markers, not a continuous date-based
+   curve). Positioning itself lives in YearOverview.jsx (plain arithmetic, no date math at all —
+   that's the whole point of this screen); this just draws/animates it. */
+.year-overview-wrap {
+  width: 100%;
+  max-width: 280px;
+  margin: 32px auto 0;
+}
+.year-overview-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.year-overview-path {
+  fill: none;
+  stroke: var(--teal);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.8;
+  stroke-dasharray: var(--path-length, 1000);
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.year-overview-path.enter {
+  stroke-dashoffset: var(--path-length, 1000);
+  transition: none;
+}
+.year-overview-marker {
+  cursor: pointer;
+  opacity: 1;
+  transform: translate(var(--mx), var(--my)) scale(1);
+  transition: opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.year-overview-marker.enter {
+  opacity: 0;
+  transform: translate(var(--mx), var(--my)) scale(0.4);
+}
+.year-overview-marker:hover .year-overview-ring {
+  filter: drop-shadow(0 0 4px rgba(46, 110, 94, 0.45));
+}
+.year-overview-marker:active {
+  transform: translate(var(--mx), var(--my)) scale(0.94);
+}
+.year-overview-ring {
+  fill: var(--card);
+  stroke: var(--teal);
+  stroke-width: 2.5;
+  transition: stroke .15s ease;
+}
+.year-overview-marker.current .year-overview-ring {
+  fill: var(--gold);
+  stroke: var(--gold);
+}
+.year-overview-pulse {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  opacity: 0.55;
+  animation: welcome-pulse 2.4s ease-out infinite;
+}
+.year-overview-label {
+  font-family: 'Fraunces', serif;
+  font-size: 14px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+.year-overview-current-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  fill: var(--gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .year-overview-path, .year-overview-marker { transition: none; }
+  .year-overview-pulse { animation: none; opacity: 0; }
+}
+
 /* ==========================================================================
    Global interaction polish — Task: consistent animation/visual pass across
    every screen EXCEPT the Academic Plan. Everything below is scoped under

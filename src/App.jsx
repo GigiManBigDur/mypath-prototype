@@ -19,28 +19,34 @@ const SCREENS = {
 };
 
 // Screens that get the shared fade+slide page transition (Task 2 of the animation/polish pass).
-// Welcome is excluded since it has its own bespoke entrance sequence; Plan is excluded because
-// the whole Academic Plan screen is out of scope for that pass (see CLAUDE.md).
+// Welcome is excluded since it has its own bespoke entrance sequence. `plan` isn't listed here
+// directly — Map 2 (the full per-year roadmap) is still excluded, same as the whole Academic
+// Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
+// `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set(['survey', 'admissions', 'discovery', 'opportunities', 'projectBuilder']);
 
 function AppShell() {
   const { state } = useApp();
   const screenKey = SCREENS[state.screen] ? state.screen : 'survey';
   const Screen = SCREENS[screenKey];
-  const isPlan = screenKey === 'plan';
+  // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
+  // Overview, `planYearIndex === null`) is a normal, lightweight screen; Map 2 (the full
+  // per-year task roadmap) is the full-bleed/full-viewport one (see .app-shell-plan in
+  // global.css). Only Map 2 gets the full-bleed treatment — Map 1 gets the same centered/
+  // padded/scrolling shell (and .polish button/card treatment) every other screen gets.
+  const isPlanDetail = screenKey === 'plan' && state.planYearIndex !== null;
+  const needsTransition = TRANSITION_SCREENS.has(screenKey) || (screenKey === 'plan' && !isPlanDetail);
 
-  // The Plan screen is full-bleed/full-viewport (see .app-shell-plan in global.css) — every
-  // other screen keeps the normal centered/padded/scrolling .app-shell untouched.
   return (
-    <div className={`app-shell${isPlan ? ' app-shell-plan' : ' polish'}`}>
+    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : ' polish'}`}>
       {state.screen !== 'welcome' && (
         <div className="brand">
           <Compass />
           MyPath — prototype
         </div>
       )}
-      {TRANSITION_SCREENS.has(screenKey) ? (
-        <div className="screen-transition" key={screenKey}>
+      {needsTransition ? (
+        <div className="screen-transition" key={`${screenKey}:${isPlanDetail ? 'detail' : 'overview'}`}>
           <Screen />
         </div>
       ) : (
