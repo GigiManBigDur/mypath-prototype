@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
-import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
 import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -45,11 +44,23 @@ const PROJECT_CONFIG = { label: 'Project', color: '#6E7F87', Icon: Rocket };
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
 const VIEWPORT_HEIGHT = 620;
-// Default/reset view caps how much of the timeline shows at once to at most a 2-year window
-// anchored at "today", extending toward the future — auto-fitting an entire multi-year plan
-// (e.g. a 9th-grade 4-year plan) zoomed out so far everything read as tiny and cramped. A plan
-// that already spans 2 years or less is unaffected (see fitView).
-const DEFAULT_WINDOW_DAYS = 365 * 2;
+// Default/reset view caps how much of the timeline shows at once, anchored at "today" and
+// extending toward the future — auto-fitting an entire multi-year plan (e.g. a 9th-grade 4-year
+// plan) zoomed out so far everything read as tiny and cramped. A plan that already spans this
+// window or less is unaffected (see fitView).
+//
+// Expressed as a fixed PIXEL height, not a day-count, on purpose: the pixel height is what
+// actually determines the resulting default zoom (`zoom = vh / windowHeight`), so it has to stay
+// fixed regardless of PIXELS_PER_DAY. This used to be `365 * 2 * PIXELS_PER_DAY` (a ~2-year
+// window) — when PIXELS_PER_DAY went from 3 to 5 for date-proportionality, that formula also
+// grew the default window's pixel height by the same ~1.67x, forcing a noticeably smaller default
+// zoom to compensate and making near-term dense clusters (e.g. a multi-step opportunity chain
+// right after "today") look artificially cramped, even though their underlying positions were
+// now MORE accurate, not less. 2190 is the exact value the old formula produced at
+// PIXELS_PER_DAY=3 (730 days * 3) — a scale already confirmed to look right — kept as the fixed
+// target now instead of being reconstituted from a day-count that no longer matches the day-to-
+// pixel scale it was tuned against.
+const DEFAULT_WINDOW_PIXELS = 2190;
 
 // --- Visual-polish-only entrance sequencing (from an earlier animation pass) ------------------
 // This never changes what x/y a node sits at (layoutRoadmap in roadmapLayout.js is untouched) —
@@ -215,11 +226,10 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     // `today.y` is (proportional to) the whole plan's time-span in pixels — today sits a fixed
     // BOTTOM_MARGIN above the canvas's bottom edge, and every other node's y only ever moves
     // further from today (upward) the further in the future it is. Capping how far above today.y
-    // the default view starts effectively caps the default view to a window of real time, not a
-    // pixel count — `effectiveTop` is 0 (i.e. this reduces to fitting the whole canvas, same as
-    // before) whenever the plan's actual span is already <= DEFAULT_WINDOW_DAYS.
-    const windowPixels = DEFAULT_WINDOW_DAYS * PIXELS_PER_DAY;
-    const effectiveTop = Math.max(0, roadmap.today.y - windowPixels);
+    // the default view starts effectively caps the default view to a fixed pixel window —
+    // `effectiveTop` is 0 (i.e. this reduces to fitting the whole canvas, same as before)
+    // whenever the plan's actual span is already <= DEFAULT_WINDOW_PIXELS.
+    const effectiveTop = Math.max(0, roadmap.today.y - DEFAULT_WINDOW_PIXELS);
     const windowHeight = roadmap.canvasHeight - effectiveTop;
 
     const zoom = clamp(Math.min(vw / roadmap.canvasWidth, vh / windowHeight), MIN_ZOOM, 1);
