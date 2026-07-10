@@ -45,11 +45,19 @@ const PROJECT_CONFIG = { label: 'Project', color: '#6E7F87', Icon: Rocket };
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
 const VIEWPORT_HEIGHT = 620;
-// Default/reset view caps how much of the timeline shows at once to at most a 2-year window
-// anchored at "today", extending toward the future — auto-fitting an entire multi-year plan
-// (e.g. a 9th-grade 4-year plan) zoomed out so far everything read as tiny and cramped. A plan
-// that already spans 2 years or less is unaffected (see fitView).
-const DEFAULT_WINDOW_DAYS = 365 * 2;
+// Default/reset view caps how much of the timeline shows at once to at most a ~45-day window
+// anchored at "today" (or, for a non-current year, that year's own virtual layout epoch — see
+// roadmapGenerator.js's `layoutToday` — which sits at the same "bottom of canvas" position `today`
+// always does), extending toward the future. This used to be a ~2-year cap, back when Map 2 could
+// still render a whole multi-year plan at once; now that Map 2 is always scoped to a single year
+// (see the year-filtering fix) AND PIXELS_PER_DAY was raised significantly (see roadmapLayout.js),
+// auto-fitting an entire year by default zoomed out so far everything read as tiny again — same
+// category of bug, just resurfacing at the new, longer scale. 45 days lands the default zoom
+// close to 1 (verified empirically against a DECA/Bank of America test plan: ~0.88), i.e.
+// genuinely readable, while the existing zoom-out controls still reach the full year. A year
+// whose actual content already spans 45 days or less is unaffected (see fitView) — same
+// reduces-to-whole-canvas-fit behavior the old 2-year cap always had.
+const DEFAULT_WINDOW_DAYS = 45;
 
 // --- Visual-polish-only entrance sequencing (from an earlier animation pass) ------------------
 // This never changes what x/y a node sits at (layoutRoadmap in roadmapLayout.js is untouched) —

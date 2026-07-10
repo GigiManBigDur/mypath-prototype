@@ -489,17 +489,25 @@ viewport DOM node). `fitView()` auto-fits on load/whenever `canvasWidth`/`canvas
 (i.e. when the plan's content actually changes, not on every render) and also runs when the
 "Reset view" zoom-control button is clicked (`Maximize2` icon) — same function, so both share the
 behavior described next. **The default/reset fit caps how much of the timeline shows to at most a
-~2-year window anchored at "today," not the whole plan** — auto-fitting an entire multi-year plan
-(e.g. a 9th-grade 4-year plan) on first load zoomed everything out so far it read as tiny and
-cramped. `roadmapLayout.js` positions today a fixed `BOTTOM_MARGIN` above the canvas's bottom
-edge and everything else strictly further from today the further in the future it is, so
-`roadmap.today.y` (exported alongside `PIXELS_PER_DAY` from `roadmapLayout.js`) is itself
-proportional to the plan's total time-span in pixels — `fitView()` computes `effectiveTop =
-max(0, today.y - 2 years in px)` and fits the region from `effectiveTop` down to the canvas
-bottom, instead of the whole canvas. **This reduces to the exact old full-plan-fit behavior
-whenever the plan's real span is already ≤ 2 years** (`effectiveTop` comes out to 0, no branch
-needed to special-case it) — a 12th-grade 1-year plan is unaffected. Manual zoom (wheel/pinch/
-buttons) and pan are completely untouched by this — a student who wants the full multi-year span
+`DEFAULT_WINDOW_DAYS` (currently 45) window anchored at "today," not the whole year** — this cap
+originated as a ~2-year window back when Map 2 could still render a whole multi-year plan at once;
+now that Map 2 is always scoped to a single year (see the "Map 1/Map 2" section above) AND
+`PIXELS_PER_DAY` was raised significantly for readability (see roadmapLayout.js), auto-fitting an
+entire year by default zoomed everything out so far it read as tiny again — same category of bug,
+just resurfacing at the new, longer scale, so the window was shrunk to match (45 days lands the
+default zoom close to 1, i.e. genuinely readable — verified empirically against a DECA/Bank of
+America test plan). For a non-current year, "today" here is that year's own virtual layout epoch
+(`roadmapGenerator.js`'s `layoutToday`), which sits at the same "bottom of canvas" position real
+today always does, so this same mechanism anchors the default view sensibly for a future/past year
+too, not just the current one. `roadmapLayout.js` positions today a fixed `BOTTOM_MARGIN` above the
+canvas's bottom edge and everything else strictly further from today the further in the future it
+is, so `roadmap.today.y` (exported alongside `PIXELS_PER_DAY` from `roadmapLayout.js`) is itself
+proportional to the visible year's time-span in pixels — `fitView()` computes `effectiveTop =
+max(0, today.y - windowDays in px)` and fits the region from `effectiveTop` down to the canvas
+bottom, instead of the whole canvas. **This reduces to the exact old full-content-fit behavior
+whenever the year's real content span is already ≤ the window** (`effectiveTop` comes out to 0, no
+branch needed to special-case it) — a sparse year is unaffected. Manual zoom (wheel/pinch/
+buttons) and pan are completely untouched by this — a student who wants the full year's span
 can still zoom out to it exactly as before; only what's shown by default changed. **The `.zoom-controls`
 buttons are a DOM sibling of `.roadmap-viewport`, not a child of it** — nesting them inside the
 div that owns the drag `onPointerDown` handler caused `setPointerCapture` to swallow the
@@ -882,8 +890,8 @@ repositioning.
   The fix is a single constant subtracted from the *already-computed* `panY` — `BOTTOM_PANEL_
   CLEARANCE_EXPANDED`/`_COLLAPSED` (matching current `panelCollapsed` state, both hand-picked to
   clear the panel's real rendered height) — applied *after* `zoom`/`effectiveTop`/`windowHeight`
-  are computed exactly as before. It does not change the zoom level, `effectiveTop`'s 2-year-
-  window cap, or `panX` — only shifts the vertical framing up enough to guarantee "today" isn't
+  are computed exactly as before. It does not change the zoom level, `effectiveTop`'s window
+  cap, or `panX` — only shifts the vertical framing up enough to guarantee "today" isn't
   covered by default. `handleResetView`/the crosshair button re-run this (picking up the current
   collapse state); toggling the panel itself does not trigger a re-fit (no `fitView` call on
   `panelCollapsed` change), so the clearance is deliberately generous enough to be correct in
