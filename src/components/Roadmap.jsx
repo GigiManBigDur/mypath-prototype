@@ -526,7 +526,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               return (
                 <g key={n.id}>
                   {n.stageLabel && (
-                    <text className="stage-label" x={n.x} y={n.stageLabelY} textAnchor="middle">— {n.stageLabel} —</text>
+                    <text className="stage-label" x={n.x} y={n.y + 46} textAnchor="middle">— {n.stageLabel} —</text>
                   )}
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
                     {/* Invisible hit target, sized to match the click-pulse animation's peak

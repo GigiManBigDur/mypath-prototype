@@ -297,15 +297,7 @@ separate system of quarterly Fall/Winter/Spring GPA checkpoints that lived in
 the same granularity — that quarterly system is gone entirely. The first step of each stage
 (when more than one stage is in play) carries a `stageLabel` that `Roadmap.jsx` renders as a
 small "— Sophomore Year —" divider; a 12th-grader/4th-year/non-transfer-2nd-3rd-year student
-still gets exactly one stage, so `stageLabel` is never set. **The divider's position comes from
-its own `stageLabelDate` field (`anchorDate({ month: 8, day: 15, yearOffset: stageIndex },
-planStartDate)` — Aug 15, the same implied-academic-year epoch every template date is anchored
-to, shifted by that stage's own yearOffset), run through `roadmapLayout.js`'s own
-`-daysFromToday(date) * PIXELS_PER_DAY` formula independently — NOT the position of whichever
-task happens to carry the `stageLabel` flag.** That task's own `date` can land anywhere within
-the stage and used to double as the divider's position (offset by a fixed +46px), which meant the
-divider drifted away from the actual year boundary depending on what the stage's first template
-date happened to be. Transfer students 2+ years out keep
+still gets exactly one stage, so `stageLabel` is never set. Transfer students 2+ years out keep
 the single `application` stage as-is (transfer timelines vary too much to model precisely) but
 get a `caveatNote` string (`TRANSFER_CAVEAT`) surfaced as a banner near the top of
 `Roadmap.jsx` instead of a fabricated multi-year transfer plan.
@@ -367,30 +359,6 @@ branches to route around, this one does, so position now has to track real elaps
 **If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
 (`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
 always derived from actual content afterward, never assumed.**
-
-**Spine node spacing is exact linear proportionality — `y = -daysFromToday(item.date) *
-PIXELS_PER_DAY` — with no index/order-based fallback anywhere.** `PIXELS_PER_DAY = 5` and
-`MIN_SPINE_GAP = 25` (a ~5-day floor) are deliberately small relative to this app's real trunk
-data (core milestones are naturally 2-4 weeks apart) specifically so the floor essentially never
-triggers — it exists purely to keep same-day/near-same-day items from visually overlapping, not
-to impose any kind of rhythm. **`MIN_SPINE_GAP` was previously 90 (a 30-day floor), and that value
-was a real, confirmed bug**, not just a stylistic choice: the forward-only min-gap pass compares
-each item's raw position against the *previous item's actual rendered y*, which is unavoidable
-(it's the only way to guarantee no visual overlap) — but it means a clamp on one item can nudge
-the position the *next* item's own clamp-check is measured against, and with a 30-day floor this
-app's genuinely-common 2-4-week gaps chained into long compounding runs. Confirmed on a real
-senior-year stretch: after ~6 chained clamps, a milestone with a comfortable true 49-day/147px
-gap from its predecessor still got compressed to the floor, purely from inherited drift — its
-position was no longer calculated from its own date at all. Dropping the floor to 25 (verified
-against this exact scenario) means no real trunk gap in this app falls anywhere near it anymore,
-so the compounding pattern doesn't arise in practice — some compounding across a run of
-genuinely sub-5-day real gaps remains mathematically possible (a hard minimum-gap floor and
-perfect proportionality can't both hold for an arbitrarily dense cluster), that's an inherent,
-accepted trade-off of *any* minimum-gap system, not a bug, and 25 was chosen specifically so it
-no longer bites this app's actual, realistic milestone spacing. Verified empirically: two custom
-tasks 5 real days apart and two others 19 real days apart render at a 3.800 vertical-gap ratio
-(exactly `19/5`), and a 4-year (9th-grade) plan's canvas comes out ~4.9× taller than a 1-year
-(senior) plan's, both confirming true proportionality rather than an approximation.
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
