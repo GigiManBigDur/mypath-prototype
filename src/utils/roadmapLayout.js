@@ -26,8 +26,16 @@ export const PIXELS_PER_DAY = 20;
 // strictly between the 1-day and 2-day proportional values (1x < MIN_SPINE_GAP < 2x) regardless
 // of future PIXELS_PER_DAY changes — if it ever crept to >= 2x, a 2-day gap could render smaller
 // than or equal to the 0/1-day floor, which would look like a proportionality bug even though the
-// math is "correct" by the letter of the rule.
-const MIN_SPINE_GAP = PIXELS_PER_DAY * 1.5;
+// math is "correct" by the letter of the rule. Kept close to the 2x ceiling (1.9x, not the
+// original 1.5x) rather than the middle of the range — every non-required ring (opportunity AND
+// custom alike, both r=16 -> 32px diameter) needs a REAL visual gap between two 0/1-day-apart
+// nodes, not just a numerically-nonzero one; 1.5x (30px) was barely inside the ring's own
+// diameter, reading as touching/overlapping at typical zoom, especially for an opportunity anchor
+// whose own branch lines nearby make two close rings even harder to visually separate. This is
+// NOT a per-node-type difference — opportunities and custom tasks were already using this exact
+// same formula and rendering the identical gap; the floor itself was just too tight to look right
+// for ANY node type at that spacing.
+const MIN_SPINE_GAP = PIXELS_PER_DAY * 1.9;
 const MIN_BRANCH_GAP = 46;
 // Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
 // constant slope for a whole branch makes every point in it exactly colinear with the anchor, so
