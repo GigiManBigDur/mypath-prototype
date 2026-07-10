@@ -51,6 +51,19 @@ export function formatDate(date) {
   return `${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`;
 }
 
+// Same month/day as formatDate, plus the real year — used only where a date is actually
+// displayed to the student (Map 2's spine/branch labels, detail modal). Deliberately a separate
+// function rather than changing formatDate itself: roadmapLayout.js's label-width/collision math
+// (blockWidth) is fed the plain formatDate() string stored in a node's `due` field, and growing
+// that string would grow the estimated label box, which can shift the branch-step nudge loop's
+// collision decisions and therefore a node's y position (see roadmapLayout.js's own BRANCH_SLOPES
+// comment for the same class of issue) — exactly what "positioning must stay unchanged" rules out.
+// Callers that need the year re-derive it fresh from the node's real `date` object at render time
+// instead of touching `due`.
+export function formatDateWithYear(date) {
+  return `${formatDate(date)}, ${date.getFullYear()}`;
+}
+
 // Parses a plain 'YYYY-MM-DD' string (e.g. from <input type="date">) as LOCAL midnight — plain
 // `new Date('YYYY-MM-DD')` parses date-only ISO strings as UTC midnight, which silently shows as
 // the previous day in any timezone behind UTC. Used whenever a user-edited due date needs to

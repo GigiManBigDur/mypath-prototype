@@ -6,6 +6,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
+import { formatDateWithYear } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -522,7 +523,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     </g>
                     <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
                     <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
-                      {s.category === 'project' ? `${s.projectLabel} · ${s.due}` : s.due}
+                      {s.category === 'project' ? `${s.projectLabel} · ${formatDateWithYear(s.date)}` : formatDateWithYear(s.date)}
                     </text>
                   </g>
                 );
@@ -575,7 +576,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     </g>
                     <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
                     <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
-                      {n.category === 'project' ? `${n.projectLabel} · ${n.due}` : `${cfg.label} · ${n.due}${n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}`}
+                      {n.category === 'project' ? `${n.projectLabel} · ${formatDateWithYear(n.date)}` : `${cfg.label} · ${formatDateWithYear(n.date)}${n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}`}
                     </text>
                   </g>
                 </g>
@@ -595,7 +596,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                   <Compass x="-8" y="-8" size={16} color="#fff" />
                 </g>
                 <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
-                <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>Today · {roadmap.today.due}</text>
+                <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>Today · {formatDateWithYear(roadmap.today.date)}</text>
               </g>
             )}
             </svg>
@@ -728,7 +729,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                 : 'Step · optional'}
             </div>
             <h2 className="modal-title">{modalNode.title}</h2>
-            <div className="modal-due">Due {modalNode.due}</div>
+            <div className="modal-due">Due {formatDateWithYear(modalNode.date)}</div>
             <p className="modal-desc">{modalNode.desc}</p>
 
             {modalNode.resources && modalNode.resources.length > 0 && (
