@@ -358,7 +358,19 @@ is a genuine change from the old trunk, which used fixed per-node spacing; the o
 branches to route around, this one does, so position now has to track real elapsed time.
 **If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
 (`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
-always derived from actual content afterward, never assumed.**
+always derived from actual content afterward, never assumed.** `PIXELS_PER_DAY` is deliberately
+large (20) now that Map 2 only ever renders a single year (≤ ~365 days) instead of a whole
+multi-year plan — at the old value (3), `MIN_SPINE_GAP`'s fixed 90px floor represented a ~30-day
+"same visual gap" threshold that real trunk/opportunity data routinely fell under, flattening
+genuinely-different day-gaps (8, 23, 47 days, etc.) to the identical 90px, plus a forward-only-
+clamp compounding effect where one flattened gap could push the next real gap into the floor too,
+even when it wasn't actually close in time. At 20px/day the same 90px floor is only a ~4.5-day
+threshold, which real data rarely falls under — verified empirically (a DECA/Bank of America test
+plan) that every gap ≥ 8 days now renders at its exact proportional pixel value, no flooring or
+drift. The resulting canvas is tall enough that the default `fitView` fit can legitimately hit
+`MIN_ZOOM` (0.15) for a dense single year and not show 100% of it at once — that's expected and
+fine, not a regression to fix; zoom in/pan (or "Reset view") already handle the rest, per the
+architecture below.
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
