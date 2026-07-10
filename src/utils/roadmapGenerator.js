@@ -20,7 +20,12 @@ const LEVEL_LABEL_MULTI_YEAR = {
   transfer: 'transfer',
 };
 
-export function generateRoadmap(state) {
+// Map 2 (the per-year detail view) scopes the plan down to a single year-stage's real dates.
+// `yearWindow` is `{ start, endExclusive, isCurrentYear }` (endExclusive `null` = unbounded, for
+// the plan's last year) — see AcademicPlanScreen.jsx, which derives it from yearOverview.js's
+// `yearStartDate`s. Omitting `yearWindow` entirely (or passing `null`) keeps the old unfiltered
+// whole-plan behavior.
+export function generateRoadmap(state, yearWindow = null) {
   const planStartDate = startOfToday();
   const builtTracks = getBuiltTracks(state.interestTags);
   const opportunityTracks = getOpportunityTracks(state.interestTags);
@@ -100,7 +105,18 @@ export function generateRoadmap(state) {
 
   const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems];
 
-  const { today: laidToday, spine, canvasHeight, canvasWidth } = layoutRoadmap({ today, spineItems });
+  // Scope to the selected year, if any. A non-current year uses that year's own start date as
+  // the layout epoch instead of real "today" — the min-gap/collision math only ever depends on
+  // DIFFERENCES between item dates, so this doesn't change any item's spacing relative to its
+  // neighbors, it just keeps the canvas's own internal "day 0" sane for a year that isn't the one
+  // actually happening right now (real "today" could sit far outside a future year's own span).
+  // The current year's own start date IS real today by construction (see yearOverview.js), so
+  // this is a no-op for that case — every item keeps positioning exactly as it always did.
+  const isCurrentYearView = !yearWindow || yearWindow.isCurrentYear;
+  const scopedItems = yearWindow ? filterItemsToYear(spineItems, yearWindow.start, yearWindow.endExclusive) : spineItems;
+  const layoutToday = isCurrentYearView ? today : { ...today, date: yearWindow.start };
+
+  const { today: laidToday, spine, canvasHeight, canvasWidth } = layoutRoadmap({ today: layoutToday, spineItems: scopedItems });
 
   const levelLabel = stageNames.length > 1 ? LEVEL_LABEL_MULTI_YEAR[level] : LEVEL_LABEL[level];
 
@@ -108,11 +124,66 @@ export function generateRoadmap(state) {
     title: titleFor(selectedCareers),
     subtitle: `A personalized ${levelLabel} plan, built from your profile.`,
     today: laidToday,
+    // Only the year actually containing real "today" should show the "You are here" marker/
+    // connector — Roadmap.jsx gates both on this.
+    showToday: isCurrentYearView,
     spine,
     canvasHeight,
     canvasWidth,
     caveatNote,
   };
+}
+
+// A task belongs to whichever year its own real date falls in — no special-casing, including for
+// Project Builder milestones or multi-step opportunity chains. Most items are single-step
+// (`steps: null`) and either wholly belong to this year or don't. A multi-step chain's own anchor
+// point (`item.date`/`item.title`/etc — for an opportunity this is a distinct summary dated at its
+// first step; for a project, per buildProjectChain above, it literally IS the first step) and
+// each of its `steps` are filtered independently by their own dates, since a chain can, in
+// principle, straddle a year boundary (e.g. an opportunity's last prep weeks landing just before
+// a year-stage rolls over):
+//   - If the anchor's own date survives, the chain keeps its original anchor and just drops
+//     whichever steps fell outside this year (recomputing `isLast` on what's left).
+//   - If the anchor doesn't survive but later steps do, the earliest surviving step is promoted
+//     to the anchor for this year's view — the same "first step doubles as anchor" shape
+//     buildProjectChain already produces, rather than inventing a synthetic wrapper node.
+//   - If nothing survives, the whole item is omitted from this year entirely.
+function filterItemsToYear(items, start, endExclusive) {
+  const inRange = (date) => date >= start && (endExclusive === null || date < endExclusive);
+
+  return items.reduce((acc, item) => {
+    if (!item.steps) {
+      if (inRange(item.date)) acc.push(item);
+      return acc;
+    }
+
+    const survivingSteps = item.steps.filter((s) => inRange(s.date));
+
+    if (inRange(item.date)) {
+      acc.push({
+        ...item,
+        steps: survivingSteps.length
+          ? survivingSteps.map((s, i) => ({ ...s, isLast: i === survivingSteps.length - 1 }))
+          : null,
+      });
+      return acc;
+    }
+
+    if (survivingSteps.length === 0) return acc;
+
+    const [newAnchor, ...rest] = survivingSteps;
+    acc.push({
+      ...item,
+      id: newAnchor.id,
+      title: newAnchor.title,
+      date: newAnchor.date,
+      due: newAnchor.due,
+      desc: newAnchor.desc,
+      resources: newAnchor.resources,
+      steps: rest.length ? rest.map((s, i) => ({ ...s, isLast: i === rest.length - 1 })) : null,
+    });
+    return acc;
+  }, []);
 }
 
 // 1-2 careers get named; 3+ would grow unbounded and wrap awkwardly, so switch to a generic title.

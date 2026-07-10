@@ -676,15 +676,34 @@ old single-canvas roadmap kept hitting.
   combo has an asymmetric bounding box that would otherwise let clicks between them fall through
   to the bare canvas. A 1-year plan renders exactly one marker and no path (`n < 2`). Map 1 gets
   the normal `.polish` shell and the shared page-transition, unlike Map 2 (below).
-- **Map 2** (`Roadmap.jsx`, unchanged component) is reached by clicking a year in Map 1 and its
-  `onBack` now returns to Map 1, not out of the Plan screen entirely (that exit — to
-  `projectBuilder` — moved to Map 1's own Back button). **As of this writing Map 2 still renders
-  the full unfiltered multi-year roadmap regardless of which year was clicked** — per-year
-  filtering (scoping `spineItems` to tasks whose real date falls within the selected year's
-  `[yearStartDate, nextYearStartDate)` range, suppressing "You are here" outside the current
-  year, adding prev/next-year navigation) is a deliberate, separate follow-up pass, not yet
-  built. Only Map 2 gets the full-bleed `.app-shell-plan` layout (`App.jsx`'s `isPlanDetail`
-  check, `screenKey === 'plan' && state.planYearIndex !== null`); Map 1 does not.
+- **Map 2** (`Roadmap.jsx`, reached by clicking a year in Map 1) is scoped to that one year's
+  real dates — `AcademicPlanScreen.jsx` derives a `yearWindow` (`{ start, endExclusive,
+  isCurrentYear }`) from the SAME `yearStartDate`s Map 1 already computed
+  (`getYearOverview`/`years[i].yearStartDate`, next stage's own `yearStartDate` as the exclusive
+  end, `null` for the plan's last year — unbounded), so the two views can never disagree about
+  where one year ends and the next begins. `generateRoadmap(state, yearWindow)`
+  (`roadmapGenerator.js`) does the actual filtering via `filterItemsToYear()`: **a task belongs to
+  whichever year its own real date falls in, no special-casing** (including Project Builder
+  milestones or a multi-step opportunity chain that straddles a year boundary — each step is
+  filtered independently by its own date; if the chain's own anchor point survives, it keeps its
+  original anchor and just drops whichever steps fell outside this year; if only later steps
+  survive, the earliest surviving one is promoted to the anchor for this year's view, the same
+  "first step doubles as anchor" shape `buildProjectChain` already produces for projects — never a
+  synthetic wrapper node). For a year that isn't the one containing real "today" (i.e. not
+  `stageIndex 0`), `generateRoadmap` lays the filtered items out against that year's own start
+  date as the positioning epoch instead of real today (`layoutToday`) — the min-gap/collision math
+  in `roadmapLayout.js` only ever depends on DIFFERENCES between item dates, so this doesn't
+  change any item's spacing relative to its neighbors, it just keeps that year's own canvas "day
+  0" sane instead of anchored to a real "today" that could sit far outside a future year's span.
+  The returned `roadmap.showToday` flag (true only for `stageIndex 0`, since that's the only year
+  guaranteed to actually contain real today — see `yearOverview.js`) gates both the "You are here"
+  marker and its leading spine connector in `Roadmap.jsx`; every other spine-to-spine connector is
+  unaffected. `onBack` from Map 2 returns to Map 1, not out of the Plan screen entirely (that exit
+  — to `projectBuilder` — moved to Map 1's own Back button). Prev/next-year navigation from within
+  Map 2 itself (as opposed to going back to Map 1 and clicking a different year) is still a
+  deliberate, separate follow-up, not yet built. Only Map 2 gets the full-bleed `.app-shell-plan`
+  layout (`App.jsx`'s `isPlanDetail` check, `screenKey === 'plan' && state.planYearIndex !== null`);
+  Map 1 does not.
 
 ## Design tokens
 

@@ -428,16 +428,23 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
             {/* Spine connective line: today up through every spine item, in chronological order.
                 On first load only, each segment draws in via stroke-dashoffset instead of
-                appearing solid immediately — the `d`/coordinates themselves are untouched. */}
-            <path
-              className={entranceEnabled ? 'roadmap-draw-line' : undefined}
-              style={entranceEnabled ? {
-                '--seg-length': segLength(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y),
-                animationDelay: '0ms',
-              } : undefined}
-              d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}
-              stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
-            />
+                appearing solid immediately — the `d`/coordinates themselves are untouched. Only
+                drawn when viewing the year that actually contains real "today" — a future year's
+                filtered view has no real "today" position worth connecting to (its internal
+                `today` node is a virtual per-year layout epoch, not a real point in time — see
+                roadmapGenerator.js's `layoutToday`), so this segment and the marker below are
+                both gated on the same `roadmap.showToday` flag. */}
+            {roadmap.showToday && (
+              <path
+                className={entranceEnabled ? 'roadmap-draw-line' : undefined}
+                style={entranceEnabled ? {
+                  '--seg-length': segLength(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y),
+                  animationDelay: '0ms',
+                } : undefined}
+                d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}
+                stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
+              />
+            )}
             {roadmap.spine.slice(0, -1).map((n, i) => {
               const next = roadmap.spine[i + 1];
               const delay = entranceDelay(i + 1, entranceEnabled);
@@ -567,20 +574,22 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               );
             })}
 
-            <g
-              className="node-badge"
-              onClick={() => setSelected({ ...roadmap.today, isToday: true })}
-              transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
-            >
-              {/* Same fixed, always-present hit target as every other node — see comments above. */}
-              <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
-              <g className="node-pop">
-                <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
-                <Compass x="-8" y="-8" size={16} color="#fff" />
+            {roadmap.showToday && (
+              <g
+                className="node-badge"
+                onClick={() => setSelected({ ...roadmap.today, isToday: true })}
+                transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
+              >
+                {/* Same fixed, always-present hit target as every other node — see comments above. */}
+                <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
+                <g className="node-pop">
+                  <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
+                  <Compass x="-8" y="-8" size={16} color="#fff" />
+                </g>
+                <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
+                <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>Today · {roadmap.today.due}</text>
               </g>
-              <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
-              <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>Today · {roadmap.today.due}</text>
-            </g>
+            )}
             </svg>
           </div>
         </div>
