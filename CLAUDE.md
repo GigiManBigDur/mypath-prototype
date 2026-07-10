@@ -527,28 +527,18 @@ viewport DOM node). `fitView()` auto-fits on load/whenever `canvasWidth`/`canvas
 (i.e. when the plan's content actually changes, not on every render) and also runs when the
 "Reset view" zoom-control button is clicked (`Maximize2` icon) — same function, so both share the
 behavior described next. **The default/reset fit caps how much of the timeline shows to at most a
-fixed pixel window anchored at "today," not the whole plan** — auto-fitting an entire multi-year
-plan (e.g. a 9th-grade 4-year plan) on first load zoomed everything out so far it read as tiny and
+~2-year window anchored at "today," not the whole plan** — auto-fitting an entire multi-year plan
+(e.g. a 9th-grade 4-year plan) on first load zoomed everything out so far it read as tiny and
 cramped. `roadmapLayout.js` positions today a fixed `BOTTOM_MARGIN` above the canvas's bottom
 edge and everything else strictly further from today the further in the future it is, so
-`roadmap.today.y` is itself proportional to the plan's total time-span in pixels —
-`fitView()` computes `effectiveTop = max(0, today.y - DEFAULT_WINDOW_PIXELS)` and fits the region
-from `effectiveTop` down to the canvas bottom, instead of the whole canvas. **`DEFAULT_WINDOW_PIXELS`
-(2190, in `Roadmap.jsx`) is deliberately a fixed pixel value now, not a day-count multiplied by
-`PIXELS_PER_DAY` (it used to be `365 * 2 * PIXELS_PER_DAY`, a "~2-year window").** The pixel height
-is what actually determines the resulting default zoom (`zoom = vh / windowHeight`), so it has to
-stay fixed independent of `PIXELS_PER_DAY` — when that constant went from 3 to 5 for date-
-proportionality (see below), the old day-count formula also grew the default window's pixel
-height by the same ~1.67×, forcing a noticeably smaller default zoom and making near-term dense
-clusters (e.g. an opportunity chain right after "today") look artificially cramped, even though
-their underlying positions had just become *more* accurate, not less. 2190 is the exact value the
-old formula produced back when `PIXELS_PER_DAY` was 3 (a scale already confirmed to look right)
-— **if `PIXELS_PER_DAY` ever changes again, this constant does NOT need to move with it**, that's
-the whole point of decoupling them. This reduces to the exact old full-plan-fit behavior whenever
-the plan's real span already fits within that pixel window (`effectiveTop` comes out to 0, no
-branch needed to special-case it) — a 12th-grade 1-year plan is unaffected. Manual zoom (wheel/
-pinch/buttons) and pan are completely untouched by this — a student who wants the full multi-year
-span can still zoom out to it exactly as before; only what's shown by default changed. **The `.zoom-controls`
+`roadmap.today.y` (exported alongside `PIXELS_PER_DAY` from `roadmapLayout.js`) is itself
+proportional to the plan's total time-span in pixels — `fitView()` computes `effectiveTop =
+max(0, today.y - 2 years in px)` and fits the region from `effectiveTop` down to the canvas
+bottom, instead of the whole canvas. **This reduces to the exact old full-plan-fit behavior
+whenever the plan's real span is already ≤ 2 years** (`effectiveTop` comes out to 0, no branch
+needed to special-case it) — a 12th-grade 1-year plan is unaffected. Manual zoom (wheel/pinch/
+buttons) and pan are completely untouched by this — a student who wants the full multi-year span
+can still zoom out to it exactly as before; only what's shown by default changed. **The `.zoom-controls`
 buttons are a DOM sibling of `.roadmap-viewport`, not a child of it** — nesting them inside the
 div that owns the drag `onPointerDown` handler caused `setPointerCapture` to swallow the
 buttons' own click events; keep that separation if you touch this again.
