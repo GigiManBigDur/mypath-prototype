@@ -793,13 +793,11 @@ repositioning.
   right) instead of the old `.roadmap-header`/`.add-task-row` (both now dead and removed). Start
   Over is a new `.btn-outline` variant (a real border, not `.btn-ghost`'s plain colored-text
   style) — reuses existing ink/paper tokens, no new color introduced.
-- **The floating zoom-control stack gained a 4th button and two icon changes**: `Crosshair`
-  replaces `Maximize2` for "recenter/reset view" (unchanged behavior, `handleResetView` →
-  `fitView`), and `Maximize2`/`Minimize2` now toggle *real* browser fullscreen on
-  `.roadmap-fullscreen-root` via the Fullscreen API (`requestFullscreen`/`exitFullscreen`,
-  wrapped in `?.()` + `.catch(() => {})` since some embedding contexts block it outright — this
-  fails silently rather than throwing). Its `bottom` offset switches between two constants
-  (`ZOOM_CONTROLS_BOTTOM_COLLAPSED`/`_EXPANDED`) based on `panelCollapsed` and transitions
+- **The floating zoom-control stack is 3 buttons**: zoom in, zoom out, and `Crosshair` for
+  "recenter/reset view" (`handleResetView` → `fitView`, unchanged behavior). A 4th button toggling
+  real browser fullscreen via the Fullscreen API was tried and then explicitly removed — don't
+  re-add a fullscreen toggle here unless asked again. Its `bottom` offset switches between two
+  constants (`ZOOM_CONTROLS_BOTTOM_COLLAPSED`/`_EXPANDED`) based on `panelCollapsed` and transitions
   smoothly rather than jumping — these are hand-picked to match the panel's own CSS sizing, not
   derived from a real measurement.
 - **The first-visit callouts (`roadmapTooltipsSeen` in `AppContext`, persisted like everything

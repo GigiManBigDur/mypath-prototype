@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
-  Maximize2, Minimize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move,
+  Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -121,8 +121,6 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   const [smoothZoom, setSmoothZoom] = useState(false);
   const smoothZoomTimer = useRef(null);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const rootRef = useRef(null);
   const viewportRef = useRef(null);
   const dragState = useRef(null);
   const pinchState = useRef(null);
@@ -132,19 +130,6 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     const t = setTimeout(() => { hasPlayedRoadmapEntrance = true; }, ENTRANCE_TOTAL_MS);
     return () => clearTimeout(t);
   }, [reducedMotion]);
-
-  useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
-  }, []);
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.().catch(() => {});
-    } else {
-      rootRef.current?.requestFullscreen?.().catch(() => {});
-    }
-  };
 
   const isDone = (id) => !!state.completedNodes[id];
   // Completing a started project's current LAST step (its one active step — see
@@ -426,7 +411,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   const dismissTooltips = () => patch({ roadmapTooltipsSeen: true });
 
   return (
-    <div className="roadmap-fullscreen-root" ref={rootRef}>
+    <div className="roadmap-fullscreen-root">
       <div className="roadmap-viewport-wrap">
         <div
           className={`roadmap-viewport${dragging ? ' dragging' : ''}`}
@@ -607,9 +592,6 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1.25)} aria-label="Zoom in"><ZoomIn size={16} /></button>
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1 / 1.25)} aria-label="Zoom out"><ZoomOut size={16} /></button>
           <button type="button" className="zoom-btn" onClick={handleResetView} aria-label="Recenter / reset view"><Crosshair size={16} /></button>
-          <button type="button" className="zoom-btn" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}>
-            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
         </div>
 
         {tooltipsRendered && (
