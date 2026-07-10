@@ -297,15 +297,7 @@ separate system of quarterly Fall/Winter/Spring GPA checkpoints that lived in
 the same granularity — that quarterly system is gone entirely. The first step of each stage
 (when more than one stage is in play) carries a `stageLabel` that `Roadmap.jsx` renders as a
 small "— Sophomore Year —" divider; a 12th-grader/4th-year/non-transfer-2nd-3rd-year student
-still gets exactly one stage, so `stageLabel` is never set. **The divider's position comes from
-its own `stageLabelDate` field (`anchorDate({ month: 8, day: 15, yearOffset: stageIndex },
-planStartDate)` — Aug 15, the same implied-academic-year epoch every template date is anchored
-to, shifted by that stage's own yearOffset), run through `roadmapLayout.js`'s own
-`-daysFromToday(date) * PIXELS_PER_DAY` formula independently — NOT the position of whichever
-task happens to carry the `stageLabel` flag.** That task's own `date` can land anywhere within
-the stage and used to double as the divider's position (offset by a fixed +46px), which meant the
-divider drifted away from the actual year boundary depending on what the stage's first template
-date happened to be. Transfer students 2+ years out keep
+still gets exactly one stage, so `stageLabel` is never set. Transfer students 2+ years out keep
 the single `application` stage as-is (transfer timelines vary too much to model precisely) but
 get a `caveatNote` string (`TRANSFER_CAVEAT`) surfaced as a banner near the top of
 `Roadmap.jsx` instead of a fabricated multi-year transfer plan.
@@ -365,50 +357,8 @@ a light forward-only minimum-gap pass so two items landing on the same day don't
 is a genuine change from the old trunk, which used fixed per-node spacing; the old trunk had no
 branches to route around, this one does, so position now has to track real elapsed time.
 **If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
-(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `BRANCH_ANCHOR_OFFSET`, `BRANCH_STEP_MIN_GAP`, `BRANCH_SLOPES`)
-— canvas width/height are always derived from actual content afterward, never assumed.**
-
-**Spine node spacing is exact linear proportionality — `y = -daysFromToday(item.date) *
-PIXELS_PER_DAY` — with no index/order-based fallback anywhere.** `PIXELS_PER_DAY = 5` and
-`MIN_SPINE_GAP = 25` (a ~5-day floor) are deliberately small relative to this app's real trunk
-data (core milestones are naturally 2-4 weeks apart) specifically so the floor essentially never
-triggers — it exists purely to keep same-day/near-same-day items from visually overlapping, not
-to impose any kind of rhythm. **`MIN_SPINE_GAP` was previously 90 (a 30-day floor), and that value
-was a real, confirmed bug**, not just a stylistic choice: the forward-only min-gap pass compares
-each item's raw position against the *previous item's actual rendered y*, which is unavoidable
-(it's the only way to guarantee no visual overlap) — but it means a clamp on one item can nudge
-the position the *next* item's own clamp-check is measured against, and with a 30-day floor this
-app's genuinely-common 2-4-week gaps chained into long compounding runs. Confirmed on a real
-senior-year stretch: after ~6 chained clamps, a milestone with a comfortable true 49-day/147px
-gap from its predecessor still got compressed to the floor, purely from inherited drift — its
-position was no longer calculated from its own date at all. Dropping the floor to 25 (verified
-against this exact scenario) means no real trunk gap in this app falls anywhere near it anymore,
-so the compounding pattern doesn't arise in practice — some compounding across a run of
-genuinely sub-5-day real gaps remains mathematically possible (a hard minimum-gap floor and
-perfect proportionality can't both hold for an arbitrarily dense cluster), that's an inherent,
-accepted trade-off of *any* minimum-gap system, not a bug, and 25 was chosen specifically so it
-no longer bites this app's actual, realistic milestone spacing. Verified empirically: two custom
-tasks 5 real days apart and two others 19 real days apart render at a 3.800 vertical-gap ratio
-(exactly `19/5`), and a 4-year (9th-grade) plan's canvas comes out ~4.9× taller than a 1-year
-(senior) plan's, both confirming true proportionality rather than an approximation.
-
-**Branch (chain) step vertical spacing was split into two constants that used to be one
-(`MIN_BRANCH_GAP`), because they serve genuinely different purposes.** `BRANCH_ANCHOR_OFFSET`
-(46) is pure visual clearance from the anchor node's own (larger) circle to the first prep
-step — not date math at all, and unrelated to `PIXELS_PER_DAY`. `BRANCH_STEP_MIN_GAP` is the
-floor *between* two consecutive steps within the same chain, and is deliberately kept at exactly
-`PIXELS_PER_DAY * 1` (one real day's worth of pixels) — branch spacing reads as day-proportional
-down to a single day apart, only stepping in for genuinely same-day duplicates. **This tight
-floor surfaced a real, separate bug the first time it was tried**: two adjacent chain steps a
-handful of days apart landed close enough that the *approximate* label-collision box
-(`LABEL_BLOCK_HEIGHT`, used only to decide "would these two labels visually collide," not
-pixel-perfect by design) said "just clears" while the real rendered two-line label (actual font
-metrics/line-height) came out a hair taller, producing a genuine on-screen overlap the check
-never caught. `LABEL_BLOCK_HEIGHT` went from 30 to 36 to restore real safety margin — confirmed
-this resolves it (zero label overlaps on a dense 4-year-escalation DECA test plan that reproduced
-it) without affecting spine positions (spine has no nudge loop; `LABEL_BLOCK_HEIGHT` only feeds
-the branch nudge loop and what gets registered in `placedLabels`) or reducing exact day-math gaps
-between steps that already had enough clearance.
+(`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
+always derived from actual content afterward, never assumed.**
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
@@ -440,9 +390,9 @@ fixed, uniformly scaling every branch step's `x` by the same `K > 1` can only wi
 already-validated gap between two boxes, never close one — see the three-case proof in
 `layoutBranch`'s own comment (same-side, opposite-side, vs. a same-side spine label) if you need
 to touch either constant. Each branch is still computed in true
-isolation from every *other* branch's step-vs-step spacing (own `BRANCH_STEP_MIN_GAP`, own
-diagonal), which is what actually fixes the old collapsed-chip overlap bug (multiple
-opportunities' prep steps used to compete for the same lateral space). But branches still have to share the canvas with the
+isolation from every *other* branch's step-vs-step spacing (own `MIN_BRANCH_GAP`, own diagonal),
+which is what actually fixes the old collapsed-chip overlap bug (multiple opportunities' prep
+steps used to compete for the same lateral space). But branches still have to share the canvas with the
 spine's own labels and with each other's labels, so there's a second layer:
 `roadmapLayout.js` maintains a running `placedLabels` list of every label's *approximate*
 rendered bounding box (character-count-based width estimate, not real DOM measurement) — every

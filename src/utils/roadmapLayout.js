@@ -19,24 +19,9 @@ const LABEL_BUFFER = 300; // horizontal room for node/branch label text extendin
 // Exported so Roadmap.jsx's default-zoom calculation (cap the initial view to a ~2-year window
 // anchored at today, see fitView) can convert a day-span into the same pixel units this file
 // positions everything in, instead of hardcoding a second copy that could drift out of sync.
-export const PIXELS_PER_DAY = 5;
-// A single, small floor purely to keep same-day/near-same-day spine items from visually
-// overlapping — NOT a general "minimum rhythm" for the timeline. At 5px/day this is ~5 days,
-// comfortably below the ~2-4-week gaps this app's real trunk data actually has, so in practice it
-// almost never triggers; every node's y is otherwise the raw, unmodified
-// `-daysFromToday(date) * PIXELS_PER_DAY`. Lowering this further shouldn't be necessary — this
-// was previously 90 (a 30-day floor), which dominated realistic data hard enough that long
-// stretches of genuinely-varied real dates rendered as evenly-spaced.
-const MIN_SPINE_GAP = 25;
-// Two different roles, previously conflated into one MIN_BRANCH_GAP constant:
-//   1. Clearance from the anchor node to the FIRST prep step — this is NOT date math, it's just
-//      enough room that the first step's dot/label doesn't render on top of the anchor's own
-//      (larger) circle. Left at 46 regardless of PIXELS_PER_DAY.
-//   2. The floor BETWEEN two consecutive branch steps — this one IS date math, and is kept at
-//      exactly 1 real day's worth of pixels so branch spacing reads as day-proportional down to
-//      a single day apart, only stepping in for genuinely same-day duplicates.
-const BRANCH_ANCHOR_OFFSET = 46;
-const BRANCH_STEP_MIN_GAP = PIXELS_PER_DAY * 1;
+export const PIXELS_PER_DAY = 3;
+const MIN_SPINE_GAP = 90;
+const MIN_BRANCH_GAP = 46;
 // Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
 // constant slope for a whole branch makes every point in it exactly colinear with the anchor, so
 // "connect step to previous step" and "connect every step straight back to the anchor" render as
@@ -63,12 +48,7 @@ const BRANCH_SPACING_MULTIPLIER = 2;
 // under 6.3px/char, so this errs generous).
 const CHAR_PX = 6.3;
 const LABEL_PAD = 16;
-// Bumped from 30 — with branch steps now allowed as close as 1 real day apart (BRANCH_STEP_MIN_GAP),
-// pairs can land exactly at this boundary, and 30 turned out to be too tight a "safe overestimate":
-// the idealized box math said "just clears," but real rendered two-line labels (title + due date,
-// actual font metrics/line-height) came out a hair taller, causing a genuine pixel overlap the
-// approximate check didn't catch. 36 gives real margin instead of an exact boundary case.
-const LABEL_BLOCK_HEIGHT = 36;
+const LABEL_BLOCK_HEIGHT = 30;
 const SPINE_EDGE_GAP = 26;
 const BRANCH_EDGE_GAP = 20;
 const NUDGE_STEP = 18;
@@ -88,13 +68,8 @@ function labelBBox(x, y, side, width, edgeGap) {
   return { left, right: left + width, top: y - LABEL_BLOCK_HEIGHT / 2, bottom: y + LABEL_BLOCK_HEIGHT / 2 };
 }
 
-// Purely cosmetic baseline nudge for stage-divider text (SVG <text> y is a baseline, not a
-// vertical center) — NOT a positioning offset. The divider's actual position comes entirely from
-// its own real transition date, computed independently of any node (see stageLabelDate below).
-const STAGE_LABEL_BASELINE_NUDGE = 6;
-
-// Stage dividers ("— Sophomore Year —") render centered on the spine — registered here too so a
-// nearby branch routes around them like any other label.
+// Stage dividers ("— Sophomore Year —") render centered on the spine, just below their node —
+// registered here too so a nearby branch routes around them like any other label.
 function centeredLabelBBox(x, y, text) {
   const width = labelWidth(text);
   return { left: x - width / 2, right: x + width / 2, top: y - 10, bottom: y + 10 };
@@ -137,8 +112,8 @@ function layoutBranch(steps, anchorY, side, placedLabels) {
   let prevRel = 0;
   let prevX = 0;
   return steps.map((step, i) => {
-    let rel = BRANCH_ANCHOR_OFFSET + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
-    if (i > 0 && rel - prevRel < BRANCH_STEP_MIN_GAP) rel = prevRel + BRANCH_STEP_MIN_GAP;
+    let rel = MIN_BRANCH_GAP + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
+    if (i > 0 && rel - prevRel < MIN_BRANCH_GAP) rel = prevRel + MIN_BRANCH_GAP;
 
     const slope = BRANCH_SLOPES[i % BRANCH_SLOPES.length];
     const width = blockWidth(step.title, step.due);
@@ -167,29 +142,15 @@ export function layoutRoadmap({ today, spineItems }) {
     .map((item) => ({ item, t: daysFromToday(item.date) }))
     .sort((a, b) => a.t - b.t);
 
-  // Pass 1: raw date-proportional y (today = 0, future = negative/upward) for every spine item —
-  // `y = -daysFromToday(item.date) * PIXELS_PER_DAY`, exact linear proportionality, no index/order
-  // dependence anywhere. The only adjustment is a small forward min-gap floor (MIN_SPINE_GAP)
-  // purely to keep same-day/near-same-day items from visually overlapping; it only ever pushes an
-  // item further from "now" (never reorders anything) and — since it's small relative to this
-  // app's real data — essentially never triggers for dates more than a few days apart. Also
-  // computes which side each item's OWN label renders on (labelSide alternates; spine x is always
-  // dead-center, so without alternating, every spine label would permanently claim the same side,
-  // guaranteeing a collision with any branch that happens to peel toward it).
+  // Pass 1: raw date-proportional y (today = 0, future = negative/upward) for every spine item,
+  // with a forward min-gap pass that only ever pushes items further from "now" — never reorders
+  // them — plus which side each item's OWN label renders on (labelSide alternates; spine x is
+  // always dead-center, so without alternating, every spine label would permanently claim the
+  // same side, guaranteeing a collision with any branch that happens to peel toward it).
   //
-  // Stage dividers ("— Sophomore Year —") are positioned entirely separately from any node, via
-  // `item.stageLabelDate` (the real date of that stage's own transition — see roadmapGenerator.js)
-  // run through this exact same `-daysFromToday(date) * PIXELS_PER_DAY` formula. This is
-  // deliberately NOT derived from `y` above (that's the position of whichever task happens to be
-  // first in the stage, which is a different, unrelated date) and deliberately NOT clamped by
-  // MIN_SPINE_GAP (a divider is informational text, not a node that needs collision-avoidance
-  // room) — it always sits at exactly its own real transition date, independent of everything else
-  // on the spine.
-  //
-  // All spine labels (including stage dividers) get placed into `placedLabels` up front, in this
-  // same pass, before any branch is laid out — a branch needs to know about EVERY spine label
-  // (including ones later in time than its own anchor) to route around them, not just the ones
-  // already processed.
+  // All spine labels get placed into `placedLabels` up front, in this same pass, before any
+  // branch is laid out — a branch needs to know about EVERY spine label (including ones later in
+  // time than its own anchor) to route around them, not just the ones already processed.
   let prevY = 0;
   let sideToggle = 0;
   const placedLabels = [];
@@ -202,20 +163,15 @@ export function layoutRoadmap({ today, spineItems }) {
     sideToggle += 1;
 
     placedLabels.push(labelBBox(0, y, labelSide, blockWidth(item.title, item.due), SPINE_EDGE_GAP));
+    if (item.stageLabel) placedLabels.push(centeredLabelBBox(0, y + 46, `— ${item.stageLabel} —`));
 
-    let stageLabelY;
-    if (item.stageLabelDate) {
-      stageLabelY = -daysFromToday(item.stageLabelDate) * PIXELS_PER_DAY;
-      placedLabels.push(centeredLabelBBox(0, stageLabelY + STAGE_LABEL_BASELINE_NUDGE, `— ${item.stageLabel} —`));
-    }
-
-    return { item, y, labelSide, stageLabelY };
+    return { item, y, labelSide };
   });
 
   // Pass 2: lay out each item's branch (if any) against the complete spine label set, plus every
   // other branch's steps placed so far — each chain routes around everything already on the
   // canvas instead of just avoiding itself.
-  const rawPositioned = withPosition.map(({ item, y, labelSide, stageLabelY }) => {
+  const rawPositioned = withPosition.map(({ item, y, labelSide }) => {
     // `>= 1`, not `> 1` — a chain with exactly one branch step (e.g. a freshly-grown Project
     // Builder project with 2 total revealed steps: one anchor + one branch step) still needs its
     // one step rendered as a real branch point, not silently dropped. Every opportunity in
@@ -227,7 +183,7 @@ export function layoutRoadmap({ today, spineItems }) {
     if (hasBranch) {
       branchSteps = layoutBranch(item.steps, y, side, placedLabels);
     }
-    return { ...item, x: 0, y, hasBranch, side, labelSide, branchSteps, stageLabelY };
+    return { ...item, x: 0, y, hasBranch, side, labelSide, branchSteps };
   });
 
   const todayNode = { ...today, x: 0, y: 0 };
@@ -245,7 +201,6 @@ export function layoutRoadmap({ today, spineItems }) {
   rawPositioned.forEach((n) => {
     account(n.x, n.y);
     if (n.branchSteps) n.branchSteps.forEach((s) => account(s.x, s.y));
-    if (n.stageLabelY !== undefined) account(0, n.stageLabelY);
   });
 
   // The spine sits at whatever x keeps every branch (and its labels) on-canvas — this is what
@@ -261,7 +216,6 @@ export function layoutRoadmap({ today, spineItems }) {
     ...n,
     x: n.x + centerX,
     y: n.y + yShift,
-    stageLabelY: n.stageLabelY !== undefined ? n.stageLabelY + yShift : undefined,
     branchSteps: n.branchSteps
       ? n.branchSteps.map((s) => ({ ...s, x: s.x + centerX, y: s.y + yShift }))
       : null,
