@@ -880,7 +880,15 @@ repositioning.
   below for the one place that does matter). `.roadmap-viewport` itself dropped its border/
   card-background/fixed-620px-height entirely — no visible frame, so the parchment/contour
   texture painted on `<body>` shows straight through behind every node, and it now sizes to
-  `100%`/`100%` of its full-bleed parent instead of a fixed box.
+  `100%`/`100%` of its full-bleed parent instead of a fixed box. **`.roadmap-fullscreen-root` also
+  sets `user-select: none`** (plus vendor prefixes) so a drag-to-pan gesture doesn't trigger the
+  browser's default text-selection behavior across the canvas/panel/chrome — a mouse-drag looks
+  identical to a text-selection drag unless explicitly disabled. Every modal (the node detail
+  modal, the project "guide exhausted" choice modal, and `AddTaskModal`) shares one `.overlay`
+  root class, which is a descendant of `.roadmap-fullscreen-root` here — so `user-select: text` is
+  explicitly re-enabled on `.roadmap-fullscreen-root .overlay` to carve those back out, keeping
+  modal text/inputs (descriptions, resources, the Add Task form's fields) normally
+  selectable/editable despite the ancestor rule.
 - **The bottom panel (`.roadmap-panel`) is collapsible via a chevron (`.roadmap-panel-toggle`,
   rotates 180° when collapsed) that only animates `.roadmap-panel-content`'s own
   `max-height`/`opacity`/`padding`** — the outer `.roadmap-panel` keeps a fixed `min-height` so

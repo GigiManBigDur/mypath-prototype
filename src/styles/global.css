@@ -408,7 +408,21 @@ button.card.passed:hover {
    texture painted on <body> shows straight through behind the canvas, exactly as it does behind
    every other screen. None of this touches how nodes/connectors are positioned inside the SVG,
    or the zoom/pan/drag math below — only the container's own size/chrome changed. */
-.roadmap-fullscreen-root { position: relative; flex: 1; min-height: 0; }
+/* Drag-to-pan was triggering the browser's default text-selection behavior across the canvas AND
+   the bottom panel/chrome (node labels, dates, buttons, legend) — a mouse-drag gesture starting
+   anywhere in this subtree looks identical to a text-selection drag unless explicitly disabled.
+   Set once here on the shared root rather than per-element, then explicitly re-enabled on .overlay
+   below (every modal — the node detail modal, the project "guide exhausted" choice modal, and
+   AddTaskModal — shares that one class as its root) so the modals' real text/inputs (description,
+   resources list, the Add Task form's fields) stay normally selectable/editable; only the roadmap's
+   own display chrome is affected. */
+.roadmap-fullscreen-root {
+  position: relative; flex: 1; min-height: 0;
+  user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;
+}
+.roadmap-fullscreen-root .overlay {
+  user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;
+}
 .roadmap-viewport-wrap { position: absolute; inset: 0; }
 .roadmap-viewport {
   position: relative;
