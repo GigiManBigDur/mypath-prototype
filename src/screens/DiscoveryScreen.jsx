@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getBuiltTracks } from '../data/interests';
-import { getCareerPool, getCareerGroups } from '../data/careers';
+import { getBuiltTracks, BUILT_TRACKS } from '../data/interests';
+import { getCareerPool, getCareerGroups, getMajorGroups } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
@@ -29,6 +29,14 @@ const SUB_STEP_COPY = {
 export default function DiscoveryScreen() {
   const { state, patch } = useApp();
   const [subStep, setSubStep] = useState('careers');
+  // "Recommended for you" / "Browse all ___" — one independent toggle per sub-step, local and
+  // unpersisted (same "session-only UI convenience, not data worth surviving a reload" trade
+  // Project Builder's and Opportunity Finder's own browse-mode toggles already make). The actual
+  // consequential data (selectedCareerIds/selectedMajorIds/selectedProgramKeys) is unaffected
+  // either way.
+  const [careersView, setCareersView] = useState('recommended');
+  const [majorsView, setMajorsView] = useState('recommended');
+  const [programsView, setProgramsView] = useState('recommended');
 
   const tracks = getBuiltTracks(state.interestTags);
 
@@ -43,8 +51,17 @@ export default function DiscoveryScreen() {
   if (tracks.length === 0) return null;
 
   const level = state.educationLevel;
-  const careers = getCareerPool(tracks, level);
+  // Looked up across EVERY built track, not just `tracks` (the student's own narrow
+  // interest-derived set) — Browse mode lets a student select a career from outside their own
+  // interests, and this pool needs to resolve it (for `selectedCareers`/majorIds below, and for
+  // toggleCareer's own pruning) regardless of which track it actually lives in. Same fix pattern
+  // as roadmapGenerator.js's opportunity lookup. Widening this is a no-op for anything selected
+  // via "Recommended for you", since `tracks` is always a subset of BUILT_TRACKS.
+  const careers = getCareerPool(BUILT_TRACKS, level);
   const careerGroups = getCareerGroups(tracks, level);
+  const allCareerGroups = getCareerGroups(BUILT_TRACKS, level);
+  const allMajorGroups = getMajorGroups(BUILT_TRACKS, level);
+  const allMajorIds = [...new Set(allMajorGroups.flatMap((g) => g.majors.map((m) => m.id)))];
   const selectedCareers = careers.filter((c) => state.selectedCareerIds.includes(c.id));
   const majorIds = [...new Set(selectedCareers.flatMap((c) => c.relevantMajors))];
 
@@ -120,27 +137,38 @@ export default function DiscoveryScreen() {
       </div>
 
       {subStep === 'careers' && (
-        <CareersStep
-          careerGroups={careerGroups}
-          selectedCareerIds={state.selectedCareerIds}
-          onToggle={toggleCareer}
-        />
+        <>
+          <ViewToggle mode={careersView} setMode={setCareersView} browseLabel="Browse all careers" />
+          <CareersStep
+            careerGroups={careersView === 'recommended' ? careerGroups : allCareerGroups}
+            selectedCareerIds={state.selectedCareerIds}
+            onToggle={toggleCareer}
+          />
+        </>
       )}
       {subStep === 'majors' && (
-        <MajorsStep
-          majorIds={majorIds}
-          selectedMajorIds={state.selectedMajorIds}
-          onToggle={toggleMajor}
-        />
+        <>
+          <ViewToggle mode={majorsView} setMode={setMajorsView} browseLabel="Browse all majors" />
+          <MajorsStep
+            majorIds={majorsView === 'recommended' ? majorIds : undefined}
+            majorGroups={majorsView === 'browse' ? allMajorGroups : undefined}
+            selectedMajorIds={state.selectedMajorIds}
+            onToggle={toggleMajor}
+          />
+        </>
       )}
       {subStep === 'programs' && (
-        <ProgramsStep
-          majorIds={state.selectedMajorIds}
-          educationLevel={level}
-          selectedProgramKeys={state.selectedProgramKeys}
-          onToggle={toggleProgram}
-          gpa={state.gpa}
-        />
+        <>
+          <ViewToggle mode={programsView} setMode={setProgramsView} browseLabel="Browse all programs" />
+          <ProgramsStep
+            majorIds={state.selectedMajorIds}
+            browseMajorIds={programsView === 'browse' ? allMajorIds : undefined}
+            educationLevel={level}
+            selectedProgramKeys={state.selectedProgramKeys}
+            onToggle={toggleProgram}
+            gpa={state.gpa}
+          />
+        </>
       )}
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
@@ -157,5 +185,30 @@ function BackBar({ onBack }) {
     <button type="button" className="btn btn-ghost" onClick={onBack}>
       <ArrowLeft size={14} /> Back
     </button>
+  );
+}
+
+// Shared "Recommended for you" / "Browse all ___" toggle, one per sub-step — same pill-group
+// pattern Opportunity Finder's own view toggle uses.
+function ViewToggle({ mode, setMode, browseLabel }) {
+  return (
+    <div className="field-block">
+      <div className="pill-group">
+        <button
+          type="button"
+          className={`pill${mode === 'recommended' ? ' selected' : ''}`}
+          onClick={() => setMode('recommended')}
+        >
+          Recommended for you
+        </button>
+        <button
+          type="button"
+          className={`pill${mode === 'browse' ? ' selected' : ''}`}
+          onClick={() => setMode('browse')}
+        >
+          {browseLabel}
+        </button>
+      </div>
+    </div>
   );
 }

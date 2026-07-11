@@ -2,6 +2,8 @@
 // 'highschool' and 'transfer' education levels see the same (undergrad-track) careers;
 // 'undergraduate' sees more advanced careers that require a graduate degree next.
 
+import { MAJORS } from './majors';
+
 export const CAREERS = {
   business: {
     highschool: [
@@ -471,4 +473,26 @@ export function getCareerGroups(tracks, level) {
   return tracks
     .map((t) => ({ track: t, careers: CAREERS[t]?.[level] || [] }))
     .filter((g) => g.careers.length > 0);
+}
+
+// Every major reachable via ANY of the given tracks' own careers at this level, grouped by
+// source track — the "Browse all majors" analog of getCareerGroups above (MAJORS itself has no
+// per-major track field; a major's track is only ever derived through whichever career(s)
+// reference it). A major reachable from more than one track's careers (e.g.
+// 'business-administration', deliberately reused by 'sports'/'culinary' since those newer tracks
+// don't have their own dedicated business-type major — see CLAUDE.md) is grouped under the FIRST
+// track that references it, in `tracks` order, and not repeated in a later group — same
+// first-track-wins merge precedent getOpportunityPool already uses for opportunities sharing an
+// id across tracks. Tracks that reference no majors at this level are omitted, same as
+// getCareerGroups.
+export function getMajorGroups(tracks, level) {
+  const seen = new Set();
+  const groups = [];
+  for (const track of tracks) {
+    const majorIds = [...new Set(getCareerPool([track], level).flatMap((c) => c.relevantMajors))]
+      .filter((id) => !seen.has(id));
+    majorIds.forEach((id) => seen.add(id));
+    if (majorIds.length) groups.push({ track, majors: majorIds.map((id) => MAJORS[id]) });
+  }
+  return groups;
 }

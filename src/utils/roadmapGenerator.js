@@ -3,7 +3,7 @@ import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
-import { getBuiltTracks, OPPORTUNITY_TRACKS } from '../data/interests';
+import { BUILT_TRACKS, OPPORTUNITY_TRACKS } from '../data/interests';
 import { layoutRoadmap } from './roadmapLayout';
 import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
 
@@ -27,12 +27,16 @@ const LEVEL_LABEL_MULTI_YEAR = {
 // whole-plan behavior.
 export function generateRoadmap(state, yearWindow = null) {
   const planStartDate = startOfToday();
-  const builtTracks = getBuiltTracks(state.interestTags);
   const level = state.educationLevel;
   const dateOverrides = state.nodeDateOverrides || {};
   const removed = state.removedNodeIds || {};
 
-  const careerPool = getCareerPool(builtTracks, level);
+  // Looked up across EVERY built track, not just the student's own narrow interest-derived set
+  // (getBuiltTracks(state.interestTags)) — Discovery's "Browse all careers" mode lets a student
+  // select a career outside their own interests, and this needs to resolve it for the plan's own
+  // title/personalization text (ctx.careerName below), same fix pattern as the opportunity lookup
+  // above. A no-op for anything selected via "Recommended for you".
+  const careerPool = getCareerPool(BUILT_TRACKS, level);
   const selectedCareers = careerPool.filter((c) => state.selectedCareerIds.includes(c.id));
   const selectedMajors = state.selectedMajorIds.map((id) => MAJORS[id]).filter(Boolean);
 

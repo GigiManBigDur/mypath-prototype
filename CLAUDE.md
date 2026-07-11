@@ -169,6 +169,53 @@ merges programs across every selected major, deduped **by institution+program** 
 major) — a program legitimately offered under two selected majors shows once, labeled with
 both, keyed by `${institution}::${program}` rather than the old `${majorId}::${institution}`.
 
+**Each of Discovery's 3 sub-steps has its own independent "Recommended for you" / "Browse
+all ___" toggle** (`DiscoveryScreen.jsx`'s `careersView`/`majorsView`/`programsView`, local
+unpersisted `useState` each — same "session-only UI convenience" trade Project Builder's and
+Opportunity Finder's own browse toggles already make). Recommended is the exact original,
+unchanged behavior at every sub-step. Browse reuses the SAME data functions with a wider input
+rather than new ones:
+- **Careers**: `getCareerGroups(BUILT_TRACKS, level)` instead of `getCareerGroups(tracks, level)`
+  — `CareersStep.jsx` already rendered grouped-by-track unconditionally (even Recommended's
+  smaller result uses the same grouped shape), so no component changes were needed there at all.
+- **Majors**: a new `getMajorGroups(tracks, level)` (`careers.js`) — analogous to
+  `getCareerGroups`, but MAJORS itself has no per-major track field, so a major's track is only
+  ever derived through whichever career(s) reference it (`getCareerPool([track], level).flatMap(c
+  => c.relevantMajors)` per track). A major reachable from more than one track's careers (e.g.
+  `business-administration`, deliberately reused by `sports`/`culinary` — see below) is grouped
+  under the FIRST track that references it and not repeated later, same first-track-wins
+  precedent `getOpportunityPool` already uses. `MajorsStep.jsx` takes an optional `majorGroups`
+  prop (browse) alongside its original flat `majorIds` prop (recommended, untouched) and renders
+  grouped-by-track section headers, same visual pattern as `CareersStep`.
+- **Programs**: grouped by MAJOR, not track (the natural organizing dimension per-program) — every
+  major reachable across `BUILT_TRACKS` at this level gets its own section, each running
+  `getPrograms(majorId, level)` → `selectProgramsForGpa(..., gpa, 1)` **independently** (not
+  merged across majors like Recommended's `getMergedPrograms` does), so the same program can
+  legitimately appear under more than one major's section — Browse is exploring by major, not
+  building one deduplicated school list yet. `ProgramsStep.jsx`'s card JSX was extracted into a
+  shared `ProgramCard` so Recommended and Browse render Reach/Match/Safety tags and GPA
+  benchmarks through the exact same code either way, per the "keep it working exactly the same"
+  requirement — only which list feeds the cards differs.
+
+**Two real, pre-existing bugs surfaced once Browse mode could select outside the student's own
+tracks — both were the same root cause: a lookup scoped to `getBuiltTracks(state.interestTags)`
+(the narrow, survey-derived set) instead of every track.**
+1. `DiscoveryScreen.jsx`'s `careers` pool (used to resolve `selectedCareers`/`majorIds` for the
+   Recommended Majors view, and inside `toggleCareer`'s own pruning) was `getCareerPool(tracks,
+   level)` — a Browse-selected career outside `tracks` would silently vanish from
+   `selectedCareers` the moment ANY career got toggled afterward, incorrectly pruning majors that
+   were actually still reachable through it. Fixed by widening it to
+   `getCareerPool(BUILT_TRACKS, level)` — `careerGroups` (the Recommended CareersStep's own
+   narrower grouped display) is intentionally left as `getCareerGroups(tracks, level)`, since that
+   one still needs to reflect only the student's own interests.
+2. `roadmapGenerator.js`'s `careerPool` (used to resolve `selectedCareers` for the plan's own
+   title and `ctx.careerName` personalization text) had the identical bug — `getCareerPool(
+   getBuiltTracks(state.interestTags), level)`. A Browse-selected career would silently drop out
+   of the plan's title (e.g. falling back to the generic "Your Personalized Academic Plan"
+   instead of "Your Path to Software Engineer"). Fixed the same way, widened to `BUILT_TRACKS`.
+   (`selectedMajors`/`mergedPrograms` in the same function were already safe — they resolve
+   directly by id via `MAJORS`/`getMergedPrograms`, never track-scoped.)
+
 **Data layer (`src/data/`) is keyed by `[track][educationLevel]`, not by screen.**
 - `careers.js` / `programs.js` (via `getPrograms()`) / `opportunities.js` all branch on
   `educationLevel` (`highschool` / `undergraduate` / `transfer`). Transfer reuses the
