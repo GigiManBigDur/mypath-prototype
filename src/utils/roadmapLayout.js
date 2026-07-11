@@ -65,6 +65,15 @@ const SPINE_EDGE_GAP = 26;
 const BRANCH_EDGE_GAP = 20;
 const NUDGE_STEP = 18;
 const MAX_NUDGES = 80;
+// intersects() below treats two boxes as colliding if they come within this many px of each
+// other, not just on literal overlap. Without it, two labels whose true edges land a few px
+// apart (e.g. an opportunity's own branch step landing close to an UNRELATED spine node it
+// shares no chain with — the two boxes' real edges came within 16px in one observed case) count
+// as "not colliding" and never get nudged apart, even though that reads as visually cramped/
+// touching on screen. This is the one thing standing between "no rectangle overlap" and "a
+// human would call this a comfortable gap" — it doesn't touch rel/y/BRANCH_SLOPES math at all,
+// only whether the EXISTING nudge loop decides to fire.
+const COLLISION_PADDING = 24;
 
 function labelWidth(text) {
   return text.length * CHAR_PX + LABEL_PAD;
@@ -88,7 +97,10 @@ function centeredLabelBBox(x, y, text) {
 }
 
 function intersects(a, b) {
-  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  return a.left - COLLISION_PADDING < b.right
+    && b.left - COLLISION_PADDING < a.right
+    && a.top - COLLISION_PADDING < b.bottom
+    && b.top - COLLISION_PADDING < a.bottom;
 }
 
 // Positions one item's step chain as a genuine connected path — each step's x is accumulated

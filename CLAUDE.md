@@ -533,6 +533,27 @@ is always dead-center, so without alternating, every spine label would permanent
 side and guarantee a collision with any branch peeling that way; a branch always peels to the
 side **opposite** its own anchor's label so an item never has to route around itself.
 
+**`intersects()` (the function `layoutBranch`'s nudge loop calls against `placedLabels`) checks
+for a minimum buffer, not literal rectangle overlap** — `COLLISION_PADDING` (24) is subtracted
+from each box's edges before comparing. Without it, two labels whose true edges land a few px
+apart (observed case: an opportunity's own branch step landing close to an UNRELATED spine node
+it shares no chain with — a required core task and a different opportunity's branch step,
+independently dated only ~3 real days apart, whose LABEL boxes came within 16px of each other
+without literally overlapping) count as "not colliding" and never get nudged apart, even though
+that reads as visually cramped/touching on screen — a real, previously-shipped gap in the
+collision system (spine-to-spine spacing had already been fixed to follow the confirmed
+`MIN_SPINE_GAP` rule by this point; branch-to-unrelated-spine-node proximity was a separate,
+never-covered case, since `layoutBranch`'s own `MIN_BRANCH_GAP` only ever protects a step from
+the OTHER steps in its own chain, with zero awareness of nearby spine nodes belonging to a
+different item). Padding the collision check is deliberately the fix here, not a new day-gap-
+based rule mirroring `MIN_SPINE_GAP` — a branch step's position is computed relative to its OWN
+chain's anchor date, not "distance from the nearest other node," so there's no natural per-pair
+day-gap to floor in the first place; padding instead makes the EXISTING nudge-until-clear loop
+require genuine breathing room, not just non-overlap, whichever kind of box it's routing around.
+This doesn't touch `rel`/`y`/`BRANCH_SLOPES` math, and the `BRANCH_SPACING_MULTIPLIER` proof
+above still holds unchanged — it's about whether scaling can ever CLOSE an already-clear gap,
+which is independent of how large "clear" is defined to be.
+
 **The `<svg>` itself needs `style={{ overflow: 'visible' }}`.** SVG root elements default to CSS
 `overflow: hidden` on their own coordinate box (`0,0` to `canvasWidth,canvasHeight`), independent
 of the pannable `.roadmap-viewport`'s own clipping — a long label positioned near x=0 or the
