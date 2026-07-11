@@ -22,7 +22,10 @@ export const OPPORTUNITY_TRACKS = [
 
 // Human-readable track names — used to group the merged Careers of Interest pool by source track
 // once the interest-tag cap was removed (Screen 3a can now realistically show cards from many
-// tracks at once). Matches the track names already used in CLAUDE.md's testing checklist.
+// tracks at once). Matches the track names already used in CLAUDE.md's testing checklist. Covers
+// all of OPPORTUNITY_TRACKS (BUILT_TRACKS + 'lifestyle'), not just BUILT_TRACKS, since Opportunity
+// Finder's "Browse all opportunities" track filter needs a label for every one of them, including
+// the opportunity-only 'lifestyle' track (Fitness/Fashion) that has no career/major/program data.
 export const TRACK_LABELS = {
   business: 'Business',
   stem: 'STEM',
@@ -35,6 +38,7 @@ export const TRACK_LABELS = {
   media: 'Media & Entertainment',
   personal: 'Personal Development',
   outdoors: 'Outdoors',
+  lifestyle: 'Lifestyle & Hobbies',
 };
 
 export const CATEGORIES = [

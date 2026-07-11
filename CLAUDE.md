@@ -240,6 +240,27 @@ both, keyed by `${institution}::${program}` rather than the old `${majorId}::${i
   those two sub-tags would have quietly emptied their opportunity pool. `getOpportunityPool`
   already dedupes merged tracks by id, so selecting e.g. both "Cooking" and "Fitness" together
   still shows each real opportunity once, not twice.
+- **`OpportunityFinderScreen` has a "Recommended for you" / "Browse all opportunities" toggle**
+  (local, unpersisted `useState`, same "session-only UI convenience" trade Project Builder's own
+  sub-views make — refreshing mid-browse just resets to Recommended). Recommended is the original,
+  unchanged behavior (`getOpportunityPool(getOpportunityTracks(state.interestTags), level)`).
+  Browse reuses the exact same `getOpportunityPool` function, just called with `OPPORTUNITY_TRACKS`
+  (every track, from `interests.js`) instead of the student's own narrow interest-derived set —
+  no new data-layer function needed, since `getOpportunityPool` already merges/dedupes across an
+  arbitrary track list. Browse mode also shows a track filter (`pill-group`, multi-select,
+  `TRACK_LABELS` — extended to include `lifestyle`, which previously had no label since it's
+  opportunity-only and never appeared in the built-track-only contexts `TRACK_LABELS` originally
+  served); an empty filter selection means "no filter" (show all tracks), not "show nothing".
+  `GENERIC_OPPORTUNITIES` is deliberately excluded from Browse — it's fallback content for a
+  student whose only selected tag maps to no real track at all (e.g. "Law"), not tied to any of
+  the 12 real tracks, so it doesn't fit "browse by track." **Card display, selection, and the
+  "deadline passed" disabled state are the exact same JSX block regardless of view mode** — only
+  which array feeds it changes. This uncovered a real bug in `roadmapGenerator.js`: it looked up
+  selected opportunities via `findOpportunity(id, tracks, level)` using only the student's own
+  narrow `getOpportunityTracks(state.interestTags)` result, so a Browse-mode selection from
+  outside that set would silently fail to resolve and never appear on the plan. Fixed by widening
+  that lookup to `OPPORTUNITY_TRACKS` (all tracks) — a no-op for anything selected via
+  Recommended, since that narrower set is always a subset.
 - **Recurring competitions/clubs escalate across multi-year plans instead of clustering into
   year 1.** An opportunity can carry `recurring: true, progressionType: 'competition' |
   'leadership' | 'repeat'` (e.g. `deca`, `fbla`, `science-olympiad`, `hosa`,

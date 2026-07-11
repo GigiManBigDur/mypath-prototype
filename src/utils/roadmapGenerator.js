@@ -3,7 +3,7 @@ import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
-import { getBuiltTracks, getOpportunityTracks } from '../data/interests';
+import { getBuiltTracks, OPPORTUNITY_TRACKS } from '../data/interests';
 import { layoutRoadmap } from './roadmapLayout';
 import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
 
@@ -28,7 +28,6 @@ const LEVEL_LABEL_MULTI_YEAR = {
 export function generateRoadmap(state, yearWindow = null) {
   const planStartDate = startOfToday();
   const builtTracks = getBuiltTracks(state.interestTags);
-  const opportunityTracks = getOpportunityTracks(state.interestTags);
   const level = state.educationLevel;
   const dateOverrides = state.nodeDateOverrides || {};
   const removed = state.removedNodeIds || {};
@@ -96,8 +95,14 @@ export function generateRoadmap(state, yearWindow = null) {
   // otherwise.
   const caveatNote = level === 'transfer' && schoolYear >= 2 ? TRANSFER_CAVEAT : null;
 
+  // Looked up across EVERY opportunity track, not just getOpportunityTracks(state.interestTags)
+  // (the narrow set derived from the student's own survey answers) — Opportunity Finder's "Browse
+  // all opportunities" mode lets a student select an opportunity from a track outside their own
+  // interests, and findOpportunity() below needs to be able to resolve it regardless of which
+  // track it actually lives in. Widening this is a no-op for anything selected via the
+  // "Recommended for you" view, since that narrower set is always a subset of OPPORTUNITY_TRACKS.
   const opportunityItems = buildOpportunityItems(
-    opportunityTracks, level, state.selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
+    OPPORTUNITY_TRACKS, level, state.selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
   );
 
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
