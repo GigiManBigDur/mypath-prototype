@@ -19,15 +19,20 @@ const LABEL_BUFFER = 300; // horizontal room for node/branch label text extendin
 // Exported so Roadmap.jsx's default-zoom calculation (cap the initial view to a ~2-year window
 // anchored at today, see fitView) can convert a day-span into the same pixel units this file
 // positions everything in, instead of hardcoding a second copy that could drift out of sync.
-export const PIXELS_PER_DAY = 20;
+// Raised from 20 specifically so MIN_SPINE_GAP can be a real 60px (see below) while
+// 2 * PIXELS_PER_DAY (64) still clears it — the rate itself doesn't otherwise need to change; this
+// is purely a side effect of the floor request. Every day-to-day increase beyond the floor is
+// still exactly PIXELS_PER_DAY px, same "adding rate" as before, just at this new value.
+export const PIXELS_PER_DAY = 32;
 // The floor must apply ONLY when two spine items are 0 or 1 real day apart — anything 2+ days
 // apart uses pure `PIXELS_PER_DAY * daysBetween` math with zero flooring (see the withPosition
-// loop below). Deriving this from PIXELS_PER_DAY rather than a bare literal keeps it pinned
-// strictly between the 1-day and 2-day proportional values (1x < MIN_SPINE_GAP < 2x) regardless
-// of future PIXELS_PER_DAY changes — if it ever crept to >= 2x, a 2-day gap could render smaller
-// than or equal to the 0/1-day floor, which would look like a proportionality bug even though the
-// math is "correct" by the letter of the rule.
-const MIN_SPINE_GAP = PIXELS_PER_DAY * 1.5;
+// loop below). This is a literal 60, not derived from PIXELS_PER_DAY like it used to be — 60 was
+// requested directly. It must still stay strictly under 2 * PIXELS_PER_DAY (64) or a 2-day gap
+// would render smaller than or equal to the 0/1-day floor, inverting the ordering the "only floor
+// at <=1 day" rule exists to guarantee — PIXELS_PER_DAY was raised (see above) specifically to
+// keep that true. If you change this value again, re-check it against 2 * PIXELS_PER_DAY before
+// assuming it's safe.
+const MIN_SPINE_GAP = 60;
 const MIN_BRANCH_GAP = 46;
 // Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
 // constant slope for a whole branch makes every point in it exactly colinear with the anchor, so

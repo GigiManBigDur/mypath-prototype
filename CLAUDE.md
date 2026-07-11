@@ -359,14 +359,17 @@ branches to route around, this one does, so position now has to track real elaps
 **If you touch the spacing constants, they all live at the top of `roadmapLayout.js`
 (`PIXELS_PER_DAY`, `MIN_SPINE_GAP`, `MIN_BRANCH_GAP`, `BRANCH_SLOPES`) — canvas width/height are
 always derived from actual content afterward, never assumed.** `PIXELS_PER_DAY` is deliberately
-large (20) now that Map 2 only ever renders a single year (≤ ~365 days) instead of a whole
+large (32) now that Map 2 only ever renders a single year (≤ ~365 days) instead of a whole
 multi-year plan — auto-fitting a single year at the old value (3) read as visually compressed,
 and (separately, see below) a low `PIXELS_PER_DAY` made the floor's day-equivalent threshold
-large enough that most real gaps triggered it. The resulting canvas is tall enough that the
-default `fitView` fit can legitimately hit `MIN_ZOOM` (0.15) if zoomed out to the whole year at
-once — that's expected and fine, not a regression to fix; zoom in/pan (or "Reset view") already
-handle the rest, per the architecture below. That said, the *default* view no longer zooms out
-that far in the first place — see `DEFAULT_WINDOW_DAYS` further down.
+large enough that most real gaps triggered it. It was raised again from 20 to 32 specifically so
+`MIN_SPINE_GAP` could become a real 60px (below) while `2 * PIXELS_PER_DAY` (64) still clears it
+— the day-to-day rate itself didn't need to change on its own merits, this was purely a
+consequence of the floor request. The resulting canvas is tall enough that the default `fitView`
+fit can legitimately hit `MIN_ZOOM` (0.15) if zoomed out to the whole year at once — that's
+expected and fine, not a regression to fix; zoom in/pan (or "Reset view") already handle the
+rest, per the architecture below. That said, the *default* view no longer zooms out that far in
+the first place — see `DEFAULT_WINDOW_DAYS` further down.
 
 **`MIN_SPINE_GAP`'s floor must trigger ONLY when two spine items are truly 0 or 1 real day
 apart — every 2+ day gap is pure `PIXELS_PER_DAY * daysBetween`, zero flooring.** The decision is
@@ -379,11 +382,12 @@ real days apart could still get floored again — purely because the earlier dri
 "paid off" yet, not because they were actually close in time (confirmed empirically: gaps of 1–4
 real days all rendered identically, and even a 5-day gap only barely cleared the floor, before
 this fix). Comparing true day-gaps instead makes each item's floor decision independent of
-whatever happened earlier in the sequence. `MIN_SPINE_GAP` itself is derived as
-`PIXELS_PER_DAY * 1.5` rather than a bare literal, specifically to stay strictly between the
-1-day and 2-day proportional values (1× < floor < 2×) — if it ever crept to ≥ 2×, a 2-day gap
-could render smaller than or equal to the 0/1-day floor, which would look like a proportionality
-bug even though the "only floor at ≤1 day" rule was technically still being followed.
+whatever happened earlier in the sequence. `MIN_SPINE_GAP` is now a literal `60` (a specific
+value that was requested directly, not derived from a multiplier like earlier passes) — it must
+still stay strictly under `2 * PIXELS_PER_DAY` (64) or a 2-day gap would render smaller than or
+equal to the 0/1-day floor, inverting the ordering the "only floor at ≤1 day" rule exists to
+guarantee. If you change either constant again, re-check that relationship before assuming it's
+still safe — it's not self-enforcing, unlike the earlier multiplier-derived version.
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
