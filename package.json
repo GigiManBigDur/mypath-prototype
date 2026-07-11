@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy:pages": "DEPLOY_TARGET=gh-pages vite build && gh-pages -d dist"
+    "deploy:pages": "DEPLOY_TARGET=gh-pages vite build && gh-pages -d dist",
+    "verify:spacing": "node scripts/verify-spacing.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.23.0",

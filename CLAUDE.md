@@ -38,14 +38,19 @@ change direction:
 
 ```bash
 npm install
-npm run dev      # dev server at http://localhost:5173
-npm run build    # production build to dist/
-npm run preview  # serve the production build locally
-npm run lint      # oxlint
+npm run dev             # dev server at http://localhost:5173
+npm run build           # production build to dist/
+npm run preview         # serve the production build locally
+npm run lint             # oxlint
+npm run verify:spacing  # self-test for the Academic Plan spine's spacing rule — see below
 ```
 
-No test suite exists yet. Verification for this project means running `npm run build` +
+No general test suite exists yet. Verification for this project means running `npm run build` +
 `npm run lint`, then actually clicking through the flow in a browser (see "Testing" below).
+`npm run verify:spacing` (`scripts/verify-spacing.mjs`) is the one exception — a standalone,
+non-visual self-test for `roadmapLayout.js`'s date-to-y spacing rule, run by hand after touching
+that file, not part of every build. See its own header comment and the `MIN_SPINE_GAP` section
+below for why it exists and what it does (and does not) protect against.
 
 ## Git & deployment
 
@@ -462,6 +467,26 @@ still stay strictly under `2 * PIXELS_PER_DAY` (64) or a 2-day gap would render 
 equal to the 0/1-day floor, inverting the ordering the "only floor at ≤1 day" rule exists to
 guarantee. If you change either constant again, re-check that relationship before assuming it's
 still safe — it's not self-enforcing, unlike the earlier multiplier-derived version.
+
+**`npm run verify:spacing` (`scripts/verify-spacing.mjs`) is a standalone self-test for this
+exact rule — run it by hand after touching `roadmapLayout.js`, it is NOT wired into the render
+path.** `layoutRoadmap()` already recomputes every node's position from scratch, from this one
+function, on every state change (it's called fresh inside `generateRoadmap()`, itself re-run by
+a `useMemo` keyed on `state`) — there's no partial-patch code path for a runtime "validate and
+auto-correct" pass to meaningfully guard against, and a validator that just re-ran this same
+formula would only ever be checking `f(x) == f(x)`. The script instead loads the REAL
+`roadmapLayout.js` through Vite's own `ssrLoadModule` (not a reimplementation, and not a plain
+`node` import — the file's extension-less relative imports only resolve through Vite's loader)
+and checks its actual output against the confirmed rule's expected-value table using **isolated
+2-item pairs** — one fresh `layoutRoadmap()` call per gap, 0 through 7 days, since the table
+describes an isolated pair's own gap, not "every gap on a real multi-item spine will read exactly
+this." It also has a dedicated **compounding-drift regression test** reproducing the actual
+historical bug class: a 4-item chain where two earlier pairs are genuinely floored first, then
+checks that a later, truly-2-real-days-apart pair is NOT floored (expects an unfloored 24px
+gap, not the 60px floor) — an isolated 2-item test can't catch this bug class at all, since with
+only one predecessor (and no prior drift yet to bleed in) the old buggy comparison and the fixed
+one happen to agree; this was confirmed by deliberately reintroducing the old `prevY`-comparison
+bug and verifying this specific test (and only this one) failed, before restoring the real fix.
 
 Any spine item with more than one step (in practice, only opportunities — see above) gets its
 own diagonal sub-branch peeling off the spine at that item's date, instead of the old
