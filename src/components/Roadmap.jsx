@@ -541,9 +541,13 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               const delay = entranceDelay(i, entranceEnabled);
               return (
                 <g key={n.id}>
-                  {n.stageLabel && (
-                    <text className="stage-label" x={n.x} y={n.y + 46} textAnchor="middle">— {n.stageLabel} —</text>
-                  )}
+                  {/* Map 2 is always scoped to a single year now (see the year-filtering fix), so
+                      an in-canvas "— Freshman Year —" divider would just be redundantly labeling
+                      the one year already being viewed — Map 1 already communicates which year is
+                      which. `n.stageLabel` itself is left untouched in roadmapGenerator.js/
+                      roadmapLayout.js (including the collision-avoidance space it still reserves
+                      in `placedLabels`) — only this visible render is removed, so no node's
+                      position shifts as a side effect of this change. */}
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
                     {/* Invisible hit target, sized to match the click-pulse animation's peak
                         scale (1.22× the ring — 18 for required, 16 for everything else) — a

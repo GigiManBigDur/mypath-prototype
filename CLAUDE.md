@@ -295,9 +295,15 @@ transfer-application) so no stage is silently missing GPA tracking; this replace
 separate system of quarterly Fall/Winter/Spring GPA checkpoints that lived in
 `roadmapGenerator.js` and, once stages existed, visually collided with these per-stage ones at
 the same granularity — that quarterly system is gone entirely. The first step of each stage
-(when more than one stage is in play) carries a `stageLabel` that `Roadmap.jsx` renders as a
-small "— Sophomore Year —" divider; a 12th-grader/4th-year/non-transfer-2nd-3rd-year student
-still gets exactly one stage, so `stageLabel` is never set. Transfer students 2+ years out keep
+(when more than one stage is in play) still carries a `stageLabel` field (e.g. "Sophomore Year")
+and `roadmapLayout.js` still reserves collision-avoidance space for it via `centeredLabelBBox`,
+but `Roadmap.jsx` no longer renders it as a visible "— Sophomore Year —" divider on Map 2 — now
+that Map 2 is always scoped to a single year (see the year-filtering fix), an in-canvas label
+naming the one year already being viewed was redundant with Map 1, which already communicates
+that. The field/reservation were deliberately left in place rather than removed outright, so
+removing just the visible `<text>` couldn't shift any node's position as a side effect — a
+12th-grader/4th-year/non-transfer-2nd-3rd-year student still gets exactly one stage, so
+`stageLabel` is never set for them either way. Transfer students 2+ years out keep
 the single `application` stage as-is (transfer timelines vary too much to model precisely) but
 get a `caveatNote` string (`TRANSFER_CAVEAT`) surfaced as a banner near the top of
 `Roadmap.jsx` instead of a fabricated multi-year transfer plan.
@@ -958,8 +964,11 @@ download). Cover at minimum:
   will miss it. Screenshot + eyeball too, especially after zooming into any dense cluster.
 - Confirm required (core) nodes render as solid rings and optional (opportunity) nodes as hollow
   dashed rings, both on the spine and within branches; confirm exactly one "Check your GPA" label
-  exists per active stage (`gpaCount === stageLabelCount || (stageLabelCount === 0 && gpaCount
-  === 1)` for the single-stage case).
+  exists per active stage. Since Map 2 is single-year-scoped, at most one stage's core items are
+  ever visible in a given Map 2 view at once, so this reduces to "exactly one GPA check per year
+  opened" in practice — `.stage-label` is no longer a usable DOM signal for this (the divider text
+  itself was removed from Map 2's rendering; the underlying `stageLabel` data field is still set,
+  if you need to check it directly rather than via the DOM).
 - Zoom (wheel + buttons), pan (drag), and reset-view — verify `.roadmap-canvas-inner`'s inline
   `transform` actually changes after each interaction; this regressed once already because the
   zoom buttons were nested inside the pointer-drag div and `setPointerCapture` ate their clicks
