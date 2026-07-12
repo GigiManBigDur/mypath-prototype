@@ -44,8 +44,12 @@ export default function SurveyScreen() {
     });
   };
 
+  // The school selector (and, downstream, Transcript & GPA / Course Selection) only applies to
+  // High School — Undergraduate/Transfer users have no partner college yet, so it's neither shown
+  // nor required for them.
+  const isHighSchool = state.educationLevel === 'highschool';
   const canContinue = state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
-    && !!state.currentSchool;
+    && (!isHighSchool || !!state.currentSchool);
 
   return (
     <div>
@@ -139,14 +143,16 @@ export default function SurveyScreen() {
         </div>
       )}
 
-      <div className="field-block">
-        <div className="field-label">What school do you currently attend?</div>
-        <p className="field-hint">Only Roslyn High School is available right now — more schools are coming soon.</p>
-        <SchoolSearchField
-          value={state.currentSchool}
-          onChange={(school) => patch({ currentSchool: school })}
-        />
-      </div>
+      {isHighSchool && (
+        <div className="field-block">
+          <div className="field-label">What school do you currently attend?</div>
+          <p className="field-hint">Only Roslyn High School is available right now — more schools are coming soon.</p>
+          <SchoolSearchField
+            value={state.currentSchool}
+            onChange={(school) => patch({ currentSchool: school })}
+          />
+        </div>
+      )}
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button

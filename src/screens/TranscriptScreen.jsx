@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { getBuiltTracks } from '../data/interests';
 import { getCourseById } from '../data/courses';
@@ -19,6 +19,18 @@ const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'H
 export default function TranscriptScreen() {
   const { state, patch } = useApp();
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
+  const isHighSchool = state.educationLevel === 'highschool';
+
+  // Defensive: this screen (and Course Selection generally) only applies to High School — routing
+  // already never sends an Undergraduate/Transfer student here, but if state ever ends up here
+  // anyway (e.g. restored mid-flow after educationLevel changed), bounce forward instead of
+  // rendering a screen that shouldn't apply to them, same pattern DiscoveryScreen's own defensive
+  // bounce uses.
+  useEffect(() => {
+    if (!isHighSchool) patch({ screen: 'opportunities' });
+  }, [isHighSchool]);
+
+  if (!isHighSchool) return null;
 
   // The "add a course" form is a few fields staged locally before becoming one real
   // state.transcript entry — same "build up an entry, then commit it" shape AddTaskModal already

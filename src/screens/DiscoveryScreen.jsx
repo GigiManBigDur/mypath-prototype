@@ -39,15 +39,18 @@ export default function DiscoveryScreen() {
   const [programsView, setProgramsView] = useState('recommended');
 
   const tracks = getBuiltTracks(state.interestTags);
+  // Course Selection (Transcript & GPA -> Course Selection) only applies to High School — see
+  // AdmissionsOverviewScreen's identical check.
+  const afterDiscovery = state.educationLevel === 'highschool' ? 'transcript' : 'opportunities';
 
   // Defensive: this screen should only be reached when at least one selected
   // interest maps to a built track — Admissions/Transcript route around it
   // otherwise. If state ever ends up here with none (e.g. restored mid-flow
-  // after interests changed), bounce forward (to Transcript, the next real
-  // step) instead of rendering empty steps.
+  // after interests changed), bounce forward to whichever screen is actually
+  // next instead of rendering empty steps.
   useEffect(() => {
-    if (tracks.length === 0) patch({ screen: 'transcript' });
-  }, [tracks.length]);
+    if (tracks.length === 0) patch({ screen: afterDiscovery });
+  }, [tracks.length, afterDiscovery]);
 
   if (tracks.length === 0) return null;
 
@@ -117,7 +120,7 @@ export default function DiscoveryScreen() {
     if (idx < SUB_STEPS.length - 1) {
       setSubStep(SUB_STEPS[idx + 1]);
     } else {
-      patch({ screen: 'transcript' });
+      patch({ screen: afterDiscovery });
     }
   };
 
@@ -174,7 +177,7 @@ export default function DiscoveryScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" disabled={!canAdvance} onClick={handleNext}>
-          {subStep === 'programs' ? 'Continue to Transcript' : 'Continue'}
+          {subStep === 'programs' ? (afterDiscovery === 'transcript' ? 'Continue to Transcript' : 'Continue to Opportunities') : 'Continue'}
         </button>
       </div>
     </div>

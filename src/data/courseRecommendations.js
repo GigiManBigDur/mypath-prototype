@@ -1,0 +1,173 @@
+// Course Selection Stage 3 — maps each interest track (the same OPPORTUNITY_TRACKS keys used by
+// Opportunity Finder, not just the narrower BUILT_TRACKS) to a hand-picked set of real course ids
+// from src/data/courses.js. Business, STEM, Healthcare, Creative, Academic/Humanities, and Media &
+// Entertainment follow the build spec's own example mappings; the rest (Sports, Community &
+// Leadership, Personal Development, Outdoors, Lifestyle) were extended by judgment across the same
+// parsed catalog. Culinary Arts is deliberately empty — Roslyn's catalog has no Family & Consumer
+// Science/Culinary department among the 11 covered departments, so forcing a weak match here would
+// be dishonest; CourseSelectionScreen shows a plain "no strong matches yet" message for any track
+// that resolves to an empty list, per the spec's own explicit permission for weak-match tracks.
+// A course id can legitimately appear under more than one track (e.g. AP Biology under both STEM
+// and Healthcare) — getRecommendedCourses below dedupes the merged result.
+export const TRACK_RECOMMENDED_COURSES = {
+  business: [
+    'business-accelerator-rhs-honors',
+    'business-incubator-rhs-honors',
+    'business-wall-street-bloomberg-foundations-honors',
+    'business-bloomberg-financial-portfolio-management-honors',
+    'business-accounting',
+    'business-business-essentials',
+    'business-introduction-to-business',
+    'business-business-law',
+    'business-investments',
+    'business-financial-literacy-money-matters',
+    'business-marketing-2-consumer-behavior',
+    'business-sports-entertainment-marketing',
+    'business-fashion-marketing',
+  ],
+  stem: [
+    'math-ap-calculus-ab',
+    'math-ap-calculus-bc',
+    'math-multi-variable-calculus',
+    'math-differential-equations',
+    'math-ap-precalculus',
+    'math-ap-statistics',
+    'science-ap-biology',
+    'science-ap-chemistry',
+    'science-ap-physics-1',
+    'science-ap-physics-1-2',
+    'science-ap-physics-c-mechanics-and-electricity-and-magnetism',
+    'science-ap-environmental-science',
+    '21st-century-learning-ap-computer-science-a',
+    '21st-century-learning-ap-computer-science-principles',
+    '21st-century-learning-introduction-to-java-programming-language',
+    '21st-century-learning-advanced-robotics',
+    '21st-century-learning-introduction-to-robotics',
+    '21st-century-learning-artificial-intelligence-cybersecurity-beyond',
+    '21st-century-learning-app-inventor',
+    '21st-century-learning-pltw-principles-of-engineering-poe',
+    '21st-century-learning-pltw-civil-engineering-and-architecture-cea',
+    '21st-century-learning-pltw-computer-integrated-manufacturing-cim',
+    '21st-century-learning-pltw-drawing-and-design-for-production-ddp-ied',
+    '21st-century-learning-electric-vehicle-engineering-build-the-future',
+    '21st-century-learning-drones-the-future-of-flight-pending-board-approval',
+  ],
+  healthcare: [
+    'science-pre-med',
+    'science-advanced-pre-med',
+    'science-pre-vet-animal-care-in-action',
+    'science-epidemiology-disease-and-you',
+    'science-biology-honors-previously-living-environment-honors',
+    'science-biology-regents-previously-living-environment-regents',
+    'science-ap-biology',
+    'science-forensic-science-crime-solving-with-science',
+    '21st-century-learning-introduction-to-biotechnology-the-science-of-the-future',
+    'special-education-applied-behavioral-analysis-aba-class',
+  ],
+  creative: [
+    'art-studio-art',
+    'art-intermediate-studio-art',
+    'art-advanced-studio-art-pending-board-approval',
+    'art-portfolio-in-two-dimensional-2-d-design',
+    'art-portfolio-in-three-dimensional-3-d-design',
+    'art-ap-2-d-art-design',
+    'art-ap-3-d-art-design',
+    'art-ap-art-history',
+    'art-photography-1',
+    'art-photography-2',
+    'art-digital-photography-1',
+    'art-digital-photography-2',
+    'art-sculpture-and-ceramics-1',
+    'art-sculpture-and-ceramics-2',
+    'art-mixed-media',
+    'music-theater-theater',
+    'music-theater-band-program',
+    'music-theater-choral-program',
+    'music-theater-orchestra-program',
+    'music-theater-ap-music-theory',
+    'music-theater-music-theory-i',
+    'english-creative-writing',
+    'english-film-and-literature',
+  ],
+  academic: [
+    'english-ap-english-language-and-composition',
+    'english-ap-english-literature-and-composition',
+    'english-ap-english-language-strategies',
+    'english-independent-humanities-research',
+    'english-psychology-in-literature',
+    'social-studies-ap-us-history',
+    'social-studies-ap-european-history',
+    'social-studies-ap-psychology',
+    'social-studies-psychology',
+    'social-studies-child-psychology',
+    'social-studies-ap-united-states-government-and-politics-fall',
+    'social-studies-ap-human-geography',
+    'social-studies-the-history-of-ethics-a-study-from-genesis-to-covid',
+    'social-studies-world-humanities-seminar-honors-social-studies',
+    'social-studies-independent-study-research',
+    'social-studies-research-seminar',
+    'social-studies-senior-seminar-in-research',
+  ],
+  media: [
+    '21st-century-learning-media-broadcasting-production-1',
+    '21st-century-learning-media-broadcasting-production-2',
+    '21st-century-learning-podcasting-3-0-long-form-audio-storytelling',
+    '21st-century-learning-the-power-of-the-podcast-the-art-of-modern-storytelling-1',
+    '21st-century-learning-the-power-of-the-podcast-the-art-of-modern-storytelling-2',
+    'english-journalism-1-new-media-communications',
+    'art-design-your-brand-adobe-illustrator-for-content-creators',
+    'art-digital-art-animation-and-more-with-procreate',
+    'music-theater-theater',
+    'business-sports-entertainment-marketing',
+  ],
+  sports: [
+    'physical-education-health-physical-education',
+    'physical-education-health-pe-extreme',
+    'physical-education-health-pe-yoga',
+    'physical-education-health-first-aid-certification',
+    'physical-education-health-adapted-physical-education',
+    'business-sports-entertainment-marketing',
+  ],
+  // Deliberately empty — see the file-level comment above.
+  culinary: [],
+  community: [
+    'social-studies-participation-in-government',
+    'social-studies-participation-in-government-honors',
+    'social-studies-roslyn-leadership-academy-pending-board-approval',
+    'social-studies-csi-roslyn-investigative-law',
+    'social-studies-ap-united-states-government-and-politics-fall',
+    'business-incubator-rhs-honors',
+    'business-accelerator-rhs-honors',
+    '21st-century-learning-peer-coaching',
+  ],
+  personal: [
+    '21st-century-learning-peer-coaching',
+    '21st-century-learning-mastering-ai-the-power-of-prompt-engineering',
+    'english-public-speaking-owning-the-crowd',
+    'physical-education-health-health',
+    'social-studies-psychology',
+    'social-studies-child-psychology',
+    'social-studies-ap-psychology',
+  ],
+  outdoors: [
+    'science-astronomy-explore-the-wonders-of-the-universe',
+    'science-hydroponics-growing-the-future',
+    'science-marine-biology',
+    'science-pre-vet-animal-care-in-action',
+  ],
+  lifestyle: [
+    'physical-education-health-pe-extreme',
+    'physical-education-health-pe-yoga',
+    'art-fashion-in-art-1',
+    'art-fashion-in-art-2',
+    'business-fashion-marketing',
+  ],
+};
+
+// Merges + dedupes recommended course ids across every given track (mirrors getOpportunityPool's
+// own merge/dedupe shape), then resolves them to real course objects, dropping any id that somehow
+// doesn't resolve rather than rendering a broken card.
+export function getRecommendedCourses(tracks, getCourseById) {
+  const ids = [...new Set(tracks.flatMap((t) => TRACK_RECOMMENDED_COURSES[t] || []))];
+  return ids.map((id) => getCourseById(id)).filter(Boolean);
+}

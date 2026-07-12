@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
+import { getBuiltTracks, getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getOpportunityPool } from '../data/opportunities';
 import { anchorDate, formatDate, startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
@@ -12,6 +12,16 @@ export default function OpportunityFinderScreen() {
   const isGeneric = opportunityTracks.length === 0;
   const recommendedOpportunities = getOpportunityPool(opportunityTracks, state.educationLevel);
   const today = startOfToday();
+
+  // Course Selection (Transcript & GPA -> Course Selection) only applies to High School, so a
+  // High School student's Back always goes to courseSelection (the real previous screen for
+  // them, never conditionally skipped). Undergraduate/Transfer never see that stretch at all —
+  // for them Back mirrors the exact pre-Course-Selection discovery-skip logic (discovery if a
+  // built track was selected, else admissions), unaffected by any of Course Selection's Stage 1-3
+  // work.
+  const isHighSchool = state.educationLevel === 'highschool';
+  const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
+  const backTarget = isHighSchool ? 'courseSelection' : (hasBuiltTrack ? 'discovery' : 'admissions');
 
   // Local, unpersisted browse state — same "session-only UI convenience, not data worth
   // surviving a reload" trade Project Builder's own sub-views already make. The actual
@@ -47,7 +57,7 @@ export default function OpportunityFinderScreen() {
       <button
         type="button"
         className="btn btn-ghost"
-        onClick={() => patch({ screen: 'courseSelection' })}
+        onClick={() => patch({ screen: backTarget })}
       >
         <ArrowLeft size={14} /> Back
       </button>

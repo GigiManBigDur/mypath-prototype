@@ -8,6 +8,10 @@ export default function AdmissionsOverviewScreen() {
   const { state, patch } = useApp();
   const copy = ADMISSIONS_TEXT[state.educationLevel];
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
+  // Course Selection (Transcript & GPA -> Course Selection) only applies to High School —
+  // Undergraduate/Transfer skip straight to Opportunities when Discovery is also skipped, exactly
+  // the pre-Course-Selection behavior for them.
+  const afterDiscoverySkip = state.educationLevel === 'highschool' ? 'transcript' : 'opportunities';
 
   return (
     <div>
@@ -28,7 +32,7 @@ export default function AdmissionsOverviewScreen() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => patch({ screen: hasBuiltTrack ? 'discovery' : 'transcript' })}
+          onClick={() => patch({ screen: hasBuiltTrack ? 'discovery' : afterDiscoverySkip })}
         >
           Continue
         </button>

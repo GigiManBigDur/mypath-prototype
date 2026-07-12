@@ -107,24 +107,50 @@ visitor — `loadInitialState()` spreads any stored state *over* the default, so
 whose saved `screen` is anything else (e.g. `'plan'`) resumes exactly where they left off, never
 bounced back to the welcome hero. `App.jsx`'s small persistent "MyPath — prototype" brand bar is
 hidden specifically on `welcome` (`state.screen !== 'welcome'`) since that screen has its own
-large "MyPath" hero title — showing both stacked would read as duplicated branding. **The
-`discovery` screen is conditionally skipped**: `AdmissionsOverviewScreen`'s Continue button
-routes straight to `transcript` (not `discovery`) when the user has no built-track interest
-selected, and `TranscriptScreen`'s Back button routes to `admissions` (not `discovery`) in that
-same case — the skip target moved from `opportunities` to `transcript` once Transcript/Course
-Selection were inserted between Discovery and Opportunity Finder, but the mechanism itself is
-unchanged. `DiscoveryScreen` also has a defensive `useEffect` that bounces to `transcript` (was
-`opportunities`) if it's ever reached with zero built tracks (e.g. state restored from
-`localStorage` after interests changed). `TranscriptScreen` (Course Selection Stage 2) is now real
-— see the dedicated section below; `CourseSelectionScreen` (Stage 3) is still a **placeholder
-"coming soon" screen** — see `src/components/ComingSoonNotice.jsx` — real content is a separate
-future pass. Neither is conditionally skipped, unlike `discovery`: `CourseSelectionScreen`'s Back button always
-targets `transcript` unconditionally, since Transcript is always the real previous screen
-regardless of how the student got there. `ProjectBuilderScreen` (see below) sits between
+large "MyPath" hero title — showing both stacked would read as duplicated branding.
+
+**`transcript`/`courseSelection` (Course Selection Stages 2-3) are High-School-only screens —
+Undergraduate/Transfer never see them**, since those levels have no partner college yet and the
+whole feature (school selector, transcript entry, course catalog browsing) only makes sense for a
+Roslyn High School student. This is a second, independent skip layer on top of the `discovery`
+skip below, and both are computed the same way at every routing decision point: a shared
+`const afterX = state.educationLevel === 'highschool' ? 'transcript' : 'opportunities'`-style
+variable, never an inlined ternary repeated per callsite (this codebase's established pattern for
+multi-site conditional routing — see the `getBuiltTracks`-driven skip below for the precedent).
+Concretely:
+- `SurveyScreen`'s school-selector field block, and the `!!state.currentSchool` clause in
+  `canContinue`, are both wrapped in `isHighSchool` — Undergraduate/Transfer see neither the field
+  nor the requirement.
+- `AdmissionsOverviewScreen`'s Continue button goes to `discovery` if a built track was selected,
+  else `afterDiscoverySkip` (`'transcript'` for High School, `'opportunities'` otherwise).
+- `DiscoveryScreen`'s defensive zero-built-track bounce, and its own final-substep Continue
+  button, both target the same computed `afterDiscovery` (`'transcript'` for High School, else
+  `'opportunities'`) — this is a per-file-recomputed variable, not shared code, since each screen
+  reads `state.educationLevel` itself.
+- `TranscriptScreen` and `CourseSelectionScreen` each carry their own defensive `useEffect` that
+  bounces straight to `'opportunities'` if `state.educationLevel !== 'highschool'` (mirroring
+  `DiscoveryScreen`'s own zero-built-track defensive bounce) — belt-and-suspenders in case state is
+  ever restored mid-flow after `educationLevel` changed, since routing alone already never sends a
+  non-High-School student to either screen.
+- `OpportunityFinderScreen`'s Back button computes `backTarget`: `'courseSelection'` for High
+  School (always — Course Selection is never itself conditionally skipped for them, so it's always
+  the real previous screen), or the exact pre-Course-Selection discovery-skip mirror
+  (`hasBuiltTrack ? 'discovery' : 'admissions'`) for Undergraduate/Transfer, who never see the
+  Transcript/Course-Selection stretch at all.
+
+**The `discovery` screen is separately, conditionally skipped** (orthogonal to the High-School
+gating above — this skip is about *interests*, not *education level*, and applies to every
+level): `AdmissionsOverviewScreen`'s Continue button routes to `afterDiscoverySkip` instead of
+`discovery` when the user has no built-track interest selected, and `DiscoveryScreen`'s Back
+button routes to `admissions` in that same case. `DiscoveryScreen` also has a defensive `useEffect`
+that bounces to `afterDiscovery` if it's ever reached with zero built tracks (e.g. state restored
+from `localStorage` after interests changed). `ProjectBuilderScreen` (see below) sits between
 `opportunities` and `plan` — unlike `discovery` it's never skipped by routing logic, since it's
 fully optional in place via its own persistent "Skip for now" control rather than being bypassed
 based on user data. `StepProgress`'s `total` is `8` everywhere now (was `6`) to match the two
-added screens — see each screen's own `step={N}` for its position.
+Course Selection screens added to the flow — see each screen's own `step={N}` for its position
+(Undergraduate/Transfer students simply pass through steps 4-5 without seeing them rendered,
+same as they already silently skip step 3's `discovery` substeps when it's skipped).
 
 **`AppContext` (`src/context/AppContext.jsx`) is the single source of truth**, a flat
 `useState` object with a `patch()` merge function, auto-persisted to `localStorage` under
@@ -132,8 +158,10 @@ added screens — see each screen's own `step={N}` for its position.
 grade/year within that level — 9-12 for highschool, 1-4 undergraduate, 1-3 transfer; drives
 how many trunk stages get prepended, see "Multi-year trunk" below), `currentSchool` (Survey's
 school search/select field, `src/data/schools.js` — only `'Roslyn High School'` is real right
-now, `''` means unselected), `transcript` (array of `{ id, courseId, gradeEarned, yearTaken }` —
-entered on `TranscriptScreen`, Course Selection Stage 2; see that section below), `gpa` (no
+now, `''` means unselected; High-School-only, see the routing note above), `transcript` (array of
+`{ id, courseId, gradeEarned, yearTaken }` — entered on `TranscriptScreen`, Course Selection Stage
+2; see that section below), `selectedCourseIds` (array of `course.id` values picked on
+`CourseSelectionScreen`, Course Selection Stage 3 — see that section below), `gpa` (no
 longer entered directly on the Survey — the survey's own GPA text box was removed once Course
 Selection Stage 1 shipped; `TranscriptScreen` now writes the converted 4.0-scale GPA here as a
 string, same field/format the old input used, so downstream GPA-aware code (`ProgramsStep`,
@@ -238,14 +266,16 @@ tracks — both were the same root cause: a lookup scoped to `getBuiltTracks(sta
    (`selectedMajors`/`mergedPrograms` in the same function were already safe — they resolve
    directly by id via `MAJORS`/`getMergedPrograms`, never track-scoped.)
 
-**Course Selection is a multi-stage build; only Stages 1-2 exist so far.** Stage 1 (survey/flow
+**Course Selection is a multi-stage build; Stages 1-3 are all done now.** Stage 1 (survey/flow
 changes — the school field, removing the self-reported GPA box, inserting `transcript` and
-`courseSelection` into the screen order) and Stage 2 (`TranscriptScreen`, this section) are done;
-Stage 3 (`CourseSelectionScreen`, letting a student pick their upcoming courses from the same
-catalog) is still the Stage 1 placeholder (`ComingSoonNotice`) — don't assume it's built.
+`courseSelection` into the screen order), Stage 2 (`TranscriptScreen`), and Stage 3
+(`CourseSelectionScreen`, letting a student pick their upcoming courses from the same catalog) are
+all real, wired-up screens — none of Course Selection is a placeholder anymore. All three stages
+(plus the school selector) are gated to High School only — see the routing note near the top of
+this Architecture section.
 
-- **`src/data/courses.js` is the shared course database Stage 2 and (eventually) Stage 3 both
-  read from — built once, not duplicated per screen.** It's Roslyn High School's real 2026-27
+- **`src/data/courses.js` is the shared course database Stage 2 and Stage 3 both read from — built
+  once, not duplicated per screen.** It's Roslyn High School's real 2026-27
   course catalog, parsed directly from the school's own published PDF, covering the 11
   departments the build spec named (Art, Business, English, Math, Music & Theater, Physical
   Education & Health, Science, Social Studies, World Languages, 21st Century Learning, Special
@@ -301,6 +331,58 @@ catalog) is still the Stage 1 placeholder (`ComingSoonNotice`) — don't assume 
   numbers display together, per Task 3), but is otherwise display-only — this app's GPA-aware
   features were built around one 4.0-scale number and stay that way rather than being redesigned
   around a weighted one.
+- **`CourseSelectionScreen` (Stage 3) has four pieces, matching the build spec's own four tasks —
+  policy summary, browsable catalog with filters, interest-based recommendations, and a personal
+  selection list.** All of it reads from the same `COURSES` array Stage 2 uses; nothing is
+  duplicated.
+  - **Task 1 — policy summary**: a fixed `POLICY_SECTIONS` array (7 entries — Graduation
+    Requirements, Subject Minimums, Diploma Types, Course Load Per Grade, GPA Weighting, Honors
+    Distinction, AP Course Policy), rendered as a `.policy-grid` of small icon-header + bullet-list
+    cards rather than prose, so a dense set of real Roslyn policy numbers (22 credits, 40 service
+    hours, per-subject minimums, 3 diploma types, exam counts, course-load-per-grade, the same
+    `WEIGHT_MULTIPLIERS` Stage 2's GPA math already uses, Honors Distinction thresholds, AP
+    exam-or-reverts-to-Honors policy) stays scannable. This is fixed reference content, not derived
+    from `COURSES` — the numbers came directly from the build spec, not the catalog file.
+  - **Task 2 — browsable catalog**: reuses the shared "Recommended for you" / "Browse all ___"
+    pill toggle every other multi-content screen in this app uses (Discovery's 3 sub-steps,
+    Opportunity Finder). Browse mode adds a plain text search box (name-only substring match) plus
+    four independent multi-select pill-group filters — Category (department, from
+    `[...new Set(COURSES.map(c => c.department))]`), Grade Level (9-12), Credits (0.5/1/2/`'none'`
+    — `'none'` matches the 9 Special Education courses with no stated credit value, labeled
+    "Varies" in the UI), and Special Attributes (AP/Honors/RSH, matched against `weightCategory`).
+    Empty filter arrays mean "no filter applied," same convention Opportunity Finder's own track
+    filter uses. No community comments/ratings on cards anywhere here, matching every other
+    "explicitly no social features" content type in this app (opportunity steps, Project Builder's
+    community examples).
+  - **Task 3 — recommendations**: `src/data/courseRecommendations.js` exports
+    `TRACK_RECOMMENDED_COURSES`, a hand-picked `{ [track]: courseId[] }` map keyed by the same
+    `OPPORTUNITY_TRACKS` keys Opportunity Finder uses (not just `BUILT_TRACKS` — a student with
+    only a `lifestyle`-track tag selected still gets a recommendation attempt), and
+    `getRecommendedCourses(tracks, getCourseById)`, which merges + dedupes ids across every given
+    track and resolves them to real course objects. `CourseSelectionScreen` calls this with
+    `getOpportunityTracks(state.interestTags)` — the same track-resolution input Opportunity
+    Finder itself uses, not majors (majors aren't tied to individual courses in this data model, so
+    there's no finer-grained mapping to build without inventing one). Business, STEM, Healthcare,
+    Creative, Academic/Humanities, and Media & Entertainment follow the build spec's own example
+    mappings; Sports, Community & Leadership, Personal Development, Outdoors, and Lifestyle
+    (Fitness/Fashion) were extended by judgment across the same 207-course catalog. **Culinary Arts
+    is deliberately an empty list** — Roslyn's catalog has no Family & Consumer Science/Culinary
+    department among the 11 covered departments, so forcing a weak match would be dishonest; the
+    screen shows a plain "No strong course matches for this interest yet" message instead, per the
+    spec's own explicit permission for weak-match tracks. The required disclaimer ("You're always
+    free to explore any course you like — these are suggestions, not requirements.") renders
+    directly under the Recommended toggle whenever that view is active. A course id can validly
+    appear under more than one track (e.g. AP Biology under both STEM and Healthcare); the merge
+    step dedupes so a student with tags spanning both only sees it once.
+  - **Task 4 — selection list**: clicking any course card (Recommended or Browse, same handler
+    either way) toggles its `id` in `state.selectedCourseIds` — the exact `.card.selected` toggle
+    pattern used for careers/majors/programs/opportunities elsewhere in this app, so persistence is
+    automatic via `AppContext`'s existing `localStorage` write. A "Your selected courses (N)" strip
+    below the grid lists every selection as a removable chip (`.course-selected-chip`, reusing
+    `.tag.selected` styling) so a student can review/deselect without hunting through the full
+    grid again. **Roadmap wiring is explicitly out of scope for this stage** — `selectedCourseIds`
+    is confirmed to persist correctly but nothing in `roadmapGenerator.js` reads it yet; that's a
+    deferred future Stage 4.
 
 **Data layer (`src/data/`) is keyed by `[track][educationLevel]`, not by screen.**
 - `careers.js` / `programs.js` (via `getPrograms()`) / `opportunities.js` all branch on

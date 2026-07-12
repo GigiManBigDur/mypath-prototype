@@ -19,6 +19,9 @@ const DEFAULT_STATE = {
   transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
   // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.
+  selectedCourseIds: [], // course.id values picked on CourseSelectionScreen (Course Selection
+  // Stage 3), from either its Recommended or Browse view — the same array either way, since
+  // selection behaves identically regardless of which view a course was found through.
   selectedCareerIds: [],
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`

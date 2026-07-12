@@ -495,6 +495,83 @@ button.card.passed:hover {
 .prose p { font-size: 15px; line-height: 1.7; color: var(--ink); margin: 0 0 16px; }
 .prose { max-width: 62ch; }
 
+/* Course Selection (Stage 3) — policy summary cards */
+.policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.policy-card {
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.policy-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Fraunces', serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--teal);
+  margin-bottom: 10px;
+}
+.policy-card-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.policy-card-list li { margin-bottom: 3px; }
+.policy-card-list li:last-child { margin-bottom: 0; }
+
+/* Course filter controls */
+.course-filter-search {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--paper-line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  width: 100%;
+  max-width: 380px;
+  margin-bottom: 16px;
+}
+.course-filter-search:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+.course-filter-row { display: flex; flex-direction: column; gap: 14px; margin-bottom: 10px; }
+.course-filter-group { display: flex; flex-direction: column; gap: 6px; }
+.course-filter-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+
+/* Special-attribute badges on a course card — same colored-pill language as .rms-badge, distinct
+   colors so AP/RSH/Honors/Pass-Fail read apart from Reach/Match/Safety at a glance. */
+.course-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.course-badge {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: #fff;
+}
+.course-badge-ap { background: var(--rust); }
+.course-badge-research_honors { background: var(--gold); }
+.course-badge-honors { background: var(--teal); }
+.course-badge-passfail { background: var(--stone); }
+
+.course-selected-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
 .coming-soon {
   max-width: 480px;
   margin: 32px auto;
