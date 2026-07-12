@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getBuiltTracks, getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
+import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getOpportunityPool } from '../data/opportunities';
 import { anchorDate, formatDate, startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
-  const builtTracks = getBuiltTracks(state.interestTags);
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const isGeneric = opportunityTracks.length === 0;
   const recommendedOpportunities = getOpportunityPool(opportunityTracks, state.educationLevel);
@@ -48,12 +47,12 @@ export default function OpportunityFinderScreen() {
       <button
         type="button"
         className="btn btn-ghost"
-        onClick={() => patch({ screen: builtTracks.length ? 'discovery' : 'admissions' })}
+        onClick={() => patch({ screen: 'courseSelection' })}
       >
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={4} total={6} />
+      <StepProgress step={6} total={8} />
       <h1 className="page-title">Opportunity Finder</h1>
       <p className="page-sub">
         Real programs and competitions worth pursuing alongside your coursework. Select any that

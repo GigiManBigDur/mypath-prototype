@@ -676,7 +676,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             <div className="roadmap-panel-info">
               <div className="roadmap-panel-eyebrow-row">
                 <span className="roadmap-panel-icon-badge"><Compass size={12} /></span>
-                <span className="eyebrow" style={{ margin: 0 }}>Step 6 of 6</span>
+                <span className="eyebrow" style={{ margin: 0 }}>Step 8 of 8</span>
               </div>
               <h1 className="rm-title">{roadmap.title}</h1>
               <p className="rm-sub">{roadmap.subtitle}</p>

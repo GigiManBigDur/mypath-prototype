@@ -15,7 +15,7 @@ export default function AdmissionsOverviewScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={2} total={6} />
+      <StepProgress step={2} total={8} />
       <h1 className="page-title">{copy.title}</h1>
 
       <div className="prose">
@@ -28,7 +28,7 @@ export default function AdmissionsOverviewScreen() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => patch({ screen: hasBuiltTrack ? 'discovery' : 'opportunities' })}
+          onClick={() => patch({ screen: hasBuiltTrack ? 'discovery' : 'transcript' })}
         >
           Continue
         </button>

@@ -94,7 +94,7 @@ export default function ProjectBuilderScreen() {
         </button>
       </div>
 
-      <StepProgress step={5} total={6} />
+      <StepProgress step={7} total={8} />
 
       {view === 'categories' && <CategoriesView onOpenCategory={openCategory} />}
 

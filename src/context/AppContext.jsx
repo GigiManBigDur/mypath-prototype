@@ -3,11 +3,18 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const STORAGE_KEY = 'mypath-prototype-state';
 
 const DEFAULT_STATE = {
-  screen: 'welcome', // welcome | survey | admissions | discovery | opportunities | projectBuilder | plan
+  // welcome | survey | admissions | discovery | transcript | courseSelection | opportunities |
+  // projectBuilder | plan
+  screen: 'welcome',
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
-  gpa: '',
+  currentSchool: '', // survey's school search/select field — only 'Roslyn High School' is real
+  // for now (src/data/schools.js); '' means unselected.
+  gpa: '', // self-reported on the Survey through Course Selection Stage 1; Stage 2 (Transcript &
+  // GPA, not yet built) will calculate this from a real transcript instead — the field stays
+  // here so downstream GPA-aware code (ProgramsStep, roadmapGenerator) keeps working unchanged
+  // while it's blank in the meantime.
   selectedCareerIds: [],
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`

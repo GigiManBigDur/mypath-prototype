@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 import StepProgress from '../components/StepProgress';
+import SchoolSearchField from '../components/SchoolSearchField';
 
 const LEVELS = [
   { id: 'highschool', label: 'High School' },
@@ -43,7 +44,8 @@ export default function SurveyScreen() {
     });
   };
 
-  const canContinue = state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear;
+  const canContinue = state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
+    && !!state.currentSchool;
 
   return (
     <div>
@@ -51,7 +53,7 @@ export default function SurveyScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={1} total={6} />
+      <StepProgress step={1} total={8} />
       <h1 className="page-title">Let's build your plan.</h1>
       <p className="page-sub">
         Answer a few quick questions and we'll put together a personalized roadmap — no
@@ -138,17 +140,11 @@ export default function SurveyScreen() {
       )}
 
       <div className="field-block">
-        <div className="field-label">What are your current grades?</div>
-        <p className="field-hint">Optional — GPA on a 0.0–4.0 scale.</p>
-        <input
-          type="number"
-          min="0"
-          max="4"
-          step="0.01"
-          placeholder="3.50"
-          className="gpa-input"
-          value={state.gpa}
-          onChange={(e) => patch({ gpa: e.target.value })}
+        <div className="field-label">What school do you currently attend?</div>
+        <p className="field-hint">Only Roslyn High School is available right now — more schools are coming soon.</p>
+        <SchoolSearchField
+          value={state.currentSchool}
+          onChange={(school) => patch({ currentSchool: school })}
         />
       </div>
 

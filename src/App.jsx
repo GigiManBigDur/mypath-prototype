@@ -4,6 +4,8 @@ import WelcomeScreen from './screens/WelcomeScreen';
 import SurveyScreen from './screens/SurveyScreen';
 import AdmissionsOverviewScreen from './screens/AdmissionsOverviewScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
+import TranscriptScreen from './screens/TranscriptScreen';
+import CourseSelectionScreen from './screens/CourseSelectionScreen';
 import OpportunityFinderScreen from './screens/OpportunityFinderScreen';
 import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
@@ -13,6 +15,8 @@ const SCREENS = {
   survey: SurveyScreen,
   admissions: AdmissionsOverviewScreen,
   discovery: DiscoveryScreen,
+  transcript: TranscriptScreen,
+  courseSelection: CourseSelectionScreen,
   opportunities: OpportunityFinderScreen,
   projectBuilder: ProjectBuilderScreen,
   plan: AcademicPlanScreen,
@@ -23,7 +27,9 @@ const SCREENS = {
 // directly — Map 2 (the full per-year roadmap) is still excluded, same as the whole Academic
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
-const TRANSITION_SCREENS = new Set(['survey', 'admissions', 'discovery', 'opportunities', 'projectBuilder']);
+const TRANSITION_SCREENS = new Set([
+  'survey', 'admissions', 'discovery', 'transcript', 'courseSelection', 'opportunities', 'projectBuilder',
+]);
 
 function AppShell() {
   const { state } = useApp();

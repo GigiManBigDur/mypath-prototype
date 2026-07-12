@@ -41,11 +41,12 @@ export default function DiscoveryScreen() {
   const tracks = getBuiltTracks(state.interestTags);
 
   // Defensive: this screen should only be reached when at least one selected
-  // interest maps to a built track — Admissions/Opportunities route around it
+  // interest maps to a built track — Admissions/Transcript route around it
   // otherwise. If state ever ends up here with none (e.g. restored mid-flow
-  // after interests changed), bounce forward instead of rendering empty steps.
+  // after interests changed), bounce forward (to Transcript, the next real
+  // step) instead of rendering empty steps.
   useEffect(() => {
-    if (tracks.length === 0) patch({ screen: 'opportunities' });
+    if (tracks.length === 0) patch({ screen: 'transcript' });
   }, [tracks.length]);
 
   if (tracks.length === 0) return null;
@@ -116,14 +117,14 @@ export default function DiscoveryScreen() {
     if (idx < SUB_STEPS.length - 1) {
       setSubStep(SUB_STEPS[idx + 1]);
     } else {
-      patch({ screen: 'opportunities' });
+      patch({ screen: 'transcript' });
     }
   };
 
   return (
     <div>
       <BackBar onBack={goBackSubStep} />
-      <StepProgress step={3} total={6} label={SUB_STEP_COPY[subStep].title} />
+      <StepProgress step={3} total={8} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">{SUB_STEP_COPY[subStep].sub}</p>
 
@@ -173,7 +174,7 @@ export default function DiscoveryScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" disabled={!canAdvance} onClick={handleNext}>
-          {subStep === 'programs' ? 'Continue to Opportunities' : 'Continue'}
+          {subStep === 'programs' ? 'Continue to Transcript' : 'Continue'}
         </button>
       </div>
     </div>

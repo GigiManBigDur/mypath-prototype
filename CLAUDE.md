@@ -99,29 +99,45 @@ is secondary and manual only.
 
 **Screen flow is a single-page state machine, not a router.** `App.jsx` reads
 `state.screen` from `AppContext` and renders the matching component from a `SCREENS` map
-(`welcome → survey → admissions → discovery → opportunities → projectBuilder → plan`). Screens
-advance by calling `patch({ screen: 'next' })` — there's no URL routing, back/forward is handled
-by explicit "Back" buttons that patch `screen` backwards. `welcome` is `DEFAULT_STATE.screen`
-(`AppContext.jsx`), but only ever shown to a genuinely fresh visitor — `loadInitialState()`
-spreads any stored state *over* the default, so a returning user whose saved `screen` is
-anything else (e.g. `'plan'`) resumes exactly where they left off, never bounced back to the
-welcome hero. `App.jsx`'s small persistent "MyPath — prototype" brand bar is hidden specifically
-on `welcome` (`state.screen !== 'welcome'`) since that screen has its own large "MyPath" hero
-title — showing both stacked would read as duplicated branding. **The `discovery` screen is conditionally
-skipped**: `AdmissionsOverviewScreen`'s Continue button routes straight to `opportunities`
-when the user has no built-track interest selected, and `OpportunityFinderScreen`'s Back
-button routes to `admissions` (not `discovery`) in that same case. `DiscoveryScreen` also
-has a defensive `useEffect` that bounces to `opportunities` if it's ever reached with zero
-built tracks (e.g. state restored from `localStorage` after interests changed).
-`ProjectBuilderScreen` (see below) sits between `opportunities` and `plan` — unlike `discovery`
-it's never skipped by routing logic, since it's fully optional in place via its own persistent
-"Skip for now" control rather than being bypassed based on user data.
+(`welcome → survey → admissions → discovery → transcript → courseSelection → opportunities →
+projectBuilder → plan`). Screens advance by calling `patch({ screen: 'next' })` — there's no URL
+routing, back/forward is handled by explicit "Back" buttons that patch `screen` backwards.
+`welcome` is `DEFAULT_STATE.screen` (`AppContext.jsx`), but only ever shown to a genuinely fresh
+visitor — `loadInitialState()` spreads any stored state *over* the default, so a returning user
+whose saved `screen` is anything else (e.g. `'plan'`) resumes exactly where they left off, never
+bounced back to the welcome hero. `App.jsx`'s small persistent "MyPath — prototype" brand bar is
+hidden specifically on `welcome` (`state.screen !== 'welcome'`) since that screen has its own
+large "MyPath" hero title — showing both stacked would read as duplicated branding. **The
+`discovery` screen is conditionally skipped**: `AdmissionsOverviewScreen`'s Continue button
+routes straight to `transcript` (not `discovery`) when the user has no built-track interest
+selected, and `TranscriptScreen`'s Back button routes to `admissions` (not `discovery`) in that
+same case — the skip target moved from `opportunities` to `transcript` once Transcript/Course
+Selection were inserted between Discovery and Opportunity Finder, but the mechanism itself is
+unchanged. `DiscoveryScreen` also has a defensive `useEffect` that bounces to `transcript` (was
+`opportunities`) if it's ever reached with zero built tracks (e.g. state restored from
+`localStorage` after interests changed). `TranscriptScreen` and `CourseSelectionScreen` (Course
+Selection Stages 2/3, both **placeholder "coming soon" screens for now** — see
+`src/components/ComingSoonNotice.jsx` — real content is a separate future pass) are never
+themselves conditionally skipped, unlike `discovery`: `CourseSelectionScreen`'s Back button always
+targets `transcript` unconditionally, since Transcript is always the real previous screen
+regardless of how the student got there. `ProjectBuilderScreen` (see below) sits between
+`opportunities` and `plan` — unlike `discovery` it's never skipped by routing logic, since it's
+fully optional in place via its own persistent "Skip for now" control rather than being bypassed
+based on user data. `StepProgress`'s `total` is `8` everywhere now (was `6`) to match the two
+added screens — see each screen's own `step={N}` for its position.
 
 **`AppContext` (`src/context/AppContext.jsx`) is the single source of truth**, a flat
 `useState` object with a `patch()` merge function, auto-persisted to `localStorage` under
 `mypath-prototype-state`. Key fields: `interestTags`, `educationLevel`, `schoolYear` (what
 grade/year within that level — 9-12 for highschool, 1-4 undergraduate, 1-3 transfer; drives
-how many trunk stages get prepended, see "Multi-year trunk" below), `gpa`,
+how many trunk stages get prepended, see "Multi-year trunk" below), `currentSchool` (Survey's
+school search/select field, `src/data/schools.js` — only `'Roslyn High School'` is real right
+now, `''` means unselected), `gpa` (no longer entered directly on the Survey — the survey's own
+GPA text box was removed once Course Selection Stage 1 shipped; `gpa` stays in state and
+downstream GPA-aware code (`ProgramsStep`, `roadmapGenerator.js`) is unchanged, it just sees `''`
+until Course Selection Stage 2 — Transcript & GPA, currently a placeholder screen — actually
+calculates it from a real transcript; blank/unparseable `gpa` was already a handled "don't guess"
+fallback everywhere it's read, so this needed no downstream changes),
 `selectedCareerIds` / `selectedMajorIds` / `selectedProgramKeys` (all **arrays** — Screens 3a/
 3b/3c are multi-select, not single-select), `selectedOpportunityIds`, `completedNodes` (flat
 map of node/step id → boolean, shared by every core spine item and every opportunity's branch
