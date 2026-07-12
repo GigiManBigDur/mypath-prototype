@@ -360,6 +360,114 @@ button.card.passed:hover {
   font-style: italic;
 }
 
+.course-search { position: relative; max-width: 480px; }
+.course-search-option { display: flex; flex-direction: column; gap: 2px; }
+.course-search-name { font-weight: 500; }
+.course-search-dept {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.transcript-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 18px;
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.transcript-form-field { display: flex; flex-direction: column; gap: 6px; }
+.transcript-form-field .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+.transcript-grade-input {
+  width: 90px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--paper-line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.transcript-grade-input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+.transcript-selected-course {
+  font-size: 13px;
+  color: var(--ink);
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 1px solid var(--paper-line);
+  border-radius: 6px;
+  min-width: 180px;
+}
+.transcript-selected-course .placeholder { color: var(--ink-soft); font-style: italic; }
+
+.transcript-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+.transcript-table th {
+  text-align: left;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--paper-line);
+}
+.transcript-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--paper-line);
+  font-size: 14px;
+  vertical-align: middle;
+}
+.transcript-table .remove-btn { padding: 4px 8px; }
+
+.gpa-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 20px 0;
+}
+.gpa-summary-box {
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 10px;
+  text-align: center;
+}
+.gpa-summary-value {
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--teal);
+}
+.gpa-summary-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+.transcript-skip-row {
+  text-align: center;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px dashed var(--paper-line);
+  border-radius: 10px;
+}
+.transcript-skip-row p { margin: 0 0 8px; color: var(--ink-soft); font-size: 14px; }
+
 .selection-count {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;

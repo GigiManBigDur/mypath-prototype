@@ -11,10 +11,14 @@ const DEFAULT_STATE = {
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
   currentSchool: '', // survey's school search/select field — only 'Roslyn High School' is real
   // for now (src/data/schools.js); '' means unselected.
-  gpa: '', // self-reported on the Survey through Course Selection Stage 1; Stage 2 (Transcript &
-  // GPA, not yet built) will calculate this from a real transcript instead — the field stays
-  // here so downstream GPA-aware code (ProgramsStep, roadmapGenerator) keeps working unchanged
-  // while it's blank in the meantime.
+  gpa: '', // Stage 1 self-reported this directly; Stage 2 (Transcript & GPA) now calculates it
+  // instead — TranscriptScreen writes the converted 4.0-scale equivalent here as a string (e.g.
+  // '3.7'), the exact same format/field the old input produced, so ProgramsStep/roadmapGenerator
+  // need zero changes. Blank ('') means no transcript entered yet, same "don't guess" fallback
+  // those consumers already handle.
+  transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
+  // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
+  // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.
   selectedCareerIds: [],
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`

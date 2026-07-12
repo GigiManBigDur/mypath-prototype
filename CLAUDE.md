@@ -115,10 +115,10 @@ same case — the skip target moved from `opportunities` to `transcript` once Tr
 Selection were inserted between Discovery and Opportunity Finder, but the mechanism itself is
 unchanged. `DiscoveryScreen` also has a defensive `useEffect` that bounces to `transcript` (was
 `opportunities`) if it's ever reached with zero built tracks (e.g. state restored from
-`localStorage` after interests changed). `TranscriptScreen` and `CourseSelectionScreen` (Course
-Selection Stages 2/3, both **placeholder "coming soon" screens for now** — see
-`src/components/ComingSoonNotice.jsx` — real content is a separate future pass) are never
-themselves conditionally skipped, unlike `discovery`: `CourseSelectionScreen`'s Back button always
+`localStorage` after interests changed). `TranscriptScreen` (Course Selection Stage 2) is now real
+— see the dedicated section below; `CourseSelectionScreen` (Stage 3) is still a **placeholder
+"coming soon" screen** — see `src/components/ComingSoonNotice.jsx` — real content is a separate
+future pass. Neither is conditionally skipped, unlike `discovery`: `CourseSelectionScreen`'s Back button always
 targets `transcript` unconditionally, since Transcript is always the real previous screen
 regardless of how the student got there. `ProjectBuilderScreen` (see below) sits between
 `opportunities` and `plan` — unlike `discovery` it's never skipped by routing logic, since it's
@@ -132,12 +132,13 @@ added screens — see each screen's own `step={N}` for its position.
 grade/year within that level — 9-12 for highschool, 1-4 undergraduate, 1-3 transfer; drives
 how many trunk stages get prepended, see "Multi-year trunk" below), `currentSchool` (Survey's
 school search/select field, `src/data/schools.js` — only `'Roslyn High School'` is real right
-now, `''` means unselected), `gpa` (no longer entered directly on the Survey — the survey's own
-GPA text box was removed once Course Selection Stage 1 shipped; `gpa` stays in state and
-downstream GPA-aware code (`ProgramsStep`, `roadmapGenerator.js`) is unchanged, it just sees `''`
-until Course Selection Stage 2 — Transcript & GPA, currently a placeholder screen — actually
-calculates it from a real transcript; blank/unparseable `gpa` was already a handled "don't guess"
-fallback everywhere it's read, so this needed no downstream changes),
+now, `''` means unselected), `transcript` (array of `{ id, courseId, gradeEarned, yearTaken }` —
+entered on `TranscriptScreen`, Course Selection Stage 2; see that section below), `gpa` (no
+longer entered directly on the Survey — the survey's own GPA text box was removed once Course
+Selection Stage 1 shipped; `TranscriptScreen` now writes the converted 4.0-scale GPA here as a
+string, same field/format the old input used, so downstream GPA-aware code (`ProgramsStep`,
+`roadmapGenerator.js`) needed zero changes; blank/unparseable `gpa` was already a handled "don't
+guess" fallback everywhere it's read, which is what an empty `transcript` naturally produces),
 `selectedCareerIds` / `selectedMajorIds` / `selectedProgramKeys` (all **arrays** — Screens 3a/
 3b/3c are multi-select, not single-select), `selectedOpportunityIds`, `completedNodes` (flat
 map of node/step id → boolean, shared by every core spine item and every opportunity's branch
@@ -236,6 +237,70 @@ tracks — both were the same root cause: a lookup scoped to `getBuiltTracks(sta
    instead of "Your Path to Software Engineer"). Fixed the same way, widened to `BUILT_TRACKS`.
    (`selectedMajors`/`mergedPrograms` in the same function were already safe — they resolve
    directly by id via `MAJORS`/`getMergedPrograms`, never track-scoped.)
+
+**Course Selection is a multi-stage build; only Stages 1-2 exist so far.** Stage 1 (survey/flow
+changes — the school field, removing the self-reported GPA box, inserting `transcript` and
+`courseSelection` into the screen order) and Stage 2 (`TranscriptScreen`, this section) are done;
+Stage 3 (`CourseSelectionScreen`, letting a student pick their upcoming courses from the same
+catalog) is still the Stage 1 placeholder (`ComingSoonNotice`) — don't assume it's built.
+
+- **`src/data/courses.js` is the shared course database Stage 2 and (eventually) Stage 3 both
+  read from — built once, not duplicated per screen.** It's Roslyn High School's real 2026-27
+  course catalog, parsed directly from the school's own published PDF, covering the 11
+  departments the build spec named (Art, Business, English, Math, Music & Theater, Physical
+  Education & Health, Science, Social Studies, World Languages, 21st Century Learning, Special
+  Education — English as a New Language and BOCES-Barry Tech were in the source PDF but NOT in
+  that list, and are deliberately excluded). 207 courses total. Each entry has `id` (a stable
+  slug — what `TranscriptScreen` actually stores per entry, never an array index), `name` (Title
+  Case; the source PDF used ALL CAPS section headers, so names were carefully re-cased — see the
+  file's own header comment for exactly which parts were and weren't touched, e.g. acronyms like
+  AP/RSH/PLTW and already-stylized text like "INCubator@RHS" were left alone), `department`,
+  `credit`, `gradeLevels` (an array — which grades CAN take it, course metadata, NOT the same
+  thing as a transcript entry's own user-entered "year taken"), `prerequisite`, a 1-2 sentence
+  `description` distilled from the course's own real catalog text (not invented), and
+  `weightCategory` (`'ap' | 'research_honors' | 'honors' | 'standard'`, tagged from the course's
+  own name per the catalog's stated rule). Nine Special Education "self-contained/subject-
+  specific" courses (e.g. Algebra 1A/1B, Applied Chemistry) have `credit: null` and
+  `gradeLevels: []` with a `note` explaining why — the catalog itself states no fixed credit or
+  grade range for these IEP-driven placements, and that was left unguessed rather than invented.
+  Two courses (`College Preparatory Strategies for SAT/ACT Exams`, cross-listed under English and
+  Math — the source catalog's own structure, not a duplication bug) carry `isPassFail: true`,
+  since their own description explicitly states pass/fail grading; `gpa.js` excludes these from
+  both GPA calculations, per the catalog's own stated exclusion rule. `getCourseById(id)` and
+  `searchCourses(query)` (case-insensitive substring match against name + department) are the
+  only two ways anything in the app reads this data — there is no free-text course entry
+  anywhere, matching the "select from the real catalog" requirement.
+- **`TranscriptScreen` (Stage 2) replaces the Stage 1 placeholder and, functionally, the original
+  Survey GPA text box.** `CourseSearchField` (`src/components/`, modeled on `SchoolSearchField`
+  but returns the full course object to its caller instead of tracking its own persistent value,
+  since a selection here is just one step of a larger "add a course" form) searches
+  `searchCourses()`; picking a course plus a 0-100 grade and an 8th-12th "year taken" appends one
+  `{ id, courseId, gradeEarned, yearTaken }` entry to the new `state.transcript` array (persisted
+  like everything else in `AppContext`). **"Skip — I haven't taken any high school courses yet"**
+  is a real, equally-supported path for an incoming freshman, not a workaround: it's shown
+  automatically whenever `transcript` is empty, and does the exact same thing the "Continue"
+  button always does — advance, saving whatever GPA an empty transcript produces (blank, via the
+  same "don't guess" contract every GPA-blank consumer already had). `src/utils/gpa.js` derives
+  all three numbers live from `state.transcript` on every add/remove: `calculateUnweightedGpa`
+  (a 0-100 average of raw grades, excluding `isPassFail` courses — Roslyn reports GPA on the same
+  100-point scale courses are graded on, not a 4.0 scale), `calculateWeightedGpa` (same average,
+  but each grade is multiplied by its course's real weight multiplier from
+  `WEIGHT_MULTIPLIERS` — AP 1.1 / Research Honors 1.09 / Honors 1.08 / standard 1.0, the catalog's
+  own stated policy — before averaging; also excludes `isPassFail` courses, since the source
+  states that exclusion applies to both the unweighted AND weighted GPA, not just one), and
+  `calculate4ScaleGpa` (the unweighted average run through a standard numeric-to-4.0 conversion
+  table — 93-100→4.0, 90-92→3.7, ... down to 65+→1.0, 0-0.999→0 — this table is the common,
+  widely-used one, not something the catalog itself states, since the catalog only gives the
+  100-point scale and the weight multipliers, not a 4.0 conversion). **`calculate4ScaleGpa`'s
+  result — not the weighted GPA — is the one value that actually feeds `state.gpa`**, written as
+  a string (e.g. `'3.7'`) on Continue/Skip, exactly the same field and format the old self-
+  reported input used, so `ProgramsStep`'s GPA-curated selection and `reachMatchSafetyTag`'s
+  Reach/Match/Safety badges needed zero changes — verified end-to-end (a transcript averaging to
+  a 3.7 4.0-scale GPA correctly produces the same Reach/Match/Safety badges a self-reported "3.7"
+  always did). Weighted GPA is real, correctly calculated, and shown to the student (all three
+  numbers display together, per Task 3), but is otherwise display-only — this app's GPA-aware
+  features were built around one 4.0-scale number and stay that way rather than being redesigned
+  around a weighted one.
 
 **Data layer (`src/data/`) is keyed by `[track][educationLevel]`, not by screen.**
 - `careers.js` / `programs.js` (via `getPrograms()`) / `opportunities.js` all branch on
