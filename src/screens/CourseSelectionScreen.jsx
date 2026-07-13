@@ -11,6 +11,7 @@ import {
   getSelectedProgramTypes,
   getProgramTypeCourses,
 } from '../data/programRecommendations';
+import { getSchoolRequirement } from '../data/schoolRequirements';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -430,6 +431,52 @@ export default function CourseSelectionScreen() {
                   ))}
                 </div>
                 {note && <p className="field-hint" style={{ marginTop: 10 }}>{note}</p>}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* A third, even more specific recommendation layer — per individual selected school +
+          program (state.selectedProgramKeys), not per field/major. Deliberately separate from the
+          Program-Specific Course Recommendations section above: that one is field-wide judgment
+          ("Engineering programs broadly want calculus and physics"), this one is only ever a real,
+          independently verified structural fact about one specific school ("Cornell's
+          Communication major is housed in CALS and inherits CALS's science requirements") — never
+          inferred from a program's name/subject. See schoolRequirements.js's own header comment. */}
+      <div className="field-block">
+        <div className="field-label">School-Specific Requirements</div>
+        <p className="field-hint">
+          Non-obvious, structural requirements tied to one specific school + major combination —
+          the kind of thing field-level recommendations can't catch, since they come from how a
+          school happens to organize its departments, not from the subject itself.
+        </p>
+        {state.selectedProgramKeys.length === 0 ? (
+          <p className="field-hint">Select a program in Discovery to see school-specific requirements here.</p>
+        ) : (
+          state.selectedProgramKeys.map((key) => {
+            const [institution, program] = key.split('::');
+            const req = getSchoolRequirement(key);
+            return (
+              <div className={`school-req-card${req ? ' verified' : ' unverified'}`} key={key}>
+                <div className="school-req-header">{institution} — {program}</div>
+                {req ? (
+                  <>
+                    <p className="school-req-text"><strong>Requirement:</strong> {req.requirement}</p>
+                    <p className="school-req-text"><strong>Why:</strong> {req.why}</p>
+                    {req.transferNote && (
+                      <p className="school-req-text"><strong>For transfer applicants:</strong> {req.transferNote}</p>
+                    )}
+                    <p className="school-req-source">Source: {req.source}</p>
+                  </>
+                ) : (
+                  <p className="school-req-fallback">
+                    We haven't independently verified school-specific requirements for this program
+                    yet. Some schools house majors in unexpected departments/colleges with
+                    non-obvious extra requirements — always check the official admissions page for
+                    your specific major before finalizing your course plan.
+                  </p>
+                )}
               </div>
             );
           })

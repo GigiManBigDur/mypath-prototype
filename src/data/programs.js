@@ -54,6 +54,13 @@ export const PROGRAMS = {
     { institution: 'University of Texas at Austin', program: 'Moody College of Communication', overview: 'Large public university with a well-rounded communications program.', selectivity: 'Selective', location: 'Austin, TX', degreeLevels: ["Bachelor's"], gpaValue: 3.4 },
     { institution: 'Ohio University', program: 'E.W. Scripps School of Journalism', overview: 'Well-regarded public journalism/communications program with a strong alumni network.', selectivity: 'Moderately Selective', location: 'Athens, OH', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'University of Arizona', program: 'School of Journalism and Mass Communication', overview: 'Accessible public communications program with hands-on media training.', selectivity: 'Less Selective', location: 'Tucson, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+    // A 6th card, deliberately breaking this file's usual "5 per major" convention (see the
+    // header comment — irregular counts are already expected/tolerated) — added specifically to
+    // carry the School-Specific Requirements feature's one verified, real example (see
+    // schoolRequirements.js): Cornell's Communication major is housed in CALS (College of
+    // Agriculture and Life Sciences), not a standalone communications department, which is
+    // exactly the kind of non-obvious structural requirement that feature exists to surface.
+    { institution: 'Cornell University', program: 'Communication (CALS)', overview: 'An Ivy League communication program housed within the College of Agriculture and Life Sciences — see this program\'s School-Specific Requirements on Course Selection for why that matters.', selectivity: 'Extremely Selective', location: 'Ithaca, NY', degreeLevels: ["Bachelor's"], gpaValue: 3.8 },
   ],
 
   // ---- Business: graduate ----

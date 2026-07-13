@@ -422,6 +422,43 @@ text, and both use the same extracted `CourseCard` component (pulled out of the 
 recommended/browse grid specifically so this section didn't need to duplicate that JSX) — so a
 course recommended by both layers renders identically and stays selectable/clickable either way.
 
+**A third, even more specific "School-Specific Requirements" section sits below that one —
+per individual selected SCHOOL + PROGRAM (`state.selectedProgramKeys`, the exact
+`${institution}::${program}` keys Discovery's Programs step already produces via
+`getMergedPrograms`), not per major/field.** This is deliberately a different kind of claim than
+either recommendation layer above it: those are field-wide judgment calls ("Engineering programs
+broadly want calculus and physics"); this one is ONLY ever a real, independently verified
+structural fact about one specific school — never inferred from a program's name or subject.
+`src/data/schoolRequirements.js` exports `SCHOOL_SPECIFIC_REQUIREMENTS`, keyed by that same
+`${institution}::${program}` string for a direct lookup (no fuzzy matching), where each entry is
+self-contained (`{ requirement, why, transferNote?, source }`) so the next verified program can be
+added later by adding one new key — no lookup/render code changes needed, which is the whole point
+of building it this way (full coverage of every program will happen gradually, one verified entry
+at a time, not all at once). **Seeded with exactly one real, verified example**: Cornell
+University's Communication major, added as a genuinely new 6th program card under the
+`communications` major in `programs.js` (deliberately breaking that file's usual "5 per major"
+convention — see the comment there) specifically to carry this — Cornell's Communication major is
+housed in the College of Agriculture and Life Sciences (CALS), not a standalone communications
+department, so it inherits CALS's blanket science-distribution requirements (a full year of
+Introductory Biology with lab, 3 credits of Chemistry or Physics, a Statistics/Quantitative
+Literacy course) — exactly the kind of non-obvious, easy-to-miss structural fact this feature
+exists to surface, plus its own transfer-specific note (this coursework must be completed or in
+progress at time of application) and a plain-text `source` description rather than a fabricated
+URL, since no real citable link was verified for this entry. **Every other selected program (the
+~40+ not yet individually researched) shows a clearly distinct, honestly-worded fallback** ("We
+haven't independently verified school-specific requirements for this program yet...") rather than
+silence or a guessed claim — styled with a dashed border (`.school-req-card.unverified`) versus the
+verified card's solid teal one, so the two states are visually distinguishable at a glance, not
+just distinguishable by reading the text. Zero programs selected shows its own honest "Select a
+program in Discovery..." prompt rather than hiding the section entirely, same pattern the
+Program-Specific Course Recommendations section above already uses for its own empty state. Note
+that because `communications` now has 6 cards (`selectProgramsForGpa`'s `maxShownFor(1)` caps a
+single-major view at 4), Cornell isn't guaranteed to appear in Discovery's Programs step at every
+entered GPA — it reliably shows once the entered GPA reaches its own `gpaValue` (3.8) or higher,
+since `selectProgramsForGpa`'s no-reach branch always includes the single highest-`gpaValue`
+reachable program via `evenSample`'s endpoint-inclusive sampling; this is existing, unmodified
+selection behavior working as designed, not something special-cased for this one card.
+
 **Course descriptions are complete, real catalog text — not manually truncated at parse time.**
 Stage 2/3's original data entry hand-trimmed every description to a short length with a trailing
 "...", which produced visible mid-sentence cutoffs in the UI (e.g. "PE - Extreme" rendering as

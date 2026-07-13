@@ -601,6 +601,46 @@ button.card.passed:hover {
 .course-select-btn:hover { border-color: var(--teal); color: var(--ink); }
 .course-select-btn.selected { background: var(--teal); border-color: var(--teal); color: #fff; }
 
+/* School-Specific Requirements — a verified card reads as confidently-sourced (solid teal left
+   edge), an unverified one deliberately reads as an honest gap, not a broken/missing state
+   (dashed stone left edge, same visual language .transcript-skip-row already uses for "nothing
+   here yet, and that's fine" states elsewhere in this app). */
+.school-req-card {
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 8px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.school-req-card.verified { border-left: 3px solid var(--teal); }
+.school-req-card.unverified { border-left: 3px dashed var(--stone); }
+.school-req-header {
+  font-family: 'Fraunces', serif;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.school-req-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+.school-req-text strong { color: var(--teal); }
+.school-req-source {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+}
+.school-req-fallback {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin: 0;
+}
+
 .coming-soon {
   max-width: 480px;
   margin: 32px auto;
