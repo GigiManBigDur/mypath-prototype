@@ -2,14 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { getBuiltTracks } from '../data/interests';
 import { getCourseById } from '../data/courses';
+import { getCourseById as getUCDavisCourseById, searchUCDavisCourses } from '../data/ucdavisCourses';
+import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
 import { useApp } from '../context/AppContext';
 import { makeTaskId } from '../utils/ids';
 import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from '../utils/gpa';
+import { LETTER_GRADE_OPTIONS, calculateUCDavisGpa } from '../utils/ucdavisGpa';
 import StepProgress from '../components/StepProgress';
 import CourseSearchField from '../components/CourseSearchField';
 
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
+const CLASS_YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
+const QUARTER_OPTIONS = ['Fall', 'Winter', 'Spring', 'Summer'];
 
 // Course Selection Stage 2 — real transcript entry, replacing both the Stage 1 placeholder here
 // AND (functionally) the original Survey GPA text box: state.gpa is now calculated from this
@@ -49,12 +54,7 @@ export default function TranscriptScreen() {
   if (!hasCourseFlow) return null;
 
   if (!isHighSchool) {
-    return (
-      <CollegeTranscriptPlaceholder
-        onBack={() => patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' })}
-        onContinue={() => patch({ screen: 'courseSelection' })}
-      />
-    );
+    return <UCDavisTranscriptScreen state={state} patch={patch} hasBuiltTrack={hasBuiltTrack} />;
   }
 
   // The "add a course" form is a few fields staged locally before becoming one real
@@ -266,32 +266,228 @@ export default function TranscriptScreen() {
   );
 }
 
-// UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — confirms the flow/navigation order
-// only; real UC Davis transcript/GPA entry (and its quarter-system-aware dates) is a later stage.
-// state.gpa is deliberately left untouched here, same as it already was for any Undergraduate/
-// Transfer student before this addition (no GPA entry point exists for them yet either way).
-function CollegeTranscriptPlaceholder({ onBack, onContinue }) {
+// UC Davis partner-school addition, Stage 2 (see CLAUDE.md) — real transcript entry against the
+// real, scoped UC Davis course catalog (ucdavisCourses.js), a real GE + college-specific
+// requirements summary (ucdavisRequirements.js, parsed directly from the real catalog pages, not
+// summarized from general knowledge), and a real letter-grade GPA calculation
+// (utils/ucdavisGpa.js). Mirrors TranscriptScreen's own Roslyn form shape (search field, add-row,
+// table, skip option, GPA feeding state.gpa) but with UC Davis's own real fields throughout —
+// letter grade instead of a 0-100 number, class year + quarter instead of a single grade level —
+// since forcing Roslyn's shape onto a genuinely different grading system would be a worse fit
+// than building this screen's own small form.
+function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
+  const [pendingCourse, setPendingCourse] = useState(null);
+  const [letterGrade, setLetterGrade] = useState('');
+  const [classYear, setClassYear] = useState(null);
+  const [quarter, setQuarter] = useState(null);
+
+  const ucdavisTranscript = state.ucdavisTranscript || [];
+  const gpa = useMemo(() => calculateUCDavisGpa(ucdavisTranscript), [ucdavisTranscript]);
+  const selectedColleges = useMemo(
+    () => getSelectedUCDavisColleges(state.selectedMajorIds),
+    [state.selectedMajorIds],
+  );
+
+  const canAdd = !!pendingCourse && !!letterGrade && !!classYear && !!quarter;
+
+  const addEntry = () => {
+    if (!canAdd) return;
+    patch({
+      ucdavisTranscript: [
+        ...ucdavisTranscript,
+        { id: makeTaskId('ucdavis-transcript'), courseId: pendingCourse.id, letterGrade, classYear, quarter },
+      ],
+    });
+    setPendingCourse(null);
+    setLetterGrade('');
+    setClassYear(null);
+    setQuarter(null);
+  };
+
+  const removeEntry = (id) => {
+    patch({ ucdavisTranscript: ucdavisTranscript.filter((e) => e.id !== id) });
+  };
+
+  // Same "Continue and Skip do the exact same thing" contract Roslyn's own advance() uses — GPA
+  // is written directly, no conversion step needed (the UC letter scale is already 4.0-based).
+  const advance = () => {
+    patch({ gpa: gpa != null ? String(gpa) : '', screen: 'courseSelection' });
+  };
+
+  const goBack = () => patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' });
+
   return (
     <div>
-      <button type="button" className="btn btn-ghost" onClick={onBack}>
+      <button type="button" className="btn btn-ghost" onClick={goBack}>
         <ArrowLeft size={14} /> Back
       </button>
 
       <StepProgress step={4} total={9} />
-      <h1 className="page-title">Transcript &amp; GPA</h1>
+      <h1 className="page-title">UC Davis Transcript &amp; GPA</h1>
       <p className="page-sub">
-        Coming soon — this is where you'll enter your UC Davis coursework and GPA.
+        Search for the real UC Davis courses you've taken, enter your letter grade and when you
+        took each one — we'll calculate your GPA from it automatically.
       </p>
 
       <div className="field-block">
-        <p className="field-hint">
-          We're still building out UC Davis's real transcript and GPA experience. For now, this
-          screen just confirms your plan flows through the right steps in the right order.
-        </p>
+        <div className="field-label">{GENERAL_EDUCATION_REQUIREMENTS.label}</div>
+        <p className="field-hint">Applies to every UC Davis undergraduate, regardless of major.</p>
+        {GENERAL_EDUCATION_REQUIREMENTS.sections.map((section) => (
+          <div key={section.title} style={{ marginBottom: 10 }}>
+            <strong>{section.title}</strong>
+            <ul>
+              {section.items.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        ))}
+        <p className="field-hint">{GENERAL_EDUCATION_REQUIREMENTS.totalNote}</p>
       </div>
 
+      {selectedColleges.length === 0 ? (
+        <p className="field-hint">
+          Select a major in Discovery from one of our researched UC Davis areas (Psychology,
+          Political Science, Computer Science/Engineering, Business/Economics, Biology/Pre-Med, or
+          Horticulture/Agriculture &amp; Environment) to see its specific college requirements here.
+        </p>
+      ) : (
+        selectedColleges.map((college) => (
+          <div className="field-block" key={college.id}>
+            <div className="field-label">{college.label}</div>
+            <ul>
+              {college.items.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        ))
+      )}
+
+      {ucdavisTranscript.length === 0 && (
+        <div className="transcript-skip-row">
+          <p>Haven't taken any UC Davis courses yet? That's completely fine.</p>
+          <button type="button" className="btn btn-outline" onClick={advance}>
+            Skip — I haven't taken any UC Davis courses yet
+          </button>
+        </div>
+      )}
+
+      <div className="transcript-form">
+        <div className="transcript-form-field" style={{ flex: '1 1 260px' }}>
+          <span className="label">Course</span>
+          {pendingCourse ? (
+            <div className="transcript-selected-course">
+              {pendingCourse.code} — {pendingCourse.name}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ marginLeft: 8, padding: '2px 8px' }}
+                onClick={() => setPendingCourse(null)}
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <CourseSearchField onSelect={setPendingCourse} search={searchUCDavisCourses} placeholder="Search for a UC Davis course..." />
+          )}
+        </div>
+
+        <div className="transcript-form-field">
+          <span className="label">Grade</span>
+          <div className="pill-group">
+            {LETTER_GRADE_OPTIONS.map((g) => (
+              <button
+                type="button"
+                key={g}
+                className={`pill${letterGrade === g ? ' selected' : ''}`}
+                onClick={() => setLetterGrade(g)}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="transcript-form-field">
+          <span className="label">Class Year</span>
+          <div className="pill-group">
+            {CLASS_YEAR_OPTIONS.map((y) => (
+              <button
+                type="button"
+                key={y}
+                className={`pill${classYear === y ? ' selected' : ''}`}
+                onClick={() => setClassYear(y)}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="transcript-form-field">
+          <span className="label">Quarter</span>
+          <div className="pill-group">
+            {QUARTER_OPTIONS.map((q) => (
+              <button
+                type="button"
+                key={q}
+                className={`pill${quarter === q ? ' selected' : ''}`}
+                onClick={() => setQuarter(q)}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button type="button" className="btn btn-primary" disabled={!canAdd} onClick={addEntry}>
+          Add Course
+        </button>
+      </div>
+
+      {ucdavisTranscript.length > 0 && (
+        <>
+          <table className="transcript-table">
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Grade</th>
+                <th>Term</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {ucdavisTranscript.map((entry) => {
+                const course = getUCDavisCourseById(entry.courseId);
+                return (
+                  <tr key={entry.id}>
+                    <td>{course ? `${course.code} — ${course.name}` : entry.courseId}</td>
+                    <td>{entry.letterGrade}</td>
+                    <td>{entry.quarter} · {entry.classYear}</td>
+                    <td>
+                      <button type="button" className="remove-btn" onClick={() => removeEntry(entry.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="gpa-summary">
+            <div className="gpa-summary-box">
+              <div className="gpa-summary-value">{gpa != null ? gpa.toFixed(2) : '—'}</div>
+              <div className="gpa-summary-label">GPA (4.0 scale)</div>
+            </div>
+          </div>
+          <p className="field-hint" style={{ marginTop: -12, marginBottom: 18 }}>
+            P/NP courses are excluded from this GPA, same as UC Davis's own policy. This number is
+            what's used for program matching and Reach/Match/Safety recommendations later in your
+            plan.
+          </p>
+        </>
+      )}
+
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={onContinue}>
+        <button type="button" className="btn btn-primary" onClick={advance}>
           Continue
         </button>
       </div>

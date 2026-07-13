@@ -19,6 +19,17 @@ const DEFAULT_STATE = {
   transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
   // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.
+  ucdavisTranscript: [], // [{ id, courseId, letterGrade, classYear, quarter }] — the UC Davis
+  // partner-school analog of `transcript` above (see CLAUDE.md's "UC Davis Partner School, Stage
+  // 2" section), entered on TranscriptScreen for an Undergraduate/Transfer student who selected
+  // UC Davis as their current school. Deliberately a SEPARATE field, not reused `transcript` —
+  // the entry shapes are genuinely different (a real letter grade + UC Davis quarter/class-year,
+  // vs. Roslyn's 0-100 numeric grade + 8-12 grade level), and the two are mutually exclusive by
+  // construction (a student is on exactly one educationLevel/currentSchool combination at a
+  // time), so there's no risk of the two ever needing to merge. courseId references
+  // UCDAVIS_COURSES (src/data/ucdavisCourses.js); utils/ucdavisGpa.js derives the single 4.0-scale
+  // GPA number from this array directly (no separate weighted/unweighted distinction — UC Davis's
+  // letter scale is already a straight 4.0 scale, unlike Roslyn's 100-point one).
   selectedCourseIds: [], // course.id values picked on CourseSelectionScreen (Course Selection
   // Stage 3), from either its Recommended or Browse view — the same array either way, since
   // selection behaves identically regardless of which view a course was found through. This is

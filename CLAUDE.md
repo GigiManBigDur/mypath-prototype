@@ -1622,10 +1622,96 @@ Undergraduate/Transfer — mirrors Roslyn's own Stage 1, but with one deliberate
   student regardless, so `checkpoint` naturally resolves to `null` for them with no extra gating
   needed.
 - **UC Davis operates on a quarter system (Fall/Winter/Spring, plus optional Summer Session), not
-  semesters like Roslyn — noted here for whoever builds the next stage, not built into anything
-  yet.** Nothing in Stage 1 depends on this, but Stage 3/4's eventual registration-timing logic
-  (the UC-Davis equivalent of `ESTIMATED_COURSE_REQUEST_WINDOW`/course-checkpoint stage dates)
-  will need to reflect quarters rather than reusing Roslyn's semester-shaped assumptions verbatim.
+  semesters like Roslyn.** Stage 2 (below) surfaces this in the transcript entry itself (a
+  `quarter` field per entry); Stage 3/4's eventual registration-timing logic (the UC-Davis
+  equivalent of `ESTIMATED_COURSE_REQUEST_WINDOW`/course-checkpoint stage dates) still needs to
+  reflect quarters rather than reusing Roslyn's semester-shaped assumptions verbatim — not yet
+  built, since Course Selection (Stage 3) for UC Davis remains a placeholder.
+
+**UC Davis Partner School, Stage 2: real Transcript & GPA, grounded in real course/requirement
+research — replaces Stage 1's "Coming soon" placeholder on `TranscriptScreen` (Course Selection,
+Stage 3, is still a placeholder; only Transcript & GPA was rebuilt this stage).** Deliberately
+scoped to the same 6 areas/23 subject codes Stage 1's own Task 1/2 named, fetched directly from
+`catalog.ucdavis.edu` rather than summarized from general knowledge — not a full 180+
+subject-code catalog ingestion, the same "scoped, not exhaustive" posture Roslyn's own 207-course
+build already established.
+- **`src/data/ucdavisCourses.js`** exports `UCDAVIS_COURSES` (~280 real courses, Lower + Upper
+  Division only — this feeds an undergraduate transcript, so 200-level graduate courses are
+  excluded), each with a stable `id` (`ucd-<code>`), real `code`/`name`/`units`/`department`/
+  `description` parsed from each subject code's own catalog page
+  (`catalog.ucdavis.edu/courses-subject-code/<code>/`). Two exclusions applied uniformly while
+  parsing every subject code: purely administrative/variable-content catch-alls (Directed Group
+  Study, Special/Individual Study, generic Internship placements, Tutoring, Research Group
+  Conferences, Honors thesis units, bare untitled seminars) are left out — their catalog text is
+  itself just "variable"/"independent study," so including them would mean inventing content, not
+  parsing it — and exact-duplicate online/hybrid delivery-mode variants (a plain course plus its
+  identical-content "V"/"Y" twin) are collapsed to one entry. **4 of the spec's 23 subject codes
+  (ACC, BAX, HRT, ENV) turned out to be graduate-only when fetched** — confirmed directly from
+  each one's own page, not assumed — so they contribute zero course entries; this is why Business/
+  Economics' real coverage comes from just ECN + MGT, and Horticulture/Ag & Environment's from ESM
+  + ESP + SAF + PLB. `UCDAVIS_AREAS` groups the 23 subject codes into the same 6 areas the build
+  spec named, each tagged with which `college` (below) governs it. `searchUCDavisCourses(query)` /
+  `getCourseById(id)` mirror Roslyn's `searchCourses`/`getCourseById` contract exactly (case-
+  insensitive substring match, no free-text entry) — `CourseSearchField.jsx` (shared component) now
+  takes an optional `search` prop (default Roslyn's `searchCourses`) instead of hardcoding which
+  catalog it searches, the same "caller picks the data source" pattern `SchoolSearchField`'s own
+  `schools` prop already established for Stage 1.
+- **`src/data/ucdavisRequirements.js`** exports `GENERAL_EDUCATION_REQUIREMENTS` (University-wide
+  GE — Topical Breadth 52 units across Arts & Humanities/Science & Engineering/Social Sciences,
+  Core Literacies 35 units across Words & Images/Civic & Cultural Literacy/Quantitative/Scientific
+  Literacy) and `COLLEGE_REQUIREMENTS` (keyed `letters-science` / `engineering` /
+  `biological-sciences` / `agricultural-environmental-sciences` / `gsm`), each a close paraphrase
+  of that college's own real requirements page (unit totals, GPA minimums, residency, English
+  Composition, catalog rights) — not estimated the way Roslyn's `ESTIMATED_COURSE_REQUEST_WINDOW`
+  explicitly is, since every number here came directly from a fetched, real page.
+  `MAJOR_TO_UCDAVIS_COLLEGE` maps this app's own 7 UC-Davis-touched major ids to which college
+  governs them — **`economics` maps to `gsm`, not `letters-science`**, a real distinction
+  surfaced by fetching the Graduate School of Management's own requirements page: this app's
+  `economics` major displays as UC Davis's real "Managerial Economics" program (see Stage 1's
+  `programs.js` entry), which GSM's page governs directly (real "Business major" terminology,
+  distinct unit/GPA language from a general L&S Economics major) — not the College of Letters &
+  Science, even though plain ECN course listings are nominally an L&S subject code.
+  `getSelectedUCDavisColleges(selectedMajorIds)` resolves every distinct college reached by the
+  student's selected majors (first-selected-first order, same convention `getSelectedProgramTypes`/
+  `getCareerGroups` already use) — a student spanning two areas sees two separate requirement
+  cards, not a merged one; zero UC-Davis-relevant majors selected resolves to `[]`, and the caller
+  shows its own honest empty-state prompt rather than a fabricated section, same "don't guess"
+  pattern `schoolRequirements.js`'s own empty state already uses.
+- **`src/utils/ucdavisGpa.js`** exports the real, standard UC letter-to-4.0 table (`A`=4.0 down to
+  `D-`=0.7, `F`=0.0) plus `PASS_NO_PASS_GRADES = ['P', 'NP']`, excluded from GPA entirely per UC
+  Davis's own real grading policy (the same "don't count what the institution itself doesn't
+  count" rule Roslyn's `isPassFail` exclusion already established in `utils/gpa.js`).
+  `calculateUCDavisGpa(transcript)` needs no separate weighted/unweighted split or a 100-to-4.0
+  conversion step the way Roslyn's `calculate4ScaleGpa` does — the UC letter scale is already a
+  straight 4.0 scale, so the average IS the final number, written to `state.gpa` unconverted.
+  Returns `null` (not `0`) for an empty or all-P/NP transcript, the same "don't guess a GPA that
+  isn't there" contract every other blank-GPA fallback in this app already follows.
+- **`state.ucdavisTranscript`** (`AppContext.jsx`) is a deliberately SEPARATE array from Roslyn's
+  own `state.transcript` — `[{ id, courseId, letterGrade, classYear, quarter }]` vs. Roslyn's
+  `[{ id, courseId, gradeEarned (0-100), yearTaken (8-12) }]`. The two entry shapes are genuinely
+  different (letter grade + UC Davis quarter/class-year vs. a 100-point number + a numeric grade
+  level) and mutually exclusive by construction (a student is on exactly one
+  educationLevel/currentSchool combination at a time), so keeping them as separate fields avoids
+  any risk of shape collision without needing to retrofit Roslyn's own GPA utilities to handle a
+  second grading format.
+- **`TranscriptScreen.jsx`'s college branch (`!isHighSchool`) now renders a real
+  `UCDavisTranscriptScreen` component** (replacing Stage 1's `CollegeTranscriptPlaceholder`,
+  which is deleted) instead of a placeholder — same overall shape as Roslyn's own form (course
+  search → add-row → table → GPA summary → Skip/Continue) but with UC Davis's own real fields
+  throughout: a letter-grade pill row (`LETTER_GRADE_OPTIONS`, including P/NP) instead of a 0-100
+  number input, and separate Class Year (Freshman-Senior) + Quarter (Fall/Winter/Spring/Summer)
+  pill rows instead of Roslyn's single 8th-12th "year taken." Above the form, the screen renders
+  `GENERAL_EDUCATION_REQUIREMENTS` unconditionally (applies to every UC Davis student regardless
+  of major) followed by zero or more `COLLEGE_REQUIREMENTS` cards from
+  `getSelectedUCDavisColleges(state.selectedMajorIds)` — this is the only place either requirements
+  data set is currently surfaced, since Course Selection (Stage 3) for UC Davis is still a
+  placeholder. Continue/Skip both write `calculateUCDavisGpa(ucdavisTranscript)` straight to
+  `state.gpa` as a plain string (no `.toFixed()` truncation, matching Roslyn's own
+  `String(gpa4Scale)` convention) and advance to `'courseSelection'` (still Stage 1's placeholder,
+  unaffected by this stage) — this is why the Reach/Match/Safety pipeline, `ProgramsStep`, and
+  every other `state.gpa` consumer needed zero changes: they were never told which screen last
+  wrote the value, and a UC-letter-derived GPA plugs into the exact same field a Roslyn-derived one
+  always did.
 
 ## Testing changes
 
