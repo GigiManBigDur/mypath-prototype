@@ -385,6 +385,43 @@ this Architecture section.
     this stage** — `selectedCourseIds` is confirmed to persist correctly but nothing in
     `roadmapGenerator.js` reads it yet; that's a deferred future Stage 4.
 
+**A second, distinct "Program-Specific Course Recommendations" section extends Task 3 — driven by
+selected majors, not interest tags, and grounded in real admissions research rather than the
+track-based judgment calls `courseRecommendations.js` already makes.** `src/data/
+programRecommendations.js` maps `MAJORS`' ~47 major ids (`src/data/majors.js`) to one of 5
+admissions-research-backed **program types** (`MAJOR_TO_PROGRAM_TYPE`): `engineering-stem`,
+`business`, `premed-healthcare`, `creative-arts`, `humanities-prelaw`
+(`PROGRAM_TYPE_LABELS`). The framing is deliberately honest about its own precision: real
+admissions guidance converges heavily by FIELD (Cornell Engineering and most other engineering
+programs want largely the same math/science foundation), not dramatically between individual
+schools in the same field — so this recommends courses "commonly recommended for [type] programs,"
+never claiming to know one specific school's individual preference. Engineering/STEM, Business, and
+Pre-Med/Healthcare are grounded in real, specific cited research (Cornell's stated engineering
+requirements; Wharton/Haas-oriented business guidance; standard pre-med admissions guidance);
+Creative/Arts and Academic/Humanities/Pre-Law extend that by the same kind of judgment call this
+codebase already uses elsewhere (Arts programs weigh a portfolio more than a prerequisite list;
+Humanities/Pre-Law programs value writing/history/government coursework). A handful of majors from
+tracks with no dedicated research (Sports, Culinary Arts, Community & Leadership, Media &
+Entertainment, Personal Development, Outdoors) are folded into the closest honestly-fitting type by
+the same judgment (e.g. Sports Management is, by its own `overview` text, "the business side of
+athletics" — mapped to `business`, not invented as its own type). **`culinary-arts` itself is
+deliberately left OUT of the map entirely** — a hands-on skills-based program with no real
+academic-prerequisite research to honestly report, the exact same "don't force a weak match"
+precedent `TRACK_RECOMMENDED_COURSES.culinary` already set as an empty array.
+`getSelectedProgramTypes(state.selectedMajorIds)` resolves the distinct types reachable from the
+student's Discovery major selections (in first-introduced-first order, same convention
+`getCareerGroups`/`getMajorGroups` already use), and `CourseSelectionScreen.jsx` renders one
+`.career-group`-styled section per type (reusing that existing grouped-section class rather than
+inventing new CSS) — a student whose selected majors span two types (e.g. Computer Science +
+Business Administration) sees two separate labeled subsections, not a merged list. Zero majors
+selected shows an honest "Select majors in Discovery..." prompt; majors selected that map to
+nothing (i.e. only `culinary-arts`) show a distinct "No program-specific research available..."
+message — neither case silently renders an empty section. Both this section and the existing
+interest-based one keep their own "you're always free to explore any course you like" disclaimer
+text, and both use the same extracted `CourseCard` component (pulled out of the main
+recommended/browse grid specifically so this section didn't need to duplicate that JSX) — so a
+course recommended by both layers renders identically and stays selectable/clickable either way.
+
 **Course descriptions are complete, real catalog text — not manually truncated at parse time.**
 Stage 2/3's original data entry hand-trimmed every description to a short length with a trailing
 "...", which produced visible mid-sentence cutoffs in the UI (e.g. "PE - Extreme" rendering as

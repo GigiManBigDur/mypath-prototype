@@ -5,6 +5,12 @@ import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, TRACK_LABELS } from '../data/interests';
 import { COURSES, getCourseById, WEIGHT_MULTIPLIERS } from '../data/courses';
 import { getRecommendedCourses } from '../data/courseRecommendations';
+import {
+  PROGRAM_TYPE_LABELS,
+  PROGRAM_TYPE_NOTES,
+  getSelectedProgramTypes,
+  getProgramTypeCourses,
+} from '../data/programRecommendations';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -101,6 +107,66 @@ const POLICY_SECTIONS = [
   },
 ];
 
+// Shared card JSX for every place a course grid renders (main recommended/browse grid, and each
+// program-type group below) — same "extract once, render identically everywhere" precedent
+// ProgramCard already set for Discovery's Programs step (see CLAUDE.md).
+function CourseCard({ course, selected, onOpenDetail, onToggle }) {
+  return (
+    <div
+      className={`card course-card${selected ? ' selected' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenDetail(course)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(course); }
+      }}
+    >
+      <button
+        type="button"
+        className={`course-select-btn${selected ? ' selected' : ''}`}
+        onClick={(e) => { e.stopPropagation(); onToggle(course.id); }}
+      >
+        {selected ? <><Check size={12} /> Selected</> : <><Plus size={12} /> Select</>}
+      </button>
+      <div className="card-title">{course.name}</div>
+      {(course.weightCategory !== 'standard' || course.isPassFail) && (
+        <div className="course-badges">
+          {course.weightCategory !== 'standard' && (
+            <span className={`course-badge course-badge-${course.weightCategory}`}>
+              {ATTRIBUTE_LABELS[course.weightCategory]}
+            </span>
+          )}
+          {course.isPassFail && <span className="course-badge course-badge-passfail">Pass/Fail</span>}
+        </div>
+      )}
+      <p className="card-desc">{courseSummary(course.description)}</p>
+      <div className="card-meta">
+        <div>
+          <span className="label">Department</span>
+          <strong>{course.department}</strong>
+        </div>
+        <div>
+          <span className="label">Credit</span>
+          <strong>{course.credit != null ? course.credit : 'Varies'}</strong>
+        </div>
+        <div>
+          <span className="label">Grade Level</span>
+          <strong>{course.gradeLevels.length ? course.gradeLevels.join(', ') : 'Varies'}</strong>
+        </div>
+        {course.prerequisite && (
+          <div>
+            <span className="label">Prerequisite</span>
+            <strong>{course.prerequisite}</strong>
+          </div>
+        )}
+      </div>
+      {course.note && (
+        <p className="field-hint" style={{ marginTop: 8, marginBottom: 0 }}>{course.note}</p>
+      )}
+    </div>
+  );
+}
+
 export default function CourseSelectionScreen() {
   const { state, patch } = useApp();
   const isHighSchool = state.educationLevel === 'highschool';
@@ -123,6 +189,10 @@ export default function CourseSelectionScreen() {
   const recommendedCourses = useMemo(
     () => getRecommendedCourses(opportunityTracks, getCourseById),
     [opportunityTracks],
+  );
+  const selectedProgramTypes = useMemo(
+    () => getSelectedProgramTypes(state.selectedMajorIds),
+    [state.selectedMajorIds],
   );
 
   const matchesFilters = (course) => {
@@ -308,64 +378,62 @@ export default function CourseSelectionScreen() {
       )}
 
       <div className="grid grid-3">
-        {courses.map((course) => {
-          const selected = state.selectedCourseIds.includes(course.id);
-          return (
-            <div
-              key={course.id}
-              className={`card course-card${selected ? ' selected' : ''}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedCourseDetail(course)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCourseDetail(course); }
-              }}
-            >
-              <button
-                type="button"
-                className={`course-select-btn${selected ? ' selected' : ''}`}
-                onClick={(e) => { e.stopPropagation(); toggleCourse(course.id); }}
-              >
-                {selected ? <><Check size={12} /> Selected</> : <><Plus size={12} /> Select</>}
-              </button>
-              <div className="card-title">{course.name}</div>
-              {(course.weightCategory !== 'standard' || course.isPassFail) && (
-                <div className="course-badges">
-                  {course.weightCategory !== 'standard' && (
-                    <span className={`course-badge course-badge-${course.weightCategory}`}>
-                      {ATTRIBUTE_LABELS[course.weightCategory]}
-                    </span>
-                  )}
-                  {course.isPassFail && <span className="course-badge course-badge-passfail">Pass/Fail</span>}
+        {courses.map((course) => (
+          <CourseCard
+            key={course.id}
+            course={course}
+            selected={state.selectedCourseIds.includes(course.id)}
+            onOpenDetail={setSelectedCourseDetail}
+            onToggle={toggleCourse}
+          />
+        ))}
+      </div>
+
+      {/* Task: program-specific recommendations, a second and distinct recommendation layer from
+          the interest-based one above — driven by the actual major(s) selected in Discovery
+          (state.selectedMajorIds), grounded in real admissions research per program type rather
+          than interest tags. See programRecommendations.js's own header comment for the research
+          and the honesty framing behind it. */}
+      <div className="field-block">
+        <div className="field-label">Program-Specific Course Recommendations</div>
+        <p className="field-hint">
+          Based on real admissions research for the type of program(s) you selected in
+          Discovery — these reflect what a field commonly looks for (e.g. Engineering programs
+          broadly want the same math/science foundation), not one specific school's individual
+          preference. You're always free to explore any course you like — these are suggestions,
+          not requirements.
+        </p>
+        {selectedProgramTypes.length === 0 ? (
+          <p className="field-hint">
+            {state.selectedMajorIds.length === 0
+              ? 'Select majors in Discovery to see program-specific course recommendations here.'
+              : "No program-specific research available for your selected major(s) yet."}
+          </p>
+        ) : (
+          selectedProgramTypes.map((type) => {
+            const typeCourses = getProgramTypeCourses(type, getCourseById);
+            const note = PROGRAM_TYPE_NOTES[type];
+            return (
+              <div className="career-group" key={type}>
+                <div className="career-group-label">
+                  Commonly recommended for {PROGRAM_TYPE_LABELS[type]} programs
                 </div>
-              )}
-              <p className="card-desc">{courseSummary(course.description)}</p>
-              <div className="card-meta">
-                <div>
-                  <span className="label">Department</span>
-                  <strong>{course.department}</strong>
+                <div className="grid grid-3">
+                  {typeCourses.map((course) => (
+                    <CourseCard
+                      key={course.id}
+                      course={course}
+                      selected={state.selectedCourseIds.includes(course.id)}
+                      onOpenDetail={setSelectedCourseDetail}
+                      onToggle={toggleCourse}
+                    />
+                  ))}
                 </div>
-                <div>
-                  <span className="label">Credit</span>
-                  <strong>{course.credit != null ? course.credit : 'Varies'}</strong>
-                </div>
-                <div>
-                  <span className="label">Grade Level</span>
-                  <strong>{course.gradeLevels.length ? course.gradeLevels.join(', ') : 'Varies'}</strong>
-                </div>
-                {course.prerequisite && (
-                  <div>
-                    <span className="label">Prerequisite</span>
-                    <strong>{course.prerequisite}</strong>
-                  </div>
-                )}
+                {note && <p className="field-hint" style={{ marginTop: 10 }}>{note}</p>}
               </div>
-              {course.note && (
-                <p className="field-hint" style={{ marginTop: 8, marginBottom: 0 }}>{course.note}</p>
-              )}
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Rendered via createPortal to document.body — this screen is wrapped in App.jsx's
