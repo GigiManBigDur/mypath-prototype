@@ -726,6 +726,10 @@ button.card.passed:hover {
 .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
 
 .caveat-banner { margin-bottom: 18px; background: var(--card); border: 1px solid var(--paper-line); border-left: 4px solid var(--gold); border-radius: 4px; padding: 14px 18px; font-size: 13.5px; color: var(--ink-soft); }
+/* Course Selection's "this is only for next year" scope clarification — same .caveat-banner
+   language, but deliberately bolder/darker than the default so it reads as one of the first
+   things on the page (per its own build spec), not just another muted aside. */
+.course-scope-banner { font-size: 14.5px; color: var(--ink); font-weight: 500; margin-top: 4px; }
 
 .task-form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
 .task-form-field .label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); }

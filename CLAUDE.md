@@ -343,6 +343,21 @@ this Architecture section.
     `WEIGHT_MULTIPLIERS` Stage 2's GPA math already uses, Honors Distinction thresholds, AP
     exam-or-reverts-to-Honors policy) stays scannable. This is fixed reference content, not derived
     from `COURSES` — the numbers came directly from the build spec, not the catalog file.
+    **Immediately above it (only in the original onboarding view, never in checkpoint mode — see
+    Stage 4 below), a `.course-scope-banner` clarifies that this page is scoped to next year's
+    courses ONLY, not the student's whole remaining path** — a real gap the build spec caught: a
+    student could otherwise read the full course grid as "plan your entire high school career
+    here." `nextYearLabel` derives the actual next stage's label the same way `roadmapGenerator.js`
+    does (`STAGE_PLAN`/`TRUNK_STAGES`, keyed off `state.schoolYear`) — `null` for a 12th-grader
+    (`stageNames.length === 1`, no next Roslyn cycle to name), which swaps the copy to a
+    "finalizing your current-year registration" framing instead of naming a nonexistent next
+    year. Reuses `.caveat-banner`'s existing gold-accent visual language (same pattern the
+    transfer-timeline caveat elsewhere in this app already uses for "important context, not just
+    another muted aside"), with its own `.course-scope-banner` modifier making it bolder/darker
+    than the default caveat styling specifically so it doesn't get lost as "one of the first
+    things a student reads," per the build spec's own test criterion. Checkpoint mode (Part 2)
+    never shows this banner — its own header (`Select Your Courses for ${targetStageLabel}`)
+    already states the scope unambiguously, so repeating it here would be redundant.
   - **Task 2 — browsable catalog**: reuses the shared "Recommended for you" / "Browse all ___"
     pill toggle every other multi-content screen in this app uses (Discovery's 3 sub-steps,
     Opportunity Finder). Browse mode adds a plain text search box (name-only substring match) plus

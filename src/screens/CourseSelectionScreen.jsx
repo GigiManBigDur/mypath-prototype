@@ -280,6 +280,17 @@ export default function CourseSelectionScreen() {
     return targetName ? TRUNK_STAGES.highschool[targetName].label : 'next year';
   })();
 
+  // Same derivation, for the ORIGINAL onboarding screen's own scope-clarifying banner below —
+  // this is the year stage 0's selections are actually FOR (the "upcoming registration cycle"),
+  // matching the exact wording roadmapGenerator.js's course-request tasks already use ("Request
+  // X for next year"). null for a 12th-grader/yearSpan===1 plan, where there's no next Roslyn
+  // cycle to name — see the "Finalize" wording used elsewhere for that same case.
+  const nextYearLabel = (() => {
+    if (checkpoint) return null;
+    const stageNames = STAGE_PLAN.highschool[state.schoolYear] ?? STAGE_PLAN.highschool[DEFAULT_SCHOOL_YEAR.highschool];
+    return stageNames.length > 1 ? TRUNK_STAGES.highschool[stageNames[1]].label : null;
+  })();
+
   // Course detail modal — same open/close mechanism as Roadmap.jsx's node detail modal
   // (useModalExit for the fade in/out, a ref that retains the last real course so the closing
   // frame still has real content instead of flashing blank), reusing the exact same .overlay/
@@ -310,6 +321,16 @@ export default function CourseSelectionScreen() {
           ? `Courses are checked against real prerequisites from your updated transcript — a course you haven't met the prerequisite for yet is shown but locked.`
           : "Pick the courses you're planning to take, built around what your school actually offers."}
       </p>
+
+      {!checkpoint && (
+        <div className="caveat-banner course-scope-banner">
+          {nextYearLabel
+            ? <>This page is for selecting your courses for <strong>{nextYearLabel}</strong> only — not your
+                full remaining path. You'll return here to choose courses for each future year as they come
+                up.</>
+            : <>This page is for finalizing your current-year course registration only.</>}
+        </div>
+      )}
 
       {!checkpoint && (
         <div className="field-block">
