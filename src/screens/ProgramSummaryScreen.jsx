@@ -59,10 +59,15 @@ export default function ProgramSummaryScreen() {
   const { state, patch } = useApp();
   const isHighSchool = state.educationLevel === 'highschool';
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
+  // UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — an Undergraduate/Transfer
+  // student who selected UC Davis as their current school also goes through Course Selection, so
+  // their real previous screen is 'courseSelection' too, same as High School.
+  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
+    && state.currentSchool === 'UC Davis';
   // Same backTarget logic OpportunityFinderScreen's own Back button used before this screen was
   // inserted in front of it — moved here since this is now always the real previous screen for
   // Opportunity Finder, regardless of level.
-  const backTarget = isHighSchool ? 'courseSelection' : (hasBuiltTrack ? 'discovery' : 'admissions');
+  const backTarget = (isHighSchool || isCollegeAtUCDavis) ? 'courseSelection' : (hasBuiltTrack ? 'discovery' : 'admissions');
 
   const mergedPrograms = getMergedPrograms(state.selectedMajorIds, state.educationLevel);
   const selectedPrograms = mergedPrograms.filter((p) => state.selectedProgramKeys.includes(p.key));

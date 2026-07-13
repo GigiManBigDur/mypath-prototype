@@ -5,12 +5,14 @@ import { SCHOOLS } from '../data/schools';
 // the UI is built to filter a list so more schools can be added later without changing this
 // component. `value` is the confirmed selection (or ''); typing something that no longer matches
 // the current selection clears it, so `canContinue` on the caller's side can't stay true against
-// stale text the user has since edited away from.
-export default function SchoolSearchField({ value, onChange }) {
+// stale text the user has since edited away from. `schools` defaults to SCHOOLS (Roslyn's own
+// list) but SurveyScreen passes COLLEGE_SCHOOLS (UC Davis) for Undergraduate/Transfer students —
+// the component itself has no opinion on which list it's searching.
+export default function SchoolSearchField({ value, onChange, schools = SCHOOLS }) {
   const [query, setQuery] = useState(value || '');
   const [open, setOpen] = useState(false);
 
-  const matches = SCHOOLS.filter((s) => s.toLowerCase().includes(query.trim().toLowerCase()));
+  const matches = schools.filter((s) => s.toLowerCase().includes(query.trim().toLowerCase()));
 
   const selectSchool = (school) => {
     onChange(school);

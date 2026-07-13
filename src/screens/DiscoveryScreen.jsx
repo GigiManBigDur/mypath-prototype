@@ -39,10 +39,14 @@ export default function DiscoveryScreen() {
   const [programsView, setProgramsView] = useState('recommended');
 
   const tracks = getBuiltTracks(state.interestTags);
-  // Course Selection (Transcript & GPA -> Course Selection) only applies to High School — see
-  // AdmissionsOverviewScreen's identical check. Non-highschool goes straight to the
-  // Reach/Match/Safety Summary, which sits right before Opportunities for every level.
-  const afterDiscovery = state.educationLevel === 'highschool' ? 'transcript' : 'programSummary';
+  // Course Selection (Transcript & GPA -> Course Selection) applies to High School, and — as of
+  // the UC Davis partner-school addition — to an Undergraduate/Transfer student who selected UC
+  // Davis as their current school. See AdmissionsOverviewScreen's identical check. Everyone else
+  // goes straight to the Reach/Match/Safety Summary, which sits right before Opportunities for
+  // every level.
+  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
+    && state.currentSchool === 'UC Davis';
+  const afterDiscovery = (state.educationLevel === 'highschool' || isCollegeAtUCDavis) ? 'transcript' : 'programSummary';
 
   // Defensive: this screen should only be reached when at least one selected
   // interest maps to a built track — Admissions/Transcript route around it

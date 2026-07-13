@@ -182,25 +182,36 @@ function CourseCard({ course, selected, onOpenDetail, onToggle, ineligibleReason
 export default function CourseSelectionScreen() {
   const { state, patch } = useApp();
   const isHighSchool = state.educationLevel === 'highschool';
+  // UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — an Undergraduate/Transfer
+  // student who selected UC Davis as their current school also gets this screen, same flow
+  // position as Roslyn High School. Placeholder-only for now (real UC Davis course selection —
+  // and its quarter-system-aware registration timing — is a later stage); everyone else is
+  // completely unaffected.
+  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
+    && state.currentSchool === 'UC Davis';
+  const hasCourseFlow = isHighSchool || isCollegeAtUCDavis;
 
   // Course Selection Stage 4's "revisit" checkpoint (Part 2) reuses this exact screen instead of
   // rebuilding the course-selection mechanism — set by Roadmap.jsx right before navigating here.
   // Selections write to state.courseCheckpoints[stageName] instead of the top-level
   // selectedCourseIds (which is reserved for stage 0's onboarding selections), and courses are
   // checked against real prerequisites/the refreshed transcript — see checkPrerequisite below.
+  // Checkpoints are High-School-only (Stage 4 hasn't been built for UC Davis yet), so this is
+  // always null for a college student regardless.
   const checkpoint = state.activeCourseCheckpoint?.part === 'courses' ? state.activeCourseCheckpoint : null;
   const checkpointProgress = checkpoint ? state.courseCheckpoints?.[checkpoint.stageName] : null;
 
   // Defensive: same reasoning as TranscriptScreen's own bounce — Course Selection only applies to
-  // High School, and routing already never sends anyone else here, but state restored mid-flow
-  // after educationLevel changed shouldn't render this screen anyway. A checkpoint's Part 2 is
-  // additionally locked until Part 1 is done for that same stage — Roadmap.jsx's own modal
-  // already disables the button that gets here, but state could in principle be reached directly
-  // (e.g. browser back), so this bounces the same way rather than trusting the caller.
+  // High School or a UC-Davis-selecting Undergraduate/Transfer student, and routing already never
+  // sends anyone else here, but state restored mid-flow after educationLevel/currentSchool
+  // changed shouldn't render this screen anyway. A checkpoint's Part 2 is additionally locked
+  // until Part 1 is done for that same stage — Roadmap.jsx's own modal already disables the
+  // button that gets here, but state could in principle be reached directly (e.g. browser back),
+  // so this bounces the same way rather than trusting the caller.
   useEffect(() => {
-    if (!isHighSchool) { patch({ screen: 'programSummary' }); return; }
+    if (!hasCourseFlow) { patch({ screen: 'programSummary' }); return; }
     if (checkpoint && !checkpointProgress?.part1Done) patch({ activeCourseCheckpoint: null, screen: 'plan' });
-  }, [isHighSchool, checkpoint, checkpointProgress?.part1Done]);
+  }, [hasCourseFlow, checkpoint, checkpointProgress?.part1Done]);
 
   const [viewMode, setViewMode] = useState('recommended'); // 'recommended' | 'browse'
   const [search, setSearch] = useState('');
@@ -302,7 +313,16 @@ export default function CourseSelectionScreen() {
   if (selectedCourseDetail) lastDetailRef.current = selectedCourseDetail;
   const modalCourse = selectedCourseDetail || lastDetailRef.current;
 
-  if (!isHighSchool) return null;
+  if (!hasCourseFlow) return null;
+
+  if (!isHighSchool) {
+    return (
+      <CollegeCourseSelectionPlaceholder
+        onBack={() => patch({ screen: 'transcript' })}
+        onContinue={() => patch({ screen: 'programSummary' })}
+      />
+    );
+  }
 
   return (
     <div>
@@ -674,6 +694,40 @@ export default function CourseSelectionScreen() {
           }}
         >
           {checkpoint ? 'Save & Return to Plan' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — confirms the flow/navigation order
+// only; real UC Davis course browsing/selection (and its quarter-system-aware registration
+// timing, Fall/Winter/Spring plus optional Summer Session rather than Roslyn's semesters) is a
+// later stage.
+function CollegeCourseSelectionPlaceholder({ onBack, onContinue }) {
+  return (
+    <div>
+      <button type="button" className="btn btn-ghost" onClick={onBack}>
+        <ArrowLeft size={14} /> Back
+      </button>
+
+      <StepProgress step={5} total={9} />
+      <h1 className="page-title">Course Selection</h1>
+      <p className="page-sub">
+        Coming soon — this is where you'll browse and select real UC Davis courses.
+      </p>
+
+      <div className="field-block">
+        <p className="field-hint">
+          We're still building out UC Davis's real course catalog and selection experience. For
+          now, this screen just confirms your plan flows through the right steps in the right
+          order.
+        </p>
+      </div>
+
+      <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn btn-primary" onClick={onContinue}>
+          Continue
         </button>
       </div>
     </div>

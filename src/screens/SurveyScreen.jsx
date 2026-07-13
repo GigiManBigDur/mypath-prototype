@@ -4,6 +4,7 @@ import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 import StepProgress from '../components/StepProgress';
 import SchoolSearchField from '../components/SchoolSearchField';
+import { SCHOOLS, COLLEGE_SCHOOLS } from '../data/schools';
 
 const LEVELS = [
   { id: 'highschool', label: 'High School' },
@@ -44,10 +45,17 @@ export default function SurveyScreen() {
     });
   };
 
-  // The school selector (and, downstream, Transcript & GPA / Course Selection) only applies to
-  // High School — Undergraduate/Transfer users have no partner college yet, so it's neither shown
-  // nor required for them.
+  // The school selector (and, downstream, Transcript & GPA / Course Selection) applies to High
+  // School (Roslyn) and, as of the UC Davis partner-school addition, to Undergraduate/Transfer
+  // too (UC Davis) — see CLAUDE.md's "UC Davis Partner School" sections. Unlike High School
+  // (where Roslyn is the only supported school and picking it is mandatory to continue), the
+  // college field is deliberately OPTIONAL — most Undergraduate/Transfer students don't attend
+  // UC Davis, and requiring them to pick it anyway would break "the existing generic flow,
+  // completely unaffected" for the vast majority of college-level users. Only High School keeps
+  // the hard requirement.
   const isHighSchool = state.educationLevel === 'highschool';
+  const isCollege = state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer';
+  const hasSchoolField = isHighSchool || isCollege;
   const canContinue = state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
     && (!isHighSchool || !!state.currentSchool);
 
@@ -116,7 +124,7 @@ export default function SurveyScreen() {
               type="button"
               key={lvl.id}
               className={`pill${state.educationLevel === lvl.id ? ' selected' : ''}`}
-              onClick={() => patch({ educationLevel: lvl.id, schoolYear: null })}
+              onClick={() => patch({ educationLevel: lvl.id, schoolYear: null, currentSchool: '' })}
             >
               {lvl.label}
             </button>
@@ -143,11 +151,16 @@ export default function SurveyScreen() {
         </div>
       )}
 
-      {isHighSchool && (
+      {hasSchoolField && (
         <div className="field-block">
           <div className="field-label">What school do you currently attend?</div>
-          <p className="field-hint">Only Roslyn High School is available right now — more schools are coming soon.</p>
+          <p className="field-hint">
+            {isHighSchool
+              ? 'Only Roslyn High School is available right now — more schools are coming soon.'
+              : 'Only UC Davis is available right now — more schools are coming soon.'}
+          </p>
           <SchoolSearchField
+            schools={isHighSchool ? SCHOOLS : COLLEGE_SCHOOLS}
             value={state.currentSchool}
             onChange={(school) => patch({ currentSchool: school })}
           />

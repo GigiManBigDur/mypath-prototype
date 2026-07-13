@@ -1576,6 +1576,57 @@ This is the first (and so far only) per-program, per-education-level gate in `pr
   career→major→program traversal (`getCareerPool`/`getMajorGroups`/Discovery routing) needed zero
   changes.
 
+**UC Davis Partner School, Stage 1: a "current school" question and a flow reorder for
+Undergraduate/Transfer — mirrors Roslyn's own Stage 1, but with one deliberate asymmetry.**
+- **`src/data/schools.js` now exports `COLLEGE_SCHOOLS = ['UC Davis']`** alongside the existing
+  `SCHOOLS` (Roslyn's list) — kept separate since the two lists are scoped to different education
+  levels and must never cross-contaminate each other's options. `SchoolSearchField` takes a new
+  `schools` prop (default `SCHOOLS`, for backward compatibility with every other existing call
+  site) rather than hardcoding which list it searches; `SurveyScreen` passes `COLLEGE_SCHOOLS` for
+  Undergraduate/Transfer and `SCHOOLS` for High School.
+- **`SurveyScreen`'s "What school do you currently attend?" field block now renders for High
+  School OR an Undergraduate/Transfer student** (`hasSchoolField = isHighSchool || isCollege`),
+  with level-specific hint text ("Only Roslyn High School..." vs. "Only UC Davis..."). Picking a
+  new education level resets `currentSchool: ''` (alongside the pre-existing `schoolYear: null`
+  reset) so a stale selection from one level's school list can never leak into the other's.
+- **The field is mandatory for High School but deliberately OPTIONAL for
+  Undergraduate/Transfer** — `canContinue`'s `!!state.currentSchool` requirement stays scoped to
+  `isHighSchool` only, unchanged from before this addition. This is intentional, not an oversight:
+  Roslyn is the only supported school for the entire High School level, so requiring it is
+  reasonable, but the vast majority of Undergraduate/Transfer students don't attend UC Davis —
+  forcing them to pick a school that isn't theirs just to continue would break "the existing
+  generic flow, completely unaffected" for most college-level users. A student who leaves the
+  college field blank (or picks nothing, since UC Davis is the only option) proceeds exactly as
+  they did before this feature existed.
+- **Downstream routing widens the same `isHighSchool` check used throughout the app to
+  `isHighSchool || isCollegeAtUCDavis`** (`isCollegeAtUCDavis = isCollege && state.currentSchool
+  === 'UC Davis'`), recomputed independently in each file per this codebase's established
+  per-file-recomputed-variable convention (see the High-School-skip note earlier in this section)
+  — `AdmissionsOverviewScreen`'s `afterDiscoverySkip`, `DiscoveryScreen`'s `afterDiscovery`, and
+  `ProgramSummaryScreen`'s `backTarget` all now route a UC-Davis-selecting college student through
+  `transcript`/`courseSelection` exactly like a High School student, while every other
+  Undergraduate/Transfer student (no school, or a currently-unsupported one) is routed completely
+  unaffected, exactly as before this feature.
+- **`TranscriptScreen`/`CourseSelectionScreen` each gained a `hasCourseFlow = isHighSchool ||
+  isCollegeAtUCDavis` gate** (replacing their old bare `isHighSchool` gate) plus a content branch:
+  `isHighSchool` still renders the real, full Roslyn content unchanged; a UC-Davis-selecting
+  college student instead renders a small dedicated placeholder component
+  (`CollegeTranscriptPlaceholder`/`CollegeCourseSelectionPlaceholder`, defined at the bottom of
+  each file) — a "Coming soon" notice plus working Back/Continue navigation, deliberately NOT the
+  real Roslyn-specific catalog/transcript UI, since UC Davis's real course/GPA data hasn't been
+  built yet (a later stage) and reusing Roslyn's 207-course catalog for a UC Davis student would
+  be actively wrong, not just incomplete. Both screens' defensive bounce-if-reached-incorrectly
+  `useEffect` was widened the same way (`hasCourseFlow` instead of `isHighSchool`). Checkpoints
+  (Course Selection Stage 4's per-year "revisit" mechanism) stay High-School-only — untouched —
+  since `state.activeCourseCheckpoint`/`courseCheckpoints` are never populated for a college
+  student regardless, so `checkpoint` naturally resolves to `null` for them with no extra gating
+  needed.
+- **UC Davis operates on a quarter system (Fall/Winter/Spring, plus optional Summer Session), not
+  semesters like Roslyn — noted here for whoever builds the next stage, not built into anything
+  yet.** Nothing in Stage 1 depends on this, but Stage 3/4's eventual registration-timing logic
+  (the UC-Davis equivalent of `ESTIMATED_COURSE_REQUEST_WINDOW`/course-checkpoint stage dates)
+  will need to reflect quarters rather than reusing Roslyn's semester-shaped assumptions verbatim.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

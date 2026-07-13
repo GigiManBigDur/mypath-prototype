@@ -8,11 +8,17 @@ export default function AdmissionsOverviewScreen() {
   const { state, patch } = useApp();
   const copy = ADMISSIONS_TEXT[state.educationLevel];
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
-  // Course Selection (Transcript & GPA -> Course Selection) only applies to High School —
-  // Undergraduate/Transfer skip straight to the Reach/Match/Safety Summary when Discovery is
-  // also skipped, exactly the pre-Course-Selection behavior for them (that screen sits right
-  // before Opportunities regardless of level — see ProgramSummaryScreen.jsx).
-  const afterDiscoverySkip = state.educationLevel === 'highschool' ? 'transcript' : 'programSummary';
+  // Course Selection (Transcript & GPA -> Course Selection) applies to High School, and — as of
+  // the UC Davis partner-school addition — to an Undergraduate/Transfer student who selected UC
+  // Davis as their current school (see CLAUDE.md's "UC Davis Partner School" sections; Task
+  // content there is still placeholder-only, this is purely routing). Everyone else skips
+  // straight to the Reach/Match/Safety Summary when Discovery is also skipped, exactly the
+  // pre-Course-Selection behavior (that screen sits right before Opportunities regardless of
+  // level — see ProgramSummaryScreen.jsx).
+  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
+    && state.currentSchool === 'UC Davis';
+  const hasCourseFlow = state.educationLevel === 'highschool' || isCollegeAtUCDavis;
+  const afterDiscoverySkip = hasCourseFlow ? 'transcript' : 'programSummary';
 
   return (
     <div>

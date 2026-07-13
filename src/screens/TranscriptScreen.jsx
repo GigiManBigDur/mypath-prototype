@@ -20,23 +20,42 @@ export default function TranscriptScreen() {
   const { state, patch } = useApp();
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
   const isHighSchool = state.educationLevel === 'highschool';
+  // UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — an Undergraduate/Transfer
+  // student who selected UC Davis as their current school also gets this screen, same flow
+  // position as Roslyn High School. This is placeholder-only for now (no real UC Davis
+  // transcript/GPA content yet — that's a later stage, and will need to account for UC Davis's
+  // quarter system rather than semesters); everyone else is completely unaffected.
+  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
+    && state.currentSchool === 'UC Davis';
+  const hasCourseFlow = isHighSchool || isCollegeAtUCDavis;
 
   // Course Selection Stage 4's "revisit" checkpoint (Part 1) reuses this exact screen rather than
   // rebuilding the transcript-entry mechanism — set by Roadmap.jsx right before navigating here.
   // Everything below (course search, grade entry, GPA calculation) is identical either way; only
-  // the header copy and where Continue/Back go change.
+  // the header copy and where Continue/Back go change. Checkpoints are High-School-only (Course
+  // Selection Stage 4 hasn't been built for UC Davis yet), so this is always null for a college
+  // student regardless.
   const checkpoint = state.activeCourseCheckpoint?.part === 'transcript' ? state.activeCourseCheckpoint : null;
 
-  // Defensive: this screen (and Course Selection generally) only applies to High School — routing
-  // already never sends an Undergraduate/Transfer student here, but if state ever ends up here
-  // anyway (e.g. restored mid-flow after educationLevel changed), bounce forward instead of
-  // rendering a screen that shouldn't apply to them, same pattern DiscoveryScreen's own defensive
-  // bounce uses.
+  // Defensive: this screen only applies to High School or a UC-Davis-selecting Undergraduate/
+  // Transfer student — routing already never sends anyone else here, but if state ever ends up
+  // here anyway (e.g. restored mid-flow after educationLevel/currentSchool changed), bounce
+  // forward instead of rendering a screen that shouldn't apply to them, same pattern
+  // DiscoveryScreen's own defensive bounce uses.
   useEffect(() => {
-    if (!isHighSchool) patch({ screen: 'programSummary' });
-  }, [isHighSchool]);
+    if (!hasCourseFlow) patch({ screen: 'programSummary' });
+  }, [hasCourseFlow]);
 
-  if (!isHighSchool) return null;
+  if (!hasCourseFlow) return null;
+
+  if (!isHighSchool) {
+    return (
+      <CollegeTranscriptPlaceholder
+        onBack={() => patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' })}
+        onContinue={() => patch({ screen: 'courseSelection' })}
+      />
+    );
+  }
 
   // The "add a course" form is a few fields staged locally before becoming one real
   // state.transcript entry — same "build up an entry, then commit it" shape AddTaskModal already
@@ -241,6 +260,39 @@ export default function TranscriptScreen() {
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
           {checkpoint ? 'Save & Continue to Part 2' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — confirms the flow/navigation order
+// only; real UC Davis transcript/GPA entry (and its quarter-system-aware dates) is a later stage.
+// state.gpa is deliberately left untouched here, same as it already was for any Undergraduate/
+// Transfer student before this addition (no GPA entry point exists for them yet either way).
+function CollegeTranscriptPlaceholder({ onBack, onContinue }) {
+  return (
+    <div>
+      <button type="button" className="btn btn-ghost" onClick={onBack}>
+        <ArrowLeft size={14} /> Back
+      </button>
+
+      <StepProgress step={4} total={9} />
+      <h1 className="page-title">Transcript &amp; GPA</h1>
+      <p className="page-sub">
+        Coming soon — this is where you'll enter your UC Davis coursework and GPA.
+      </p>
+
+      <div className="field-block">
+        <p className="field-hint">
+          We're still building out UC Davis's real transcript and GPA experience. For now, this
+          screen just confirms your plan flows through the right steps in the right order.
+        </p>
+      </div>
+
+      <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn btn-primary" onClick={onContinue}>
+          Continue
         </button>
       </div>
     </div>
