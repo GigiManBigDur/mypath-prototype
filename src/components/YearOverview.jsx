@@ -95,7 +95,7 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
         </button>
       </div>
 
-      <div className="eyebrow">Step 8 of 8</div>
+      <div className="eyebrow">Step 9 of 9</div>
       <h1 className="page-title">Your Academic Plan</h1>
       <p className="page-sub">
         {n > 1

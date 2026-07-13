@@ -475,6 +475,16 @@ button.card.passed:hover {
   margin-bottom: 18px;
 }
 
+/* Reach/Match/Safety Summary's count line (Task 2) — a light, honest recap of counts already
+   shown in each group's own header below, not a second source of truth. */
+.rms-summary-line {
+  font-family: 'Fraunces', serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 28px;
+}
+
 /* Groups the merged Careers of Interest pool by source track (see getCareerGroups in
    careers.js) — needed once the interest-tag cap was removed, since a student can now
    realistically select tags across many tracks and land a much larger merged pool. */

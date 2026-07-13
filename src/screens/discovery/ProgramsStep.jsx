@@ -1,14 +1,5 @@
-import { getPrograms, getMergedPrograms, selectProgramsForGpa, reachMatchSafetyTag } from '../../data/programs';
+import { getPrograms, getMergedPrograms, selectProgramsForGpa, reachMatchSafetyTag, gpaBenchmarkText } from '../../data/programs';
 import { MAJORS } from '../../data/majors';
-
-// Portfolio/audition programs have gpaValue === null (GPA is explicitly secondary there); every
-// other program shows its illustrative benchmark, plus a note when a submission also matters.
-function gpaBenchmarkText(p) {
-  if (p.gpaValue == null) {
-    return p.gpaWeighted === 'audition' ? 'Audition-based — GPA secondary' : 'Portfolio-based — GPA secondary';
-  }
-  return `${p.gpaValue}+${p.gpaWeighted ? ` (${p.gpaWeighted} also weighed)` : ''}`;
-}
 
 // Shared by both Recommended (merged across selected majors) and Browse (one major at a time) —
 // same GPA-aware Reach/Match/Safety badge and benchmark display either way, since both call sites

@@ -9,9 +9,10 @@ export default function AdmissionsOverviewScreen() {
   const copy = ADMISSIONS_TEXT[state.educationLevel];
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
   // Course Selection (Transcript & GPA -> Course Selection) only applies to High School —
-  // Undergraduate/Transfer skip straight to Opportunities when Discovery is also skipped, exactly
-  // the pre-Course-Selection behavior for them.
-  const afterDiscoverySkip = state.educationLevel === 'highschool' ? 'transcript' : 'opportunities';
+  // Undergraduate/Transfer skip straight to the Reach/Match/Safety Summary when Discovery is
+  // also skipped, exactly the pre-Course-Selection behavior for them (that screen sits right
+  // before Opportunities regardless of level — see ProgramSummaryScreen.jsx).
+  const afterDiscoverySkip = state.educationLevel === 'highschool' ? 'transcript' : 'programSummary';
 
   return (
     <div>
@@ -19,7 +20,7 @@ export default function AdmissionsOverviewScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={2} total={8} />
+      <StepProgress step={2} total={9} />
       <h1 className="page-title">{copy.title}</h1>
 
       <div className="prose">

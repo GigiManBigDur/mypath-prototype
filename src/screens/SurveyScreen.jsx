@@ -57,7 +57,7 @@ export default function SurveyScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={1} total={8} />
+      <StepProgress step={1} total={9} />
       <h1 className="page-title">Let's build your plan.</h1>
       <p className="page-sub">
         Answer a few quick questions and we'll put together a personalized roadmap — no

@@ -480,3 +480,14 @@ export function reachMatchSafetyTag(gpaString, gpaValue) {
   if (diff >= -0.2) return 'Match';
   return 'Reach';
 }
+
+// Moved here (from discovery/ProgramsStep.jsx) once ProgramSummaryScreen needed the identical
+// benchmark text too — a shared, single implementation rather than two copies drifting apart.
+// Portfolio/audition programs have gpaValue === null (GPA is explicitly secondary there); every
+// other program shows its illustrative benchmark, plus a note when a submission also matters.
+export function gpaBenchmarkText(p) {
+  if (p.gpaValue == null) {
+    return p.gpaWeighted === 'audition' ? 'Audition-based — GPA secondary' : 'Portfolio-based — GPA secondary';
+  }
+  return `${p.gpaValue}+${p.gpaWeighted ? ` (${p.gpaWeighted} also weighed)` : ''}`;
+}

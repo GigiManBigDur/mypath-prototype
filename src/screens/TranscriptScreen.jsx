@@ -33,7 +33,7 @@ export default function TranscriptScreen() {
   // rendering a screen that shouldn't apply to them, same pattern DiscoveryScreen's own defensive
   // bounce uses.
   useEffect(() => {
-    if (!isHighSchool) patch({ screen: 'opportunities' });
+    if (!isHighSchool) patch({ screen: 'programSummary' });
   }, [isHighSchool]);
 
   if (!isHighSchool) return null;
@@ -113,7 +113,7 @@ export default function TranscriptScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={4} total={8} />}
+      {!checkpoint && <StepProgress step={4} total={9} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint

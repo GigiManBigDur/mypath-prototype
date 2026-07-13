@@ -6,6 +6,7 @@ import AdmissionsOverviewScreen from './screens/AdmissionsOverviewScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
 import TranscriptScreen from './screens/TranscriptScreen';
 import CourseSelectionScreen from './screens/CourseSelectionScreen';
+import ProgramSummaryScreen from './screens/ProgramSummaryScreen';
 import OpportunityFinderScreen from './screens/OpportunityFinderScreen';
 import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
@@ -17,6 +18,10 @@ const SCREENS = {
   discovery: DiscoveryScreen,
   transcript: TranscriptScreen,
   courseSelection: CourseSelectionScreen,
+  // Sits right before Opportunities for every education level — after Course Selection for High
+  // School, right after Discovery for Undergraduate/Transfer (who skip Course Selection
+  // entirely). See ProgramSummaryScreen.jsx's own header comment.
+  programSummary: ProgramSummaryScreen,
   opportunities: OpportunityFinderScreen,
   projectBuilder: ProjectBuilderScreen,
   plan: AcademicPlanScreen,
@@ -28,7 +33,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'survey', 'admissions', 'discovery', 'transcript', 'courseSelection', 'opportunities', 'projectBuilder',
+  'survey', 'admissions', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder',
 ]);
 
 function AppShell() {

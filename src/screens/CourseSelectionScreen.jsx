@@ -198,7 +198,7 @@ export default function CourseSelectionScreen() {
   // already disables the button that gets here, but state could in principle be reached directly
   // (e.g. browser back), so this bounces the same way rather than trusting the caller.
   useEffect(() => {
-    if (!isHighSchool) { patch({ screen: 'opportunities' }); return; }
+    if (!isHighSchool) { patch({ screen: 'programSummary' }); return; }
     if (checkpoint && !checkpointProgress?.part1Done) patch({ activeCourseCheckpoint: null, screen: 'plan' });
   }, [isHighSchool, checkpoint, checkpointProgress?.part1Done]);
 
@@ -314,7 +314,7 @@ export default function CourseSelectionScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={5} total={8} />}
+      {!checkpoint && <StepProgress step={5} total={9} />}
       <h1 className="page-title">{checkpoint ? `Select Your Courses for ${targetStageLabel}` : 'Course Selection'}</h1>
       <p className="page-sub">
         {checkpoint
@@ -670,7 +670,7 @@ export default function CourseSelectionScreen() {
               });
               return;
             }
-            patch({ screen: 'opportunities' });
+            patch({ screen: 'programSummary' });
           }}
         >
           {checkpoint ? 'Save & Return to Plan' : 'Continue'}

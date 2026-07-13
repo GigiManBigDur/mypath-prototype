@@ -99,8 +99,8 @@ is secondary and manual only.
 
 **Screen flow is a single-page state machine, not a router.** `App.jsx` reads
 `state.screen` from `AppContext` and renders the matching component from a `SCREENS` map
-(`welcome → survey → admissions → discovery → transcript → courseSelection → opportunities →
-projectBuilder → plan`). Screens advance by calling `patch({ screen: 'next' })` — there's no URL
+(`welcome → survey → admissions → discovery → transcript → courseSelection → programSummary →
+opportunities → projectBuilder → plan`). Screens advance by calling `patch({ screen: 'next' })` — there's no URL
 routing, back/forward is handled by explicit "Back" buttons that patch `screen` backwards.
 `welcome` is `DEFAULT_STATE.screen` (`AppContext.jsx`), but only ever shown to a genuinely fresh
 visitor — `loadInitialState()` spreads any stored state *over* the default, so a returning user
@@ -109,12 +109,16 @@ bounced back to the welcome hero. `App.jsx`'s small persistent "MyPath — proto
 hidden specifically on `welcome` (`state.screen !== 'welcome'`) since that screen has its own
 large "MyPath" hero title — showing both stacked would read as duplicated branding.
 
+**`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
+`opportunities` for EVERY education level**, which is what the High-School-only skip below
+actually resolves *to* now, not `opportunities` directly.
+
 **`transcript`/`courseSelection` (Course Selection Stages 2-3) are High-School-only screens —
 Undergraduate/Transfer never see them**, since those levels have no partner college yet and the
 whole feature (school selector, transcript entry, course catalog browsing) only makes sense for a
 Roslyn High School student. This is a second, independent skip layer on top of the `discovery`
 skip below, and both are computed the same way at every routing decision point: a shared
-`const afterX = state.educationLevel === 'highschool' ? 'transcript' : 'opportunities'`-style
+`const afterX = state.educationLevel === 'highschool' ? 'transcript' : 'programSummary'`-style
 variable, never an inlined ternary repeated per callsite (this codebase's established pattern for
 multi-site conditional routing — see the `getBuiltTracks`-driven skip below for the precedent).
 Concretely:
@@ -122,21 +126,26 @@ Concretely:
   `canContinue`, are both wrapped in `isHighSchool` — Undergraduate/Transfer see neither the field
   nor the requirement.
 - `AdmissionsOverviewScreen`'s Continue button goes to `discovery` if a built track was selected,
-  else `afterDiscoverySkip` (`'transcript'` for High School, `'opportunities'` otherwise).
+  else `afterDiscoverySkip` (`'transcript'` for High School, `'programSummary'` otherwise).
 - `DiscoveryScreen`'s defensive zero-built-track bounce, and its own final-substep Continue
   button, both target the same computed `afterDiscovery` (`'transcript'` for High School, else
-  `'opportunities'`) — this is a per-file-recomputed variable, not shared code, since each screen
+  `'programSummary'`) — this is a per-file-recomputed variable, not shared code, since each screen
   reads `state.educationLevel` itself.
 - `TranscriptScreen` and `CourseSelectionScreen` each carry their own defensive `useEffect` that
-  bounces straight to `'opportunities'` if `state.educationLevel !== 'highschool'` (mirroring
+  bounces straight to `'programSummary'` if `state.educationLevel !== 'highschool'` (mirroring
   `DiscoveryScreen`'s own zero-built-track defensive bounce) — belt-and-suspenders in case state is
   ever restored mid-flow after `educationLevel` changed, since routing alone already never sends a
-  non-High-School student to either screen.
-- `OpportunityFinderScreen`'s Back button computes `backTarget`: `'courseSelection'` for High
+  non-High-School student to either screen. `CourseSelectionScreen`'s own real (non-checkpoint)
+  Continue button also targets `'programSummary'`, same as every other path into it.
+- `ProgramSummaryScreen`'s own Back button computes `backTarget`: `'courseSelection'` for High
   School (always — Course Selection is never itself conditionally skipped for them, so it's always
   the real previous screen), or the exact pre-Course-Selection discovery-skip mirror
   (`hasBuiltTrack ? 'discovery' : 'admissions'`) for Undergraduate/Transfer, who never see the
-  Transcript/Course-Selection stretch at all.
+  Transcript/Course-Selection stretch at all — this is the exact logic `OpportunityFinderScreen`'s
+  own Back button used to carry before `programSummary` was inserted in front of it;
+  `OpportunityFinderScreen`'s Back button is now unconditionally `'programSummary'` for every
+  level, since that's always the real previous screen now regardless of education level or
+  Discovery-skip status.
 
 **The `discovery` screen is separately, conditionally skipped** (orthogonal to the High-School
 gating above — this skip is about *interests*, not *education level*, and applies to every
@@ -147,10 +156,31 @@ that bounces to `afterDiscovery` if it's ever reached with zero built tracks (e.
 from `localStorage` after interests changed). `ProjectBuilderScreen` (see below) sits between
 `opportunities` and `plan` — unlike `discovery` it's never skipped by routing logic, since it's
 fully optional in place via its own persistent "Skip for now" control rather than being bypassed
-based on user data. `StepProgress`'s `total` is `8` everywhere now (was `6`) to match the two
-Course Selection screens added to the flow — see each screen's own `step={N}` for its position
+based on user data. `StepProgress`'s `total` is `9` everywhere now (was `8`) to match
+`programSummary` joining the flow — see each screen's own `step={N}` for its position
 (Undergraduate/Transfer students simply pass through steps 4-5 without seeing them rendered,
 same as they already silently skip step 3's `discovery` substeps when it's skipped).
+
+**`ProgramSummaryScreen.jsx` aggregates every program the student selected across Discovery into
+one Reach/Match/Safety-grouped list — deliberately a pure display layer, not a new scoring
+system.** Every program's tag comes from calling the exact same `reachMatchSafetyTag(state.gpa,
+program.gpaValue)` (`programs.js`) that `ProgramsStep.jsx`'s own `ProgramCard` already calls per
+card during Discovery — this screen re-runs that identical pure function over
+`getMergedPrograms(state.selectedMajorIds, level).filter(p => state.selectedProgramKeys.includes(
+p.key))` and groups the results, nothing more. No new "factor" (acceptance rate, extracurricular
+strength, etc.) was added — this app never collected that data, and inventing a formula around
+data that doesn't exist would be a less honest version of the GPA-vs-benchmark comparison already
+in use everywhere else. `gpaBenchmarkText()` (the "Typical GPA" display text, e.g. `"3.8+"` or
+`"Audition-based — GPA secondary"`) was moved from being a private helper inside `ProgramsStep.jsx`
+into a shared export in `programs.js` specifically so this screen could reuse the identical text
+instead of a second copy drifting out of sync. A program whose `reachMatchSafetyTag` call returns
+`null` (blank/unparseable `state.gpa`, or a portfolio/audition program with `gpaValue: null`) goes
+into its own "Not Yet Categorized" section rather than being silently dropped or force-fit into a
+bucket — same "don't guess" posture `selectProgramsForGpa`/`reachMatchSafetyTag` themselves already
+use. Task 2's count line (`.rms-summary-line`, e.g. "You have 1 Reach, 2 Match, and 1 Safety
+schools selected") is pure arithmetic over the same three group arrays already rendered below it —
+no separate counting logic, so the line can never drift out of sync with what's actually shown.
+Zero selected programs shows an honest empty-state message rather than an empty page.
 
 **`AppContext` (`src/context/AppContext.jsx`) is the single source of truth**, a flat
 `useState` object with a `patch()` merge function, auto-persisted to `localStorage` under

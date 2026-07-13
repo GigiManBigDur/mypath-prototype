@@ -40,8 +40,9 @@ export default function DiscoveryScreen() {
 
   const tracks = getBuiltTracks(state.interestTags);
   // Course Selection (Transcript & GPA -> Course Selection) only applies to High School — see
-  // AdmissionsOverviewScreen's identical check.
-  const afterDiscovery = state.educationLevel === 'highschool' ? 'transcript' : 'opportunities';
+  // AdmissionsOverviewScreen's identical check. Non-highschool goes straight to the
+  // Reach/Match/Safety Summary, which sits right before Opportunities for every level.
+  const afterDiscovery = state.educationLevel === 'highschool' ? 'transcript' : 'programSummary';
 
   // Defensive: this screen should only be reached when at least one selected
   // interest maps to a built track — Admissions/Transcript route around it
@@ -127,7 +128,7 @@ export default function DiscoveryScreen() {
   return (
     <div>
       <BackBar onBack={goBackSubStep} />
-      <StepProgress step={3} total={8} label={SUB_STEP_COPY[subStep].title} />
+      <StepProgress step={3} total={9} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">{SUB_STEP_COPY[subStep].sub}</p>
 
@@ -177,7 +178,7 @@ export default function DiscoveryScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" disabled={!canAdvance} onClick={handleNext}>
-          {subStep === 'programs' ? (afterDiscovery === 'transcript' ? 'Continue to Transcript' : 'Continue to Opportunities') : 'Continue'}
+          {subStep === 'programs' ? (afterDiscovery === 'transcript' ? 'Continue to Transcript' : 'Continue to Program Summary') : 'Continue'}
         </button>
       </div>
     </div>
