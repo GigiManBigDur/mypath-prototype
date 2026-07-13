@@ -39,7 +39,13 @@ export const CAREERS = {
         overview: 'Advises companies on strategy, operations, and organizational change at a senior level.',
         salary: '~$90k–$150k',
         requiredEducation: "Master's (often an MBA)",
-        relevantMajors: ['mba'],
+        // 'economics' added alongside 'mba' (UC Davis partner-school addition) — not every
+        // undergraduate exploring this career already holds the MBA; an econ bachelor's is a real,
+        // common direct pipeline into consulting, and without this the 'economics' major (and its
+        // programs, including the new UC Davis one) was otherwise unreachable at this education
+        // level — 'undergraduate' tier careers in this track only ever referenced grad-level majors
+        // before this.
+        relevantMajors: ['mba', 'economics'],
       },
       {
         id: 'investment-banker',
@@ -93,7 +99,11 @@ export const CAREERS = {
         overview: 'Builds and researches the models behind modern AI systems.',
         salary: '~$120k–$180k',
         requiredEducation: "Master's or PhD in CS or related",
-        relevantMajors: ['ms-ai-ml'],
+        // 'computer-science' added alongside 'ms-ai-ml' — same reachability fix as
+        // management-consultant above (UC Davis partner-school addition): a CS bachelor's is the
+        // direct undergrad pipeline into this career, and this track's undergraduate tier
+        // otherwise only referenced grad-level majors.
+        relevantMajors: ['ms-ai-ml', 'computer-science'],
       },
       {
         id: 'robotics-engineer',
@@ -147,7 +157,11 @@ export const CAREERS = {
         overview: 'Diagnoses and treats patients through a hospital or private practice after full medical training.',
         salary: 'Highly variable, often $200k+ after full training',
         requiredEducation: 'Doctor of Medicine (MD) or Doctor of Osteopathic Medicine (DO)',
-        relevantMajors: ['md-do'],
+        // 'biology-premed' added alongside 'md-do' — same reachability fix as above (UC Davis
+        // partner-school addition): a bio-premed bachelor's is the direct undergrad pipeline into
+        // becoming an MD/DO, and this track's undergraduate tier otherwise only referenced the
+        // grad-level major.
+        relevantMajors: ['md-do', 'biology-premed'],
       },
       {
         id: 'physician-assistant',
@@ -255,7 +269,11 @@ export const CAREERS = {
         overview: 'Practices law after completing law school and passing the bar — the direct next step from a pre-law bachelor\'s.',
         salary: '~$85k–$200k+',
         requiredEducation: 'JD (Juris Doctor)',
-        relevantMajors: ['jd-law'],
+        // 'political-science-prelaw' added alongside 'jd-law' — same reachability fix as above (UC
+        // Davis partner-school addition): a poli-sci/pre-law bachelor's is the direct undergrad
+        // pipeline into a JD, and this track's undergraduate tier otherwise only referenced the
+        // grad-level major.
+        relevantMajors: ['jd-law', 'political-science-prelaw'],
       },
       {
         id: 'research-historian',
@@ -271,7 +289,11 @@ export const CAREERS = {
         overview: 'Provides licensed therapy and clinical assessment after doctoral training.',
         salary: '~$90k–$120k',
         requiredEducation: 'PsyD or PhD in Clinical Psychology',
-        relevantMajors: ['psyd-clinical-psych'],
+        // 'psychology' added alongside 'psyd-clinical-psych' — same reachability fix as above (UC
+        // Davis partner-school addition): a psychology bachelor's is the direct undergrad pipeline
+        // into this career, and this track's undergraduate tier otherwise only referenced the
+        // grad-level major.
+        relevantMajors: ['psyd-clinical-psych', 'psychology'],
       },
     ],
   },
@@ -455,6 +477,35 @@ for (const t of ['sports', 'culinary', 'community', 'media', 'personal', 'outdoo
   CAREERS[t].undergraduate = CAREERS[t].highschool;
   CAREERS[t].transfer = CAREERS[t].highschool;
 }
+
+// UC Davis partner-school addition (Undergraduate/Transfer only — High School stays Roslyn-only,
+// same boundary Course Selection/"My School" already established). These 2 careers exist
+// specifically because of UC Davis's genuine strength in Horticulture/Sustainable Agriculture (see
+// programs.js's own comments), so they override the generic alias above just for Outdoors —
+// appended on top of the existing 2 careers, not replacing them, and only for these two levels.
+// High School's own CAREERS.outdoors.highschool array (set above) is untouched, which is what
+// actually keeps 'sustainable-agriculture-food-systems' unreachable from that flow — it's only
+// ever referenced by these 2 careers, and High School never sees them.
+const outdoorsCollegeOnlyCareers = [
+  {
+    id: 'environmental-policy-analyst',
+    name: 'Environmental Policy Analyst / Scientist',
+    overview: 'Studies environmental issues and helps shape policy around sustainability, conservation, and climate.',
+    salary: '~$55k–$80k',
+    requiredEducation: "Bachelor's in Environmental Science, Policy, or a related field",
+    relevantMajors: ['sustainable-agriculture-food-systems', 'horticulture'],
+  },
+  {
+    id: 'sustainable-agriculture-specialist',
+    name: 'Sustainable Agriculture Specialist',
+    overview: 'Works on sustainable farming and food-system practices for farms, agribusinesses, or government agencies.',
+    salary: '~$45k–$65k',
+    requiredEducation: "Bachelor's in Sustainable Agriculture, Food Systems, or a related field",
+    relevantMajors: ['sustainable-agriculture-food-systems'],
+  },
+];
+CAREERS.outdoors.undergraduate = [...CAREERS.outdoors.highschool, ...outdoorsCollegeOnlyCareers];
+CAREERS.outdoors.transfer = [...CAREERS.outdoors.highschool, ...outdoorsCollegeOnlyCareers];
 
 // Merged career list across the given built tracks for one education level — the pool that
 // callers filter by selectedCareerIds against (roadmapGenerator.js, DiscoveryScreen's own

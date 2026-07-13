@@ -10,6 +10,12 @@
 // (3.6-3.8) > Selective (3.4) > Moderately Selective (3.2-3.3) > Less Selective (3.0-3.1). The
 // two lower tiers exist specifically so GPA entries below ~3.4 still see real, realistic options
 // instead of the same top-tier-only list regardless of what they entered.
+//
+// `levels` (optional array of educationLevel strings) restricts a program card to only those
+// levels — added for UC Davis (Undergraduate/Transfer partner-school addition; High School stays
+// Roslyn-only, same boundary Course Selection/"My School" already established). Absent means "show
+// for every level that already reaches this major," the same as every pre-existing program here —
+// this is purely additive, not a behavior change for anything already in this file.
 
 export const PROGRAMS = {
   // ---- Business: undergraduate ----
@@ -33,6 +39,10 @@ export const PROGRAMS = {
     { institution: 'UC Berkeley', program: 'Department of Economics', overview: 'Public research university with a large, well-regarded economics department.', selectivity: 'Highly Selective', location: 'Berkeley, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
     { institution: 'Penn State University', program: 'Department of Economics', overview: 'Large public economics department with flexible course offerings and applied-econ tracks.', selectivity: 'Moderately Selective', location: 'University Park, PA', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'University of Arizona', program: 'Department of Economics', overview: 'Public economics program with accessible admission and strong data-analysis coursework.', selectivity: 'Less Selective', location: 'Tucson, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+    // UC Davis partner-school addition (Undergraduate/Transfer only, `levels` below — see
+    // getPrograms' own comment; High School stays Roslyn-only). Real program name is "Managerial
+    // Economics," not a generic "Department of Economics" — UC Davis's actual take on this major.
+    { institution: 'UC Davis', program: 'Managerial Economics', overview: 'Public research university in Davis, CA — moderately-highly selective (~44% acceptance rate; admitted students\' unweighted GPA typically 3.79–4.0), with a real, well-regarded managerial economics program blending business and economics.', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
   ],
   entrepreneurship: [
     { institution: 'Babson College', program: 'Entrepreneurship Program', overview: 'A private college dedicated entirely to entrepreneurship education.', selectivity: 'Highly Selective', location: 'Wellesley, MA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
@@ -93,6 +103,9 @@ export const PROGRAMS = {
     { institution: 'University of Michigan', program: 'Computer Science & Engineering', overview: 'Public university in Ann Arbor — highly selective, strong engineering/CS.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
     { institution: 'University of Utah', program: 'School of Computing', overview: 'Growing public CS program with strong game-development and graphics research.', selectivity: 'Moderately Selective', location: 'Salt Lake City, UT', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'Arizona State University', program: 'Computer Science (Ira A. Fulton Schools of Engineering)', overview: 'Large, well-regarded public CS program with accessible admission and strong industry partnerships.', selectivity: 'Less Selective', location: 'Tempe, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+    // UC Davis partner-school addition (Undergraduate/Transfer only) — see the economics block
+    // above for the general pattern/comment.
+    { institution: 'UC Davis', program: 'Computer Science', overview: 'Public research university in Davis, CA — moderately-highly selective (~44% acceptance rate; admitted students\' unweighted GPA typically 3.79–4.0), with a strong computer science program.', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
   ],
   'software-engineering': [
     { institution: 'Carnegie Mellon University', program: 'School of Computer Science', overview: 'One of the most respected computing schools, with dedicated SE coursework.', selectivity: 'Extremely Selective', location: 'Pittsburgh, PA', degreeLevels: ["Bachelor's"], gpaValue: 3.9 },
@@ -174,6 +187,9 @@ export const PROGRAMS = {
     { institution: 'UNC Chapel Hill', program: 'Biology / Pre-Med Track', overview: 'Large public university with a strong, well-supported pre-med pipeline.', selectivity: 'Highly Selective', location: 'Chapel Hill, NC', degreeLevels: ["Bachelor's"], gpaValue: 3.6 },
     { institution: 'University of Alabama', program: 'Biology / Pre-Med Track', overview: 'Public pre-med program with a growing acceptance pipeline into medical school.', selectivity: 'Moderately Selective', location: 'Tuscaloosa, AL', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'Arizona State University', program: 'Biological Sciences / Pre-Med Track', overview: 'Large public pre-med pipeline with accessible admission and strong advising.', selectivity: 'Less Selective', location: 'Tempe, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+    // UC Davis partner-school addition (Undergraduate/Transfer only) — see the economics block
+    // above for the general pattern/comment.
+    { institution: 'UC Davis', program: 'Biology / Pre-Med Track', overview: 'Public research university in Davis, CA — moderately-highly selective (~44% acceptance rate; admitted students\' unweighted GPA typically 3.79–4.0), with a strong pre-med pipeline and ties to the UC Davis School of Medicine.', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
   ],
   kinesiology: [
     { institution: 'University of Michigan', program: 'Kinesiology', overview: 'Public research university with a well-established kinesiology department.', selectivity: 'Highly Selective', location: 'Ann Arbor, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.6 },
@@ -259,6 +275,9 @@ export const PROGRAMS = {
     { institution: 'UC Berkeley', program: 'Political Science', overview: 'Public research university with a renowned political science program.', selectivity: 'Highly Selective', location: 'Berkeley, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
     { institution: 'University of Alabama', program: 'Department of Political Science', overview: 'Public political science program with a growing pre-law advising pipeline.', selectivity: 'Moderately Selective', location: 'Tuscaloosa, AL', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'Arizona State University', program: 'School of Politics and Global Studies', overview: 'Large public political science program with accessible admission and strong pre-law advising.', selectivity: 'Less Selective', location: 'Tempe, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+    // UC Davis partner-school addition (Undergraduate/Transfer only) — see the economics block
+    // above for the general pattern/comment.
+    { institution: 'UC Davis', program: 'Political Science', overview: 'Public research university in Davis, CA — moderately-highly selective (~44% acceptance rate; admitted students\' unweighted GPA typically 3.79–4.0), with a well-regarded political science program and strong pre-law advising.', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
   ],
   history: [
     { institution: 'Yale University', program: 'Department of History', overview: 'Private Ivy League university with a renowned history program.', selectivity: 'Extremely Selective', location: 'New Haven, CT', degreeLevels: ["Bachelor's"], gpaValue: 3.9 },
@@ -273,6 +292,9 @@ export const PROGRAMS = {
     { institution: 'UCLA', program: 'Department of Psychology', overview: 'Public university with a strong, research-active psychology program.', selectivity: 'Highly Selective', location: 'Los Angeles, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7 },
     { institution: 'University of Alabama', program: 'Department of Psychology', overview: 'Public psychology program with a growing clinical-research track.', selectivity: 'Moderately Selective', location: 'Tuscaloosa, AL', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'Arizona State University', program: 'Department of Psychology', overview: 'One of the largest psychology departments in the country, with accessible admission.', selectivity: 'Less Selective', location: 'Tempe, AZ', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+    // UC Davis partner-school addition (Undergraduate/Transfer only) — see the economics block
+    // above for the general pattern/comment.
+    { institution: 'UC Davis', program: 'Department of Psychology', overview: 'Public research university in Davis, CA — moderately-highly selective (~44% acceptance rate; admitted students\' unweighted GPA typically 3.79–4.0), with a large, research-active psychology department.', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
   ],
 
   // ---- Academic/Humanities: graduate ----
@@ -349,10 +371,26 @@ export const PROGRAMS = {
   ],
 
   // ---- Outdoors (Gardening / Travel): undergraduate ----
+  // UC Davis replaces Cornell as this cluster's flagship (UC Davis partner-school addition) —
+  // UC Davis is ranked #1 in the US / #2 in the world for Agriculture and Forestry (QS World
+  // University Rankings), a stronger authentic flagship for Horticulture specifically than Cornell
+  // (which is a real, strong program too, but not the field's actual #1). Purdue/Michigan State
+  // stay as the accessible options, unchanged. Unlike Task 1's additions below, this is a
+  // replacement, not an addition — see getPrograms' own comment for what `levels` does; High
+  // School still sees Purdue/Michigan State here, just not UC Davis.
   horticulture: [
-    { institution: 'Cornell University', program: 'Horticulture', overview: 'Renowned horticulture program within a top agricultural sciences college.', selectivity: 'Highly Selective', location: 'Ithaca, NY', degreeLevels: ["Bachelor's"], gpaValue: 3.6 },
+    { institution: 'UC Davis', program: 'Horticulture', overview: 'Ranked #1 in the US / #2 in the world for Agriculture and Forestry (QS World University Rankings) — the genuine flagship program for this field, moderately-highly selective (~44% acceptance rate; admitted students\' unweighted GPA typically 3.79–4.0).', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
     { institution: 'Purdue University', program: 'Horticulture', overview: 'Well-regarded public horticulture program with strong greenhouse and field research facilities.', selectivity: 'Moderately Selective', location: 'West Lafayette, IN', degreeLevels: ["Bachelor's"], gpaValue: 3.2 },
     { institution: 'Michigan State University', program: 'Horticulture', overview: 'Strong land-grant agricultural program with accessible admission.', selectivity: 'Less Selective', location: 'East Lansing, MI', degreeLevels: ["Bachelor's"], gpaValue: 3.0 },
+  ],
+  // New major (Undergraduate/Transfer only — see careers.js's CAREERS.outdoors override, which is
+  // what actually keeps this major unreachable from High School's own Discovery flow: High School
+  // never sees the two careers that reference it, so it never surfaces there at all, without
+  // needing separate major-level gating). UC Davis is the only program listed — deliberately not
+  // padded with additional schools this build didn't actually research; see this file's own
+  // "deliberately scoped to real program additions, not a full catalog ingestion" framing.
+  'sustainable-agriculture-food-systems': [
+    { institution: 'UC Davis', program: 'Sustainable Agriculture and Food Systems', overview: 'Ranked #1 in the US / #2 in the world for Agriculture and Forestry (QS World University Rankings) — a leading real program studying food security, food policy, and sustainable crop/animal production systems.', selectivity: 'Highly Selective', location: 'Davis, CA', degreeLevels: ["Bachelor's"], gpaValue: 3.7, levels: ['undergraduate', 'transfer'] },
   ],
   'tourism-management': [
     { institution: 'George Washington University', program: 'International Tourism and Hospitality Management', overview: 'Strong DC-based tourism and event-management program with real policy/industry ties.', selectivity: 'Highly Selective', location: 'Washington, DC', degreeLevels: ["Bachelor's"], gpaValue: 3.5 },
@@ -362,7 +400,7 @@ export const PROGRAMS = {
 };
 
 export function getPrograms(majorId, educationLevel) {
-  const list = PROGRAMS[majorId] || [];
+  const list = (PROGRAMS[majorId] || []).filter((p) => !p.levels || p.levels.includes(educationLevel));
   if (educationLevel !== 'transfer') return list;
   return list.map((p) => ({ ...p, transferNote: transferNoteFor(p.selectivity) }));
 }

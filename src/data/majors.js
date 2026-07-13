@@ -409,4 +409,16 @@ export const MAJORS = {
     potentialCareers: ['Travel Manager', 'Tourism Director'],
     timeToComplete: '4 years',
   },
+  // UC Davis partner-school addition (Undergraduate/Transfer only — see careers.js's
+  // CAREERS.outdoors override for how this stays unreachable from the High School flow, and
+  // programs.js's own PROGRAMS['sustainable-agriculture-food-systems'] for the one real program
+  // behind it).
+  'sustainable-agriculture-food-systems': {
+    id: 'sustainable-agriculture-food-systems',
+    name: 'Sustainable Agriculture & Food Systems',
+    overview: 'Studies food security, food policy, and sustainable crop and animal production systems.',
+    skills: ['Sustainable farming practices', 'Food policy analysis', 'Food systems research', 'Environmental stewardship'],
+    potentialCareers: ['Sustainable Agriculture Specialist', 'Environmental Policy Analyst / Scientist'],
+    timeToComplete: '4 years',
+  },
 };

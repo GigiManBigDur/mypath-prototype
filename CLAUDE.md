@@ -1533,6 +1533,49 @@ repositioning.
   `panelCollapsed` change), so the clearance is deliberately generous enough to be correct in
   both states without needing to react to every toggle.
 
+**UC Davis is a partner school for Undergraduate/Transfer only — High School stays Roslyn-only.**
+This is the first (and so far only) per-program, per-education-level gate in `programs.js`:
+- **`PROGRAMS` entries can carry an optional `levels` array** (e.g. `levels: ['undergraduate',
+  'transfer']`). `getPrograms(majorId, educationLevel)` filters on it before the existing
+  `transferNote` mapping step; absent means "show for every level that already reaches this
+  major" — every pre-existing entry before UC Davis has no `levels` field and is completely
+  unaffected. This was the only viable gating point, since `MAJORS`/`PROGRAMS` are flat
+  namespaces shared across levels (`transfer` reuses `highschool`'s careers/majors wholesale, and
+  the 6 newer tracks alias `undergraduate` to `highschool` too) — there was no existing
+  level-aware layer to hook into below this one.
+- **UC Davis (`gpaValue: 3.7`, `'Highly Selective'`, real ~44% acceptance rate / 3.79–4.0
+  admitted-GPA data) was added as a 6th program** (breaking the "5 per major" convention — the
+  second time this pattern's been used, after Cornell/Communications for School-Specific
+  Requirements) under `economics`, `computer-science`, `biology-premed`,
+  `political-science-prelaw`, and `psychology`.
+- **A real, pre-existing reachability gap surfaced while wiring this up**: for the original 5
+  tracks (business/stem/healthcare/creative/academic), `CAREERS[track].undergraduate` only ever
+  referenced grad-level majors (`mba`, `ms-finance`, `md-do`, `jd-law`, `psyd-clinical-psych`,
+  etc.) — never the bachelor's majors above — so an `educationLevel: 'undergraduate'` student
+  could never reach `economics`/`computer-science`/`biology-premed`/`political-science-prelaw`/
+  `psychology` via Discovery at all, regardless of UC Davis. Fixed by adding each bachelor's major
+  as a *supplementary* `relevantMajors` entry on its natural undergraduate-tier counterpart career
+  (`management-consultant` → `+economics`, `ml-engineer` → `+computer-science`, `physician-grad`
+  → `+biology-premed`, `attorney-jd` → `+political-science-prelaw`, `clinical-psychologist` →
+  `+psychology`) — each pairing is a real, common direct pipeline (e.g. an econ bachelor's
+  feeding into consulting without necessarily already holding the MBA), and it's additive only:
+  the pre-existing grad-level major stays first in each array, untouched.
+- **Task 2 (Gardening/Horticulture) broadens the existing cluster rather than adding a new
+  track**: UC Davis *replaces* Cornell as the `horticulture` major's flagship program (a
+  deliberate swap, not an addition — array stays at 3 entries — since UC Davis is genuinely
+  ranked #1 in the US / #2 in the world for Agriculture and Forestry per QS World University
+  Rankings, a stronger authentic flagship than Cornell for this specific field; Purdue/Michigan
+  State are untouched). A new major, `sustainable-agriculture-food-systems` (one program, UC
+  Davis only — deliberately not padded with unresearched schools), and two new careers,
+  `environmental-policy-analyst`/`sustainable-agriculture-specialist`, were added. **The new
+  major's High-School invisibility needs no major-level gating at all** — it's reachable only
+  through those 2 new careers, which were appended *only* to `CAREERS.outdoors.undergraduate`/
+  `.transfer` (as an override applied after the existing generic highschool-aliasing loop for the
+  6 newer tracks, not by editing `CAREERS.outdoors.highschool` itself), so High School's own
+  career pool never references the major in the first place — the existing
+  career→major→program traversal (`getCareerPool`/`getMajorGroups`/Discovery routing) needed zero
+  changes.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
