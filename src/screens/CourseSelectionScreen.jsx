@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, GraduationCap, BookOpen, Award, Clock, Scale, Star, FileCheck, X, Check, Plus } from 'lucide-react';
+import { ArrowLeft, GraduationCap, BookOpen, Award, Clock, Scale, Star, FileCheck, X, Check, Plus, Lock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, TRACK_LABELS } from '../data/interests';
 import { COURSES, getCourseById, WEIGHT_MULTIPLIERS } from '../data/courses';
@@ -12,6 +12,8 @@ import {
   getProgramTypeCourses,
 } from '../data/programRecommendations';
 import { getSchoolRequirement } from '../data/schoolRequirements';
+import { checkPrerequisite } from '../utils/prerequisites';
+import { STAGE_PLAN, TRUNK_STAGES, DEFAULT_SCHOOL_YEAR } from '../data/trunkSteps';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -110,11 +112,16 @@ const POLICY_SECTIONS = [
 
 // Shared card JSX for every place a course grid renders (main recommended/browse grid, and each
 // program-type group below) — same "extract once, render identically everywhere" precedent
-// ProgramCard already set for Discovery's Programs step (see CLAUDE.md).
-function CourseCard({ course, selected, onOpenDetail, onToggle }) {
+// ProgramCard already set for Discovery's Programs step (see CLAUDE.md). `ineligibleReason` is
+// only ever passed in Course Selection Stage 4's checkpoint mode (Part 2) — a course whose real
+// prerequisite isn't yet satisfied by the transcript stays visible (so its `prerequisite` text is
+// still readable) but can't be selected, same "inform, don't just hide" reasoning the rest of
+// this screen's filters already use.
+function CourseCard({ course, selected, onOpenDetail, onToggle, ineligibleReason }) {
+  const locked = !!ineligibleReason && !selected;
   return (
     <div
-      className={`card course-card${selected ? ' selected' : ''}`}
+      className={`card course-card${selected ? ' selected' : ''}${locked ? ' ineligible' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onOpenDetail(course)}
@@ -125,11 +132,15 @@ function CourseCard({ course, selected, onOpenDetail, onToggle }) {
       <button
         type="button"
         className={`course-select-btn${selected ? ' selected' : ''}`}
-        onClick={(e) => { e.stopPropagation(); onToggle(course.id); }}
+        disabled={locked}
+        onClick={(e) => { e.stopPropagation(); if (!locked) onToggle(course.id); }}
       >
-        {selected ? <><Check size={12} /> Selected</> : <><Plus size={12} /> Select</>}
+        {selected
+          ? <><Check size={12} /> Selected</>
+          : locked ? <><Lock size={12} /> Locked</> : <><Plus size={12} /> Select</>}
       </button>
       <div className="card-title">{course.name}</div>
+      {locked && <p className="course-ineligible-note">{ineligibleReason}</p>}
       {(course.weightCategory !== 'standard' || course.isPassFail) && (
         <div className="course-badges">
           {course.weightCategory !== 'standard' && (
@@ -172,12 +183,24 @@ export default function CourseSelectionScreen() {
   const { state, patch } = useApp();
   const isHighSchool = state.educationLevel === 'highschool';
 
+  // Course Selection Stage 4's "revisit" checkpoint (Part 2) reuses this exact screen instead of
+  // rebuilding the course-selection mechanism — set by Roadmap.jsx right before navigating here.
+  // Selections write to state.courseCheckpoints[stageName] instead of the top-level
+  // selectedCourseIds (which is reserved for stage 0's onboarding selections), and courses are
+  // checked against real prerequisites/the refreshed transcript — see checkPrerequisite below.
+  const checkpoint = state.activeCourseCheckpoint?.part === 'courses' ? state.activeCourseCheckpoint : null;
+  const checkpointProgress = checkpoint ? state.courseCheckpoints?.[checkpoint.stageName] : null;
+
   // Defensive: same reasoning as TranscriptScreen's own bounce — Course Selection only applies to
   // High School, and routing already never sends anyone else here, but state restored mid-flow
-  // after educationLevel changed shouldn't render this screen anyway.
+  // after educationLevel changed shouldn't render this screen anyway. A checkpoint's Part 2 is
+  // additionally locked until Part 1 is done for that same stage — Roadmap.jsx's own modal
+  // already disables the button that gets here, but state could in principle be reached directly
+  // (e.g. browser back), so this bounces the same way rather than trusting the caller.
   useEffect(() => {
-    if (!isHighSchool) patch({ screen: 'opportunities' });
-  }, [isHighSchool]);
+    if (!isHighSchool) { patch({ screen: 'opportunities' }); return; }
+    if (checkpoint && !checkpointProgress?.part1Done) patch({ activeCourseCheckpoint: null, screen: 'plan' });
+  }, [isHighSchool, checkpoint, checkpointProgress?.part1Done]);
 
   const [viewMode, setViewMode] = useState('recommended'); // 'recommended' | 'browse'
   const [search, setSearch] = useState('');
@@ -211,20 +234,51 @@ export default function CourseSelectionScreen() {
   const browseCourses = COURSES.filter(matchesFilters);
   const courses = viewMode === 'recommended' ? recommendedCourses : browseCourses;
 
+  // In checkpoint mode, "selected" reads/writes this stage's own slot in courseCheckpoints
+  // instead of the top-level selectedCourseIds — otherwise identical toggle behavior.
+  const currentSelectedIds = checkpoint ? (checkpointProgress?.selectedCourseIds || []) : state.selectedCourseIds;
+  const isSelected = (id) => currentSelectedIds.includes(id);
+
   const toggleCourse = (id) => {
-    const has = state.selectedCourseIds.includes(id);
-    patch({
-      selectedCourseIds: has
-        ? state.selectedCourseIds.filter((c) => c !== id)
-        : [...state.selectedCourseIds, id],
-    });
+    const has = currentSelectedIds.includes(id);
+    const newIds = has ? currentSelectedIds.filter((c) => c !== id) : [...currentSelectedIds, id];
+    if (checkpoint) {
+      patch({
+        courseCheckpoints: {
+          ...state.courseCheckpoints,
+          [checkpoint.stageName]: { ...state.courseCheckpoints[checkpoint.stageName], selectedCourseIds: newIds },
+        },
+      });
+      return;
+    }
+    patch({ selectedCourseIds: newIds });
+  };
+
+  // Real prerequisite check against the (just-refreshed, if this is a checkpoint) transcript —
+  // only meaningful/applied in checkpoint mode, since stage 0's onboarding selection happens
+  // before most of the catalog has been taken yet. See prerequisites.js for what "checked" means
+  // (a parseable course-name reference) vs. left alone (no honest way to verify).
+  const ineligibleReasonFor = (course) => {
+    if (!checkpoint) return null;
+    const result = checkPrerequisite(course, state.transcript);
+    return result.checked && !result.satisfied ? result.reason : null;
   };
 
   const toggleInFilter = (arr, setArr, val) => {
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   };
 
-  const selectedCourses = state.selectedCourseIds.map((id) => getCourseById(id)).filter(Boolean);
+  const selectedCourses = currentSelectedIds.map((id) => getCourseById(id)).filter(Boolean);
+
+  // The checkpoint's own target-year label ("Junior Year") for header copy — derived the same
+  // way roadmapGenerator.js derives it, from STAGE_PLAN/TRUNK_STAGES, not stored separately.
+  const targetStageLabel = (() => {
+    if (!checkpoint) return null;
+    const stageNames = STAGE_PLAN.highschool[state.schoolYear] ?? STAGE_PLAN.highschool[DEFAULT_SCHOOL_YEAR.highschool];
+    const idx = stageNames.indexOf(checkpoint.stageName);
+    const targetName = idx >= 0 ? stageNames[idx + 1] : null;
+    return targetName ? TRUNK_STAGES.highschool[targetName].label : 'next year';
+  })();
 
   // Course detail modal — same open/close mechanism as Roadmap.jsx's node detail modal
   // (useModalExit for the fade in/out, a ref that retains the last real course so the closing
@@ -241,35 +295,43 @@ export default function CourseSelectionScreen() {
 
   return (
     <div>
-      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'transcript' })}>
+      <button
+        type="button"
+        className="btn btn-ghost"
+        onClick={() => (checkpoint ? patch({ activeCourseCheckpoint: null, screen: 'plan' }) : patch({ screen: 'transcript' }))}
+      >
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={5} total={8} />
-      <h1 className="page-title">Course Selection</h1>
+      {!checkpoint && <StepProgress step={5} total={8} />}
+      <h1 className="page-title">{checkpoint ? `Select Your Courses for ${targetStageLabel}` : 'Course Selection'}</h1>
       <p className="page-sub">
-        Pick the courses you're planning to take, built around what your school actually offers.
+        {checkpoint
+          ? `Courses are checked against real prerequisites from your updated transcript — a course you haven't met the prerequisite for yet is shown but locked.`
+          : "Pick the courses you're planning to take, built around what your school actually offers."}
       </p>
 
-      <div className="field-block">
-        <div className="field-label">Roslyn High School academic policies</div>
-        <p className="field-hint">A quick-reference summary — not the full course catalog handbook.</p>
-        <div className="policy-grid">
-          {POLICY_SECTIONS.map((section) => (
-            <div className="policy-card" key={section.title}>
-              <div className="policy-card-header">
-                <section.icon size={18} />
-                <span>{section.title}</span>
+      {!checkpoint && (
+        <div className="field-block">
+          <div className="field-label">Roslyn High School academic policies</div>
+          <p className="field-hint">A quick-reference summary — not the full course catalog handbook.</p>
+          <div className="policy-grid">
+            {POLICY_SECTIONS.map((section) => (
+              <div className="policy-card" key={section.title}>
+                <div className="policy-card-header">
+                  <section.icon size={18} />
+                  <span>{section.title}</span>
+                </div>
+                <ul className="policy-card-list">
+                  {section.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
               </div>
-              <ul className="policy-card-list">
-                {section.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="field-block">
         <div className="pill-group">
@@ -383,9 +445,10 @@ export default function CourseSelectionScreen() {
           <CourseCard
             key={course.id}
             course={course}
-            selected={state.selectedCourseIds.includes(course.id)}
+            selected={isSelected(course.id)}
             onOpenDetail={setSelectedCourseDetail}
             onToggle={toggleCourse}
+            ineligibleReason={ineligibleReasonFor(course)}
           />
         ))}
       </div>
@@ -424,9 +487,10 @@ export default function CourseSelectionScreen() {
                     <CourseCard
                       key={course.id}
                       course={course}
-                      selected={state.selectedCourseIds.includes(course.id)}
+                      selected={isSelected(course.id)}
                       onOpenDetail={setSelectedCourseDetail}
                       onToggle={toggleCourse}
+                      ineligibleReason={ineligibleReasonFor(course)}
                     />
                   ))}
                 </div>
@@ -529,13 +593,20 @@ export default function CourseSelectionScreen() {
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              className={`btn ${state.selectedCourseIds.includes(modalCourse.id) ? 'btn-outline' : 'btn-primary'}`}
-              onClick={() => toggleCourse(modalCourse.id)}
-            >
-              {state.selectedCourseIds.includes(modalCourse.id) ? 'Remove from my courses' : 'Add to my courses'}
-            </button>
+            {(() => {
+              const modalSelected = isSelected(modalCourse.id);
+              const modalReason = !modalSelected ? ineligibleReasonFor(modalCourse) : null;
+              return (
+                <button
+                  type="button"
+                  className={`btn ${modalSelected ? 'btn-outline' : 'btn-primary'}`}
+                  disabled={!!modalReason}
+                  onClick={() => { if (!modalReason) toggleCourse(modalCourse.id); }}
+                >
+                  {modalSelected ? 'Remove from my courses' : modalReason ? 'Locked — prerequisite not met' : 'Add to my courses'}
+                </button>
+              );
+            })()}
           </div>
         </div>,
         document.body,
@@ -560,8 +631,28 @@ export default function CourseSelectionScreen() {
       )}
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'opportunities' })}>
-          Continue
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            if (checkpoint) {
+              const { stageName } = checkpoint;
+              const checkpointId = `course-checkpoint-${stageName}`;
+              patch({
+                courseCheckpoints: {
+                  ...state.courseCheckpoints,
+                  [stageName]: { ...state.courseCheckpoints[stageName], selectedCourseIds: currentSelectedIds },
+                },
+                completedNodes: { ...state.completedNodes, [checkpointId]: true },
+                activeCourseCheckpoint: null,
+                screen: 'plan',
+              });
+              return;
+            }
+            patch({ screen: 'opportunities' });
+          }}
+        >
+          {checkpoint ? 'Save & Return to Plan' : 'Continue'}
         </button>
       </div>
     </div>

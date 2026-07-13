@@ -2157,3 +2157,15 @@ export function searchCourses(query) {
   if (!q) return [];
   return COURSES.filter((c) => c.name.toLowerCase().includes(q) || c.department.toLowerCase().includes(q));
 }
+
+// Course Selection Stage 4 (roadmap wiring) needs a real date for "when do you request next
+// year's courses" — checked directly against the parsed catalog text first. The catalog states
+// registration/schedule-change deadlines exist ("There are specific deadlines that will be
+// shared regarding course and level changes") but does NOT publish a fixed date anywhere in the
+// document itself — it's communicated separately by the school. This is therefore a clearly-
+// labeled ESTIMATE, not scraped data: early March, based on (a) the catalog's own January cover
+// letter introducing "the 2026-27 school year" (implying a selection window shortly after) and
+// (b) standard practice at most US high schools, which run next-year course selection in
+// winter/early spring. `roadmapGenerator.js` surfaces this honestly via the course-request node's
+// own "(Est.)" label and modal description — never presented as a verified date.
+export const ESTIMATED_COURSE_REQUEST_WINDOW = { month: 3, day: 1 };

@@ -4,6 +4,7 @@ import { getMergedPrograms } from '../data/programs';
 import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS } from '../data/interests';
+import { getCourseById, ESTIMATED_COURSE_REQUEST_WINDOW } from '../data/courses';
 import { layoutRoadmap } from './roadmapLayout';
 import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
 
@@ -112,7 +113,15 @@ export function generateRoadmap(state, yearWindow = null) {
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
   const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed);
 
-  const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems];
+  // Course Selection Stage 4 — highschool-only, same gating as every Course Selection screen
+  // (Transcript & GPA / Course Selection are unreachable for undergraduate/transfer, so
+  // state.selectedCourseIds/courseCheckpoints are always empty for them in practice; this guard
+  // makes that explicit rather than relying on incidental emptiness).
+  const courseItems = level === 'highschool'
+    ? buildCourseItems(stageNames, state.selectedCourseIds, state.courseCheckpoints || {}, planStartDate, dateOverrides, removed)
+    : [];
+
+  const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems];
 
   // Scope to the selected year, if any. A non-current year uses that year's own start date as
   // the layout epoch instead of real "today" — the min-gap/collision math only ever depends on
@@ -288,6 +297,91 @@ function buildProjectChain(project, dateOverrides, removed) {
     projectLabel: anchor.projectLabel,
     steps: branchSteps.length ? branchSteps : null,
   };
+}
+
+// Course Selection Stage 4 — wires Stage 3's course selections into real, dated, single-step
+// roadmap tasks. Two kinds of item, both built through this same function:
+//   - Stage 0's tasks come from `state.selectedCourseIds` (the "upcoming registration cycle"
+//     picked during onboarding's Course Selection screen).
+//   - A future stage's tasks come from that stage's own `courseCheckpoints[stageName].
+//     selectedCourseIds`, populated once the student completes that checkpoint's Part 2 (see
+//     buildCourseCheckpointItem below) — same shape, same builder, just a different source array
+//     and a later stageIndex.
+// Every item is required/single-step/core, so it flows through the exact same generic date-
+// override/removal/positioning path every other core item already uses — no special-casing.
+function buildCourseRequestItems(courseIds, requestStageIndex, isFinalRequestStage, planStartDate, dateOverrides, removed) {
+  return courseIds
+    .map((courseId) => {
+      const course = getCourseById(courseId);
+      if (!course) return null;
+      const id = `course-request-${courseId}-y${requestStageIndex}`;
+      if (removed[id]) return null;
+      const templateDate = anchorDate({ ...ESTIMATED_COURSE_REQUEST_WINDOW, yearOffset: requestStageIndex }, planStartDate);
+      const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+      return {
+        id,
+        title: isFinalRequestStage ? `Finalize your registration for ${course.name}` : `Request ${course.name} for next year`,
+        category: 'core',
+        required: true,
+        coreType: 'course-request',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: `${course.name} (${course.department}). This date is an estimate of Roslyn's course-request window, not a published deadline — check with your counselor for the exact date.`,
+        resources: [],
+        steps: null,
+      };
+    })
+    .filter(Boolean);
+}
+
+// One two-part "revisit" checkpoint per future high-school year except the last (see
+// generateRoadmap's yearSpan-2 upper bound) — dated within the CHECKPOINT's own stage, since
+// that's when the registration act for the FOLLOWING stage's courses actually happens (same
+// "request now, take next year" timing buildCourseRequestItems already uses for stage 0). Unlike
+// every other item here, this one carries no `steps` chain — its "two sequential parts" are
+// handled entirely through Roadmap.jsx's own special modal for `coreType === 'course-checkpoint'`
+// (see checkpointStageName below, which that modal reads to know which
+// state.courseCheckpoints[...] entry it's driving), not through a branch on the spine.
+function buildCourseCheckpointItem(stageName, targetStageName, stageIndex, planStartDate, dateOverrides, removed) {
+  const id = `course-checkpoint-${stageName}`;
+  if (removed[id]) return null;
+  const templateDate = anchorDate({ ...ESTIMATED_COURSE_REQUEST_WINDOW, yearOffset: stageIndex }, planStartDate);
+  const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+  const targetLabel = TRUNK_STAGES.highschool[targetStageName].label;
+  return {
+    id,
+    title: `Update your courses for ${targetLabel}`,
+    category: 'core',
+    required: true,
+    coreType: 'course-checkpoint',
+    date: realDate,
+    due: formatDate(realDate),
+    desc: `Two steps: update your transcript with the courses you just completed, then select your courses for ${targetLabel} (checked against real prerequisites). This date is an estimate of Roslyn's course-request window, not a published deadline.`,
+    resources: [],
+    steps: null,
+    checkpointStageName: stageName,
+  };
+}
+
+function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, planStartDate, dateOverrides, removed) {
+  const yearSpan = stageNames.length;
+  const items = buildCourseRequestItems(selectedCourseIds, 0, yearSpan === 1, planStartDate, dateOverrides, removed);
+
+  // Every future stage except the last gets a checkpoint (Task 3 — a 12th grader / the plan's
+  // final stage has no next Roslyn cycle to register for, so this range is empty for them: for
+  // yearSpan <= 2 there is no stageIndex satisfying 1 <= i <= yearSpan-2).
+  for (let stageIndex = 1; stageIndex <= yearSpan - 2; stageIndex += 1) {
+    const stageName = stageNames[stageIndex];
+    const checkpointItem = buildCourseCheckpointItem(stageName, stageNames[stageIndex + 1], stageIndex, planStartDate, dateOverrides, removed);
+    if (checkpointItem) items.push(checkpointItem);
+
+    const checkpoint = courseCheckpoints[stageName];
+    if (checkpoint?.selectedCourseIds?.length) {
+      items.push(...buildCourseRequestItems(checkpoint.selectedCourseIds, stageIndex, false, planStartDate, dateOverrides, removed));
+    }
+  }
+
+  return items;
 }
 
 // Escalated milestone title for year N (yearIndex is 1-based among the escalation years — 1

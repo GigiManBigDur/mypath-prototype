@@ -21,6 +21,12 @@ export default function TranscriptScreen() {
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
   const isHighSchool = state.educationLevel === 'highschool';
 
+  // Course Selection Stage 4's "revisit" checkpoint (Part 1) reuses this exact screen rather than
+  // rebuilding the transcript-entry mechanism — set by Roadmap.jsx right before navigating here.
+  // Everything below (course search, grade entry, GPA calculation) is identical either way; only
+  // the header copy and where Continue/Back go change.
+  const checkpoint = state.activeCourseCheckpoint?.part === 'transcript' ? state.activeCourseCheckpoint : null;
+
   // Defensive: this screen (and Course Selection generally) only applies to High School — routing
   // already never sends an Undergraduate/Transfer student here, but if state ever ends up here
   // anyway (e.g. restored mid-flow after educationLevel changed), bounce forward instead of
@@ -69,25 +75,50 @@ export default function TranscriptScreen() {
   // transcript (even an empty one) produces. Skip is just a separate, more prominent affordance
   // for an incoming freshman with genuinely nothing to enter yet (Task 2's "fully supported path,
   // not a workaround"), not a functionally different action from Continue with zero entries.
+  //
+  // In checkpoint mode, advancing also flips this checkpoint's own part1Done flag and returns to
+  // the roadmap instead of continuing the onboarding flow — the refreshed GPA is written to the
+  // exact same state.gpa field either way, so every existing GPA-aware consumer (ProgramsStep's
+  // curated program list, reachMatchSafetyTag's Reach/Match/Safety badges) picks it up
+  // automatically, with zero changes needed anywhere else.
   const advance = () => {
-    patch({ gpa: gpa4Scale != null ? String(gpa4Scale) : '', screen: 'courseSelection' });
+    const newGpa = gpa4Scale != null ? String(gpa4Scale) : '';
+    if (checkpoint) {
+      const { stageName } = checkpoint;
+      patch({
+        gpa: newGpa,
+        courseCheckpoints: {
+          ...state.courseCheckpoints,
+          [stageName]: { ...state.courseCheckpoints[stageName], part1Done: true },
+        },
+        activeCourseCheckpoint: null,
+        screen: 'plan',
+      });
+      return;
+    }
+    patch({ gpa: newGpa, screen: 'courseSelection' });
+  };
+
+  const goBack = () => {
+    if (checkpoint) {
+      patch({ activeCourseCheckpoint: null, screen: 'plan' });
+      return;
+    }
+    patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' });
   };
 
   return (
     <div>
-      <button
-        type="button"
-        className="btn btn-ghost"
-        onClick={() => patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' })}
-      >
+      <button type="button" className="btn btn-ghost" onClick={goBack}>
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={4} total={8} />
-      <h1 className="page-title">Transcript &amp; GPA</h1>
+      {!checkpoint && <StepProgress step={4} total={8} />}
+      <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'Transcript & GPA'}</h1>
       <p className="page-sub">
-        Search for the real courses you've taken, enter your grade and the year you took each one
-        — we'll calculate your GPA from it automatically.
+        {checkpoint
+          ? "Add the courses you've just completed — this refreshes your GPA everywhere it's used, including your program Reach/Match/Safety tags."
+          : "Search for the real courses you've taken, enter your grade and the year you took each one — we'll calculate your GPA from it automatically."}
       </p>
 
       {transcript.length === 0 && (
@@ -209,7 +240,7 @@ export default function TranscriptScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          Continue
+          {checkpoint ? 'Save & Continue to Part 2' : 'Continue'}
         </button>
       </div>
     </div>

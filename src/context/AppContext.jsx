@@ -21,7 +21,23 @@ const DEFAULT_STATE = {
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.
   selectedCourseIds: [], // course.id values picked on CourseSelectionScreen (Course Selection
   // Stage 3), from either its Recommended or Browse view — the same array either way, since
-  // selection behaves identically regardless of which view a course was found through.
+  // selection behaves identically regardless of which view a course was found through. This is
+  // specifically the UPCOMING registration cycle's selections (stage index 0's "next year") —
+  // every later year's selections live in courseCheckpoints below instead, never here.
+  courseCheckpoints: {}, // { [stageName]: { part1Done: boolean, selectedCourseIds: string[] } } —
+  // Course Selection Stage 4's "revisit" checkpoint for every future high-school year except the
+  // last (see roadmapGenerator.js's course-checkpoint items). part1Done flips true once the
+  // student has been through TranscriptScreen in checkpoint mode for that stage (see
+  // activeCourseCheckpoint below); selectedCourseIds is that stage's own equivalent of the
+  // top-level selectedCourseIds above, populated once Part 2 (CourseSelectionScreen in checkpoint
+  // mode) completes. Keyed by stage NAME (e.g. 'sophomore'), not index, since names are stable
+  // identifiers already used elsewhere (trunkSteps.js's own stage.label).
+  activeCourseCheckpoint: null, // { stageName, part: 'transcript' | 'courses' } | null — set by
+  // Roadmap.jsx right before navigating to 'transcript'/'courseSelection' from a course-checkpoint
+  // node's modal, so those two screens know they're in checkpoint mode (different copy, writes to
+  // courseCheckpoints[stageName] instead of the top-level transcript/selectedCourseIds fields
+  // where relevant, and returns to 'plan' instead of continuing the normal onboarding flow).
+  // Cleared the moment either screen's checkpoint flow finishes or is backed out of.
   selectedCareerIds: [],
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`

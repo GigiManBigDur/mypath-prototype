@@ -600,6 +600,18 @@ button.card.passed:hover {
 }
 .course-select-btn:hover { border-color: var(--teal); color: var(--ink); }
 .course-select-btn.selected { background: var(--teal); border-color: var(--teal); color: #fff; }
+.course-select-btn:disabled { cursor: not-allowed; opacity: 0.7; }
+
+/* Course Selection Stage 4 checkpoint mode (Part 2) — a course whose real prerequisite isn't yet
+   satisfied stays visible and readable, just visually muted and un-selectable, rather than
+   disappearing from the grid entirely. */
+.course-card.ineligible { opacity: 0.6; }
+.course-ineligible-note {
+  font-size: 12px;
+  color: var(--rust);
+  font-style: italic;
+  margin: 0 0 10px;
+}
 
 /* School-Specific Requirements — a verified card reads as confidently-sourced (solid teal left
    edge), an unverified one deliberately reads as an honest gap, not a broken/missing state
@@ -927,6 +939,11 @@ button.card.passed:hover {
 .complete-btn { width:100%; padding:12px; border-radius:4px; border:none; cursor:pointer; font-family:'IBM Plex Sans'; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; }
 .complete-btn.todo { background: var(--teal); color:#fff; }
 .complete-btn.done { background: #E3E7DC; color: var(--ink-soft); }
+.complete-btn:disabled { background: var(--paper-line); color: var(--ink-soft); cursor: not-allowed; opacity: 0.75; }
+
+/* Course Selection Stage 4 — a course-checkpoint node's two-part modal action, stacked instead of
+   the single full-width .complete-btn every other node gets. */
+.checkpoint-actions { display: flex; flex-direction: column; gap: 10px; }
 
 .step-chain-progress {
   font-family: 'IBM Plex Mono', monospace;

@@ -381,9 +381,8 @@ this Architecture section.
     automatic via `AppContext`'s existing `localStorage` write regardless of which one was used. A
     "Your selected courses (N)" strip below the grid lists every selection as a removable chip
     (`.course-selected-chip`, reusing `.tag.selected` styling) so a student can review/deselect
-    without hunting through the full grid again. **Roadmap wiring is explicitly out of scope for
-    this stage** — `selectedCourseIds` is confirmed to persist correctly but nothing in
-    `roadmapGenerator.js` reads it yet; that's a deferred future Stage 4.
+    without hunting through the full grid again. **Roadmap wiring is now done — see Stage 4
+    below.**
 
 **A second, distinct "Program-Specific Course Recommendations" section extends Task 3 — driven by
 selected majors, not interest tags, and grounded in real admissions research rather than the
@@ -658,6 +657,112 @@ removing just the visible `<text>` couldn't shift any node's position as a side 
 the single `application` stage as-is (transfer timelines vary too much to model precisely) but
 get a `caveatNote` string (`TRANSFER_CAVEAT`) surfaced as a banner near the top of
 `Roadmap.jsx` instead of a fabricated multi-year transfer plan.
+
+**Course Selection Stage 4 wires Stage 3's course selections into the roadmap — highschool-only,
+built entirely on top of the multi-year trunk above, no new spine concept.** Two new single-step
+core item kinds, both `category: 'core', required: true, steps: null` (solid ring, no new legend
+entry — `configFor()` just gets two new `coreType` entries, `'course-request'` and
+`'course-checkpoint'`, in `Roadmap.jsx`'s `CORE_TYPE_CONFIG`):
+- **`course-request`** — one per course in `state.selectedCourseIds` (stage 0) or a future
+  checkpoint's own `courseCheckpoints[stageName].selectedCourseIds` (see below), titled `Request
+  ${course.name} for next year` (or `Finalize your registration for ${course.name}` when this is
+  the plan's only/last stage — `yearSpan === 1`, i.e. a 12th-grader). Dated via
+  `ESTIMATED_COURSE_REQUEST_WINDOW` (`courses.js` — `{ month: 3, day: 1 }`, own header comment
+  explains why this is a clearly-labeled estimate, not scraped data: the parsed catalog states
+  registration deadlines exist but never publishes a fixed date). The estimate is surfaced two
+  ways: the coreType's own label reads `"Course Request (Est.)"` (visible on the spine without
+  opening anything), and the modal `desc` spells it out in full ("check with your counselor for
+  the exact date"). Because these are ordinary required/core/single-step items, they flow through
+  the exact same `dateOverrides`/`removedNodeIds` path every other core item already uses —
+  `roadmapGenerator.js`'s `buildCourseRequestItems()` needed no new editing logic, and
+  `Roadmap.jsx`'s modal renders the standard date-edit/remove row and plain complete-toggle for
+  them, same as any other required task.
+- **`course-checkpoint`** — one per future high-school year *except the last* (`stageIndex` in
+  `[1, yearSpan-2]` — see `buildCourseItems()`'s loop; this range is empty whenever `yearSpan <=
+  2`, which is exactly when there's no year-after-next to plan for, e.g. an 11th- or 12th-grader
+  — no special-casing needed for Task 3's "seniors get no revisit tasks" beyond this range check).
+  Dated the same way as `course-request`, within the checkpoint's OWN stage (that's when the
+  registration act for the FOLLOWING stage's courses happens — same "request now, take next year"
+  timing `course-request` already uses for stage 0). Titled `Update your courses for ${target
+  stage's label}`. Unlike every other spine item, a checkpoint carries no `steps` chain — its "two
+  sequential parts" are a special MODAL, not a branch (see below), and it carries one extra field,
+  `checkpointStageName`, that the modal reads to know which `state.courseCheckpoints[...]` entry
+  it's driving.
+
+**`state.courseCheckpoints` (`AppContext.jsx`) is `{ [stageName]: { part1Done, selectedCourseIds }
+}`, keyed by stage NAME (e.g. `'sophomore'`) — a checkpoint's own target stage
+(`stageNames[stageIndex + 1]`) is derived at generation/render time, never stored.** Once a
+checkpoint's Part 2 finishes, its `selectedCourseIds` feeds `buildCourseRequestItems()` again —
+same builder, same shape, just a later `stageIndex` and a different source array than stage 0's
+top-level `state.selectedCourseIds` — producing that stage's own real `course-request` items
+automatically the next time `generateRoadmap()` runs (it always does, on every state change). A
+checkpoint node's own `completedNodes` entry is set directly (not via the generic complete-toggle)
+the moment Part 2 finishes — see below.
+
+**A checkpoint's two parts are Roadmap.jsx's special-cased modal (mirroring the existing
+opportunity-anchor special case — `selectedIsCourseCheckpoint`, parallel to
+`selectedIsAnchorOnly`), and they navigate to the real TranscriptScreen/CourseSelectionScreen
+screens rather than reimplementing those mechanisms inline.** This is literal reuse, per the build
+spec's own instruction ("reuse the exact same entry mechanism from Stage 2" / "reuse Stage 3's
+course selection mechanism") — not a new modal-embedded UI. `state.activeCourseCheckpoint` (`{
+stageName, part: 'transcript' | 'courses' } | null`) is the hand-off: `Roadmap.jsx`'s
+`startCheckpointPart(stageName, part)` sets it and navigates (`screen: 'transcript'` or
+`'courseSelection'`); both screens check it on mount and switch into "checkpoint mode" — different
+header copy, different Back/Continue targets, and (Part 2 only) a different write target and real
+prerequisite checking — while every existing mechanic (course search, grade entry, GPA
+calculation, the Recommended/Browse toggle, filters, `CourseCard` grid) is 100% unchanged code:
+- **Part 1 (`TranscriptScreen.jsx`)**: `checkpoint = state.activeCourseCheckpoint?.part ===
+  'transcript' ? ... : null` gates the copy and the `advance()`/`goBack()` branch. Adding entries
+  still writes to the same top-level `state.transcript` (there's no separate per-checkpoint
+  transcript — a later checkpoint reviewing/adding entries sees everything entered so far,
+  which is correct: it's still one real transcript). `advance()` in checkpoint mode writes the
+  refreshed `gpa4Scale` to `state.gpa` — **the exact same field** every existing GPA-aware
+  consumer already reads (`ProgramsStep`'s curated program list, `reachMatchSafetyTag`'s
+  Reach/Match/Safety badges) — flips `courseCheckpoints[stageName].part1Done`, clears
+  `activeCourseCheckpoint`, and returns to `screen: 'plan'`. This is why the refreshed GPA updates
+  Reach/Match/Safety "everywhere else in the app" with zero changes to `programs.js` or
+  `ProgramsStep.jsx` — they were never told which screen last wrote `state.gpa`, they just react
+  to the value.
+- **Part 2 (`CourseSelectionScreen.jsx`)**: `checkpoint`/`checkpointProgress` gate the copy, hide
+  the (redundant, already-seen) policy summary and `StepProgress`, and redirect where "selected"
+  reads/writes: `currentSelectedIds`/`isSelected()`/`toggleCourse()` all branch on checkpoint mode
+  to use `courseCheckpoints[stageName].selectedCourseIds` instead of the top-level
+  `selectedCourseIds` (which stays reserved for stage 0's onboarding selections only) — every
+  `CourseCard` call site (main grid, each program-type group, the detail modal's Add/Remove
+  button) was updated to go through these instead of reading `state.selectedCourseIds` directly.
+  A defensive `useEffect` bounces to `plan` if Part 2 is somehow reached before
+  `courseCheckpoints[stageName]?.part1Done` (Roadmap.jsx's own modal already disables that path,
+  this is belt-and-suspenders for direct state restoration). "Save & Return to Plan" writes the
+  final `selectedCourseIds` into `courseCheckpoints[stageName]`, sets
+  `completedNodes['course-checkpoint-${stageName}']` directly (a checkpoint has no id-based
+  complete-toggle of its own — same reasoning as an opportunity anchor), clears
+  `activeCourseCheckpoint`, and returns to `plan`.
+
+**Part 2's prerequisite checking (`src/utils/prerequisites.js`) is a deliberately conservative,
+best-effort text matcher — never a fabricated rule.** Course `prerequisite` fields are free
+catalog text (e.g. `"Completion of Algebra 2 B or Algebra 2"`), not a structured graph.
+`checkPrerequisite(course, transcript)` splits on `"or"` (the catalog's own convention for
+alternative-satisfying prerequisites), then for each alternative finds the **longest** real course
+name it contains — not the first match in `COURSES` array order, which was a real, confirmed bug
+during development: "Calculus" is literally a substring of "Precalculus", and "Algebra 2" is a
+substring of "Algebra 2 B", so a naive first-match matcher silently resolved "Precalculus"'s own
+prerequisite text to the wrong (unrelated, shorter-named) course. Longest-match resolves both
+confirmed cases correctly. A referenced course only counts as "completed" with a real **passing
+grade** (`gradeEarned >= 65`, Roslyn's own stated passing threshold — the same floor
+`gpa.js`'s `convertTo4Scale` table treats as the bottom of its lowest non-zero band) in the
+transcript, per the build spec's explicit "checked against actual completed grades, not just
+did-they-take-it yes/no." A prerequisite string with no recognizable course-name reference (e.g.
+AP Physics 1 & 2's `"Recommended grade of 90+ in three sciences, Precalculus"` — a threshold
+across a subject area, not one course) is left **unparsed on purpose** (`checked: false`) —
+inventing a rule for it would be a guess, and this codebase's standing rule is "don't guess" (same
+principle as `programs.js`'s GPA-blank fallback). An unparsed prerequisite never blocks selection.
+`CourseCard` renders an `ineligibleReason` (only ever passed in checkpoint mode) as a muted,
+locked card — visible and readable (so the student can still see the real prerequisite text and
+self-check it), but its `.course-select-btn` is disabled — "inform, don't just hide," the same
+posture this screen's own filters already take, not a hard removal from the grid. Explicitly
+**out of scope, per the build spec**: any performance-based recommendation logic ("you struggled
+here, consider X instead") — this is accurate prerequisite-checking and an accurate GPA feeding
+existing systems, nothing more.
 
 **The roadmap is one unified vertical spine, not separate trunk/branch/chip concepts.**
 `roadmapGenerator.js` builds a `today` node plus a single flat `spineItems` array combining
@@ -1379,3 +1484,20 @@ download). Cover at minimum:
   confirm the multi-stage cases show the right number of `.stage-label` dividers, and test the
   longest case (highschool 9th grade with several opportunities selected, ~35+ nodes) renders
   with zero cross-node label overlap and pans/zooms cleanly.
+- Course Selection Stage 4 (highschool only): a 9th-grader with Stage 3 selections shows a
+  `course-request` node per selected course on the CURRENT year's Map 2 view, titled "Request X
+  for next year," Required/solid-ring; a 12th-grader (or any `yearSpan === 1` plan) uses
+  "Finalize your registration for X" instead. Confirm checkpoints exist on every future stage
+  except the last (e.g. 9th grade: sophomore + junior get one each, senior gets none; 11th grade:
+  zero checkpoints at all, since senior is the only future stage and it's also the last one).
+  Open a checkpoint and confirm Part 2 is disabled/locked until Part 1 is done. Complete Part 1
+  (add a real transcript entry with a passing grade for a course another course's `prerequisite`
+  text references, e.g. "Precalculus" for "AP Calculus AB") and confirm it returns to `plan` with
+  `courseCheckpoints[stageName].part1Done` true and `state.gpa` refreshed. Reopen the checkpoint,
+  confirm Part 2 is now enabled, and confirm the prerequisite-satisfying course is selectable
+  while an unrelated course whose prerequisite isn't met shows locked (muted card, disabled
+  Select button, real prerequisite text still visible). Complete Part 2 and confirm the
+  checkpoint node is marked complete AND a new `course-request` node appears on that same stage's
+  Map 2 view. Confirm editing the due date and removing a `course-request` task both work through
+  the plain generic modal (date input + Remove task, with the real-task confirm dialog for
+  required nodes) — no special-casing needed there.

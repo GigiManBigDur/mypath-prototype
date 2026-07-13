@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
-  Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move,
+  Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
+  GraduationCap, Lock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -27,6 +28,12 @@ const CORE_TYPE_CONFIG = {
   milestone: { label: 'Milestone', color: '#2E6E5E', Icon: MapPin },
   major: { label: 'Major Goal', color: '#C98A2B', Icon: Star },
   final: { label: 'Final Goal', color: '#A6491F', Icon: Flag },
+  // Course Selection Stage 4 — both required/core (solid ring, same as everything else in this
+  // config), no new legend category. The "(Est.)" in the label is deliberate and load-bearing:
+  // it's the one place this date's estimated nature is visible without opening the modal (see
+  // ESTIMATED_COURSE_REQUEST_WINDOW's own comment in courses.js for why no real deadline exists).
+  'course-request': { label: 'Course Request (Est.)', color: '#2E6E5E', Icon: BookOpen },
+  'course-checkpoint': { label: 'Course Checkpoint (Est.)', color: '#2E6E5E', Icon: GraduationCap },
 };
 const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: '#6E7F87', Icon: ListChecks };
 const BRANCH_STEP_CONFIG = { label: 'Step', color: '#6E7F87', Icon: Circle };
@@ -200,6 +207,15 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   const removeNode = (id, required) => {
     if (required && !window.confirm('This is a required step — are you sure you want to remove it?')) return;
     patch({ removedNodeIds: { ...state.removedNodeIds, [id]: true } });
+    setSelected(null);
+  };
+
+  // Course Selection Stage 4 — a course-checkpoint node's two parts navigate to TranscriptScreen/
+  // CourseSelectionScreen in "checkpoint mode" (see activeCourseCheckpoint in AppContext.jsx)
+  // rather than opening a new modal-embedded UI, per the spec's own "reuse the exact same entry
+  // mechanism" instruction — this is literal reuse of those screens, not a reimplementation.
+  const startCheckpointPart = (stageName, part) => {
+    patch({ activeCourseCheckpoint: { stageName, part }, screen: part === 'transcript' ? 'transcript' : 'courseSelection' });
     setSelected(null);
   };
 
@@ -390,6 +406,17 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     ? modalNode.branchSteps.filter((s) => isDone(s.id)).length
     : 0;
   const anchorTotal = selectedIsAnchorOnly ? modalNode.branchSteps.length : 0;
+
+  // Course Selection Stage 4 — a course-checkpoint node has no complete-toggle of its own either;
+  // like an opportunity anchor, its "done" state is really about two separate actions (Part 2
+  // marks completedNodes true once it finishes — see CourseSelectionScreen.jsx's checkpoint-mode
+  // Continue handler). Part 2 stays locked until Part 1 has actually been done for THIS
+  // checkpoint's own stage, not just any transcript entry existing.
+  const selectedIsCourseCheckpoint = modalNode?.coreType === 'course-checkpoint';
+  const checkpointProgress = selectedIsCourseCheckpoint
+    ? state.courseCheckpoints?.[modalNode.checkpointStageName]
+    : null;
+  const checkpointPart1Done = !!checkpointProgress?.part1Done;
 
   // The chain-starting node has no single id of its own to toggle — its "complete" state is
   // derived from its steps. Give it a real action at every state instead of a dead-end summary:
@@ -778,7 +805,33 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               </>
             )}
 
-            {modalNode.type !== 'today' && !selectedIsAnchorOnly && (
+            {selectedIsCourseCheckpoint && (
+              <div className="checkpoint-actions">
+                <button
+                  type="button"
+                  className={`complete-btn ${checkpointPart1Done ? 'done' : 'todo'}`}
+                  onClick={() => startCheckpointPart(modalNode.checkpointStageName, 'transcript')}
+                >
+                  <CheckCircle2 size={16} />
+                  {checkpointPart1Done ? 'Part 1: Update transcript — done, edit again' : 'Part 1: Update your transcript'}
+                </button>
+                <button
+                  type="button"
+                  className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
+                  disabled={!checkpointPart1Done}
+                  onClick={() => startCheckpointPart(modalNode.checkpointStageName, 'courses')}
+                >
+                  {checkpointPart1Done ? <CheckCircle2 size={16} /> : <Lock size={14} />}
+                  {isDone(modalNode.id)
+                    ? 'Part 2: Select courses — done, edit again'
+                    : checkpointPart1Done
+                      ? 'Part 2: Select next year\'s courses'
+                      : 'Part 2: locked until Part 1 is done'}
+                </button>
+              </div>
+            )}
+
+            {modalNode.type !== 'today' && !selectedIsAnchorOnly && !selectedIsCourseCheckpoint && (
               <button
                 className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
                 onClick={() => toggleDone(modalNode.id)}
