@@ -572,6 +572,35 @@ button.card.passed:hover {
 
 .course-selected-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 
+/* Course cards are a plain div (not a button) since they now contain a real nested button
+   (.course-select-btn) — a button can't legally nest another button, and clicking the card
+   body opens the detail modal while the select button independently toggles selection. */
+.course-card { cursor: pointer; position: relative; width: 100%; }
+.course-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -14px rgba(30,61,50,0.35);
+  border-color: var(--teal);
+}
+.course-select-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--paper-line);
+  background: var(--paper);
+  color: var(--ink-soft);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.course-select-btn:hover { border-color: var(--teal); color: var(--ink); }
+.course-select-btn.selected { background: var(--teal); border-color: var(--teal); color: #fff; }
+
 .coming-soon {
   max-width: 480px;
   margin: 32px auto;

@@ -374,15 +374,56 @@ this Architecture section.
     directly under the Recommended toggle whenever that view is active. A course id can validly
     appear under more than one track (e.g. AP Biology under both STEM and Healthcare); the merge
     step dedupes so a student with tags spanning both only sees it once.
-  - **Task 4 — selection list**: clicking any course card (Recommended or Browse, same handler
-    either way) toggles its `id` in `state.selectedCourseIds` — the exact `.card.selected` toggle
-    pattern used for careers/majors/programs/opportunities elsewhere in this app, so persistence is
-    automatic via `AppContext`'s existing `localStorage` write. A "Your selected courses (N)" strip
-    below the grid lists every selection as a removable chip (`.course-selected-chip`, reusing
-    `.tag.selected` styling) so a student can review/deselect without hunting through the full
-    grid again. **Roadmap wiring is explicitly out of scope for this stage** — `selectedCourseIds`
-    is confirmed to persist correctly but nothing in `roadmapGenerator.js` reads it yet; that's a
-    deferred future Stage 4.
+  - **Task 4 — selection list**: a dedicated `.course-select-btn` on each card (Recommended or
+    Browse, same handler either way) toggles its `id` in `state.selectedCourseIds` — clicking the
+    card body itself instead opens the detail modal (see below), so selection needed its own
+    explicit control once that split happened; both write to the same array, so persistence is
+    automatic via `AppContext`'s existing `localStorage` write regardless of which one was used. A
+    "Your selected courses (N)" strip below the grid lists every selection as a removable chip
+    (`.course-selected-chip`, reusing `.tag.selected` styling) so a student can review/deselect
+    without hunting through the full grid again. **Roadmap wiring is explicitly out of scope for
+    this stage** — `selectedCourseIds` is confirmed to persist correctly but nothing in
+    `roadmapGenerator.js` reads it yet; that's a deferred future Stage 4.
+
+**Course descriptions are complete, real catalog text — not manually truncated at parse time.**
+Stage 2/3's original data entry hand-trimmed every description to a short length with a trailing
+"...", which produced visible mid-sentence cutoffs in the UI (e.g. "PE - Extreme" rendering as
+"...traditional physical education. The program is..."). All 112 originally-truncated entries were
+re-parsed from the real source PDF (fetched fresh, converted to text via `pypdf`, cleaned of PDF
+ligature/quote artifacts) and replaced with their complete text — `courses.js`'s own header comment
+documents this. Any preview/truncation now happens **only** in the UI layer:
+`CourseSelectionScreen.jsx`'s `courseSummary()` cuts a card's preview at the nearest sentence
+boundary within `PREVIEW_MAX` (220 chars), falling back to the nearest word boundary with an
+appended "...", so a preview can be shortened for card density but never mid-word. Clicking a
+course card opens a detail modal showing the full, untruncated `description` — reusing
+`Roadmap.jsx`'s exact node-detail-modal pattern (`useModalExit` for the fade in/out, a
+`lastDetailRef` that retains the last real course so the closing frame still shows real content,
+the same `.overlay`/`.modal`/`.modal-close`/`.modal-eyebrow`/`.modal-title`/`.modal-desc` classes)
+rather than inventing a new one. Because the card body's click now opens that modal instead of
+toggling selection, selection moved to its own explicit `.course-select-btn` pill on the card
+(`stopPropagation`'d so it doesn't also open the modal) — the card itself became a plain `<div
+role="button">` instead of a `<button>`, since a `<button>` can't legally nest another `<button>`.
+
+**The course detail modal is rendered via `createPortal(..., document.body)`, not inline —
+this is a real, previously-latent bug in the shared `.screen-transition` entrance-animation
+system, not cosmetic.** `App.jsx` wraps `courseSelection` (and every other pre-Plan screen) in a
+`.screen-transition` div whose `screen-enter` keyframe animates `transform: translateY(14px) →
+translateY(0)` with `animation-fill-mode: both`. Per the CSS spec, ANY non-`none` transform on an
+ancestor — including one supplied by a still-`fill`-ing animation whose resolved value is the
+identity matrix — makes that ancestor a containing block for `position: fixed` descendants;
+confirmed via `getBoundingClientRect()` that `.screen-transition`'s computed `transform` stays
+`matrix(1,0,0,1,0,0)` (not the literal keyword `none`) forever after the animation completes, so a
+plain inline `.overlay` rendered inside it was being positioned relative to `.screen-transition`'s
+own box instead of the viewport — the modal rendered wildly off-center/clipped instead of centered
+on screen. (Changing the keyframe's end state to `transform: none` does NOT fix this — a
+fill-mode-active animation still counts as "having a transform" for containing-block purposes
+regardless of its resolved value, confirmed empirically before reverting that attempted fix.)
+`Roadmap.jsx`'s own modals never hit this because Map 2 (the only place they render) is never
+wrapped in `.screen-transition` — this is the **first** modal used inside a `.screen-transition`-
+wrapped screen. The portal is the correct fix (escapes the ancestor's containing-block entirely,
+without touching the animation system every other transitioning screen already depends on) — if
+you add a modal to any other pre-Plan screen in the future, use the same `createPortal(...,
+document.body)` pattern rather than rendering it inline.
 
 **Data layer (`src/data/`) is keyed by `[track][educationLevel]`, not by screen.**
 - `careers.js` / `programs.js` (via `getPrograms()`) / `opportunities.js` all branch on

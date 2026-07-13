@@ -1,10 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, GraduationCap, BookOpen, Award, Clock, Scale, Star, FileCheck, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, GraduationCap, BookOpen, Award, Clock, Scale, Star, FileCheck, X, Check, Plus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, TRACK_LABELS } from '../data/interests';
 import { COURSES, getCourseById, WEIGHT_MULTIPLIERS } from '../data/courses';
 import { getRecommendedCourses } from '../data/courseRecommendations';
 import StepProgress from '../components/StepProgress';
+import { useModalExit } from '../hooks/useModalExit';
+
+// A preview needs to end at a sentence or word boundary, never mid-word — the bug this fixes
+// was a card showing "The program is..." because the STORED description itself used to be
+// manually cut mid-sentence at parse time (see courses.js's own header comment). Descriptions
+// are now always complete; this is the only place truncation happens, purely for card display.
+const PREVIEW_MAX = 220;
+function courseSummary(description) {
+  if (description.length <= PREVIEW_MAX) return description;
+  const slice = description.slice(0, PREVIEW_MAX);
+  const sentenceEnd = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+  if (sentenceEnd > PREVIEW_MAX * 0.4) return slice.slice(0, sentenceEnd + 1);
+  const wordEnd = slice.lastIndexOf(' ');
+  return `${slice.slice(0, wordEnd > 0 ? wordEnd : PREVIEW_MAX).trim()}...`;
+}
 
 // Course Selection Stage 3. Reuses the same shared course catalog Transcript & GPA (Stage 2)
 // reads from — no duplicated data. Like Transcript, this screen only applies to High School
@@ -138,6 +154,17 @@ export default function CourseSelectionScreen() {
   };
 
   const selectedCourses = state.selectedCourseIds.map((id) => getCourseById(id)).filter(Boolean);
+
+  // Course detail modal — same open/close mechanism as Roadmap.jsx's node detail modal
+  // (useModalExit for the fade in/out, a ref that retains the last real course so the closing
+  // frame still has real content instead of flashing blank), reusing the exact same .overlay/
+  // .modal/.modal-close/.modal-eyebrow/.modal-title/.modal-desc classes rather than inventing a
+  // new pattern.
+  const [selectedCourseDetail, setSelectedCourseDetail] = useState(null);
+  const { rendered: detailRendered, closing: detailClosing } = useModalExit(!!selectedCourseDetail);
+  const lastDetailRef = useRef(null);
+  if (selectedCourseDetail) lastDetailRef.current = selectedCourseDetail;
+  const modalCourse = selectedCourseDetail || lastDetailRef.current;
 
   if (!isHighSchool) return null;
 
@@ -284,12 +311,23 @@ export default function CourseSelectionScreen() {
         {courses.map((course) => {
           const selected = state.selectedCourseIds.includes(course.id);
           return (
-            <button
-              type="button"
+            <div
               key={course.id}
-              className={`card${selected ? ' selected' : ''}`}
-              onClick={() => toggleCourse(course.id)}
+              className={`card course-card${selected ? ' selected' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedCourseDetail(course)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCourseDetail(course); }
+              }}
             >
+              <button
+                type="button"
+                className={`course-select-btn${selected ? ' selected' : ''}`}
+                onClick={(e) => { e.stopPropagation(); toggleCourse(course.id); }}
+              >
+                {selected ? <><Check size={12} /> Selected</> : <><Plus size={12} /> Select</>}
+              </button>
               <div className="card-title">{course.name}</div>
               {(course.weightCategory !== 'standard' || course.isPassFail) && (
                 <div className="course-badges">
@@ -301,7 +339,7 @@ export default function CourseSelectionScreen() {
                   {course.isPassFail && <span className="course-badge course-badge-passfail">Pass/Fail</span>}
                 </div>
               )}
-              <p className="card-desc">{course.description}</p>
+              <p className="card-desc">{courseSummary(course.description)}</p>
               <div className="card-meta">
                 <div>
                   <span className="label">Department</span>
@@ -325,10 +363,68 @@ export default function CourseSelectionScreen() {
               {course.note && (
                 <p className="field-hint" style={{ marginTop: 8, marginBottom: 0 }}>{course.note}</p>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
+
+      {/* Rendered via createPortal to document.body — this screen is wrapped in App.jsx's
+          `.screen-transition` div, whose entrance animation leaves a permanent (fill-mode: both)
+          transform on the element even after it finishes. Any non-`none` transform on an
+          ancestor — including an animation-filled identity transform — makes that ancestor a
+          containing block for `position: fixed` descendants, which broke this modal's
+          viewport-relative centering (confirmed via getBoundingClientRect: the overlay was
+          anchored to .screen-transition's box, not the viewport). Roadmap.jsx's own modals never
+          hit this because Map 2 is never wrapped in .screen-transition. */}
+      {detailRendered && modalCourse && createPortal(
+        <div
+          className={`overlay${detailClosing ? ' overlay-exit' : ''}`}
+          onClick={() => setSelectedCourseDetail(null)}
+        >
+          <div className={`modal${detailClosing ? ' modal-exit' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedCourseDetail(null)}>
+              <X size={18} />
+            </button>
+            <div className="modal-eyebrow" style={{ color: 'var(--teal)' }}>{modalCourse.department}</div>
+            <h2 className="modal-title">{modalCourse.name}</h2>
+            {(modalCourse.weightCategory !== 'standard' || modalCourse.isPassFail) && (
+              <div className="course-badges">
+                {modalCourse.weightCategory !== 'standard' && (
+                  <span className={`course-badge course-badge-${modalCourse.weightCategory}`}>
+                    {ATTRIBUTE_LABELS[modalCourse.weightCategory]}
+                  </span>
+                )}
+                {modalCourse.isPassFail && <span className="course-badge course-badge-passfail">Pass/Fail</span>}
+              </div>
+            )}
+            <p className="modal-desc">{modalCourse.description}</p>
+            <div className="card-meta" style={{ marginBottom: 20 }}>
+              <div>
+                <span className="label">Credit</span>
+                <strong>{modalCourse.credit != null ? modalCourse.credit : 'Varies'}</strong>
+              </div>
+              <div>
+                <span className="label">Grade Level</span>
+                <strong>{modalCourse.gradeLevels.length ? modalCourse.gradeLevels.join(', ') : 'Varies'}</strong>
+              </div>
+              {modalCourse.prerequisite && (
+                <div>
+                  <span className="label">Prerequisite</span>
+                  <strong>{modalCourse.prerequisite}</strong>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              className={`btn ${state.selectedCourseIds.includes(modalCourse.id) ? 'btn-outline' : 'btn-primary'}`}
+              onClick={() => toggleCourse(modalCourse.id)}
+            >
+              {state.selectedCourseIds.includes(modalCourse.id) ? 'Remove from my courses' : 'Add to my courses'}
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {selectedCourses.length > 0 && (
         <div className="field-block" style={{ marginTop: 32 }}>

@@ -25,9 +25,14 @@
 //                    metadata (who CAN take it), not a transcript entry's own "year taken" field —
 //                    that's separate, user-entered data on TranscriptScreen.
 //   prerequisite   — plain-text prerequisite/corequisite as stated in the catalog, or null.
-//   description    — a simplified 1-2 sentence summary, generated from the course's own real
-//                    catalog description (not paraphrased/invented) and trimmed to a short length;
-//                    a trailing "..." means it was cut short, not that content is missing.
+//   description    — the course's own real, COMPLETE catalog description text (not paraphrased/
+//                    invented, not truncated at parse time). Descriptions were originally
+//                    hand-trimmed to a short length with a trailing "...", but that produced
+//                    visible mid-sentence cutoffs in the UI (e.g. "PE - Extreme" ending on "The
+//                    program is..."); every one of the 112 originally-truncated entries was
+//                    re-parsed from the source PDF and replaced with its full text. Any display-
+//                    time preview/truncation now happens in the UI layer (see
+//                    CourseSelectionScreen's courseSummary()), not in this data.
 //   weightCategory — 'ap' | 'research_honors' | 'honors' | 'standard', tagged from the course's own
 //                    name per the catalog's stated rule (AP courses -> AP weight; RSH/Research
 //                    Honors -> Research Honors weight; Honors -> Honors weight; everything else,
@@ -54,7 +59,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Portfolio in Two-Dimensional (2-D) Design or Portfolio in Three-Dimensional (3-D) Design',
-    description: 'The AP 2-D Art & Design, AP 2-D Art & Design (Photo) & AP 3-D Art & Design classes consist of two parts, which are elements of your AP portfolio. Part 1 is the "Sustained Investigation." A completed Sustained...',
+    description: 'The AP 2-D Art & Design, AP 2-D Art & Design (Photo) & AP 3-D Art & Design classes consist of two parts, which are elements of your AP portfolio. Part 1 is the "Sustained Investigation." A completed Sustained Investigation will consist of 15 images (which can include completed or images in progress) and responses to prompts. The Sustained Investigation will equal 60% of the total score. Part II is the "Selected Works" section of the exam. The Selected Works will be five pieces of original artworks or high-quality printed reproductions of physical artworks, as well as responses to prompts. Each of these artworks should demonstrate synthesis of materials, processes and ideas using art and design skills. These five selected artworks may come from the Sustained Investigation section BUT they do not have to. The Selected Works section will equal 40% of the total score. Students must submit an AP Portfolio.',
     weightCategory: 'ap',
   },
   {
@@ -64,7 +69,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Portfolio in Two-Dimensional (2-D) Design or Portfolio in Three-Dimensional (3-D) Design',
-    description: 'The AP 2-D Art & Design, AP 2-D Art & Design (Photo) & AP 3-D Art & Design classes consist of two parts, which are elements of your AP portfolio. Part 1 is the "Sustained Investigation." A completed Sustained...',
+    description: 'The AP 2-D Art & Design, AP 2-D Art & Design (Photo) & AP 3-D Art & Design classes consist of two parts, which are elements of your AP portfolio. Part 1 is the "Sustained Investigation." A completed Sustained Investigation will consist of 15 images (which can include completed or images in progress) and responses to prompts. The Sustained Investigation will equal 60% of the total score. Part II is the "Selected Works" section of the exam. The Selected Works will be five pieces of original artworks or high-quality printed reproductions of physical artworks, as well as responses to prompts. Each of these artworks should demonstrate synthesis of materials, processes and ideas using art and design skills. These five selected artworks may come from the Sustained Investigation section BUT they do not have to. The Selected Works section will equal 40% of the total score. Students must submit an AP Portfolio.',
     weightCategory: 'ap',
   },
   {
@@ -74,7 +79,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Portfolio in Two-Dimensional (2-D) Design or Portfolio in Three-Dimensional (3-D) Design',
-    description: 'The AP 2-D Art & Design, AP 2-D Art & Design (Photo) & AP 3-D Art & Design classes consist of two parts, which are elements of your AP portfolio. Part 1 is the "Sustained Investigation." A completed Sustained...',
+    description: 'The AP 2-D Art & Design, AP 2-D Art & Design (Photo) & AP 3-D Art & Design classes consist of two parts, which are elements of your AP portfolio. Part 1 is the "Sustained Investigation." A completed Sustained Investigation will consist of 15 images (which can include completed or images in progress) and responses to prompts. The Sustained Investigation will equal 60% of the total score. Part II is the "Selected Works" section of the exam. The Selected Works will be five pieces of original artworks or high-quality printed reproductions of physical artworks, as well as responses to prompts. Each of these artworks should demonstrate synthesis of materials, processes and ideas using art and design skills. These five selected artworks may come from the Sustained Investigation section BUT they do not have to. The Selected Works section will equal 40% of the total score. Students must submit an AP Portfolio.',
     weightCategory: 'ap',
   },
   {
@@ -84,7 +89,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This is a college level survey course focusing on art and architectural trends and their relationship to the cultures that produced them. The course begins in prehistoric times and moves quickly through the art of...',
+    description: 'This is a college level survey course focusing on art and architectural trends and their relationship to the cultures that produced them. The course begins in prehistoric times and moves quickly through the art of ancient Egypt, Greece, Rome and the Middle Ages. The course then focuses on the works of the Renaissance and the art periods that follow including the Baroque, Neo-Classical, Romantic, and Realist movements. A significant portion of the course is devoted to modern and contemporary themes in art from the Impressionists to the Modern Masters as well as the art of other cultures. Architecture and Art are equally represented. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -94,7 +99,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: 'Studio Art, Intermediate Studio Art',
-    description: 'This course is intended for experienced art students in grades 10 and up who seek to enhance their artistic skills in a range of media. Students will have taken two years of art instruction (Studio Art and Intermediate...',
+    description: 'This course is intended for experienced art students in grades 10 and up who seek to enhance their artistic skills in a range of media. Students will have taken two years of art instruction (Studio Art and Intermediate Studio Art) and developed proficiency in skills including drawing, painting, sculpture, and mixed media. Advanced Studio Art will extend students\' learning in these media to produce a cohesive body of work that prepares them for upper-level courses such as Portfolio in 2D Art and AP 2D Art. Through projects, students will learn to articulate intent, refine craftsmanship, and engage with contemporary art discourse.',
     weightCategory: 'standard',
   },
   {
@@ -104,7 +109,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: "In this interactive, hands-on course, you'll step into the world of branding, merchandising, and digital design to build your own unique brand identity from scratch! Starting with the essentials of branding and modern...",
+    description: 'In this interactive, hands-on course, you\'ll step into the world of branding, merchandising, and digital design to build your own unique brand identity from scratch! Starting with the essentials of branding and modern merchandising, you\'ll learn how big brands capture attention and create lasting impressions. Then, dive into Adobe Illustrator to transform your ideas into striking logos and visuals that speak directly to your target audience. By the end of this course, you\'ll have a portfolio of custom-designed graphics and a new set of digital design skills that set you apart. Ready to see your vision come to life?',
     weightCategory: 'standard',
   },
   {
@@ -114,7 +119,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'Are you passionate about art and eager to dive into the world of digital creativity? In this engaging and hands-on art elective, students will unleash their artistic potential using Procreate, a cutting-edge digital art...',
+    description: 'Are you passionate about art and eager to dive into the world of digital creativity? In this engaging and hands-on art elective, students will unleash their artistic potential using Procreate, a cutting-edge digital art application for the iPad. Throughout the course, students will explore various techniques and tools available in Procreate, harnessing the power of this versatile digital medium to bring their artistic visions to life. By the end of this course, students will have a solid grasp of digital art creation with Procreate, be able to produce impressive digital artworks, and understand the broader context of digital art in contemporary culture. Whether students aspire to pursue a career in art, use digital art as a means of self-expression, or simply want to expand their creative horizons, this course will equip them with the skills and knowledge to do so. Join us in this exciting journey of artistic exploration and technological innovation with Procreate! This course meets the graduation requirement for a fine arts credit.',
     weightCategory: 'standard',
   },
   {
@@ -134,7 +139,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: 'Digital Photography 1',
-    description: 'This advanced course examines in greater depth the special shooting and software techniques acquired in "Introduction to Digital Photography." Various procedures and experiences will enable the student to fully realize...',
+    description: 'This advanced course examines in greater depth the special shooting and software techniques acquired in "Introduction to Digital Photography." Various procedures and experiences will enable the student to fully realize the potential of this medium. Basic expertise in managing digital images will be extended to include control of color qualities, methods of selecting images, combining and manipulating these selections, the use of digital repair and adjustment tools and the application of filters. The course also considers the implication of realistic alteration to photographic images, its purposes and intentions, and how this can best be used to enhance creative experience.',
     weightCategory: 'standard',
   },
   {
@@ -154,7 +159,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Fashion in Art 1',
-    description: 'This semester course will give students an opportunity to apply the concepts learned in Fashion in Art. Advanced understanding of the fashion industry to create 2-D and 3-D work that explores the use of fabric,...',
+    description: 'This semester course will give students an opportunity to apply the concepts learned in Fashion in Art. Advanced understanding of the fashion industry to create 2-D and 3-D work that explores the use of fabric, accessories and sewing. Development in the areas of technique and concept is stressed.',
     weightCategory: 'standard',
   },
   {
@@ -184,7 +189,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'The beginning student is provided with practical camera and darkroom experience through discussion, demonstration and laboratory work in black and white photography. Learning to see and compose a photographic expression...',
+    description: 'The beginning student is provided with practical camera and darkroom experience through discussion, demonstration and laboratory work in black and white photography. Learning to see and compose a photographic expression will be addressed along with the mechanics of the camera and darkroom procedures. Students should have access to a 35 mm SLR Camera.',
     weightCategory: 'standard',
   },
   {
@@ -194,7 +199,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Photography 1',
-    description: 'This course provides continued work in the aesthetic aspects of black and white photography through an exploration of studio lighting, metering, and composition. Fine printing techniques, Sabbatier effect, Kodalith...',
+    description: 'This course provides continued work in the aesthetic aspects of black and white photography through an exploration of studio lighting, metering, and composition. Fine printing techniques, Sabbatier effect, Kodalith film, and multiple printing are also treated.',
     weightCategory: 'standard',
   },
   {
@@ -264,7 +269,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This course introduces students to the secret language that financial managers use to conduct business. Students will develop working skills using the goals and methods of Generally Accepted Accounting Principles...',
+    description: 'This course introduces students to the secret language that financial managers use to conduct business. Students will develop working skills using the goals and methods of Generally Accepted Accounting Principles including the accounting cycle, use of general and special journals, general ledgers, financial statements, banking transactions, payroll accounting, and adjusting and closing entries for merchandise inventory. Professional Software is introduced. Juniors and seniors can take this course for college credit through Long Island University for a cost payable to the University.',
     weightCategory: 'standard',
   },
   {
@@ -284,7 +289,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: "Students will learn a wide variety of practical skills needed to land a job and succeed in today's work force. Students will gain an edge over other applicants by preparing them for college, internships and their first...",
+    description: 'Students will learn a wide variety of practical skills needed to land a job and succeed in today\'s work force. Students will gain an edge over other applicants by preparing them for college, internships and their first job. Working on a variety of individual and team projects, students will learn skills such as effective verbal communication (presentations, meetings, teamwork), effective written communication (email, letters, memos), resume writing, effective interviewing and more. Students will also become proficient in Business software programs, with special emphasis on Google applications and Microsoft Office. Juniors and seniors can take this course for college credit through Long Island University for a cost payable to the University.',
     weightCategory: 'standard',
   },
   {
@@ -304,7 +309,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'In this project-oriented course, students will explore the relationships between design, merchandising and marketing in the Fashion industry. Students will develop skills in evaluating consumer behavior, performing...',
+    description: 'In this project-oriented course, students will explore the relationships between design, merchandising and marketing in the Fashion industry. Students will develop skills in evaluating consumer behavior, performing market research, creating graphic communications, and analyzing fashion trends. Pricing considerations are assessed through field trips and lessons in store planning and operations. Juniors and seniors can take this course for college credit through Long Island University for a cost payable to the university.',
     weightCategory: 'standard',
   },
   {
@@ -334,7 +339,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'The perfect course for a first-year business student, this class introduces the fundamentals of American Business and its contemporary environment. It provides an overview of organizational, national, and international...',
+    description: 'The perfect course for a first-year business student, this class introduces the fundamentals of American Business and its contemporary environment. It provides an overview of organizational, national, and international trends and their impact on enterprises and entrepreneurs. Students will develop an understanding of important business concepts, principles, and practices that explain how businesses are formed, how they operate to accomplish their goals and how their success depends on effective management, production, marketing, distribution, and finance/accounting.',
     weightCategory: 'standard',
   },
   {
@@ -344,7 +349,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This course will give students an introduction to basic investment principles that are essential to building wealth. In addition to learning about stocks, bonds, mutual funds, options and futures, this class will...',
+    description: 'This course will give students an introduction to basic investment principles that are essential to building wealth. In addition to learning about stocks, bonds, mutual funds, options and futures, this class will address methods of analysis (fundamental vs. technical) and how to assess risk. Students will calculate rates of return and yield, and will construct a portfolio with a given objective. Students will participate in the Stock Market Game. Juniors and seniors can take this course for college credit through Long Island University for a cost payable to the University.',
     weightCategory: 'standard',
   },
   {
@@ -354,7 +359,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Sports & Entertainment Marketing or Fashion Marketing',
-    description: 'This semester course focuses on the link between behavioral principles and consumer responses that help businesses understand how to develop multi-media marketing strategies to attract customers. Students will create...',
+    description: 'This semester course focuses on the link between behavioral principles and consumer responses that help businesses understand how to develop multi-media marketing strategies to attract customers. Students will create brand advertising, pricing and distribution plans that harness the power of the web, such as Search Engine Optimization, Social Media, and Mobile Marketing. Juniors and seniors can take this course for college credit through Long Island University for a cost payable to the university.',
     weightCategory: 'standard',
   },
   {
@@ -364,7 +369,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This semester course will examine all aspects of business marketing, specifically those viewed through the lens of sports and entertainment. Students will work on product development, analyze the effectiveness of...',
+    description: 'This semester course will examine all aspects of business marketing, specifically those viewed through the lens of sports and entertainment. Students will work on product development, analyze the effectiveness of advertising and promotion, evaluate pricing strategies and conduct market research. Project development will allow the students to apply their knowledge. If desired, juniors and seniors can take this course for college credit through Long Island University for a cost payable to the university.',
     weightCategory: 'standard',
   },
   {
@@ -384,7 +389,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [11],
     prerequisite: null,
-    description: 'The AP English Language and Composition course is an extremely popular College Board offering. In an effort to encourage more of our students to participate in this exciting course, we are offering this strategies class...',
+    description: 'The AP English Language and Composition course is an extremely popular College Board offering. In an effort to encourage more of our students to participate in this exciting course, we are offering this strategies class to those who might find the course challenging. Students will have the opportunity to receive direct, small-group support in this class, which will be taught by teachers participating in the AP English Language program. In the Strategies class, which will meet every other day, students will receive the individualized attention they need, as teachers pre-teach and re-teach the materials covered in the class in preparation for the Advanced Placement English Language and Composition Exam.',
     weightCategory: 'ap',
   },
   {
@@ -394,7 +399,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11],
     prerequisite: null,
-    description: 'This Advanced Placement course offers a college-level option which deals with language, rhetoric, and argument. Students are trained to become skilled readers of prose written across a variety of periods and disciplines...',
+    description: 'This Advanced Placement course offers a college-level option which deals with language, rhetoric, and argument. Students are trained to become skilled readers of prose written across a variety of periods and disciplines with an increased emphasis placed on nonfiction pieces. Through instruction in reading and writing, students gain awareness of the interaction between authorial purpose, audience needs, the subject itself, generic conventions, and the resources of language (syntax, word choice, tone). Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -424,7 +429,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11],
     prerequisite: null,
-    description: 'This rigorous Honors level course is designed to prepare the student for the more advanced analyses of literature and language demanded by future courses, such as AP Literature or Contemporary Literature. Students study...',
+    description: 'This rigorous Honors level course is designed to prepare the student for the more advanced analyses of literature and language demanded by future courses, such as AP Literature or Contemporary Literature. Students study classic works from every genre and every period of American Literature in this demanding course. The literature is examined in its historical context, keeping in mind major trends and influences in American writing. The emphasis is on in-depth analysis that goes beyond plot. The course is not a prerequisite for AP Literature and Composition but is designed to develop fundamental, college-level critical thinking.',
     weightCategory: 'honors',
   },
   {
@@ -434,7 +439,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: null,
-    description: 'This semester 1 course is designed for seniors who desire a college preparatory experience. Students study classic works and excerpts from contemporary fiction, non-fiction, drama, and poetry so that they may grasp the...',
+    description: 'This semester 1 course is designed for seniors who desire a college preparatory experience. Students study classic works and excerpts from contemporary fiction, non-fiction, drama, and poetry so that they may grasp the nature and variety of great literary works, refine their comprehension, analytic and appreciation skills, and use literature to make sense of their lives. Considerable time will be devoted to the writing process, and assessments will be varied and challenging.',
     weightCategory: 'honors',
   },
   {
@@ -444,7 +449,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: null,
-    description: "This course seeks to introduce students to the multicultural realm of literature. The class will explore works by authors who exist outside of the canonical sphere in order to gain a better sense of Western culture's...",
+    description: 'This course seeks to introduce students to the multicultural realm of literature. The class will explore works by authors who exist outside of the canonical sphere in order to gain a better sense of Western culture\'s diverse racial and ethnic sects. Class discussions will be focused on the following questions: How is culture defined? What are cultural studies? Are other smaller ethnic groups truly accepted by mainstream Western culture? How are cultures negatively stereotyped? This class will challenge students to think about the impact of cultural definitions.',
     weightCategory: 'honors',
   },
   {
@@ -454,7 +459,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: null,
-    description: 'The short story as an art form is constantly evolving: what some writer is experimenting with today may be a standard form of study twenty years from now. The ability to introduce students to the future of literature is...',
+    description: 'The short story as an art form is constantly evolving: what some writer is experimenting with today may be a standard form of study twenty years from now. The ability to introduce students to the future of literature is an exciting prospect. Some story selections for this course will come from top literary magazines across the country and the world of today. The course will also examine stories from anthologies and collections by select authors who are considered the masters of the form. Students will be exposed to volumes of literature that far exceed what is typical of a traditional English class. Students who complete this course will have a richer literary background and a greater understanding of the world around them.',
     weightCategory: 'honors',
   },
   {
@@ -464,7 +469,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This pass/fail course will teach the techniques needed to establish a strong foundation of content and strategy to successfully prepare students for the SAT and ACT exams. The course will focus on essential verbal and...',
+    description: 'This pass/fail course will teach the techniques needed to establish a strong foundation of content and strategy to successfully prepare students for the SAT and ACT exams. The course will focus on essential verbal and mathematical reasoning skills as well as time and stress management during testing.',
     weightCategory: 'standard',
     isPassFail: true,
   },
@@ -475,7 +480,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: null,
-    description: 'Contemporary Literature will explore modern literature from the year 2000 onwards, focusing on discussions of current topics and techniques through a study of contemporary works of fiction. Students will focus on...',
+    description: 'Contemporary Literature will explore modern literature from the year 2000 onwards, focusing on discussions of current topics and techniques through a study of contemporary works of fiction. Students will focus on elevating reading, writing, and analytical skills in preparation for the challenges of the college classroom, with an emphasis on seminar discussion and complex analytical ideas. Text selections will highlight modern literary classics that bridge the gap between bestseller lists and college curricula. This year-long course will support students in developing an understanding of the connection between their prior three years of English and the rich new catalog of works published today. Students will have the option to pursue an application to earn dual credit for this course through an accredited university; interested students must notify their teacher upon entering the class.',
     weightCategory: 'honors',
   },
   {
@@ -495,7 +500,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9],
     prerequisite: null,
-    description: "English 1 provides a thorough introduction to the first year of English study at the high school. The course is anchored around a variety of full-length novels including John Steinbeck's Of Mice and Men, William...",
+    description: 'English 1 provides a thorough introduction to the first year of English study at the high school. The course is anchored around a variety of full-length novels including John Steinbeck\'s Of Mice and Men , William Shakespeare\'s Romeo and Juliet , John Knowles\' A Separate Peace , and Harper Lee\'s To Kill a Mockingbird . Articles, essays, and a full-length poetry anthology will supplement this core text study. Through process writing, students will learn how to construct literary response and argumentative essays with a focus on establishing a clear and compelling thesis supported by textual evidence and thoughtfully considered commentary. Within this context, there will be a continued emphasis on close reading, grammar, and vocabulary as well as literary devices such as characterization, figurative language, setting, conflict, and imagery, among others.',
     weightCategory: 'standard',
   },
   {
@@ -505,7 +510,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9],
     prerequisite: null,
-    description: 'English 1H is a challenging and comprehensive introduction to literary study at the high school. This course is designed for students who are eager to consider, discuss, and analyze texts in a more sophisticated and...',
+    description: 'English 1H is a challenging and comprehensive introduction to literary study at the high school. This course is designed for students who are eager to consider, discuss, and analyze texts in a more sophisticated and independent manner. Students will study the same texts as listed in the English 1 description but supplement with approximately 2-3 additional full length works. In addition to studying the foundational literary devices listed in the English 1 course description, students in English 1H will extend their analysis to more nuanced and complex strategies including symbolism, juxtaposition, extended metaphor, poetic conceit, and rhetorical moves, among others. With a specific focus on author\'s purpose, students will consider how authors directly and indirectly communicate meaning and universal themes through their works. Regular and productive class participation will be required of all students.',
     weightCategory: 'honors',
   },
   {
@@ -515,7 +520,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10],
     prerequisite: null,
-    description: 'This course focuses on plot, themes, character development, and literary elements. This class will utilize scaffolding techniques to help students further develop habits of close reading, emerging literary analysis, and...',
+    description: 'This course focuses on plot, themes, character development, and literary elements. This class will utilize scaffolding techniques to help students further develop habits of close reading, emerging literary analysis, and essay development. Quizzes evaluate student understanding of vocabulary, grammar, and literature. Through written essay work and multiple-choice tests, students will demonstrate their understanding of plot, theme, character development, and literary elements. Extended tasks include essays, creative writing pieces, outside reading projects, and research prompts.',
     weightCategory: 'standard',
   },
   {
@@ -525,7 +530,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10],
     prerequisite: null,
-    description: 'This rewarding and challenging course focuses on close literary analysis, development of multifaceted ideas, and sophisticated expression of thought. Students will engage with complex texts that may include the Greek...',
+    description: 'This rewarding and challenging course focuses on close literary analysis, development of multifaceted ideas, and sophisticated expression of thought. Students will engage with complex texts that may include the Greek tragedies of Sophocles, the works of William Shakespeare, Mary Shelley\'s Frankenstein , William Golding\'s Lord of the Flies , and J.D. Salinger\'s The Catcher in the Rye , among others. Students should anticipate daily assignments, such as take-home reading, short and long-form writing, intensive class discussions and seminars, and reading checks. Instruction in this course builds on a student\'s ability to work on his or her own and expects increased self-management and academic independence. All assignments will require and build upon a foundation of skills in literary analysis and high-level reading comprehension, with a specific focus on originality of thought, synthesis and analysis, and sophisticated expression of ideas. Success in this course will require meaningful and consistent student participation.',
     weightCategory: 'honors',
   },
   {
@@ -535,7 +540,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This elective is designed with the film lover in mind; students who are interested in various forms of visual and oral storytelling will hone and enhance their analytical skills through this film-based course. Classic...',
+    description: 'This elective is designed with the film lover in mind; students who are interested in various forms of visual and oral storytelling will hone and enhance their analytical skills through this film-based course. Classic and contemporary films are used to anchor units of study; students will complement these efforts by reading works that thematically relate. Visual construction, lighting, music, sound, pacing, and historical context will all be emphasized. Students will also study archetypes, specifically heroes, anti-heroes, and villains, as they are challenged to confront ethical and moral issues in both film and literature.',
     weightCategory: 'standard',
   },
   {
@@ -545,7 +550,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9],
     prerequisite: null,
-    description: 'Freshman Literature Strategies is designed to offer high school students support in meeting the reading and writing challenges at the high school level. This strategies class pre-teaches and re-teaches reading and...',
+    description: 'Freshman Literature Strategies is designed to offer high school students support in meeting the reading and writing challenges at the high school level. This strategies class pre-teaches and re-teaches reading and writing concepts studied in Freshman Humanities Seminar. Under the guidance of their English teacher, strategies students have the opportunity to initiate more focused conversations that allow them to workshop their writing, produce additional revised drafts, and pay careful attention to clarity, organization, and fluidity. This course best supports students who are eager to receive constructive feedback which will allow them to set concrete writing goals. Strategies students also have the opportunity to perform closer readings of challenging sections from texts studied in their English class. Course goals include: Increased independence and success in writing Improved analytical reading skills Developing effective reading practices Increased ability to read more critically',
     weightCategory: 'standard',
   },
   {
@@ -555,7 +560,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This semester-length elective offers students an opportunity to research topics of personal interest in literature and the humanities. With an advisor, students are instructed to follow certain conventions of...',
+    description: 'This semester-length elective offers students an opportunity to research topics of personal interest in literature and the humanities. With an advisor, students are instructed to follow certain conventions of sophisticated scholarly inquiry and to produce an original investigative research paper. Students also have an opportunity to do creative writing which could include but is not limited to the short story, drama, poetry, screen play, song writing, a short novel or nonfiction. Some projects might be presented on CDs, DVDs or film. Students submit creative work to contests or for publication, and some research papers are submitted to contests and/or publications.',
     weightCategory: 'standard',
   },
   {
@@ -575,7 +580,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This is a course for students who enjoy delving into the depth and meaning behind a text in order to gain a greater insight into psychology. Various works of literature including plays, novels, short stories and films...',
+    description: 'This is a course for students who enjoy delving into the depth and meaning behind a text in order to gain a greater insight into psychology. Various works of literature including plays, novels, short stories and films will be used, keeping in mind the basic tenets of psychology which will be taught at the beginning of the course. Students interested in psychology and/or English will be interested in this course because it will inspire them to read more critically to increase their knowledge of both subjects. Students who take this course in conjunction with or after AP Psychology will be able to better use the techniques and methods taught in this course in order to analyze different works of literature. It is important to note that such classes are not a prerequisite for this course. This course is offered in alternate years.',
     weightCategory: 'standard',
   },
   {
@@ -585,7 +590,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'One of the most critical skills for college and career success is the ability to present confidently in front of a crowd, but most students break into a sweat at the mere thought of presenting. This course instills in...',
+    description: 'One of the most critical skills for college and career success is the ability to present confidently in front of a crowd, but most students break into a sweat at the mere thought of presenting. This course instills in students the confidence and capability to remain cool under pressure, command an audience with ease, and connect with a crowd on a meaningful level. By studying a variety of modern presentations with a specific focus on TED talks, students will learn invaluable presentation skills, working to identify and share what resonates most powerfully with them. Students will learn to determine an appropriate length, format, tone, and approach, depending on the crowd and mission before them. In addition, elements such as vocal command, physical presence, eye contact, and memorization will all be emphasized.',
     weightCategory: 'standard',
   },
   {
@@ -595,7 +600,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Precalculus or Precalculus Honors',
-    description: 'This course is designed for the able and ambitious students who have completed the full high school mathematics program through Pre-Calculus mathematics prior to their senior year. It follows the suggested outline of...',
+    description: 'This course is designed for the able and ambitious students who have completed the full high school mathematics program through Pre-Calculus mathematics prior to their senior year. It follows the suggested outline of the AB Advanced Placement Program recommended by the College Entrance Examination Board. The curriculum includes units on differential and integral calculus with applications to velocity and acceleration, maxima-minima theory, related rates, areas, and volumes. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -605,7 +610,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Precalculus Research Honors or recommendation of Precalculus Honors teacher',
-    description: 'This course is designed for the able and ambitious students who have completed the full high school mathematics program through Pre-Calculus mathematics prior to their senior year. The topics covered will follow the...',
+    description: 'This course is designed for the able and ambitious students who have completed the full high school mathematics program through Pre-Calculus mathematics prior to their senior year. The topics covered will follow the suggested outline of the BC Advanced Placement Program recommended by the College Entrance Examination Board. The curriculum will include units on: review and extension of analytic geometry, differential calculus of algebraic functions and their applications, the calculus of algebraic functions, sequences, series, elementary differential equations and their applications, the calculus of elementary transcendental functions and their applications. Content and applications will be comparable to the offerings of a college freshman course. The course meets for 7 1/2 periods per week. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -635,7 +640,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9],
     prerequisite: null,
-    description: 'Algebra 1 is a one-year course which introduces the student to the fundamentals of algebra. The algebra curriculum focuses largely on four conceptual categories: Number & Quantity, Algebra, Functions, and Statistics &...',
+    description: 'Algebra 1 is a one-year course which introduces the student to the fundamentals of algebra. The algebra curriculum focuses largely on four conceptual categories: Number & Quantity, Algebra, Functions, and Statistics & Probability. Students will be introduced to the graphing calculator and will work with it in class during lessons appropriate to its use. Among the topics covered during the year will be order of: The Real Number System; Quantities; Seeing Structure in Expressions; Arithmetic with Polynomials and Rational Expressions; Creating Equations; Reasoning with Equations and Inequalities; Interpreting & Building Functions; Linear, Quadratic, and Exponential Models; Interpreting categorical and quantitative data. In addition to the development of skills necessary for the students progression to higher level courses in this subject area, we seek to cultivate a sense of appreciation of mathematics for its aesthetic value. This course concludes with the Algebra Regents Examination.',
     weightCategory: 'standard',
   },
   {
@@ -655,7 +660,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11],
     prerequisite: 'Algebra 1 or Equivalent and Geometry',
-    description: 'Algebra 2 is a one-year course which introduces the student to the Advancement of Algebra in Algebra 2. Among the units of study covered during the year will be: Numbers & Quantity, Algebra, Functions, and Statistics...',
+    description: 'Algebra 2 is a one-year course which introduces the student to the Advancement of Algebra in Algebra 2. Among the units of study covered during the year will be: Numbers & Quantity, Algebra, Functions, and Statistics and Probability. In addition to the development of skills necessary for the students progression to higher level courses in this subject area, we seek to cultivate a sense of appreciation of mathematics for its aesthetic value. Students will develop skills in order to: Make sense of problems and persevere in solving them; Reason abstractly and quantitatively; Construct viable arguments and critique the reasoning of others; Model with mathematics; Use appropriate tools strategically; Attend to precision; Look for and make use of structure; Look for and express regularity in repeated reasoning. This course concludes with the Algebra 2 Regents Examination.',
     weightCategory: 'standard',
   },
   {
@@ -665,7 +670,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11],
     prerequisite: 'Algebra 1 or Equivalent and Geometry',
-    description: 'Algebra 2 I is the first year of a two-year sequence, in which students will be introduced to the fundamentals of Algebra 2. Among the units of study covered during the year will be: Numbers & Quantity, Algebra, and...',
+    description: 'Algebra 2 I is the first year of a two-year sequence, in which students will be introduced to the fundamentals of Algebra 2. Among the units of study covered during the year will be: Numbers & Quantity, Algebra, and Functions. In addition to the development of skills necessary for the students\' progression to higher level courses in this subject area, we seek to cultivate a sense of appreciation of mathematics for its aesthetic value. Students will develop skills in order to: Make sense of problems and persevere in solving the; Reason abstractly and quantitatively; Construct viable arguments and critique the reasoning of others; Model with mathematics; Use appropriate tools strategically; Attend to precision; Look for and make use of structure; Look for and express regularity in repeated reasoning. This course concludes with a final exam.',
     weightCategory: 'standard',
   },
   {
@@ -675,7 +680,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11],
     prerequisite: 'Algebra 2 A or Algebra 2',
-    description: 'Algebra 2B is the second year of a comprehensive two-year Algebra 2 sequence, designed to equip students with a strong understanding of key mathematical concepts while preparing them for the New York State Regents...',
+    description: 'Algebra 2B is the second year of a comprehensive two-year Algebra 2 sequence, designed to equip students with a strong understanding of key mathematical concepts while preparing them for the New York State Regents Examination. Throughout the year, students will focus on mastering the fundamentals of Algebra 2, with an emphasis on Statistics and Probability, Trigonometry and a thorough review of core topics including Numbers & Quantity, Algebra, and Functions. This review is crucial for reinforcing concepts and ensuring readiness for the Regents Examination. Students will develop skills in order to: Make sense of problems and persevere in solving the; Reason abstractly and quantitatively; Construct viable arguments and critique the reasoning of others; Model with mathematics; Use appropriate tools strategically; Attend to precision; Look for and make use of structure; Look for and express regularity in repeated reasoning. Students will have the opportunity to take the Algebra 2 Regents Examination in both January and June, giving them multiple chances to demonstrate their knowledge and achieve the best possible results. This course is designed not only to prepare students for the Regents but also to foster a deep understanding of algebraic principles that will serve them in future mathematical and real-world applications.',
     weightCategory: 'standard',
   },
   {
@@ -705,7 +710,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Precalculus',
-    description: 'This course is designed for students who have completed the full high school mathematics program through pre-calculus mathematics prior to their senior year. It is a less rigorous course than either of the AP Calculus...',
+    description: 'This course is designed for students who have completed the full high school mathematics program through pre-calculus mathematics prior to their senior year. It is a less rigorous course than either of the AP Calculus Courses. Students will be introduced to the fundamentals of differential and integral calculus. Students will take a final examination upon the conclusion of this course.',
     weightCategory: 'standard',
   },
   {
@@ -715,7 +720,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Completion of Algebra 2 B or Algebra 2',
-    description: 'College Math is offered to only those students who have completed the New York State requirements for mathematics and would like to enrich their mathematical background in topics included in an advanced Algebra and...',
+    description: 'College Math is offered to only those students who have completed the New York State requirements for mathematics and would like to enrich their mathematical background in topics included in an advanced Algebra and Trigonometry course. Topics to be included: Probability and Statistics, Trigonometry, Theory of Equations, Sequences and Series, and Exponential and Logarithmic Functions. (Students will be exposed to the power of the graphing calculator).',
     weightCategory: 'standard',
   },
   {
@@ -725,7 +730,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This pass/fail course will teach the techniques needed to establish a strong foundation of content and strategy to successfully prepare you for the SAT and ACT exams. The course will focus on essential verbal and...',
+    description: 'This pass/fail course will teach the techniques needed to establish a strong foundation of content and strategy to successfully prepare you for the SAT and ACT exams. The course will focus on essential verbal and mathematical reasoning skills as well as time and stress management during testing and conduct skills reviews.',
     weightCategory: 'standard',
     isPassFail: true,
   },
@@ -736,7 +741,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: 'AP Calculus BC',
-    description: 'This is a semester course which provides an in-depth study of first-order differential equations, systems of differential equations, and higher-order equations. Students will learn to use numerical techniques, slope...',
+    description: 'This is a semester course which provides an in-depth study of first-order differential equations, systems of differential equations, and higher-order equations. Students will learn to use numerical techniques, slope fields, phase planes, and null clines to extract information about models. Students will learn techniques for solving equations, integrating factors, methods of undetermined coefficients, variation of parameters, eigenvalues, and Laplace transforms.',
     weightCategory: 'standard',
   },
   {
@@ -746,7 +751,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10],
     prerequisite: 'Algebra 1 or Equivalent',
-    description: 'Geometry is a one-year course which introduces the student to the fundamentals of Geometry. Among the units of study covered during the year will be: Congruence; Similarity, Right Triangles, and Trigonometry; Circles;...',
+    description: 'Geometry is a one-year course which introduces the student to the fundamentals of Geometry. Among the units of study covered during the year will be: Congruence; Similarity, Right Triangles, and Trigonometry; Circles; Expressing Geometric Properties with Equations; Geometric Measurement and Dimensions; Modeling with Geometry. In addition to the development of skills necessary for the students\' progression to higher level courses in this subject area, we seek to cultivate a sense of appreciation of mathematics for its aesthetic value. Students will develop skills in order to: Make sense of problems and persevere in solving them; Reason abstractly and quantitatively; Construct viable arguments and critique the reasoning of others; Model with mathematics; Use appropriate tools strategically; Attend to precision; Look for and make use of structure; Look for and express regularity in repeated reasoning. This course concludes with the Geometry Regents Examination.',
     weightCategory: 'standard',
   },
   {
@@ -786,7 +791,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Algebra 2',
-    description: 'This course is a continuation of the mathematics of the eleventh year with the specific goal of teaching prerequisites for calculus. The content will include the real number system with an extension to include complex...',
+    description: 'This course is a continuation of the mathematics of the eleventh year with the specific goal of teaching prerequisites for calculus. The content will include the real number system with an extension to include complex numbers, function theory, limit of a function, analytic geometry of two and three dimensions, and formulas for mensuration of solids.',
     weightCategory: 'standard',
   },
   {
@@ -816,7 +821,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Completed middle school band or audition by director',
-    description: 'The High School Symphonic Band is a performance organization that explores literature appropriate for the development of rhythm, tone, pitch, balance and blend within the band. Enrollment is determined by audition...',
+    description: 'The High School Symphonic Band is a performance organization that explores literature appropriate for the development of rhythm, tone, pitch, balance and blend within the band. Enrollment is determined by audition and/or permission of the director. In general, a band student must have completed several years of successful study on a band instrument (brass, woodwind, percussion) and be playing at NYSSMA level 3 to be eligible for performance of intermediate band literature. Participation in Symphonic Band involves the study, rehearsal, and performance of intermediate band literature. Students will be playing at NYSSMA level 3, 4, and 5. Enrolled band members are expected to attend daily scheduled rehearsals and weekly instrumental lessons which focus on the improvement of instrumental techniques. During the first six weeks of school, Symphonic Band members will work on marching band music as part of the curriculum. Students are expected to perform in all performances of the Symphonic Band before the public during the school year. This includes several evening concerts, and may include performance at the NYSSMA Major Organization Festival, Carnegie Hall, or Lincoln Center. Except for seniors, band members are expected to perform at graduation ceremonies. Select students may also participate in special county or state music festivals. Symphonic Band members are encouraged to participate in the competitive Marching Band. This course meets the graduation requirement for the Art/Music credit.',
     weightCategory: 'standard',
   },
   {
@@ -836,7 +841,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: "This auditioned course offers Roslyn's most advanced musicians the chance to engage in ongoing practice, develop refined technical and interpretive skills, and collaborate at a high artistic level. In addition to...",
+    description: 'This auditioned course offers Roslyn\'s most advanced musicians the chance to engage in ongoing practice, develop refined technical and interpretive skills, and collaborate at a high artistic level. In addition to developing the technical skills described in the Wind Ensemble course, Honors students will participate in evaluations and assessments throughout the year to reinforce key musical concepts and encourage consistent reflection.',
     weightCategory: 'honors',
   },
   {
@@ -856,7 +861,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: "This auditioned course offers Roslyn's most advanced musicians the chance to engage in ongoing practice, develop refined technical and interpretive skills, and collaborate at a high artistic level. In addition to...",
+    description: 'This auditioned course offers Roslyn\'s most advanced musicians the chance to engage in ongoing practice, develop refined technical and interpretive skills, and collaborate at a high artistic level. In addition to developing the technical skills described in the Chamber Singers course, Honors students will participate in evaluations and assessments throughout the year to reinforce key musical concepts and encourage consistent reflection.',
     weightCategory: 'honors',
   },
   {
@@ -906,7 +911,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This full-year course covers, but is not limited to, the following topics: notes, rhythms, clefs, time signatures, accidentals, whole & half-steps, intervals, scales, triads, seventh chords, inversions, counterpoint,...',
+    description: 'This full-year course covers, but is not limited to, the following topics: notes, rhythms, clefs, time signatures, accidentals, whole & half-steps, intervals, scales, triads, seventh chords, inversions, counterpoint, voice leading, chord progressions, cadences, non-harmonic tones, figured bass, secondary dominants, sight singing, aural identification of intervals & chords and melodic, harmonic & rhythmic dictation. This course is intended to be the first in a two-course sequence, the second being Advanced Placement Music Theory.',
     weightCategory: 'standard',
   },
   {
@@ -926,7 +931,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Completed middle school orchestra or audition by director',
-    description: 'The High School String Orchestra is a performance organization that explores literature appropriate for the development of rhythm, tone, pitch, balance and blend within the orchestra. Enrollment is determined by...',
+    description: 'The High School String Orchestra is a performance organization that explores literature appropriate for the development of rhythm, tone, pitch, balance and blend within the orchestra. Enrollment is determined by audition and/or permission of the director. In general, a string orchestra student must have completed several years of successful study on a stringed instrument and be playing at NYSSMA level 3 to be eligible for enrollment. Participation in the String Orchestra involves the study, rehearsal, and performance of intermediate orchestral literature. Students will be playing at NYSSMA level 4. Enrolled orchestra members are expected to attend daily scheduled rehearsals and weekly instrumental lessons which focus on the improvement of instrumental techniques. Students are expected to perform in all performances of the String Orchestra before the public during the school year. This course meets the graduation requirement for the Art/Music credit.',
     weightCategory: 'standard',
   },
   {
@@ -936,7 +941,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Completed middle school band or audition by director',
-    description: 'The High School Symphonic Band is a performance organization that explores literature appropriate for the development of rhythm, tone, pitch, balance and blend within the band. Enrollment is determined by audition...',
+    description: 'The High School Symphonic Band is a performance organization that explores literature appropriate for the development of rhythm, tone, pitch, balance and blend within the band. Enrollment is determined by audition and/or permission of the director. In general, a band student must have completed several years of successful study on a band instrument (brass, woodwind, percussion) and be playing at NYSSMA level 3 to be eligible for performance of intermediate band literature. Participation in Symphonic Band involves the study, rehearsal, and performance of intermediate band literature. Students will be playing at NYSSMA level 3, 4, and 5. Enrolled band members are expected to attend daily scheduled rehearsals and weekly instrumental lessons which focus on the improvement of instrumental techniques. During the first six weeks of school, Symphonic Band members will work on marching band music as part of the curriculum. Students are expected to perform in all performances of the Symphonic Band before the public during the school year. This includes several evening concerts, and may include performance at the NYSSMA Major Organization Festival, Carnegie Hall, or Lincoln Center. Except for seniors, band members are expected to perform at graduation ceremonies. Select students may also participate in special county or state music festivals. Symphonic Band members are encouraged to participate in the competitive Marching Band. This course meets the graduation requirement for the Art/Music credit.',
     weightCategory: 'standard',
   },
   {
@@ -946,7 +951,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'Theatre is a semester-long course designed for all students regardless of their theatre background. This course will focus on developing acting skills through improvisation, theatre games, monologues, scene work, script...',
+    description: 'Theatre is a semester-long course designed for all students regardless of their theatre background. This course will focus on developing acting skills through improvisation, theatre games, monologues, scene work, script analysis, and performance.',
     weightCategory: 'standard',
   },
   {
@@ -966,7 +971,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: "This auditioned course offers Roslyn's most advanced musicians the chance to engage in ongoing practice, develop refined technical and interpretive skills, and collaborate at a high artistic level. In addition to...",
+    description: 'This auditioned course offers Roslyn\'s most advanced musicians the chance to engage in ongoing practice, develop refined technical and interpretive skills, and collaborate at a high artistic level. In addition to developing the technical skills described in the Wind Ensemble course, Honors students will participate in evaluations and assessments throughout the year to reinforce key musical concepts and encourage consistent reflection.',
     weightCategory: 'honors',
   },
   {
@@ -986,7 +991,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This course will teach students to identify and react in various emergency situations. This course provides students with the opportunity to become certified in First Aid, Cardiovascular Pulmonary Resuscitation and the...',
+    description: 'This course will teach students to identify and react in various emergency situations. This course provides students with the opportunity to become certified in First Aid, Cardiovascular Pulmonary Resuscitation and the use of an Automated External Defibrillator.',
     weightCategory: 'standard',
   },
   {
@@ -996,7 +1001,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This mandatory course gives students the opportunity to study the factors involved with the development of good mental, physical and social wellness. Contemporary health units such as Communication, Stress Management,...',
+    description: 'This mandatory course gives students the opportunity to study the factors involved with the development of good mental, physical and social wellness. Contemporary health units such as Communication, Stress Management, Substance Abuse, Human Sexuality, AIDS Education, Violence Prevention and Parenting are emphasized. Students are provided with factual information to heighten knowledge so that they may make well-informed and sound choices, develop skills and attitudes, and examine the benefits of a positive, healthy lifestyle.',
     weightCategory: 'standard',
   },
   {
@@ -1006,7 +1011,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This class will expose students to a wide variety of team and individual sports, adventure education, lifetime and leisure experiences at a more competitive level than traditional physical education. The program is...',
+    description: 'This class will expose students to a wide variety of team and individual sports, adventure education, lifetime and leisure experiences at a more competitive level than traditional physical education. The program is designed to provide all students with opportunities for mental, physical and social growth and development through physical activities.',
     weightCategory: 'standard',
   },
   {
@@ -1016,7 +1021,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This is an introductory yoga course designed to introduce students, safely and accessibly, to the basic postures, breathing techniques, and relaxation methods of yoga. Students will experience the benefits of...',
+    description: 'This is an introductory yoga course designed to introduce students, safely and accessibly, to the basic postures, breathing techniques, and relaxation methods of yoga. Students will experience the benefits of stretching, moving, and breathing freely as they relieve built up stress, learn to relax, and ultimately get more out of day-to-day life.',
     weightCategory: 'standard',
   },
   {
@@ -1036,7 +1041,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Recommended grade of 90+ in three Honors sciences',
-    description: 'This is a college level program in biology studying the various aspects of comparative adaptations of selected organisms for survival. This course is for talented and dedicated science students with a special interest...',
+    description: 'This is a college level program in biology studying the various aspects of comparative adaptations of selected organisms for survival. This course is for talented and dedicated science students with a special interest in biology. Classes meet in single and double periods on alternate days. Students who take this course are encouraged to take physics, either as a corequisite, prerequisite or in a subsequent year. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1066,7 +1071,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Recommended grade of 90+ in three sciences, Precalculus',
-    description: 'This course is equivalent to a 1st semester college physics course for advanced students having an aptitude for science and math. Students explore principles of Newtonian mechanics (including rotational motion); work,...',
+    description: 'This course is equivalent to a 1st semester college physics course for advanced students having an aptitude for science and math. Students explore principles of Newtonian mechanics (including rotational motion); work, energy, and power; mechanical waves and sound; and introductory to simple circuits. The course is based on six Big Ideas, which encompass core scientific principles, theories, and processes that cut across traditional boundaries and provide a broad way of thinking about the physical world. Emphasis is placed upon developing problem solving skills. Facility in algebra and geometry is necessary. Students taking this course must take the AP Exam. Classes meet in double and single periods on alternate days.',
     weightCategory: 'ap',
   },
   {
@@ -1076,7 +1081,7 @@ export const COURSES = [
     credit: 2,
     gradeLevels: [11, 12],
     prerequisite: 'Recommended grade of 90+ in three sciences, Precalculus',
-    description: 'This course is equivalent to a 1ST and 2nd semester college physics course. Students explore principles of Newtonian mechanics (including rotational motion); work, energy, and power; mechanical waves and sound; and...',
+    description: 'This course is equivalent to a 1st and 2nd semester college physics course. Students explore principles of Newtonian mechanics (including rotational motion); work, energy, and power; mechanical waves and sound; and introductory to simple circuits; principles of fluids; thermodynamics; electricity; magnetism; optics; and topics in modern physics. Classes meet for two periods every day. Students enrolled are expected to take both the AP Physics 1 and the AP Physics 2 Exams. Students who already took AP Physics 1 are not eligible to take this class.',
     weightCategory: 'ap',
   },
   {
@@ -1086,7 +1091,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'AP Calculus',
-    description: "The AP Physics C: Mechanics course applies both differential and integral calculus and provides instruction in each of the following six content areas: Kinematics, Newton's laws of motion, Work, Energy, Power, Systems...",
+    description: 'The AP Physics C: Mechanics course applies both differential and integral calculus and provides instruction in each of the following six content areas: Kinematics, Newton\'s laws of motion, Work, Energy, Power, Systems of particles, Circular motion and Oscillations. The AP Physics C: Electricity and Magnetism course applies both differential and integral calculus, and builds upon the AP Physics C: Mechanics course by providing instruction in each of the following five content areas: Electrostatics, Conductors, Electric circuits, Magnetic fields and Electromagnetism. Classes meet in double and single periods on alternate days. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1096,7 +1101,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: 'Pre-Med',
-    description: "Take your love for medicine further in this exciting Advanced Pre-Med course! Building on everything you learned in Pre-Med; you'll dive deeper into human anatomy with even more hands-on virtual dissection and case...",
+    description: 'Take your love for medicine further in this exciting Advanced Pre-Med course! Building on everything you learned in Pre-Med; you\'ll dive deeper into human anatomy with even more hands-on virtual dissection and case studies using the state-of-the-art Anatomage table. You\'ll explore real-world medical challenges and complex systems of the human body. Whether you\'re planning to be a doctor, nurse, or healthcare innovator, this course will fuel your future medical career with knowledge and hands-on experience!',
     weightCategory: 'standard',
   },
   {
@@ -1116,7 +1121,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10],
     prerequisite: 'Recommended grade of 90+ in Earth Science Honors',
-    description: 'This course is based on the New York State Regents Syllabus in Biology. This is an intensive, enriched program focusing on a molecular approach to biology as well as the comparative adaptations of selected organisms for...',
+    description: 'This course is based on the New York State Regents Syllabus in Biology. This is an intensive, enriched program focusing on a molecular approach to biology as well as the comparative adaptations of selected organisms for adaptive survival. Classes meet in double and single periods on alternate days. Students are required to complete 1200 minutes of satisfactory laboratory time to sit for the Regents Exam in June.',
     weightCategory: 'honors',
   },
   {
@@ -1146,7 +1151,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9],
     prerequisite: null,
-    description: 'This course is based on the New York State Regents Syllabus in Earth & Space Science. By means of numerous laboratory investigations, and classroom recitation, students study the basic processes producing changes in the...',
+    description: 'This course is based on the New York State Regents Syllabus in Earth & Space Science. By means of numerous laboratory investigations, and classroom recitation, students study the basic processes producing changes in the Earth\'s crust, atmosphere, oceans, and surface. Theoretical aspects of the subject are covered through classwork, laboratory investigations, mathematical abstractions, visual materials, fieldwork and independent investigations. Classes meet in double and single periods on alternate days. Students are required to complete 1200 minutes of satisfactory laboratory time to sit for the Regents Exam in June.',
     weightCategory: 'standard',
   },
   {
@@ -1206,7 +1211,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11],
     prerequisite: 'Earth Science, Living Environment, Geometry',
-    description: 'This course is based on the New York State Regents Syllabus in The Physical Setting: Chemistry. The course develops the unifying principles of chemistry and includes the topics of: atomic structure, properties of...',
+    description: 'This course is based on the New York State Regents Syllabus in The Physical Setting: Chemistry. The course develops the unifying principles of chemistry and includes the topics of: atomic structure, properties of matter, the periodic table, bonding, organic chemistry and nuclear chemistry. Classes meet in double and single periods on alternate days. Students are required to complete 1200 minutes of satisfactory laboratory time to sit for the Regents Exam in June.',
     weightCategory: 'standard',
   },
   {
@@ -1216,7 +1221,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11],
     prerequisite: 'Two years of Regents Sciences',
-    description: 'This course will explore major concepts in Chemistry through exploratory laboratory activities, projects, videos and virtual experiences. Fundamental concepts include atomic structure, chemical reactions, nuclear...',
+    description: 'This course will explore major concepts in Chemistry through exploratory laboratory activities, projects, videos and virtual experiences. Fundamental concepts include atomic structure, chemical reactions, nuclear chemistry, periodic table, behavior of matter, heat and energy. Connections will be made to real-world applications and experiences.',
     weightCategory: 'standard',
   },
   {
@@ -1226,7 +1231,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Two years of Regents Sciences',
-    description: 'This course is designed for students to investigate fundamental physics as it is applied to real-world phenomena. Students will spend significant time completing hands-on activities, where concepts will be stressed over...',
+    description: 'This course is designed for students to investigate fundamental physics as it is applied to real-world phenomena. Students will spend significant time completing hands-on activities, where concepts will be stressed over mathematics. Major topics include: motion, forces, electricity, magnetism, waves, optics and energy.',
     weightCategory: 'standard',
   },
   {
@@ -1246,7 +1251,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: 'Living Environment',
-    description: "Ready to explore the world of medicine up close? In Pre-Med, you'll step into a world of cutting-edge medical technology and human anatomy, using the Anatomage Dissection Table with actual scans of human cadavers for...",
+    description: 'Ready to explore the world of medicine up close? In Pre-Med, you\'ll step into a world of cutting-edge medical technology and human anatomy, using the Anatomage Dissection Table with actual scans of human cadavers for realistic, virtual dissections. From studying organs to the brain, you\'ll experience medical school-level learning while gaining a deeper understanding of how the human body functions. Whether you dream of being a doctor or a scientist, this course will give you the skills and knowledge to take your passion for medicine to the next level! This course is offered in rotating years.',
     weightCategory: 'standard',
   },
   {
@@ -1266,7 +1271,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10],
     prerequisite: null,
-    description: "The aim of the Advanced Placement European History course is to build on the students' knowledge of the factual narrative of history and to develop: a) an understanding of some of the principal themes in modern European...",
+    description: 'The aim of the Advanced Placement European History course is to build on the students\' knowledge of the factual narrative of history and to develop: a) an understanding of some of the principal themes in modern European history; b) an awareness of the consequences of European contacts with other areas of the world; and c) an ability to analyze historical interpretations and primary sources. The chronological period begins with the high Renaissance and concludes with present day issues. After the Advanced Placement Exam in mid-May, the course will concentrate on preparing the students for the Global History and Geography Regents Examination. Students taking this course must take the AP Exam .',
     weightCategory: 'ap',
   },
   {
@@ -1276,7 +1281,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This course contains subject matter that blends historical perspective with issues that are relevant to the contemporary world, including local, national and global current events. Human Geography is a social science...',
+    description: 'This course contains subject matter that blends historical perspective with issues that are relevant to the contemporary world, including local, national and global current events. Human Geography is a social science class that extends beyond the parameters of history. The course will provide students with the ability to explore important topics such as population and migration, culture, politics, agriculture, food production, cities, and economic development. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1286,7 +1291,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: null,
-    description: '(Satisfies Economics Requirement) AP Macroeconomics prepares students for the AP exam in the spring. Students explore the following areas of study: basic economic concepts (e.g., supply and demand, opportunity costs,...',
+    description: '(Satisfies Economics Requirement) AP Macroeconomics prepares students for the AP exam in the spring. Students explore the following areas of study: basic economic concepts (e.g., supply and demand, opportunity costs, comparative advantage); GNP, national income, inflation, price indexes, unemployment; national income and price determination (aggregate demand, money and banking, fiscal and monetary policy); economic growth; international trade). Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1306,7 +1311,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11],
     prerequisite: null,
-    description: 'The American History AP course is designed to give the student a background in the chronology of US History and in major interpretive questions that derive from the study of selected themes. It is the equivalent of a...',
+    description: 'The American History AP course is designed to give the student a background in the chronology of US History and in major interpretive questions that derive from the study of selected themes. It is the equivalent of a one-year introductory college course in US History from 1607 to the present. The course will provide students with an understanding of primary sources including documentary material, maps, statistical tables, and pictorial and graphic evidence of historical events. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1316,7 +1321,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: null,
-    description: '(Satisfies Participation in Government Requirement) AP Government and Politics prepares students for the AP exam in the spring. It provides in-depth study of the following areas: constitutional underpinnings of the US...',
+    description: '(Satisfies Participation in Government Requirement) AP Government and Politics prepares students for the AP exam in the spring. It provides in-depth study of the following areas: constitutional underpinnings of the US Government; political beliefs and behavior of citizens; political parties, interest groups and mass media; institutions of national government-the Congress, the Presidency, the Federal Courts and the bureaucracy; public policy; civil liberties and civil rights. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1326,7 +1331,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This course challenges students to become legal investigators and to learn methods actually used by lawyers and detectives to solve case mysteries. Students will be presented with real-life problem scenarios, which they...',
+    description: 'This course challenges students to become legal investigators and to learn methods actually used by lawyers and detectives to solve case mysteries. Students will be presented with real-life problem scenarios, which they will analyze with their investigative team. Investigative techniques such as wire taping, fingerprinting, documentary evidence, crime scene analysis, interrogation, and interviewing will be taught. Evidentiary rules of law will be explored with emphasis on legal ethics, reform, rights of victims and those accused of civil and criminal wrongs. This course is offered in alternate years.',
     weightCategory: 'standard',
   },
   {
@@ -1336,7 +1341,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'The Child Psychology course is a half year elective designed to introduce students to the systematic study of the behavioral and mental development of human beings from infancy through childhood and adolescence into...',
+    description: 'The Child Psychology course is a half year elective designed to introduce students to the systematic study of the behavioral and mental development of human beings from infancy through childhood and adolescence into young adulthood. This course will acquaint students with the psychological, cultural and historical factors that interact to influence and shape this development. Students will learn the psychological theories associated with the foundations of child development with a focus on key developmental themes, including pre-natal, neural and biological, learning and cognitive, social-emotional, personality, gender-role, and moral development among others. These concepts will be taught by means of case material, films, and student life experiences. Students will learn the various functions of a child\'s behaviors and be able to predict future behaviors by understanding behavioral patterns. Students will also develop skills in the scientific approach and critical thinking.',
     weightCategory: 'standard',
   },
   {
@@ -1346,7 +1351,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: null,
-    description: 'This one-semester course focuses on economic decision-making. Specific areas to be studied include the problem of scarcity and economic choice, the importance of financial markets, the federal reserve system, government...',
+    description: 'This one-semester course focuses on economic decision-making. Specific areas to be studied include the problem of scarcity and economic choice, the importance of financial markets, the federal reserve system, government and fiscal policy, social welfare concerns, and international trade.',
     weightCategory: 'standard',
   },
   {
@@ -1356,7 +1361,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [12],
     prerequisite: '3 Social Studies credits',
-    description: 'This honors level course follows the curriculum design for Economics but with greater emphasis on readings in economic philosophy. It is offered as an advanced course for highly motivated students and includes an...',
+    description: 'This honors level course follows the curriculum design for Economics but with greater emphasis on readings in economic philosophy. It is offered as an advanced course for highly motivated students and includes an extensive research component.',
     weightCategory: 'honors',
   },
   {
@@ -1366,7 +1371,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9],
     prerequisite: null,
-    description: 'This course is the first year of a two-year Global History curriculum. The Global I curriculum is designed to give students an overview of the events that have shaped the history of the world from the Paleolithic era...',
+    description: 'This course is the first year of a two-year Global History curriculum. The Global I curriculum is designed to give students an overview of the events that have shaped the history of the world from the Paleolithic era through the late 1700s. The curriculum allows students to compare the development of civilizations in Europe, the Middle East, China, India, Japan, Africa, and Latin America and promotes an appreciation and understanding of the interdependence of societies. This is the first year of a two-year sequence in Global History.',
     weightCategory: 'standard',
   },
   {
@@ -1396,7 +1401,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10],
     prerequisite: null,
-    description: 'This advanced elective for highly motivated students follows the curriculum design of Global History 2. An emphasis on critical thinking and analytical skills brings the student into contact with the political, social,...',
+    description: 'This advanced elective for highly motivated students follows the curriculum design of Global History 2. An emphasis on critical thinking and analytical skills brings the student into contact with the political, social, and economic ideas out of which the modern world emerges. This course is the second year of a two-year sequence in Global History and culminates in the Regents Examination in Global History.',
     weightCategory: 'honors',
   },
   {
@@ -1406,7 +1411,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [11, 12],
     prerequisite: "Research Seminar and/or Research Coordinator's Approval",
-    description: 'Students who have completed a research project at a research lab, with an outside mentor, or via two years of work in seminar, may enroll in Independent Study Research. Students will meet with the Research Coordinator...',
+    description: 'Students who have completed a research project at a research lab, with an outside mentor, or via two years of work in seminar, may enroll in Independent Study Research. Students will meet with the Research Coordinator weekly at a mutually convenient time to prepare projects for entry into research competitions. Student are required to work on their projects during the summer preceding their senior year and to enter the Regeneron Science Talent Search in the fall of their senior year.',
     weightCategory: 'standard',
   },
   {
@@ -1416,7 +1421,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10],
     prerequisite: 'Students must be enrolled in honors level math and science classes.',
-    description: 'This one-semester class is intended for students who are interested in a general overview of research in the natural, behavioral, and social sciences. Students will be introduced to common methods and concepts used by...',
+    description: 'This one-semester class is intended for students who are interested in a general overview of research in the natural, behavioral, and social sciences. Students will be introduced to common methods and concepts used by researchers in these disciplines. Topics will include the scientific method, survey design, and statistics. Students will work in small groups to complete a mini-project in which they apply their new skills.',
     weightCategory: 'standard',
   },
   {
@@ -1426,7 +1431,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: "Discover the stories that shaped our home! In this course, students will explore Long Island's rich and diverse history, from Native American life and early colonial settlements to the rise of suburbs, beaches, and...",
+    description: 'Discover the stories that shaped our home! In this course, students will explore Long Island\'s rich and diverse history, from Native American life and early colonial settlements to the rise of suburbs, beaches, and industries that define our region today. Through local maps, historic sites, and community connections, students will uncover how Long Island has influenced New York and the nation. Class activities may include walking tours, guest speakers, and research projects that bring local history to life. This course will be taught by a dual certified special education/social studies teacher, and will be appropriately differentiated for students in the class. This elective will be open to all learners who are interested in earning elective credits in Social Studies.',
     weightCategory: 'standard',
   },
   {
@@ -1456,7 +1461,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This is an introduction to some of the traditional and contemporary schools of psychology and the study of human behavior. Topics to be considered include personality development, culture and personality, and...',
+    description: 'This is an introduction to some of the traditional and contemporary schools of psychology and the study of human behavior. Topics to be considered include personality development, culture and personality, and interpersonal relationships. A student may not take this course if they have taken AP Psychology. This course is offered in alternate years.',
     weightCategory: 'standard',
   },
   {
@@ -1476,7 +1481,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11],
     prerequisite: 'Introduction to Research',
-    description: 'In this small-group class, students will be guided through all aspects of the research process including the literature review, design of the method, data collection and analysis, and preparation for contests. While the...',
+    description: 'In this small-group class, students will be guided through all aspects of the research process including the literature review, design of the method, data collection and analysis, and preparation for contests. While the class will meet formally every other day, students will be required to devote a significant amount of time to working independently outside of the regularly scheduled class. Students will take the seminar class for 2 to 4 semesters, depending upon the pace of their progress.',
     weightCategory: 'standard',
   },
   {
@@ -1486,7 +1491,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'Are you ready to make a difference in Roslyn and beyond? The Roslyn Leadership Academy course offers students the chance to build real leadership skills through hands-on work that simultaneously improves their school...',
+    description: 'Are you ready to make a difference in Roslyn and beyond? The Roslyn Leadership Academy course offers students the chance to build real leadership skills through hands-on work that simultaneously improves their school and community. Through a wide range of activities, team projects, and service experiences, students will strengthen their confidence, communication, and ability to work with others. If you are interested in qualifying for the NYSED Seal of Civic Readiness, this is the class for you! Leadership students will be in ongoing dialogue with our school and local communities, surveying various stakeholders to assess needs and develop projects that improve the quality of life for all. Their work may include starting new projects related to community needs, or supporting existing school/ district initiatives. Leadership students will tackle projects collaboratively, enhancing their communication, teamwork, organization, self-awareness, and relationship building skills. By the end of the course, students will have the tools to lead with purpose and make a positive impact in the world. This course will also help students fulfill certain requirements for the NYSED Seal of Civic Readiness, a formal recognition that a student has attained a high level of proficiency in terms of civic knowledge, civic skills, civic mindset, and civic experiences. Students will also earn community service hours for graduation.',
     weightCategory: 'standard',
   },
   {
@@ -1496,7 +1501,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Independent Study Research - Fall',
-    description: 'This class is solely for seniors during their spring semester. After completing their independent research in the fall, seniors will enroll in a small seminar that discusses current issues in STEM and research on...',
+    description: 'This class is solely for seniors during their spring semester. After completing their independent research in the fall, seniors will enroll in a small seminar that discusses current issues in STEM and research on alternate days.',
     weightCategory: 'standard',
   },
   {
@@ -1506,7 +1511,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This is a half-year philosophy course wherein students will explore different theories concerning moral goodness, rightness, happiness, freedom and individual responsibility. Students will grapple with ethical scenarios...',
+    description: 'This is a half-year philosophy course wherein students will explore different theories concerning moral goodness, rightness, happiness, freedom and individual responsibility. Students will grapple with ethical scenarios and difficult decision-making situations and in the process become familiar with the ethical theories of classical and contemporary thinkers and writers. Through extended discussion, students will exchange and build upon each other\'s ideas through active listening and speaking. This course is offered in alternate years.',
     weightCategory: 'standard',
   },
   {
@@ -1516,7 +1521,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11],
     prerequisite: null,
-    description: 'A review of enduring constitutional issues sets the stage for an analysis of America as an industrialized nation and as a world power. The emphasis is given to America in the 19th and 20th centuries, foreign policy,...',
+    description: 'A review of enduring constitutional issues sets the stage for an analysis of America as an industrialized nation and as a world power. The emphasis is given to America in the 19th and 20th centuries, foreign policy, global interdependence, and issues of war and peace. The year-long course culminates in the Regents Examination in U.S. History and Government.',
     weightCategory: 'standard',
   },
   {
@@ -1546,7 +1551,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Chinese 4/4H',
-    description: 'This course is equivalent to an intermediate-level college course in Chinese. Students cultivate their understanding of Chinese language and culture by applying the interpersonal, interpretive, and presentational modes...',
+    description: 'This course is equivalent to an intermediate-level college course in Chinese. Students cultivate their understanding of Chinese language and culture by applying the interpersonal, interpretive, and presentational modes of communication in real-life situations as they explore concepts related to family and community, personal and public identity, beauty and aesthetics, science and technology, contemporary life, and global challenges. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1576,7 +1581,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This beginning level course is for students who have already fulfilled their world language requirement and want to begin the study of a second language. The basic language skills of the language are introduced and...',
+    description: 'This beginning level course is for students who have already fulfilled their world language requirement and want to begin the study of a second language. The basic language skills of the language are introduced and studied.',
     weightCategory: 'standard',
   },
   {
@@ -1586,7 +1591,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This mid-level course is for students who have already completed level one and fulfilled their world language requirement and want to continue the study of American Sign Language. The basic language skills of the...',
+    description: 'This mid-level course is for students who have already completed level one and fulfilled their world language requirement and want to continue the study of American Sign Language. The basic language skills of the language are continued and studied.',
     weightCategory: 'standard',
   },
   {
@@ -1596,7 +1601,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: null,
-    description: 'This intermediate level course is for students who have already completed level one and two of American Sign Language and fulfilled their world language requirement and want to continue the study of American Sign...',
+    description: 'This intermediate level course is for students who have already completed level one and two of American Sign Language and fulfilled their world language requirement and want to continue the study of American Sign Language. The basic language skills of the language are continued and studied. This course culminates Checkpoint B Examination.',
     weightCategory: 'standard',
   },
   {
@@ -1606,7 +1611,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: null,
-    description: 'ASL IV focuses on vocabulary expansion and manual and non-manual aspects of ASL, ASL linguistics, cross-cultural communication, and cultural knowledge at an advanced level. This course is for students who have completed...',
+    description: 'ASL IV focuses on vocabulary expansion and manual and non-manual aspects of ASL, ASL linguistics, cross-cultural communication, and cultural knowledge at an advanced level. This course is for students who have completed level three of American Sign Language and thus fulfilled their world language requirement yet want to continue the study of American Sign Language.',
     weightCategory: 'standard',
   },
   {
@@ -1726,7 +1731,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10],
     prerequisite: null,
-    description: 'This beginning level course is for students who have not yet studied a foreign language in the middle school and/or who have not been successful at the middle school level. The basic language skills of listening,...',
+    description: 'This beginning level course is for students who have not yet studied a foreign language in the middle school and/or who have not been successful at the middle school level. The basic language skills of listening, speaking, reading, and writing are developed. Emphasis is placed on the oral communication skills of listening and speaking. The basic patterns of the language are introduced. Students will be covering the 7th and 8th grade curriculum in one year in order to be able to take the Regents their junior or senior year.',
     weightCategory: 'standard',
   },
   {
@@ -1806,7 +1811,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Spanish 3/3H',
-    description: 'This course explores contemporary themes in Spanish and Latin American cultures through the lens of short stories and films from these regions. Students will engage with texts and media that reflect the diverse...',
+    description: 'This course explores contemporary themes in Spanish and Latin American cultures through the lens of short stories and films from these regions. Students will engage with texts and media that reflect the diverse perspectives and rich traditions of the Spanish-speaking world. Emphasis is placed on promoting fluency in Spanish through dynamic conversations and creative projects. This course is for students looking to strengthen their speaking abilities and gain insights into the modern cultural landscape of Spain and Latin America.',
     weightCategory: 'standard',
   },
   {
@@ -1826,7 +1831,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Introduction to JAVA',
-    description: 'This course is comparable to that of a first-year course offered in college and university computer science departments and is intended to serve both as an introductory course for computer science majors and as a...',
+    description: 'This course is comparable to that of a first-year course offered in college and university computer science departments and is intended to serve both as an introductory course for computer science majors and as a substantial service course for students who will major in other disciplines that require significant involving with computing. A primary objective is to learn how to write logically structured, well-documented computer programs using JAVA as the programming language. The major emphasis is on programming methodology, algorithms, and data structures. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1836,7 +1841,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'This full year course introduces students to the central ideas of computer science, instilling the ideas and practices of computational thinking and inviting students to understand how computing changes the world. This...',
+    description: 'This full year course introduces students to the central ideas of computer science, instilling the ideas and practices of computational thinking and inviting students to understand how computing changes the world. This AP course promotes deep learning of computational content, develops computational thinking skills, and engages students in the creative aspects of the field. Students taking this course must take the AP Exam.',
     weightCategory: 'ap',
   },
   {
@@ -1846,7 +1851,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: 'Introduction to Robotics or Building and Coding experience',
-    description: "Take your robotics skills to the next level in this high-energy, hands-on course! You'll dive into complex designs, learn about gear systems, pulleys, and advanced programming techniques, and build robots that can solve...",
+    description: 'Take your robotics skills to the next level in this high-energy, hands-on course! You\'ll dive into complex designs, learn about gear systems, pulleys, and advanced programming techniques, and build robots that can solve real-world problems autonomously. Whether you\'re perfecting your coding skills or refining mechanical systems, this course will challenge your creativity, technical abilities, and problem-solving skills in the thrilling world of robotics!',
     weightCategory: 'standard',
   },
   {
@@ -1876,7 +1881,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'Elevate to the skies with this exciting course that blends all aspects of STEM into your classroom. This course will integrate VEX Air Drones into classroom activities and competitive arenas, providing students with a...',
+    description: 'Elevate to the skies with this exciting course that blends all aspects of STEM into your classroom. This course will integrate VEX Air Drones into classroom activities and competitive arenas, providing students with a hands-on tool to explore the principles of robotics, technology and aeronautics. From obstacle navigation to precision landing, students will develop teamwork, problem-solving, and creative design skills. Whether you are a future engineer or just love to fly, this course turns STEM learning into a fun-filled adventure.',
     weightCategory: 'standard',
   },
   {
@@ -1926,7 +1931,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: "Step into the exciting world of Artificial Intelligence (AI) and master the art of Prompt Engineering-the key to getting AI tools to work for you! In this course, you'll learn how to design powerful prompts that guide...",
+    description: 'Step into the exciting world of Artificial Intelligence (AI) and master the art of Prompt Engineering-the key to getting AI tools to work for you! In this course, you\'ll learn how to design powerful prompts that guide chatbots, image generators, and other AI systems to produce amazing results. Along the way, you\'ll explore the science behind AI, its real-world applications, and tackle big questions about ethics, fairness, and privacy. Through hands-on projects, creative challenges, and lively discussions, you\'ll gain the cutting-edge skills needed to harness AI\'s potential and thrive in a tech-driven future!',
     weightCategory: 'standard',
   },
   {
@@ -1936,7 +1941,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: null,
-    description: 'Media Broadcasting Production is for juniors and seniors interested in exploring the worlds of television/video production and broadcast journalism. Students will put together a weekly news show to be broadcasted to the...',
+    description: 'Media Broadcasting Production is for juniors and seniors interested in exploring the worlds of television/video production and broadcast journalism. Students will put together a weekly news show to be broadcasted to the high school. In the production studio, students will engage in a series of projects that will build career and college ready skills while serving the school and local community with in-depth, current and thought-provoking news stories. Students will research topics, write news scripts and film the news each week. Students will have the opportunity to enhance their editing skills through a variety of video projects and assignments. This course is perfect for those students who want a hands-on experience in the world of digital editing and broadcasting. Due to the nature and expectations of this course, students will be required to fill out an application and interview.',
     weightCategory: 'standard',
   },
   {
@@ -1946,7 +1951,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [12],
     prerequisite: 'Media Broadcasting Production 1',
-    description: 'Media Broadcasting Production II is designed for seniors who have successfully completed Media Broadcasting Production, offering an advanced exploration of media production techniques. Students will refine their skills...',
+    description: 'Media Broadcasting Production II is designed for seniors who have successfully completed Media Broadcasting Production, offering an advanced exploration of media production techniques. Students will refine their skills in production, interview techniques, and Adobe Premiere proficiency. The curriculum offers students the opportunity to delve into advanced videography, Tricaster effects, and the intricacies of staffing requirements for media production. In this course, students step into leadership roles, taking on the responsibility of creating a weekly news show destined for broadcast within the high school. Students will actively engage in the entire production process each week, ensuring the seamless execution of a captivating RTV show. This hands-on course cultivates teamwork and leadership skills essential for success in the dynamic field of media production. Due to the nature and expectations of this course, students will be required to fill out an application and interview.',
     weightCategory: 'standard',
   },
   {
@@ -1956,7 +1961,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: 'DDP-IED',
-    description: 'This is the third course in the PLTW Engineering curriculum. New building plans look impressive onscreen, but how would that cool structural design you developed stand up to a flood, earthquake, city inspector, or...',
+    description: 'This is the third course in the PLTW Engineering curriculum. New building plans look impressive onscreen, but how would that cool structural design you developed stand up to a flood, earthquake, city inspector, or historical commission? Some of today\'s designs integrate housing, workspace, recreation, and the great outdoors into the same building or complex. Students learn important aspects of building and site design and development. They apply math, science, and standard engineering practices to design both residential and commercial projects and document their work using 3-D architecture design software. Students use 3-D modeling software to create and test residential and commercial designs, factoring in: Materials and systems, Structural design, Cost/efficiency analysis, Storm water management, Site design/considerations, Utilities and services, Building codes, Architectural style and guidelines.',
     weightCategory: 'standard',
   },
   {
@@ -1966,7 +1971,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [10, 11, 12],
     prerequisite: 'DDP-IED',
-    description: 'Manufactured items are part of everyday life, yet most students have not been introduced to the high-tech, innovative nature of modern manufacturing. This course illuminates the opportunities related to understanding...',
+    description: 'Manufactured items are part of everyday life, yet most students have not been introduced to the high-tech, innovative nature of modern manufacturing. This course illuminates the opportunities related to understanding manufacturing. At the same time, it teaches students about manufacturing processes, product design, robotics, and automation. Students can earn a virtual manufacturing badge recognized by the National Manufacturing Badge system. This course teaches the fundamentals of computerized manufacturing technology. Students use 3-D computer software to solve design problems. They assess their solutions through the relationship of design, function and materials, modify their designs, and use prototyping equipment to produce 3-D models.',
     weightCategory: 'standard',
   },
   {
@@ -1976,7 +1981,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'This full year course is the first in the sequence of engineering courses that will be offered through the science department. Designed for 9th or 10th grade students, the major focus of IED is the design process and...',
+    description: 'This full year course is the first in the sequence of engineering courses that will be offered through the science department. Designed for 9th or 10th grade students, the major focus of IED is the design process and its application. Through hands-on projects, students apply engineering standards and document their work. Students use industry standard 3-D modeling software to help them design solutions to solve proposed problems, document their work using an engineer\'s notebook, and communicate solutions to peers and members of the professional community. This course fulfills the one-year art credit requirement.',
     weightCategory: 'standard',
   },
   {
@@ -1986,7 +1991,7 @@ export const COURSES = [
     credit: 1,
     gradeLevels: [11, 12],
     prerequisite: 'Any two PLTW courses',
-    description: 'Through problems that engage and challenge, students explore a broad range of engineering topics, including mechanisms, the strength of structures and materials, and automation. Students develop skills in problem...',
+    description: 'Through problems that engage and challenge, students explore a broad range of engineering topics, including mechanisms, the strength of structures and materials, and automation. Students develop skills in problem solving, research, and design while learning strategies for design process documentation, collaboration, and presentation.',
     weightCategory: 'standard',
   },
   {
@@ -1996,7 +2001,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: null,
-    description: 'Peer Coaching is a course for students who value inclusion and wish to assist students with intellectual and physical disabilities in Adapted Physical Education. Becoming a Peer Coach requires patience, empathy, and a...',
+    description: 'Peer Coaching is a course for students who value inclusion and wish to assist students with intellectual and physical disabilities in Adapted Physical Education. Becoming a Peer Coach requires patience, empathy, and a positive attitude to create a welcoming environment where every student can succeed and build confidence in their physical abilities. Enrollment in the course is limited.',
     weightCategory: 'standard',
   },
   {
@@ -2006,7 +2011,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [11, 12],
     prerequisite: 'The Power of the Podcast: The Art of Modern Storytelling 2',
-    description: 'This course in long-form audio storytelling pushes students to master advanced techniques in audio production by creating 20-minute narratives that are anchored in original research and journalism and defined by rich,...',
+    description: 'This course in long-form audio storytelling pushes students to master advanced techniques in audio production by creating 20-minute narratives that are anchored in original research and journalism and defined by rich, immersive soundscapes. Students will not only refine their storytelling skills but also take on leadership roles as studio chiefs, managing projects and mentoring peers. This experience mirrors industry practices, helping students develop both creative and collaborative abilities. The course prepares them to meet the growing demand for high-quality, narrative-driven podcasts, equipping them to thrive in professional and independent media spaces.',
     weightCategory: 'standard',
   },
   {
@@ -2016,7 +2021,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [9, 10, 11, 12],
     prerequisite: null,
-    description: 'The last decade has seen an incredible explosion in podcasts, ways of spreading information and sharing narratives across our collective consciousness. With transformative tales packaged in bite-sized episodes,...',
+    description: 'The last decade has seen an incredible explosion in podcasts, ways of spreading information and sharing narratives across our collective consciousness. With transformative tales packaged in bite-sized episodes, podcasting has become a multi-million-dollar industry and a fresh take on a centuries-old oral tradition. This class allows students the opportunity to analyze modern stories, consider what makes podcasts appealing, and determine how to take existing experiences and use the podcast format to share them. Within this framework, there will be an emphasis on identifying compelling elements of popular podcasts and harnessing those elements to capture the imaginations of diverse listeners. This course is well suited for sharp, thoughtful observers ready to put their passion, creativity, and voices to work in sharing the stories that deserve to be heard.',
     weightCategory: 'standard',
   },
   {
@@ -2026,7 +2031,7 @@ export const COURSES = [
     credit: 0.5,
     gradeLevels: [10, 11, 12],
     prerequisite: 'The Power of the Podcast: The Art of Modern Storytelling 1',
-    description: 'Second year podcasters, now experienced and wiser, will continue to produce and develop their own original podcast series and one-shots while mentoring the next generation of audio storytellers. In this hybrid role of...',
+    description: 'Second year podcasters, now experienced and wiser, will continue to produce and develop their own original podcast series and one-shots while mentoring the next generation of audio storytellers. In this hybrid role of student and peer leader, students will enhance their recording, interviewing, editing, and scriptwriting skills and help first year podcasters create informative and engaging narratives that will eventually be featured on RosPod , the course website. Students are given a unique opportunity to gain experience in building a dynamic online platform and managing a fully functioning podcast studio.',
     weightCategory: 'standard',
   },
   {
