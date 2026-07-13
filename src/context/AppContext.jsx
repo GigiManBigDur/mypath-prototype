@@ -35,6 +35,17 @@ const DEFAULT_STATE = {
   // selection behaves identically regardless of which view a course was found through. This is
   // specifically the UPCOMING registration cycle's selections (stage index 0's "next year") —
   // every later year's selections live in courseCheckpoints below instead, never here.
+  // High-School-only (roadmapGenerator.js's buildCourseItems() only ever reads this when
+  // state.educationLevel === 'highschool') — see selectedUCDavisCourseIds below for the UC Davis
+  // partner-school analog.
+  selectedUCDavisCourseIds: [], // the UC Davis partner-school analog of selectedCourseIds above
+  // (see CLAUDE.md's "UC Davis Partner School, Stage 3" section) — a deliberately SEPARATE field,
+  // not a reuse of selectedCourseIds, even though both are just plain string-id arrays: keeping
+  // them separate means a future Stage 4 (wiring UC Davis selections into the Academic Plan, not
+  // yet built) has one unambiguous field to read, with zero risk of ever needing to distinguish
+  // by id prefix or accidentally feeding a UC Davis course id into Roslyn-scoped roadmap code.
+  // Populated on CourseSelectionScreen's own UC Davis branch, resolved via getCourseById in
+  // ucdavisCourses.js, never courses.js's Roslyn-scoped one.
   courseCheckpoints: {}, // { [stageName]: { part1Done: boolean, selectedCourseIds: string[] } } —
   // Course Selection Stage 4's "revisit" checkpoint for every future high-school year except the
   // last (see roadmapGenerator.js's course-checkpoint items). part1Done flips true once the

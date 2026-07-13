@@ -678,3 +678,36 @@ export function searchUCDavisCourses(query) {
       course.department.toLowerCase().includes(q),
   );
 }
+
+// Which of the 6 areas a subject code belongs to — the Course Selection screen's own "Subject
+// area" filter groups courses this way rather than by raw department name.
+export function getAreaForSubjectCode(subjectCode) {
+  return UCDAVIS_AREAS.find((area) => area.subjectCodes.includes(subjectCode)) || null;
+}
+
+// Real UC Davis catalog pages don't publish a "typically taken by" year for these lower/upper
+// division listings the way they publish a numbered Lower/Upper Division split — so this is a
+// CONVENTION-derived tag, not literal per-course catalog data, same "clearly labeled estimate"
+// posture ESTIMATED_COURSE_REQUEST_WINDOW in courses.js already takes: standard UC course
+// numbering reserves 1-99 for Lower Division (typically Freshman/Sophomore) and 100+ for Upper
+// Division (typically Junior/Senior). Parses the leading digits of the course's own number (e.g.
+// "122" out of "ECS 122A") rather than trusting Lower/Upper Division section headers, which
+// weren't captured as a separate field on each course entry.
+export function getTypicalClassStanding(course) {
+  const match = course.code.match(/(\d+)/);
+  const num = match ? parseInt(match[1], 10) : 0;
+  return num < 100 ? ['Freshman', 'Sophomore'] : ['Junior', 'Senior'];
+}
+
+// The only two "special attributes" honestly derivable from what Stage 2 actually parsed (real
+// course names/descriptions) — a per-course "fulfills GE" tag would require re-fetching UC
+// Davis's separate GE-certification tool, which wasn't part of Stage 2's own research and isn't
+// being invented here. Honors sections say so directly in their own title (e.g. "Honors General
+// Chemistry"); lab courses are real, separately-numbered lab courses/components in this data
+// (e.g. "Organic Chemistry Laboratory"), not a guess.
+export function isHonorsCourse(course) {
+  return /honors/i.test(course.name);
+}
+export function isLabCourse(course) {
+  return /\blab(oratory)?\b/i.test(course.name);
+}

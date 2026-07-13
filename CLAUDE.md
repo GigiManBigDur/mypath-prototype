@@ -1703,15 +1703,65 @@ build already established.
   pill rows instead of Roslyn's single 8th-12th "year taken." Above the form, the screen renders
   `GENERAL_EDUCATION_REQUIREMENTS` unconditionally (applies to every UC Davis student regardless
   of major) followed by zero or more `COLLEGE_REQUIREMENTS` cards from
-  `getSelectedUCDavisColleges(state.selectedMajorIds)` — this is the only place either requirements
-  data set is currently surfaced, since Course Selection (Stage 3) for UC Davis is still a
-  placeholder. Continue/Skip both write `calculateUCDavisGpa(ucdavisTranscript)` straight to
-  `state.gpa` as a plain string (no `.toFixed()` truncation, matching Roslyn's own
-  `String(gpa4Scale)` convention) and advance to `'courseSelection'` (still Stage 1's placeholder,
-  unaffected by this stage) — this is why the Reach/Match/Safety pipeline, `ProgramsStep`, and
-  every other `state.gpa` consumer needed zero changes: they were never told which screen last
-  wrote the value, and a UC-letter-derived GPA plugs into the exact same field a Roslyn-derived one
-  always did.
+  `getSelectedUCDavisColleges(state.selectedMajorIds)` — this same data is reused (not re-fetched)
+  on Course Selection (Stage 3, below) too. Continue/Skip both write
+  `calculateUCDavisGpa(ucdavisTranscript)` straight to `state.gpa` as a plain string (no
+  `.toFixed()` truncation, matching Roslyn's own `String(gpa4Scale)` convention) and advance to
+  `'courseSelection'` — this is why the Reach/Match/Safety pipeline, `ProgramsStep`, and every
+  other `state.gpa` consumer needed zero changes: they were never told which screen last wrote the
+  value, and a UC-letter-derived GPA plugs into the exact same field a Roslyn-derived one always
+  did.
+
+**UC Davis Partner School, Stage 3: the real Course Selection page — replaces Stage 1/2's
+"Coming soon" placeholder on `CourseSelectionScreen`'s college branch.** Deliberately reuses
+Stage 2's own already-researched data wholesale (no re-fetching) and mirrors Roslyn's Course
+Selection screen's overall shape (policy summary → Recommended/Browse toggle → filters → course
+grid → detail modal → selected-courses chip list → Continue), but every piece is UC-Davis-real
+underneath: no checkpoint mode exists here (Stage 4 — wiring these selections into the Academic
+Plan — is a future stage, same as Roslyn's own Stage 4 was before it existed), and no prerequisite
+checking/locked cards either, since Stage 2's own fetch never captured per-course prerequisite
+text for UC Davis in the first place.
+- **Task 1 (policy summary) renders `GENERAL_EDUCATION_REQUIREMENTS` plus
+  `getSelectedUCDavisColleges(state.selectedMajorIds)`** — the exact same `ucdavisRequirements.js`
+  data Stage 2's Transcript screen already renders, just reused here as `.policy-card` grid cells
+  (icon + bullet list) instead of that screen's plain field-blocks, matching Roslyn's own
+  `POLICY_SECTIONS`-as-visual-cards pattern rather than a wall of text. Zero UC-Davis-relevant
+  majors selected shows an honest prompt instead of an empty/misleading grid.
+- **Task 2 (course list) adds `src/data/ucdavisCourses.js` exports for its own filter needs**:
+  `getAreaForSubjectCode(subjectCode)` (which of the 6 areas a course belongs to, for the Subject
+  Area filter), `getTypicalClassStanding(course)` (Freshman/Sophomore for Lower Division numbers
+  <100, Junior/Senior for Upper Division ≥100 — a real, standard UC course-numbering convention,
+  explicitly a CONVENTION-derived tag rather than literal per-course catalog data, since Stage 2's
+  fetch never captured a per-course "typically taken" field), and `isHonorsCourse`/`isLabCourse`
+  (regex-derived from the course's own real title — "Honors General Chemistry", "Organic Chemistry
+  Laboratory" — the only two "special attributes" honestly derivable from what Stage 2 actually
+  parsed; a "GE-fulfilling" attribute was deliberately left out, since that would require
+  re-fetching UC Davis's separate GE-certification tool, not something Stage 2 researched). Units
+  filter options are collected live from the real `units` values present in `UCDAVIS_COURSES`
+  rather than a hardcoded list. `UCDavisCourseCard` mirrors the shared `CourseCard` precedent
+  (name, code, units, department, description, badges) but swaps Roslyn's Grade Level meta row for
+  "Typically Taken" and never renders a Prerequisite row, honestly, for the same no-data reason.
+- **Task 3 (recommendations) adds `src/data/ucdavisCourseRecommendations.js`** —
+  `MAJOR_RECOMMENDED_COURSES: { [majorId]: courseId[] }`, the same hand-picked
+  `{ [key]: courseId[] }` + merge/dedupe-getter shape `courseRecommendations.js` already
+  established, but keyed by this app's own 7 UC-Davis-touched major ids (not interest tracks) —
+  Course Selection sits after Discovery for a UC Davis student, so the major they already picked
+  there is the natural driver, per the build spec's own framing ("whichever major the student
+  selected earlier in Discovery"). Every id is a real `UCDAVIS_COURSES` id from Stage 2's scoped
+  catalog. `getRecommendedUCDavisCourses(selectedMajorIds, getCourseById)` merges/dedupes across
+  multiple selected majors, same contract as Roslyn's `getRecommendedCourses`. The same "you're
+  always free to explore any course you like — these are suggestions, not requirements" copy
+  Roslyn's screen uses stays visible whenever Recommended is active; zero majors selected, or
+  majors mapping to no recommendations, show their own honest empty-state message.
+- **Task 4 (selection) writes to a NEW, separate `state.selectedUCDavisCourseIds` array — not a
+  reuse of Roslyn's `state.selectedCourseIds`.** Both are plain string-id arrays with an identical
+  shape, so reuse would have "worked" today (`roadmapGenerator.js`'s `buildCourseItems()` already
+  only ever reads `selectedCourseIds` when `state.educationLevel === 'highschool'`, so a UC Davis
+  student's selections would simply have been ignored there, not corrupted) — but keeping them
+  separate follows the same precedent `state.ucdavisTranscript` already set in Stage 2: a future
+  Stage 4 (not yet built) gets one unambiguous field to read for UC Davis, with zero risk of ever
+  needing to distinguish by id prefix or accidentally feeding a `ucd-*` id into Roslyn-scoped
+  roadmap code. Selections persist to `localStorage` exactly like every other piece of state.
 
 ## Testing changes
 

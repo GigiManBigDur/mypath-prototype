@@ -14,6 +14,17 @@ import {
 import { getSchoolRequirement } from '../data/schoolRequirements';
 import { checkPrerequisite } from '../utils/prerequisites';
 import { STAGE_PLAN, TRUNK_STAGES, DEFAULT_SCHOOL_YEAR } from '../data/trunkSteps';
+import {
+  UCDAVIS_AREAS,
+  UCDAVIS_COURSES,
+  getCourseById as getUCDavisCourseById,
+  getAreaForSubjectCode,
+  getTypicalClassStanding,
+  isHonorsCourse,
+  isLabCourse,
+} from '../data/ucdavisCourses';
+import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
+import { getRecommendedUCDavisCourses } from '../data/ucdavisCourseRecommendations';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -316,12 +327,7 @@ export default function CourseSelectionScreen() {
   if (!hasCourseFlow) return null;
 
   if (!isHighSchool) {
-    return (
-      <CollegeCourseSelectionPlaceholder
-        onBack={() => patch({ screen: 'transcript' })}
-        onContinue={() => patch({ screen: 'programSummary' })}
-      />
-    );
+    return <UCDavisCourseSelectionScreen state={state} patch={patch} />;
   }
 
   return (
@@ -700,33 +706,352 @@ export default function CourseSelectionScreen() {
   );
 }
 
-// UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — confirms the flow/navigation order
-// only; real UC Davis course browsing/selection (and its quarter-system-aware registration
-// timing, Fall/Winter/Spring plus optional Summer Session rather than Roslyn's semesters) is a
-// later stage.
-function CollegeCourseSelectionPlaceholder({ onBack, onContinue }) {
+// UC Davis Course Selection Stage 3 (see CLAUDE.md) — same shared card JSX precedent CourseCard
+// above already set, adapted for UC Davis's own real fields: Class Standing (convention-derived,
+// see getTypicalClassStanding's own comment) instead of Roslyn's literal Grade Level, Honors/Lab
+// badges instead of AP/RSH/Honors/Pass-Fail, and no Prerequisite row — Stage 2's own fetch never
+// captured per-course prerequisite text for UC Davis, so this honestly never renders one rather
+// than guessing (mirrors Roslyn's own `course.prerequisite &&` conditional, just always false
+// here for now).
+function UCDavisCourseCard({ course, selected, onOpenDetail, onToggle }) {
+  const honors = isHonorsCourse(course);
+  const lab = isLabCourse(course);
+  const standing = getTypicalClassStanding(course);
+  return (
+    <div
+      className={`card course-card${selected ? ' selected' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenDetail(course)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(course); }
+      }}
+    >
+      <button
+        type="button"
+        className={`course-select-btn${selected ? ' selected' : ''}`}
+        onClick={(e) => { e.stopPropagation(); onToggle(course.id); }}
+      >
+        {selected ? <><Check size={12} /> Selected</> : <><Plus size={12} /> Select</>}
+      </button>
+      <div className="card-title">{course.code} — {course.name}</div>
+      {(honors || lab) && (
+        <div className="course-badges">
+          {honors && <span className="course-badge course-badge-honors">Honors</span>}
+          {lab && <span className="course-badge course-badge-research_honors">Lab</span>}
+        </div>
+      )}
+      <p className="card-desc">{courseSummary(course.description)}</p>
+      <div className="card-meta">
+        <div>
+          <span className="label">Department</span>
+          <strong>{course.department}</strong>
+        </div>
+        <div>
+          <span className="label">Units</span>
+          <strong>{course.units}</strong>
+        </div>
+        <div>
+          <span className="label">Typically Taken</span>
+          <strong>{standing.join('/')}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// UC Davis partner-school addition, Stage 3 (see CLAUDE.md) — real course browsing/selection,
+// scoped to Stage 2's own already-researched catalog and requirements data (no re-fetching here).
+// Deliberately simpler than the High School screen above: no checkpoint mode exists for UC Davis
+// yet (Stage 4 — wiring these selections into the Academic Plan — is a future stage, same as
+// Roslyn's own Course Selection Stage 4 was before it existed), so there's no prerequisite
+// checking or locked-card state here either — Stage 2's own fetch never captured per-course
+// prerequisite text for UC Davis in the first place (see UCDavisCourseCard's own comment).
+function UCDavisCourseSelectionScreen({ state, patch }) {
+  const [viewMode, setViewMode] = useState('recommended');
+  const [search, setSearch] = useState('');
+  const [areaFilter, setAreaFilter] = useState([]);
+  const [standingFilter, setStandingFilter] = useState([]);
+  const [unitsFilter, setUnitsFilter] = useState([]);
+  const [attrFilter, setAttrFilter] = useState([]);
+
+  const selectedColleges = useMemo(
+    () => getSelectedUCDavisColleges(state.selectedMajorIds),
+    [state.selectedMajorIds],
+  );
+  const recommendedCourses = useMemo(
+    () => getRecommendedUCDavisCourses(state.selectedMajorIds, getUCDavisCourseById),
+    [state.selectedMajorIds],
+  );
+
+  const unitsOptions = useMemo(
+    () => [...new Set(UCDAVIS_COURSES.map((course) => course.units))].sort((a, b) => parseFloat(a) - parseFloat(b)),
+    [],
+  );
+
+  const matchesFilters = (course) => {
+    if (areaFilter.length && !areaFilter.includes(getAreaForSubjectCode(course.subjectCode)?.id)) return false;
+    if (standingFilter.length && !getTypicalClassStanding(course).some((s) => standingFilter.includes(s))) return false;
+    if (unitsFilter.length && !unitsFilter.includes(course.units)) return false;
+    if (attrFilter.length) {
+      const courseAttrs = [];
+      if (isHonorsCourse(course)) courseAttrs.push('honors');
+      if (isLabCourse(course)) courseAttrs.push('lab');
+      if (!attrFilter.some((a) => courseAttrs.includes(a))) return false;
+    }
+    if (search.trim() && !course.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
+    return true;
+  };
+
+  const browseCourses = UCDAVIS_COURSES.filter(matchesFilters);
+  const courses = viewMode === 'recommended' ? recommendedCourses : browseCourses;
+
+  const selectedIds = state.selectedUCDavisCourseIds || [];
+  const isSelected = (id) => selectedIds.includes(id);
+  const toggleCourse = (id) => {
+    const newIds = selectedIds.includes(id) ? selectedIds.filter((c) => c !== id) : [...selectedIds, id];
+    patch({ selectedUCDavisCourseIds: newIds });
+  };
+  const toggleInFilter = (arr, setArr, val) => {
+    setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
+  };
+
+  const selectedCourses = selectedIds.map((id) => getUCDavisCourseById(id)).filter(Boolean);
+
+  const [selectedCourseDetail, setSelectedCourseDetail] = useState(null);
+  const { rendered: detailRendered, closing: detailClosing } = useModalExit(!!selectedCourseDetail);
+  const lastDetailRef = useRef(null);
+  if (selectedCourseDetail) lastDetailRef.current = selectedCourseDetail;
+  const modalCourse = selectedCourseDetail || lastDetailRef.current;
+
   return (
     <div>
-      <button type="button" className="btn btn-ghost" onClick={onBack}>
+      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'transcript' })}>
         <ArrowLeft size={14} /> Back
       </button>
 
       <StepProgress step={5} total={9} />
       <h1 className="page-title">Course Selection</h1>
       <p className="page-sub">
-        Coming soon — this is where you'll browse and select real UC Davis courses.
+        Pick the courses you're planning to take, built around UC Davis's own real course catalog.
       </p>
 
       <div className="field-block">
-        <p className="field-hint">
-          We're still building out UC Davis's real course catalog and selection experience. For
-          now, this screen just confirms your plan flows through the right steps in the right
-          order.
-        </p>
+        <div className="field-label">{GENERAL_EDUCATION_REQUIREMENTS.label}</div>
+        <p className="field-hint">A quick-reference summary — not the full course catalog handbook.</p>
+        <div className="policy-grid">
+          {GENERAL_EDUCATION_REQUIREMENTS.sections.map((section, i) => (
+            <div className="policy-card" key={section.title}>
+              <div className="policy-card-header">
+                {i === 0 ? <BookOpen size={18} /> : <GraduationCap size={18} />}
+                <span>{section.title}</span>
+              </div>
+              <ul className="policy-card-list">
+                {section.items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          ))}
+          {selectedColleges.map((college) => (
+            <div className="policy-card" key={college.id}>
+              <div className="policy-card-header">
+                <Award size={18} />
+                <span>{college.label}</span>
+              </div>
+              <ul className="policy-card-list">
+                {college.items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+        {selectedColleges.length === 0 && (
+          <p className="field-hint" style={{ marginTop: 10 }}>
+            Select a major in Discovery from one of our researched UC Davis areas to see its
+            specific college requirements here too.
+          </p>
+        )}
       </div>
 
+      <div className="field-block">
+        <div className="pill-group">
+          <button
+            type="button"
+            className={`pill${viewMode === 'recommended' ? ' selected' : ''}`}
+            onClick={() => setViewMode('recommended')}
+          >
+            Recommended for you
+          </button>
+          <button
+            type="button"
+            className={`pill${viewMode === 'browse' ? ' selected' : ''}`}
+            onClick={() => setViewMode('browse')}
+          >
+            Browse all courses
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'recommended' && (
+        <p className="field-hint" style={{ marginBottom: 18 }}>
+          Based on the major(s) you selected in Discovery. You're always free to explore any
+          course you like — these are suggestions, not requirements.
+        </p>
+      )}
+
+      {viewMode === 'recommended' && recommendedCourses.length === 0 && (
+        <p className="field-hint" style={{ marginBottom: 18 }}>
+          {state.selectedMajorIds.length === 0
+            ? 'Select majors in Discovery to see course recommendations here.'
+            : 'No strong course matches for your selected major(s) yet — browse the full catalog below instead.'}
+        </p>
+      )}
+
+      {viewMode === 'browse' && (
+        <div className="field-block">
+          <input
+            type="text"
+            className="course-filter-search"
+            placeholder="Search course names…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="course-filter-row">
+            <div className="course-filter-group">
+              <span className="course-filter-label">Subject Area</span>
+              <div className="pill-group">
+                {UCDAVIS_AREAS.map((area) => (
+                  <button
+                    type="button"
+                    key={area.id}
+                    className={`pill${areaFilter.includes(area.id) ? ' selected' : ''}`}
+                    onClick={() => toggleInFilter(areaFilter, setAreaFilter, area.id)}
+                  >
+                    {area.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="course-filter-group">
+              <span className="course-filter-label">Class Standing</span>
+              <div className="pill-group">
+                {['Freshman', 'Sophomore', 'Junior', 'Senior'].map((s) => (
+                  <button
+                    type="button"
+                    key={s}
+                    className={`pill${standingFilter.includes(s) ? ' selected' : ''}`}
+                    onClick={() => toggleInFilter(standingFilter, setStandingFilter, s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="course-filter-group">
+              <span className="course-filter-label">Units</span>
+              <div className="pill-group">
+                {unitsOptions.map((u) => (
+                  <button
+                    type="button"
+                    key={u}
+                    className={`pill${unitsFilter.includes(u) ? ' selected' : ''}`}
+                    onClick={() => toggleInFilter(unitsFilter, setUnitsFilter, u)}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="course-filter-group">
+              <span className="course-filter-label">Special Attributes</span>
+              <div className="pill-group">
+                {[{ key: 'honors', label: 'Honors' }, { key: 'lab', label: 'Laboratory' }].map((a) => (
+                  <button
+                    type="button"
+                    key={a.key}
+                    className={`pill${attrFilter.includes(a.key) ? ' selected' : ''}`}
+                    onClick={() => toggleInFilter(attrFilter, setAttrFilter, a.key)}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="selection-count">{browseCourses.length} course{browseCourses.length === 1 ? '' : 's'} match</div>
+        </div>
+      )}
+
+      <div className="grid grid-3">
+        {courses.map((course) => (
+          <UCDavisCourseCard
+            key={course.id}
+            course={course}
+            selected={isSelected(course.id)}
+            onOpenDetail={setSelectedCourseDetail}
+            onToggle={toggleCourse}
+          />
+        ))}
+      </div>
+
+      {detailRendered && modalCourse && createPortal(
+        <div
+          className={`overlay${detailClosing ? ' overlay-exit' : ''}`}
+          onClick={() => setSelectedCourseDetail(null)}
+        >
+          <div className={`modal${detailClosing ? ' modal-exit' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedCourseDetail(null)}>
+              <X size={18} />
+            </button>
+            <div className="modal-eyebrow" style={{ color: 'var(--teal)' }}>{modalCourse.code} · {modalCourse.department}</div>
+            <h2 className="modal-title">{modalCourse.name}</h2>
+            {(isHonorsCourse(modalCourse) || isLabCourse(modalCourse)) && (
+              <div className="course-badges">
+                {isHonorsCourse(modalCourse) && <span className="course-badge course-badge-honors">Honors</span>}
+                {isLabCourse(modalCourse) && <span className="course-badge course-badge-research_honors">Lab</span>}
+              </div>
+            )}
+            <p className="modal-desc">{modalCourse.description}</p>
+            <div className="card-meta" style={{ marginBottom: 20 }}>
+              <div>
+                <span className="label">Units</span>
+                <strong>{modalCourse.units}</strong>
+              </div>
+              <div>
+                <span className="label">Typically Taken</span>
+                <strong>{getTypicalClassStanding(modalCourse).join('/')}</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              className={`btn ${isSelected(modalCourse.id) ? 'btn-outline' : 'btn-primary'}`}
+              onClick={() => toggleCourse(modalCourse.id)}
+            >
+              {isSelected(modalCourse.id) ? 'Remove from my courses' : 'Add to my courses'}
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {selectedCourses.length > 0 && (
+        <div className="field-block" style={{ marginTop: 32 }}>
+          <div className="field-label">Your selected courses ({selectedCourses.length})</div>
+          <div className="tag-list" style={{ padding: 0 }}>
+            {selectedCourses.map((course) => (
+              <button
+                type="button"
+                key={course.id}
+                className="tag selected course-selected-chip"
+                onClick={() => toggleCourse(course.id)}
+              >
+                {course.code} <X size={12} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={onContinue}>
+        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'programSummary' })}>
           Continue
         </button>
       </div>
