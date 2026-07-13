@@ -635,6 +635,69 @@ document.body)` pattern rather than rendering it inline.
   outside that set would silently fail to resolve and never appear on the plan. Fixed by widening
   that lookup to `OPPORTUNITY_TRACKS` (all tracks) — a no-op for anything selected via
   Recommended, since that narrower set is always a subset.
+- **A third view, "My School," sits alongside Recommended/Browse — real, independently-fetched
+  Roslyn High School club data, shown only for `educationLevel === 'highschool'` +
+  `currentSchool === 'Roslyn High School'`** (the exact same High-School/Roslyn boundary every
+  other partner-school feature already uses — Undergraduate/Transfer never see this tab, and
+  neither does a High School student who hasn't picked a school yet). Fetched directly from
+  `hs.roslynschools.org/student-center/clubs` (52 real clubs, name + description parsed from the
+  page's own HTML structure — a bold-span/normal-span pair per club — not summarized or
+  paraphrased) and reconciled against the existing `OPPORTUNITIES` data two ways, per the build
+  spec's own explicit "merge, don't duplicate" requirement:
+  - **7 real clubs were ENRICHED into a pre-existing generic opportunity** rather than added as
+    new entries, each now carrying `schoolVerified: true, schoolName: 'Roslyn High School'` plus
+    real Roslyn name/description in place of the old generic copy: `business.highschool.deca`
+    (DECA), `stem.highschool.science-olympiad` (renamed "Science Olympiad Club"),
+    `community.highschool.key-interact-club` (renamed "Key Club" — Roslyn has no separate Interact
+    Club), `community.highschool.student-government-hs` (renamed "Organization of Class Councils
+    (OCC)" — Roslyn's real student government name), `media.highschool.school-media-club`
+    (renamed "Harbor Hill Light & Hilltop Beacon (Yearbook & Newspaper)" — Roslyn actually runs
+    these as two separate real clubs, so **both** are named in one enriched entry rather than
+    picking one arbitrarily), `academic.highschool.speech-debate-nsda` (renamed "Forensics (Speech
+    & Debate)" — Roslyn's own club is called Forensics, kept alongside the recognizable NSDA
+    framing), and `GENERIC_OPPORTUNITIES.highschool.nhs` (National Honor Society, enriched with
+    Roslyn's real 92-GPA eligibility threshold). A student sees ONE entry either way — in
+    Recommended/Browse it now shows the real Roslyn details instead of generic national copy; see
+    each entry's own "Enriched with real Roslyn-specific info" comment in `opportunities.js`.
+  - **The other 44 real clubs, plus the 7 above, are what `getSchoolOpportunities(schoolName,
+    level)` (new export in `opportunities.js`) resolves for the My School tab** — it scans EVERY
+    track's array (not just the student's own interest-derived tracks, unlike Recommended/Browse)
+    plus `GENERIC_OPPORTUNITIES`, filtering to `schoolVerified === true && schoolName === the
+    given school`, since "what does my actual school offer" is deliberately a different lens from
+    interest-based recommendation. Each new club was mapped to whichever real track its own
+    description fit best (e.g. Astronomy Club/Robotics Club/Math Team → `stem`, Habitat for
+    Humanity/BRIDGE/service-fundraising clubs → `community`) using the same per-club `id`
+    (`rhs-<slugified-name>`) convention so they're distinguishable from every pre-existing
+    opportunity id at a glance. **4 clubs (Asian Cultural Exchange, Jewish Student Union, Muslim
+    Discussion Group, The Exchange) were deliberately left unmapped** — per the build spec's own
+    "fine to leave unmapped/general rather than forcing a weak fit," these are religious/cultural
+    affinity-exploration clubs with no service/leadership/skill-building angle that would honestly
+    fit any of the 12 interest tracks — and live in `GENERIC_OPPORTUNITIES.highschool` instead
+    (the same "no real track fits" bucket the "Law" tag fallback already uses), still fully
+    selectable via My School regardless. **Selecting one of those 4 surfaced a real,
+    previously-latent bug**: `findOpportunity(id, tracks, level)` only ever fell back to
+    `GENERIC_OPPORTUNITIES` when `tracks.length === 0` (via `getOpportunityPool`), so a
+    Roslyn student with even one real interest tag would have that selection silently vanish off
+    their plan — the exact same "an out-of-scope selection silently disappears" bug class already
+    fixed once for Browse mode (see the two bullets above). Fixed by having `findOpportunity`
+    itself fall back to a direct `GENERIC_OPPORTUNITIES[level]` scan whenever the track-scoped
+    pool doesn't resolve the id, regardless of how many tracks were passed in.
+  - New clubs otherwise reuse the exact same opportunity shape as everything else in this file —
+    honor societies (Science National Honor Society, Tri-M, International Thespian, World
+    Languages Honor Society) use the non-recurring `['Confirm eligibility', 'Complete induction']`
+    pattern the pre-existing `nhs` entry already established; genuinely competitive
+    clubs/teams (Math Team A/B, Quiz Bowl, Mock Trial, Ethics and Government, Robotics Club) get
+    `recurring: true, progressionType: 'competition'`; every other club gets `recurring: true,
+    progressionType: 'leadership'` with the same 3-step `['Sign up', 'Attend your first
+    meeting']` join pattern `key-interact-club`/`school-media-club` already used before this —
+    no new prep-step shape was invented. `stepResources` stays honestly empty (`[]`) for the
+    large majority, since a "join a club" action has no genuine external resource to cite beyond
+    what's already in `howToApply`, same judgment call this file already documents for
+    `key-interact-club`'s own steps.
+  - **`OpportunityFinderScreen.jsx` renders a `.school-verified-badge` ("Verified — Roslyn High
+    School") on any card with `schoolVerified: true`, in EVERY view it appears in** — not just My
+    School — so a student browsing normally still sees when DECA/Key Club/etc. is grounded in
+    real school data instead of generic copy.
 - **Recurring competitions/clubs escalate across multi-year plans instead of clustering into
   year 1.** An opportunity can carry `recurring: true, progressionType: 'competition' |
   'leadership' | 'repeat'` (e.g. `deca`, `fbla`, `science-olympiad`, `hosa`,

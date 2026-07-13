@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BadgeCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
-import { getOpportunityPool } from '../data/opportunities';
+import { getOpportunityPool, getSchoolOpportunities } from '../data/opportunities';
 import { anchorDate, formatDate, startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 
@@ -13,19 +13,32 @@ export default function OpportunityFinderScreen() {
   const recommendedOpportunities = getOpportunityPool(opportunityTracks, state.educationLevel);
   const today = startOfToday();
 
+  // "My School" — real, independently-fetched club data for the student's actual school, a third
+  // lens alongside Recommended/Browse rather than a filter within them. Scoped to High School +
+  // Roslyn specifically (the only real `currentSchool` value right now — src/data/schools.js), same
+  // boundary every other partner-school feature (Transcript & GPA, Course Selection) already uses.
+  // Undergraduate/Transfer never see this tab at all, matching that same scoping.
+  const isHighSchool = state.educationLevel === 'highschool';
+  const showMySchoolTab = isHighSchool && state.currentSchool === 'Roslyn High School';
+  const mySchoolOpportunities = showMySchoolTab
+    ? getSchoolOpportunities(state.currentSchool, state.educationLevel)
+    : [];
+
   // Local, unpersisted browse state — same "session-only UI convenience, not data worth
   // surviving a reload" trade Project Builder's own sub-views already make. The actual
   // consequential data (which opportunities got selected) still lives in
   // state.selectedOpportunityIds either way. An empty browseTrackFilter means "no filter
   // applied" (show every track), not "show nothing".
-  const [viewMode, setViewMode] = useState('recommended'); // 'recommended' | 'browse'
+  const [viewMode, setViewMode] = useState('recommended'); // 'recommended' | 'browse' | 'mySchool'
   const [browseTrackFilter, setBrowseTrackFilter] = useState([]);
 
   const browseOpportunities = getOpportunityPool(
     browseTrackFilter.length ? browseTrackFilter : OPPORTUNITY_TRACKS,
     state.educationLevel,
   );
-  const opportunities = viewMode === 'recommended' ? recommendedOpportunities : browseOpportunities;
+  const opportunities = viewMode === 'recommended' ? recommendedOpportunities
+    : viewMode === 'mySchool' ? mySchoolOpportunities
+      : browseOpportunities;
 
   const toggleOpportunity = (id) => {
     const has = state.selectedOpportunityIds.includes(id);
@@ -75,8 +88,26 @@ export default function OpportunityFinderScreen() {
           >
             Browse all opportunities
           </button>
+          {showMySchoolTab && (
+            <button
+              type="button"
+              className={`pill${viewMode === 'mySchool' ? ' selected' : ''}`}
+              onClick={() => setViewMode('mySchool')}
+            >
+              My School
+            </button>
+          )}
         </div>
       </div>
+
+      {viewMode === 'mySchool' && (
+        <p className="field-hint" style={{ marginBottom: 18 }}>
+          Real clubs from {state.currentSchool}'s own club list — independently verified, not
+          generic national copy. Some (like DECA, Key Club, or Science Olympiad) match a national
+          program you'd see elsewhere in this app; those are enriched with Roslyn's real details
+          rather than shown twice.
+        </p>
+      )}
 
       {viewMode === 'browse' && (
         <div className="field-block">
@@ -117,6 +148,11 @@ export default function OpportunityFinderScreen() {
               disabled={passed}
               onClick={() => toggleOpportunity(opp.id)}
             >
+              {opp.schoolVerified && (
+                <div className="school-verified-badge">
+                  <BadgeCheck size={12} /> Verified — {opp.schoolName}
+                </div>
+              )}
               <div className="card-title">{opp.name}</div>
               <p className="card-desc" style={{ fontStyle: 'italic', marginBottom: 8 }}>{opp.type}</p>
               <p className="card-desc">{opp.description}</p>

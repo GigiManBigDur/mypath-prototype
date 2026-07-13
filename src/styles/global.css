@@ -162,6 +162,24 @@ button.card.passed:hover {
 .rms-badge.rms-match { background: var(--gold); }
 .rms-badge.rms-reach { background: var(--rust); }
 .rms-caveat { font-size: 11px; color: var(--ink-soft); font-style: italic; }
+
+/* "My School" opportunities — real, independently-fetched club data, distinct from generic
+   national-org copy. Shown wherever a schoolVerified opportunity appears (My School tab, but also
+   Recommended/Browse for the 7 entries that got enriched in place — see opportunities.js's own
+   "Enriched with real Roslyn-specific info" comments), not just within the dedicated tab, since a
+   student browsing normally should still be able to tell this one is grounded in real school data. */
+.school-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--teal);
+  margin-bottom: 8px;
+}
 .card-title {
   font-family: 'Fraunces', serif;
   font-size: 18px;
