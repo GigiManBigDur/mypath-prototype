@@ -826,6 +826,18 @@ entry — `configFor()` just gets two new `coreType` entries, `'course-request'`
   alone** — this fix is isolated to which year Course Selection/transcript entry target, not how
   many years the plan spans; a 9th grader still gets the same 4-stage plan, a 10th grader the
   same 3-stage plan, and so on, confirmed via Map 1's own year-marker count before and after.
+- **Follow-up fix: the off-by-one above had a second, independent copy that drifted out of
+  sync.** `CourseSelectionScreen.jsx`'s own on-screen scope-clarifying banner ("This page is for
+  selecting your courses for `[Year]` only...") computed its target year through a SEPARATE,
+  duplicate `nextYearLabel` calculation, not through `roadmapGenerator.js`'s own (already-fixed)
+  logic — so once the roadmap's course-request task title was corrected to name the current
+  grade, this banner kept reading `stageNames[1]` and still said the year AFTER it, for the exact
+  same student. Fixed by extracting a single shared `getStage0TargetLabel(stageNames)` into
+  `trunkSteps.js` (same "extract once, every caller reads the identical value" precedent
+  `gpaBenchmarkText()` already established there for programs.js) — both `roadmapGenerator.js`'s
+  `stage0TargetLabel` and `CourseSelectionScreen.jsx`'s own (renamed) `currentYearLabel` now call
+  this one function, so the roadmap task title and the on-screen banner can never independently
+  drift again the way they just did.
 - **`course-checkpoint`** — one per future high-school year *except the last* (`stageIndex` in
   `[1, yearSpan-2]` — see `buildCourseItems()`'s loop; this range is empty whenever `yearSpan <=
   2`, which is exactly when there's no year-after-next to plan for, e.g. an 11th- or 12th-grader

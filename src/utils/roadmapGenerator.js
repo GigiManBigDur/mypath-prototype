@@ -2,7 +2,7 @@ import { MAJORS } from '../data/majors';
 import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
-import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
+import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT, getStage0TargetLabel } from '../data/trunkSteps';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS } from '../data/interests';
 import { getCourseById, ESTIMATED_COURSE_REQUEST_WINDOW } from '../data/courses';
 import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
@@ -411,7 +411,11 @@ function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, plan
   // Selection a student does during onboarding, representing "what you're taking this year" —
   // per the Survey's own reworded question ("What grade are you entering / about to start?"),
   // stageNames[0] already IS that grade, so no +1 shift belongs here.
-  const stage0TargetLabel = isFinalRequestStage ? null : TRUNK_STAGES.highschool[stageNames[0]].label;
+  // getStage0TargetLabel (trunkSteps.js) is the single shared source for this value —
+  // CourseSelectionScreen.jsx's own on-screen scope-clarifying banner reads the exact same
+  // function, so the two can never drift out of sync the way they once did (see that function's
+  // own comment for the real, confirmed drift this fixes).
+  const stage0TargetLabel = getStage0TargetLabel(stageNames);
   const items = [];
   const stage0Item = buildCourseRequestItem(selectedCourseIds, 0, isFinalRequestStage, stage0TargetLabel, planStartDate, dateOverrides, removed);
   if (stage0Item) items.push(stage0Item);

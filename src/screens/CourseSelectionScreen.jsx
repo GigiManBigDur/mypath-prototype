@@ -13,7 +13,7 @@ import {
 } from '../data/programRecommendations';
 import { getSchoolRequirement } from '../data/schoolRequirements';
 import { checkPrerequisite } from '../utils/prerequisites';
-import { STAGE_PLAN, TRUNK_STAGES, DEFAULT_SCHOOL_YEAR } from '../data/trunkSteps';
+import { STAGE_PLAN, TRUNK_STAGES, DEFAULT_SCHOOL_YEAR, getStage0TargetLabel } from '../data/trunkSteps';
 import {
   UCDAVIS_AREAS,
   UCDAVIS_COURSES,
@@ -303,15 +303,20 @@ export default function CourseSelectionScreen() {
     return targetName ? TRUNK_STAGES.highschool[targetName].label : 'next year';
   })();
 
-  // Same derivation, for the ORIGINAL onboarding screen's own scope-clarifying banner below —
-  // this is the year stage 0's selections are actually FOR (the "upcoming registration cycle"),
-  // matching the exact wording roadmapGenerator.js's course-request tasks already use ("Request
-  // X for next year"). null for a 12th-grader/yearSpan===1 plan, where there's no next Roslyn
-  // cycle to name — see the "Finalize" wording used elsewhere for that same case.
-  const nextYearLabel = (() => {
+  // The ORIGINAL onboarding screen's own scope-clarifying banner below — this is the year stage
+  // 0's selections are actually FOR, matching the exact wording roadmapGenerator.js's
+  // course-request task title uses ("Request your ${label} courses"). Reads the SAME shared
+  // getStage0TargetLabel() that function reads (trunkSteps.js) — this used to be a second,
+  // independent computation here (still named `nextYearLabel`, still reading `stageNames[1]`)
+  // that drifted out of sync with roadmapGenerator.js's own off-by-one fix: the roadmap task
+  // title got corrected to name the CURRENT year, but this banner kept saying the year after it
+  // for the exact same student until this fix. null for a 12th-grader/yearSpan===1 plan, where
+  // there's no next Roslyn cycle to name — see the "Finalize" wording used elsewhere for that
+  // same case.
+  const currentYearLabel = (() => {
     if (checkpoint) return null;
     const stageNames = STAGE_PLAN.highschool[state.schoolYear] ?? STAGE_PLAN.highschool[DEFAULT_SCHOOL_YEAR.highschool];
-    return stageNames.length > 1 ? TRUNK_STAGES.highschool[stageNames[1]].label : null;
+    return getStage0TargetLabel(stageNames);
   })();
 
   // Course detail modal — same open/close mechanism as Roadmap.jsx's node detail modal
@@ -351,8 +356,8 @@ export default function CourseSelectionScreen() {
 
       {!checkpoint && (
         <div className="caveat-banner course-scope-banner">
-          {nextYearLabel
-            ? <>This page is for selecting your courses for <strong>{nextYearLabel}</strong> only — not your
+          {currentYearLabel
+            ? <>This page is for selecting your courses for <strong>{currentYearLabel}</strong> only — not your
                 full remaining path. You'll return here to choose courses for each future year as they come
                 up.</>
             : <>This page is for finalizing your current-year course registration only.</>}

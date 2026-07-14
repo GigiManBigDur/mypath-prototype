@@ -335,6 +335,22 @@ export const STAGE_PLAN = {
 // survey requires an answer, this just prevents a crash on stale/incomplete localStorage state).
 export const DEFAULT_SCHOOL_YEAR = { highschool: 12, undergraduate: 4, transfer: 2 };
 
+// Stage 0's own "what year is Course Selection actually FOR" label (e.g. "Freshman Year") — the
+// single shared source for both roadmapGenerator.js's course-request task title AND
+// CourseSelectionScreen.jsx's own on-screen scope-clarifying banner, so the two can never drift
+// out of sync again. They already had drifted once, in fact: when the off-by-one bug that made
+// stage 0 target stageNames[1] (next year) instead of stageNames[0] (the current, actually-
+// selected year) was fixed in roadmapGenerator.js, CourseSelectionScreen.jsx's own separate,
+// duplicate `nextYearLabel` computation was missed and kept reading stageNames[1] — so the
+// roadmap's task title said "Freshman Year" while the on-screen banner still said "Sophomore
+// Year" for the exact same student. Same "extract once, both callers read the identical value"
+// precedent `gpaBenchmarkText()` already established in programs.js for this exact class of bug.
+// Returns null when there's no meaningful current-stage label to show (a single-stage plan, e.g.
+// a 12th grader) — every consumer already falls back to "Finalize"-style wording in that case.
+export function getStage0TargetLabel(stageNames) {
+  return stageNames.length > 1 ? TRUNK_STAGES.highschool[stageNames[0]].label : null;
+}
+
 // Shown on the Academic Plan when a transfer student is 2+ years out — the plan still uses the
 // single application-year trunk (transfer timelines vary too much to model precisely), so this
 // is an honest caveat rather than a fabricated multi-year transfer timeline.
