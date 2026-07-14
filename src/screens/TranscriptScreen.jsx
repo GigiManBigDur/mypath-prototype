@@ -281,6 +281,12 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
   const [classYear, setClassYear] = useState(null);
   const [quarter, setQuarter] = useState(null);
 
+  // UC Davis Course Selection Stage 4's own two-part checkpoint (see CLAUDE.md) reuses this exact
+  // screen for its Part 1, same reuse principle Roslyn's own checkpoint already established.
+  // Only ever set for the 'fall' quarter — Winter/Spring/Summer checkpoints are single-part and
+  // never navigate here.
+  const checkpoint = state.activeUCDavisCheckpoint?.part === 'transcript' ? state.activeUCDavisCheckpoint : null;
+
   const ucdavisTranscript = state.ucdavisTranscript || [];
   const gpa = useMemo(() => calculateUCDavisGpa(ucdavisTranscript), [ucdavisTranscript]);
   const selectedColleges = useMemo(
@@ -310,11 +316,35 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
 
   // Same "Continue and Skip do the exact same thing" contract Roslyn's own advance() uses — GPA
   // is written directly, no conversion step needed (the UC letter scale is already 4.0-based).
+  // In checkpoint mode, also flips this checkpoint's own part1Done flag (nested under the
+  // quarter, unlike Roslyn's stage-only key) and returns to the roadmap instead of continuing
+  // onboarding.
   const advance = () => {
-    patch({ gpa: gpa != null ? String(gpa) : '', screen: 'courseSelection' });
+    const newGpa = gpa != null ? String(gpa) : '';
+    if (checkpoint) {
+      const { stageName, quarter: checkpointQuarter } = checkpoint;
+      const stageRecord = state.ucdavisQuarterCheckpoints[stageName] || {};
+      patch({
+        gpa: newGpa,
+        ucdavisQuarterCheckpoints: {
+          ...state.ucdavisQuarterCheckpoints,
+          [stageName]: { ...stageRecord, [checkpointQuarter]: { ...stageRecord[checkpointQuarter], part1Done: true } },
+        },
+        activeUCDavisCheckpoint: null,
+        screen: 'plan',
+      });
+      return;
+    }
+    patch({ gpa: newGpa, screen: 'courseSelection' });
   };
 
-  const goBack = () => patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' });
+  const goBack = () => {
+    if (checkpoint) {
+      patch({ activeUCDavisCheckpoint: null, screen: 'plan' });
+      return;
+    }
+    patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' });
+  };
 
   return (
     <div>
@@ -322,13 +352,15 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={4} total={9} />
-      <h1 className="page-title">UC Davis Transcript &amp; GPA</h1>
+      {!checkpoint && <StepProgress step={4} total={9} />}
+      <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'UC Davis Transcript & GPA'}</h1>
       <p className="page-sub">
-        Search for the real UC Davis courses you've taken, enter your letter grade and when you
-        took each one — we'll calculate your GPA from it automatically.
+        {checkpoint
+          ? "Add the courses you've just completed — this refreshes your GPA everywhere it's used, including your program Reach/Match/Safety tags."
+          : "Search for the real UC Davis courses you've taken, enter your letter grade and when you took each one — we'll calculate your GPA from it automatically."}
       </p>
 
+      {!checkpoint && (
       <div className="field-block">
         <div className="field-label">{GENERAL_EDUCATION_REQUIREMENTS.label}</div>
         <p className="field-hint">Applies to every UC Davis undergraduate, regardless of major.</p>
@@ -342,8 +374,9 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
         ))}
         <p className="field-hint">{GENERAL_EDUCATION_REQUIREMENTS.totalNote}</p>
       </div>
+      )}
 
-      {selectedColleges.length === 0 ? (
+      {!checkpoint && (selectedColleges.length === 0 ? (
         <p className="field-hint">
           Select a major in Discovery from one of our researched UC Davis areas (Psychology,
           Political Science, Computer Science/Engineering, Business/Economics, Biology/Pre-Med, or
@@ -358,7 +391,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
             </ul>
           </div>
         ))
-      )}
+      ))}
 
       {ucdavisTranscript.length === 0 && (
         <div className="transcript-skip-row">
@@ -488,7 +521,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          Continue
+          {checkpoint ? 'Save & Continue to Part 2' : 'Continue'}
         </button>
       </div>
     </div>

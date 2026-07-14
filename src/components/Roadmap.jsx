@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
+import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
 import { formatDateWithYear } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
@@ -34,6 +35,12 @@ const CORE_TYPE_CONFIG = {
   // ESTIMATED_COURSE_REQUEST_WINDOW's own comment in courses.js for why no real deadline exists).
   'course-request': { label: 'Course Request (Est.)', color: '#2E6E5E', Icon: BookOpen },
   'course-checkpoint': { label: 'Course Checkpoint (Est.)', color: '#2E6E5E', Icon: GraduationCap },
+  // UC Davis Course Selection Stage 4 (see CLAUDE.md) — the quarter-system analog of the two
+  // Roslyn types above. Distinct labels ("Enroll"/"Quarter Checkpoint" vs. "Course Request"/
+  // "Course Checkpoint") since the semantics genuinely differ (per-quarter enrollment vs.
+  // Roslyn's per-year request), but the same "(Est.)" honesty marker and icon language.
+  'ucdavis-enrollment': { label: 'Enroll (Est.)', color: '#2E6E5E', Icon: BookOpen },
+  'ucdavis-checkpoint': { label: 'Quarter Checkpoint (Est.)', color: '#2E6E5E', Icon: GraduationCap },
 };
 const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: '#6E7F87', Icon: ListChecks };
 const BRANCH_STEP_CONFIG = { label: 'Step', color: '#6E7F87', Icon: Circle };
@@ -216,6 +223,16 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   // mechanism" instruction — this is literal reuse of those screens, not a reimplementation.
   const startCheckpointPart = (stageName, part) => {
     patch({ activeCourseCheckpoint: { stageName, part }, screen: part === 'transcript' ? 'transcript' : 'courseSelection' });
+    setSelected(null);
+  };
+
+  // UC Davis Course Selection Stage 4's own analog of startCheckpointPart above — same reuse
+  // principle (navigate into TranscriptScreen/CourseSelectionScreen's own checkpoint mode rather
+  // than a new modal-embedded UI), extended with `quarter` since a stage year now has up to 4
+  // checkpoint slots. `part: 'transcript'` is only ever passed for the 'fall' quarter (the one
+  // two-part checkpoint) — every other quarter always passes 'courses'.
+  const startUCDavisCheckpointPart = (stageName, quarter, part) => {
+    patch({ activeUCDavisCheckpoint: { stageName, quarter, part }, screen: part === 'transcript' ? 'transcript' : 'courseSelection' });
     setSelected(null);
   };
 
@@ -417,6 +434,17 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     ? state.courseCheckpoints?.[modalNode.checkpointStageName]
     : null;
   const checkpointPart1Done = !!checkpointProgress?.part1Done;
+
+  // UC Davis Course Selection Stage 4's own analog — same "no complete-toggle of its own" reasoning,
+  // extended with `quarter` for the nested checkpoints[stageName][quarter] lookup. A single-part
+  // (Winter/Spring/Summer) checkpoint has no Part 1 to wait on, so `checkpointPart1Done` is
+  // trivially true for those — only the 'fall' two-part checkpoint's own Part 2 button actually
+  // locks on it (see modalNode.checkpointIsTwoPart in the JSX below).
+  const selectedIsUCDavisCheckpoint = modalNode?.coreType === 'ucdavis-checkpoint';
+  const ucdavisCheckpointProgress = selectedIsUCDavisCheckpoint
+    ? state.ucdavisQuarterCheckpoints?.[modalNode.checkpointStageName]?.[modalNode.checkpointQuarter]
+    : null;
+  const ucdavisCheckpointPart1Done = !modalNode?.checkpointIsTwoPart || !!ucdavisCheckpointProgress?.part1Done;
 
   // The chain-starting node has no single id of its own to toggle — its "complete" state is
   // derived from its steps. Give it a real action at every state instead of a dead-end summary:
@@ -831,7 +859,35 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               </div>
             )}
 
-            {modalNode.type !== 'today' && !selectedIsAnchorOnly && !selectedIsCourseCheckpoint && (
+            {selectedIsUCDavisCheckpoint && (
+              <div className="checkpoint-actions">
+                {modalNode.checkpointIsTwoPart && (
+                  <button
+                    type="button"
+                    className={`complete-btn ${ucdavisCheckpointProgress?.part1Done ? 'done' : 'todo'}`}
+                    onClick={() => startUCDavisCheckpointPart(modalNode.checkpointStageName, modalNode.checkpointQuarter, 'transcript')}
+                  >
+                    <CheckCircle2 size={16} />
+                    {ucdavisCheckpointProgress?.part1Done ? 'Part 1: Update transcript — done, edit again' : 'Part 1: Update your transcript'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
+                  disabled={!ucdavisCheckpointPart1Done}
+                  onClick={() => startUCDavisCheckpointPart(modalNode.checkpointStageName, modalNode.checkpointQuarter, 'courses')}
+                >
+                  {ucdavisCheckpointPart1Done ? <CheckCircle2 size={16} /> : <Lock size={14} />}
+                  {isDone(modalNode.id)
+                    ? `${modalNode.checkpointIsTwoPart ? 'Part 2: ' : ''}Select courses — done, edit again`
+                    : ucdavisCheckpointPart1Done
+                      ? `${modalNode.checkpointIsTwoPart ? 'Part 2: ' : ''}Select ${QUARTER_LABELS[modalNode.checkpointQuarter]} quarter's courses`
+                      : 'Part 2: locked until Part 1 is done'}
+                </button>
+              </div>
+            )}
+
+            {modalNode.type !== 'today' && !selectedIsAnchorOnly && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && (
               <button
                 className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
                 onClick={() => toggleDone(modalNode.id)}

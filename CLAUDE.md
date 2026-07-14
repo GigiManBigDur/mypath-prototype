@@ -1758,10 +1758,98 @@ text for UC Davis in the first place.
   shape, so reuse would have "worked" today (`roadmapGenerator.js`'s `buildCourseItems()` already
   only ever reads `selectedCourseIds` when `state.educationLevel === 'highschool'`, so a UC Davis
   student's selections would simply have been ignored there, not corrupted) — but keeping them
-  separate follows the same precedent `state.ucdavisTranscript` already set in Stage 2: a future
-  Stage 4 (not yet built) gets one unambiguous field to read for UC Davis, with zero risk of ever
-  needing to distinguish by id prefix or accidentally feeding a `ucd-*` id into Roslyn-scoped
-  roadmap code. Selections persist to `localStorage` exactly like every other piece of state.
+  separate follows the same precedent `state.ucdavisTranscript` already set in Stage 2: Stage 4
+  (below) has one unambiguous field to read for UC Davis, with zero risk of ever needing to
+  distinguish by id prefix or accidentally feeding a `ucd-*` id into Roslyn-scoped roadmap code.
+  Selections persist to `localStorage` exactly like every other piece of state.
+
+**UC Davis Partner School, Stage 4: wiring the quarter system into the Academic Plan — the one
+stage where UC Davis genuinely diverges from Roslyn's own Stage 4, not just a data-source swap.**
+Roslyn's course-checkpoint model assumes ONE registration cycle per year; UC Davis's real quarter
+system means registration happens roughly 3x per year, so a literal copy of Roslyn's yearly
+cadence would have produced up to ~4x as many checkpoint tasks as Roslyn's own plan. The build
+spec's own resolution — decouple "this quarter's enrollment" from "the yearly transcript-update
+cycle," and make only the yearly one two-part — is what's implemented here.
+- **`src/data/ucdavisQuarters.js` computes real quarter dates using literal calendar-date math,
+  NOT this app's usual "relative to whenever you open it" template system** (see `utils/dates.js`'s
+  own header comment for that default convention, which every other date in this app still uses
+  unchanged). A ~10-week quarter is short enough that pretending "today" is always the start of an
+  academic cycle would be visibly wrong to a real student (e.g. being told to enroll in a Fall
+  quarter that, in real life, already happened months ago) — the yearly trunk can get away with
+  the relative-offset abstraction because a school year is long enough that the exact real month
+  barely matters; a quarter can't. `QUARTER_MONTH_DAY` holds real, confirmed UC Davis 2026-27
+  instruction-start dates (Fall Sept 21, Winter Jan 4, Spring Mar 29, fetched from the Office of
+  the University Registrar) plus a clearly-labeled Summer estimate (UC Davis publishes several
+  overlapping Summer Sessions, not one fixed date). `getNextQuarter(today)` finds the real,
+  chronologically-next quarter relative to an actual `Date` — a student opening the app mid-
+  February is genuinely mid-Winter-quarter, so "next" honestly resolves to Spring, not "whichever
+  comes first in the yearly cycle." `buildStageQuarterLists(nextQuarter, nextCalendarYear,
+  yearSpan)` groups a continuous real-quarter walk into one array per plan stage (year): stage 0
+  starts wherever "next" actually is (a partial year if the app is opened mid-cycle) and every
+  later stage gets a full `[Fall, Winter, Spring, Summer]`. **A real bug surfaced and was fixed
+  here during testing**: Winter/Spring/Summer of a given academic year always fall in the REAL
+  calendar year immediately after that year's own Fall (e.g. Fall 2026 → Winter/Spring/Summer
+  2027) — the first version of this function reused the SAME calendar year for every quarter in
+  stage 0, which silently duplicated Winter/Spring/Summer on the roadmap: one instance with the
+  wrong, already-past year (clamped to "tomorrow" and rendered right next to "today"), and a
+  second, correct instance from the following stage's own full-year block. Confirmed via a real
+  duplicate-node check (two `.node-badge` elements with identical text at different y-positions)
+  before being traced to this root cause and fixed; `ESTIMATED_REGISTRATION_LEAD_DAYS` (21 days
+  before a quarter's instruction start) is the clearly-labeled estimate for when enrollment/
+  checkpoint tasks are actually due, since UC Davis's real registration passes (Schedule Builder)
+  open on a schedule that varies by class level, not one fixed date.
+- **`roadmapGenerator.js`'s `buildUCDavisQuarterItems` walks `buildStageQuarterLists`'s output
+  and treats the very first quarter slot specially**: it's the quarter Stage 3's onboarding
+  selections (`state.selectedUCDavisCourseIds`) are actually FOR, so `buildUCDavisEnrollmentItems`
+  turns each selected course straight into a real, dated "Enroll in `[CODE]` for `[Quarter]`
+  quarter" task — no checkpoint needed, mirroring exactly how Roslyn's own stage-0 course-request
+  items come straight from `state.selectedCourseIds` with no checkpoint. Every OTHER quarter slot
+  (winter/spring/summer of stage 0, and all four quarters of every later stage) gets its own
+  `buildUCDavisCheckpointItem` — Fall is the only two-part one (`checkpointIsTwoPart: true`,
+  mirroring Roslyn's course-checkpoint exactly: Part 1 transcript, Part 2 course selection, GPA
+  refreshed feeding Reach/Match/Safety); Winter/Spring are single-part (course selection only, no
+  transcript re-prompt, since that year's courses aren't graded yet); Summer is single-part AND
+  `required: false` — which alone is enough to make it render with the same hollow/dashed
+  "optional" ring every optional opportunity already uses, confirmed via its own
+  `stroke-dasharray` and via removing it with no confirmation dialog (the required-only
+  confirm-before-remove check already keys off this same flag) — **zero new ring-rendering logic
+  needed**, this is the existing `n.required` branch in `Roadmap.jsx` doing exactly what it
+  already did. Once a checkpoint's own `selectedCourseIds` is populated (Part 2 for Fall, the
+  single part for everything else), real enrollment tasks appear alongside it, same "checkpoint
+  produces dated tasks" coexistence `buildCourseItems` already established for Roslyn.
+  **Deliberately does NOT do prerequisite-locking the way Roslyn's Part 2 does** — Stage 2's own
+  catalog fetch never captured per-course prerequisite text for UC Davis (see
+  `UCDavisCourseCard`'s own comment in `CourseSelectionScreen.jsx`), so there's no real data to
+  check against; the GPA-refresh and Reach/Match/Safety parts of "same logic as Roslyn's Part 2"
+  are still fully real and honored, but fabricating a prerequisite rule with no source data would
+  be exactly the "guess instead of parse" this codebase's standing rule forbids elsewhere.
+- **`state.ucdavisQuarterCheckpoints`/`state.activeUCDavisCheckpoint`** are the UC Davis analogs
+  of Roslyn's `courseCheckpoints`/`activeCourseCheckpoint`, extended with a `quarter` key at every
+  level a stage year now has up to 4 checkpoint slots instead of Roslyn's 1
+  (`ucdavisQuarterCheckpoints[stageName][quarter] = { part1Done?, selectedCourseIds }` —
+  `part1Done` only ever meaningful for `fall`). `Roadmap.jsx`'s `startUCDavisCheckpointPart`/
+  `selectedIsUCDavisCheckpoint` mirror Roslyn's own `startCheckpointPart`/
+  `selectedIsCourseCheckpoint` mechanism exactly (navigate into `TranscriptScreen`/
+  `CourseSelectionScreen`'s own checkpoint mode, per the "reuse the exact same entry mechanism"
+  instruction that already governed Roslyn's own Stage 4) — the modal renders Part 1/Part 2
+  buttons only when `modalNode.checkpointIsTwoPart`, else a single course-selection button, with
+  `ucdavisCheckpointPart1Done` trivially `true` for any single-part checkpoint (nothing to lock
+  on). `UCDavisTranscriptScreen`/`UCDavisCourseSelectionScreen` (Stage 2/3's own components) each
+  gained the identical checkpoint-mode branch Roslyn's `TranscriptScreen`/`CourseSelectionScreen`
+  already had — different header copy, hidden policy/GE summary (already seen), writes to the
+  quarter-nested checkpoint slot instead of the top-level onboarding field, and returns to `'plan'`
+  instead of continuing the normal flow — same reuse principle, just nested one level deeper.
+- **Applies identically to Undergraduate and Transfer** (Task 3) — `isCollegeAtUCDavis` is the
+  same `(level === 'undergraduate' || level === 'transfer') && state.currentSchool === 'UC Davis'`
+  check used throughout every other UC Davis stage; the quarter-checkpoint mechanism reads only
+  `stageNames`/`yearSpan` (already level-agnostic) and the student's own selections, never the
+  underlying grad-school-vs-transfer trunk content itself, so both levels get byte-identical
+  quarter behavior for as long as they remain at UC Davis.
+- **Task 4 (editing) needed zero special-casing, confirmed directly**: every enrollment task
+  (`coreType: 'ucdavis-enrollment'`) is a plain single-step required core item — same generic
+  date-edit/remove/complete-toggle path every other core item already uses, verified by checking
+  for the ABSENCE of `.checkpoint-actions` on its modal and the PRESENCE of the generic date input
+  and remove button.
 
 ## Testing changes
 

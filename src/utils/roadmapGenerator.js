@@ -5,6 +5,13 @@ import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT } from '../data/trunkSteps';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS } from '../data/interests';
 import { getCourseById, ESTIMATED_COURSE_REQUEST_WINDOW } from '../data/courses';
+import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
+import {
+  QUARTER_LABELS,
+  ESTIMATED_REGISTRATION_LEAD_DAYS,
+  getNextQuarter,
+  buildStageQuarterLists,
+} from '../data/ucdavisQuarters';
 import { layoutRoadmap } from './roadmapLayout';
 import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
 
@@ -116,10 +123,15 @@ export function generateRoadmap(state, yearWindow = null) {
   // Course Selection Stage 4 — highschool-only, same gating as every Course Selection screen
   // (Transcript & GPA / Course Selection are unreachable for undergraduate/transfer, so
   // state.selectedCourseIds/courseCheckpoints are always empty for them in practice; this guard
-  // makes that explicit rather than relying on incidental emptiness).
+  // makes that explicit rather than relying on incidental emptiness). A UC-Davis-selecting
+  // Undergraduate/Transfer student gets the quarter-based analog instead (see
+  // buildUCDavisQuarterItems below) — see CLAUDE.md's "UC Davis Partner School, Stage 4" section.
+  const isCollegeAtUCDavis = (level === 'undergraduate' || level === 'transfer') && state.currentSchool === 'UC Davis';
   const courseItems = level === 'highschool'
     ? buildCourseItems(stageNames, state.selectedCourseIds, state.courseCheckpoints || {}, planStartDate, dateOverrides, removed)
-    : [];
+    : isCollegeAtUCDavis
+      ? buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverrides, removed)
+      : [];
 
   const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems];
 
@@ -382,6 +394,126 @@ function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, plan
   }
 
   return items;
+}
+
+// UC Davis Course Selection Stage 4 (see CLAUDE.md's own section for the full design rationale) —
+// the quarter-system analog of buildCourseItems above. Unlike Roslyn's single yearly cadence,
+// registration happens ~3x per academic year here, so the "one checkpoint per year" shape had to
+// be decoupled: real quarter dates come from ucdavisQuarters.js's own real-calendar walk (not
+// this app's usual today-relative template system — see that file's own header comment for why),
+// grouped into one array per plan stage via buildStageQuarterLists. The very first quarter slot
+// of the very first stage is special: it's the quarter Stage 3's onboarding selections
+// (state.selectedUCDavisCourseIds) are actually FOR, so it becomes real enrollment tasks directly
+// — no checkpoint needed, exactly mirroring how Roslyn's stage-0 course-request items come
+// straight from state.selectedCourseIds with no checkpoint. Every other quarter slot gets its own
+// checkpoint task (two-part only for 'fall', single-part otherwise, 'summer' explicitly optional
+// via required: false) plus — once that checkpoint's own selectedCourseIds is populated — real
+// enrollment tasks for whatever was selected, same "checkpoint produces dated tasks" coexistence
+// buildCourseItems already established for Roslyn.
+function buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverrides, removed) {
+  const yearSpan = stageNames.length;
+  const next = getNextQuarter(planStartDate);
+  const stageQuarterLists = buildStageQuarterLists(next.quarter, next.calendarYear, yearSpan);
+  const checkpoints = state.ucdavisQuarterCheckpoints || {};
+  const items = [];
+
+  stageQuarterLists.forEach((quarters, stageIndex) => {
+    const stageName = stageNames[stageIndex];
+    quarters.forEach((slot, slotIndex) => {
+      if (stageIndex === 0 && slotIndex === 0) {
+        items.push(...buildUCDavisEnrollmentItems(
+          state.selectedUCDavisCourseIds || [], stageName, slot, planStartDate, dateOverrides, removed,
+        ));
+        return;
+      }
+
+      const checkpointItem = buildUCDavisCheckpointItem(stageName, slot, planStartDate, dateOverrides, removed);
+      if (checkpointItem) items.push(checkpointItem);
+
+      const record = checkpoints[stageName]?.[slot.quarter];
+      if (record?.selectedCourseIds?.length) {
+        items.push(...buildUCDavisEnrollmentItems(record.selectedCourseIds, stageName, slot, planStartDate, dateOverrides, removed));
+      }
+    });
+  });
+
+  return items;
+}
+
+// Clamps an estimated date to never land before tomorrow — same defensive clamp
+// buildStepsChain's own `earliestStart` already applies to opportunity prep windows, needed here
+// too since "registration window" (quarter start minus a fixed lead time) could land in the past
+// if the quarter itself starts very soon relative to when the student opens the app.
+function clampToFuture(date, planStartDate) {
+  const earliest = realAddDays(planStartDate, 1);
+  return date < earliest ? earliest : date;
+}
+
+function buildUCDavisEnrollmentItems(courseIds, stageName, slot, planStartDate, dateOverrides, removed) {
+  const quarterLabel = QUARTER_LABELS[slot.quarter];
+  return courseIds
+    .map((courseId) => {
+      const course = getUCDavisCourseById(courseId);
+      if (!course) return null;
+      const id = `ucdavis-enroll-${courseId}-${stageName}-${slot.quarter}`;
+      if (removed[id]) return null;
+      const templateDate = clampToFuture(realAddDays(slot.startDate, -ESTIMATED_REGISTRATION_LEAD_DAYS), planStartDate);
+      const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+      return {
+        id,
+        title: `Enroll in ${course.code} for ${quarterLabel} quarter`,
+        category: 'core',
+        required: true,
+        coreType: 'ucdavis-enrollment',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: `${course.name} (${course.department}). This date is an estimate of UC Davis's registration window (~${ESTIMATED_REGISTRATION_LEAD_DAYS} days before ${quarterLabel} quarter begins), not a published deadline — check Schedule Builder for your exact pass time.`,
+        resources: [],
+        steps: null,
+      };
+    })
+    .filter(Boolean);
+}
+
+// One checkpoint per quarter slot except the very first slot of the plan (handled directly by
+// buildUCDavisQuarterItems above, no checkpoint needed there). Fall is the only two-part one
+// (transcript + course selection, mirroring Roslyn's course-checkpoint exactly); Winter/Spring
+// are single-part (course selection only — no transcript re-prompt, since that year's courses
+// aren't graded yet); Summer is single-part AND `required: false`, which alone is enough to make
+// it render as the same hollow/dashed "optional" ring every optional opportunity already uses —
+// no new ring-rendering logic needed (see Roadmap.jsx's own three-way required/custom/dashed
+// branch). Deliberately does NOT do prerequisite-locking the way Roslyn's Part 2 does — Stage 2's
+// own catalog fetch never captured per-course prerequisite text for UC Davis (see
+// UCDavisCourseCard's own comment in CourseSelectionScreen.jsx), so there's no real data to check
+// against; fabricating a prerequisite rule here would be the exact "guess instead of parse" this
+// codebase's standing rule already forbids elsewhere.
+function buildUCDavisCheckpointItem(stageName, slot, planStartDate, dateOverrides, removed) {
+  const id = `ucdavis-checkpoint-${stageName}-${slot.quarter}`;
+  if (removed[id]) return null;
+  const isTwoPart = slot.quarter === 'fall';
+  const isOptional = slot.quarter === 'summer';
+  const quarterLabel = QUARTER_LABELS[slot.quarter];
+  const templateDate = clampToFuture(realAddDays(slot.startDate, -ESTIMATED_REGISTRATION_LEAD_DAYS), planStartDate);
+  const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+  return {
+    id,
+    title: isTwoPart
+      ? `Update your transcript & select ${quarterLabel} quarter courses`
+      : `Select your ${quarterLabel} quarter courses${isOptional ? ' (optional)' : ''}`,
+    category: 'core',
+    required: !isOptional,
+    coreType: 'ucdavis-checkpoint',
+    date: realDate,
+    due: formatDate(realDate),
+    desc: isTwoPart
+      ? `Two steps: update your transcript with your final grades, then select your ${quarterLabel} quarter courses — this also refreshes your GPA everywhere it's used, including Reach/Match/Safety. This date is an estimate of UC Davis's registration window, not a published deadline.`
+      : `Select which courses you're planning to take ${quarterLabel} quarter${isOptional ? ' — this is entirely optional, not every student takes summer courses' : ''}. This date is an estimate of UC Davis's registration window, not a published deadline.`,
+    resources: [],
+    steps: null,
+    checkpointStageName: stageName,
+    checkpointQuarter: slot.quarter,
+    checkpointIsTwoPart: isTwoPart,
+  };
 }
 
 // Escalated milestone title for year N (yearIndex is 1-based among the escalation years — 1

@@ -25,6 +25,7 @@ import {
 } from '../data/ucdavisCourses';
 import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
 import { getRecommendedUCDavisCourses } from '../data/ucdavisCourseRecommendations';
+import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -775,6 +776,24 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   const [unitsFilter, setUnitsFilter] = useState([]);
   const [attrFilter, setAttrFilter] = useState([]);
 
+  // UC Davis Course Selection Stage 4's own checkpoint (see CLAUDE.md) reuses this exact screen
+  // for whichever quarter's course-selection step is due — Fall's Part 2 (locked until Part 1 is
+  // done), or Winter/Spring/Summer's own single-part selection (no lock, no transcript step).
+  const checkpoint = state.activeUCDavisCheckpoint?.part === 'courses' ? state.activeUCDavisCheckpoint : null;
+  const checkpointIsTwoPart = checkpoint?.quarter === 'fall';
+  const checkpointProgress = checkpoint
+    ? state.ucdavisQuarterCheckpoints?.[checkpoint.stageName]?.[checkpoint.quarter]
+    : null;
+
+  // Defensive: same reasoning as Roslyn's own bounce — Fall's Part 2 is locked until Part 1 is
+  // done for that same quarter; Roadmap.jsx's own modal already disables the button that gets
+  // here, but state could in principle be reached directly.
+  useEffect(() => {
+    if (checkpoint && checkpointIsTwoPart && !checkpointProgress?.part1Done) {
+      patch({ activeUCDavisCheckpoint: null, screen: 'plan' });
+    }
+  }, [checkpoint, checkpointIsTwoPart, checkpointProgress?.part1Done]);
+
   const selectedColleges = useMemo(
     () => getSelectedUCDavisColleges(state.selectedMajorIds),
     [state.selectedMajorIds],
@@ -806,17 +825,31 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   const browseCourses = UCDAVIS_COURSES.filter(matchesFilters);
   const courses = viewMode === 'recommended' ? recommendedCourses : browseCourses;
 
-  const selectedIds = state.selectedUCDavisCourseIds || [];
-  const isSelected = (id) => selectedIds.includes(id);
+  // In checkpoint mode, "selected" reads/writes this quarter's own slot in
+  // ucdavisQuarterCheckpoints instead of the top-level selectedUCDavisCourseIds (which stays
+  // reserved for stage 0's own onboarding selections).
+  const currentSelectedIds = checkpoint ? (checkpointProgress?.selectedCourseIds || []) : (state.selectedUCDavisCourseIds || []);
+  const isSelected = (id) => currentSelectedIds.includes(id);
   const toggleCourse = (id) => {
-    const newIds = selectedIds.includes(id) ? selectedIds.filter((c) => c !== id) : [...selectedIds, id];
+    const newIds = currentSelectedIds.includes(id) ? currentSelectedIds.filter((c) => c !== id) : [...currentSelectedIds, id];
+    if (checkpoint) {
+      const { stageName, quarter } = checkpoint;
+      const stageRecord = state.ucdavisQuarterCheckpoints[stageName] || {};
+      patch({
+        ucdavisQuarterCheckpoints: {
+          ...state.ucdavisQuarterCheckpoints,
+          [stageName]: { ...stageRecord, [quarter]: { ...stageRecord[quarter], selectedCourseIds: newIds } },
+        },
+      });
+      return;
+    }
     patch({ selectedUCDavisCourseIds: newIds });
   };
   const toggleInFilter = (arr, setArr, val) => {
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   };
 
-  const selectedCourses = selectedIds.map((id) => getUCDavisCourseById(id)).filter(Boolean);
+  const selectedCourses = currentSelectedIds.map((id) => getUCDavisCourseById(id)).filter(Boolean);
 
   const [selectedCourseDetail, setSelectedCourseDetail] = useState(null);
   const { rendered: detailRendered, closing: detailClosing } = useModalExit(!!selectedCourseDetail);
@@ -826,16 +859,25 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
 
   return (
     <div>
-      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'transcript' })}>
+      <button
+        type="button"
+        className="btn btn-ghost"
+        onClick={() => (checkpoint ? patch({ activeUCDavisCheckpoint: null, screen: 'plan' }) : patch({ screen: 'transcript' }))}
+      >
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={5} total={9} />
-      <h1 className="page-title">Course Selection</h1>
+      {!checkpoint && <StepProgress step={5} total={9} />}
+      <h1 className="page-title">
+        {checkpoint ? `Select Your ${QUARTER_LABELS[checkpoint.quarter]} Quarter Courses` : 'Course Selection'}
+      </h1>
       <p className="page-sub">
-        Pick the courses you're planning to take, built around UC Davis's own real course catalog.
+        {checkpoint
+          ? `Pick the courses you're planning to take ${QUARTER_LABELS[checkpoint.quarter]} quarter.`
+          : "Pick the courses you're planning to take, built around UC Davis's own real course catalog."}
       </p>
 
+      {!checkpoint && (
       <div className="field-block">
         <div className="field-label">{GENERAL_EDUCATION_REQUIREMENTS.label}</div>
         <p className="field-hint">A quick-reference summary — not the full course catalog handbook.</p>
@@ -870,6 +912,7 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
           </p>
         )}
       </div>
+      )}
 
       <div className="field-block">
         <div className="pill-group">
@@ -1051,8 +1094,29 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
       )}
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'programSummary' })}>
-          Continue
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            if (checkpoint) {
+              const { stageName, quarter } = checkpoint;
+              const checkpointId = `ucdavis-checkpoint-${stageName}-${quarter}`;
+              const stageRecord = state.ucdavisQuarterCheckpoints[stageName] || {};
+              patch({
+                ucdavisQuarterCheckpoints: {
+                  ...state.ucdavisQuarterCheckpoints,
+                  [stageName]: { ...stageRecord, [quarter]: { ...stageRecord[quarter], selectedCourseIds: currentSelectedIds } },
+                },
+                completedNodes: { ...state.completedNodes, [checkpointId]: true },
+                activeUCDavisCheckpoint: null,
+                screen: 'plan',
+              });
+              return;
+            }
+            patch({ screen: 'programSummary' });
+          }}
+        >
+          {checkpoint ? 'Save & Return to Plan' : 'Continue'}
         </button>
       </div>
     </div>
