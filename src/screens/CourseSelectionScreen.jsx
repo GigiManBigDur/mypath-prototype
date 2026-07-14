@@ -769,11 +769,10 @@ function UCDavisCourseCard({ course, selected, onOpenDetail, onToggle }) {
 
 // UC Davis partner-school addition, Stage 3 (see CLAUDE.md) — real course browsing/selection,
 // scoped to Stage 2's own already-researched catalog and requirements data (no re-fetching here).
-// Deliberately simpler than the High School screen above: no checkpoint mode exists for UC Davis
-// yet (Stage 4 — wiring these selections into the Academic Plan — is a future stage, same as
-// Roslyn's own Course Selection Stage 4 was before it existed), so there's no prerequisite
-// checking or locked-card state here either — Stage 2's own fetch never captured per-course
-// prerequisite text for UC Davis in the first place (see UCDavisCourseCard's own comment).
+// Checkpoint mode (Stage 4, below) reuses this screen for each quarter's Part 2. Deliberately
+// simpler than the High School screen above in one respect: there's no prerequisite checking or
+// locked-card state here — Stage 2's own fetch never captured per-course prerequisite text for
+// UC Davis in the first place (see UCDavisCourseCard's own comment).
 function UCDavisCourseSelectionScreen({ state, patch }) {
   const [viewMode, setViewMode] = useState('recommended');
   const [search, setSearch] = useState('');
@@ -783,22 +782,22 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   const [attrFilter, setAttrFilter] = useState([]);
 
   // UC Davis Course Selection Stage 4's own checkpoint (see CLAUDE.md) reuses this exact screen
-  // for whichever quarter's course-selection step is due — Fall's Part 2 (locked until Part 1 is
-  // done), or Winter/Spring/Summer's own single-part selection (no lock, no transcript step).
+  // for whichever quarter's course-selection step is due. Every quarter (Fall/Winter/Spring/
+  // Summer) is now a full two-part checkpoint — Part 2 is always locked until that same quarter's
+  // Part 1 (transcript update) is done; there's no longer a single-part variant.
   const checkpoint = state.activeUCDavisCheckpoint?.part === 'courses' ? state.activeUCDavisCheckpoint : null;
-  const checkpointIsTwoPart = checkpoint?.quarter === 'fall';
   const checkpointProgress = checkpoint
     ? state.ucdavisQuarterCheckpoints?.[checkpoint.stageName]?.[checkpoint.quarter]
     : null;
 
-  // Defensive: same reasoning as Roslyn's own bounce — Fall's Part 2 is locked until Part 1 is
-  // done for that same quarter; Roadmap.jsx's own modal already disables the button that gets
-  // here, but state could in principle be reached directly.
+  // Defensive: same reasoning as Roslyn's own bounce — every quarter's Part 2 is locked until
+  // Part 1 is done for that same quarter; Roadmap.jsx's own modal already disables the button
+  // that gets here, but state could in principle be reached directly.
   useEffect(() => {
-    if (checkpoint && checkpointIsTwoPart && !checkpointProgress?.part1Done) {
+    if (checkpoint && !checkpointProgress?.part1Done) {
       patch({ activeUCDavisCheckpoint: null, screen: 'plan' });
     }
-  }, [checkpoint, checkpointIsTwoPart, checkpointProgress?.part1Done]);
+  }, [checkpoint, checkpointProgress?.part1Done]);
 
   // Scope-clarifying banner (Task 4, mirroring Roslyn's own `.course-scope-banner`) — the
   // onboarding (non-checkpoint) selection is always scoped to exactly ONE quarter: whichever is

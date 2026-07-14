@@ -1857,8 +1857,25 @@ stage where UC Davis genuinely diverges from Roslyn's own Stage 4, not just a da
 Roslyn's course-checkpoint model assumes ONE registration cycle per year; UC Davis's real quarter
 system means registration happens roughly 3x per year, so a literal copy of Roslyn's yearly
 cadence would have produced up to ~4x as many checkpoint tasks as Roslyn's own plan. The build
-spec's own resolution — decouple "this quarter's enrollment" from "the yearly transcript-update
-cycle," and make only the yearly one two-part — is what's implemented here.
+spec's own resolution — decouple "this quarter's enrollment" from "the transcript-update cycle" —
+is what's implemented here: one consolidated enrollment task per quarter (not one per year), each
+preceded by its own checkpoint.
+
+**Correction: every quarterly checkpoint is a full two-part task, not just Fall.** An earlier
+version of this feature made only Fall two-part (transcript + course selection) and treated
+Winter/Spring/Summer as a lighter, single-part "just pick courses" step, on the assumption that
+grades only change once a year. That assumption was wrong for a real quarter system — final
+grades post after every quarter, not just once — so a student's transcript (and the GPA/Reach-
+Match-Safety numbers derived from it) would have silently gone stale for 2 of every 3 quarters.
+Fixed by dropping the single-part branch entirely: Fall, Winter, Spring, and Summer are now
+structurally identical two-part checkpoints (Part 1 — update the transcript with the prior
+quarter's final grades; Part 2 — select the upcoming quarter's courses, locked until Part 1 is
+done). Summer's only remaining difference is orthogonal — it's still `required: false` (optional
+to complete at all, since not every student takes summer courses), which alone is enough to make
+it render with the existing hollow/dashed "optional" ring; no new ring-rendering logic was needed
+either before or after this fix. This did not add any new spine nodes — each quarter was already
+consolidated into one checkpoint task before this fix, and still is; only what that one task does
+internally changed (two parts for every quarter instead of just Fall).
 - **`src/data/ucdavisQuarters.js` computes real quarter dates using literal calendar-date math,
   NOT this app's usual "relative to whenever you open it" template system** (see `utils/dates.js`'s
   own header comment for that default convention, which every other date in this app still uses
@@ -1894,19 +1911,17 @@ cycle," and make only the yearly one two-part — is what's implemented here.
   quarter courses" task — no checkpoint needed, mirroring exactly how Roslyn's own stage-0
   course-request items come straight from `state.selectedCourseIds` with no checkpoint. Every
   OTHER quarter slot (winter/spring/summer of stage 0, and all four quarters of every later stage)
-  gets its own `buildUCDavisCheckpointItem` — Fall is the only two-part one
-  (`checkpointIsTwoPart: true`, mirroring Roslyn's course-checkpoint exactly: Part 1 transcript,
-  Part 2 course selection, GPA refreshed feeding Reach/Match/Safety); Winter/Spring are single-part
-  (course selection only, no transcript re-prompt, since that year's courses aren't graded yet);
-  Summer is single-part AND `required: false` — which alone is enough to make it render with the
-  same hollow/dashed "optional" ring every optional opportunity already uses, confirmed via its
-  own `stroke-dasharray` and via removing it with no confirmation dialog (the required-only
+  gets its own `buildUCDavisCheckpointItem` — Fall, Winter, Spring, and Summer are ALL two-part
+  (Part 1 transcript update, Part 2 course selection locked until Part 1 is done, GPA refreshed
+  feeding Reach/Match/Safety — mirroring Roslyn's course-checkpoint exactly, see the "Correction"
+  note above); Summer is additionally `required: false` — which alone is enough to make it render
+  with the same hollow/dashed "optional" ring every optional opportunity already uses, confirmed
+  via its own `stroke-dasharray` and via removing it with no confirmation dialog (the required-only
   confirm-before-remove check already keys off this same flag) — **zero new ring-rendering logic
   needed**, this is the existing `n.required` branch in `Roadmap.jsx` doing exactly what it
-  already did. Once a checkpoint's own `selectedCourseIds` is populated (Part 2 for Fall, the
-  single part for everything else), one real enrollment task appears alongside it, same
-  "checkpoint produces a dated task" coexistence `buildCourseItems` already established for
-  Roslyn.
+  already did. Once a checkpoint's own Part 2 `selectedCourseIds` is populated, one real enrollment
+  task appears alongside it, same "checkpoint produces a dated task" coexistence `buildCourseItems`
+  already established for Roslyn.
   **Deliberately does NOT do prerequisite-locking the way Roslyn's Part 2 does** — Stage 2's own
   catalog fetch never captured per-course prerequisite text for UC Davis (see
   `UCDavisCourseCard`'s own comment in `CourseSelectionScreen.jsx`), so there's no real data to
@@ -1921,10 +1936,9 @@ cycle," and make only the yearly one two-part — is what's implemented here.
   selections, a real, confirmed regression on a dense quarter. Fixed by consolidating to a single
   function producing ONE item per quarter cycle (`ucdavis-enroll-${stageName}-${quarter}` — no
   longer keyed by course id at all). Applied identically wherever enrollment tasks are produced —
-  Stage 3's own direct onboarding selections and every checkpoint's own resulting selections
-  (Fall's two-part flow and the lighter Winter/Spring/Summer ones alike) — so a quarter with 5
-  selected courses now shows as exactly 1 spine node regardless of which path produced the
-  selection.
+  Stage 3's own direct onboarding selections and every checkpoint's own Part 2 selections, every
+  quarter alike — so a quarter with 5 selected courses now shows as exactly 1 spine node regardless
+  of which path produced the selection.
 - **Fix: the course list renders as a real `<ul>`, not a comma-joined sentence baked into
   `desc`.** The consolidated task's own `courseList` field (an array of `${code} — ${name}`
   strings) is a genuinely separate field from `desc` — `Roadmap.jsx` renders it as an actual
@@ -1943,15 +1957,16 @@ cycle," and make only the yearly one two-part — is what's implemented here.
 - **`state.ucdavisQuarterCheckpoints`/`state.activeUCDavisCheckpoint`** are the UC Davis analogs
   of Roslyn's `courseCheckpoints`/`activeCourseCheckpoint`, extended with a `quarter` key at every
   level a stage year now has up to 4 checkpoint slots instead of Roslyn's 1
-  (`ucdavisQuarterCheckpoints[stageName][quarter] = { part1Done?, selectedCourseIds }` —
-  `part1Done` only ever meaningful for `fall`). `Roadmap.jsx`'s `startUCDavisCheckpointPart`/
+  (`ucdavisQuarterCheckpoints[stageName][quarter] = { part1Done, selectedCourseIds }` — `part1Done`
+  is tracked identically for every quarter now, per the "Correction" note above; there is no
+  longer a quarter for which it's meaningless). `Roadmap.jsx`'s `startUCDavisCheckpointPart`/
   `selectedIsUCDavisCheckpoint` mirror Roslyn's own `startCheckpointPart`/
   `selectedIsCourseCheckpoint` mechanism exactly (navigate into `TranscriptScreen`/
   `CourseSelectionScreen`'s own checkpoint mode, per the "reuse the exact same entry mechanism"
   instruction that already governed Roslyn's own Stage 4) — the modal renders Part 1/Part 2
-  buttons only when `modalNode.checkpointIsTwoPart`, else a single course-selection button, with
-  `ucdavisCheckpointPart1Done` trivially `true` for any single-part checkpoint (nothing to lock
-  on). `UCDavisTranscriptScreen`/`UCDavisCourseSelectionScreen` (Stage 2/3's own components) each
+  buttons unconditionally for every UC Davis checkpoint (there's no single-part variant left to
+  branch on), with `ucdavisCheckpointPart1Done` reading directly off that quarter's own
+  `part1Done` flag. `UCDavisTranscriptScreen`/`UCDavisCourseSelectionScreen` (Stage 2/3's own components) each
   gained the identical checkpoint-mode branch Roslyn's `TranscriptScreen`/`CourseSelectionScreen`
   already had — different header copy, hidden policy/GE summary (already seen), writes to the
   quarter-nested checkpoint slot instead of the top-level onboarding field, and returns to `'plan'`

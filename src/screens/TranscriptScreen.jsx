@@ -291,9 +291,8 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
   const [quarter, setQuarter] = useState(null);
 
   // UC Davis Course Selection Stage 4's own two-part checkpoint (see CLAUDE.md) reuses this exact
-  // screen for its Part 1, same reuse principle Roslyn's own checkpoint already established.
-  // Only ever set for the 'fall' quarter — Winter/Spring/Summer checkpoints are single-part and
-  // never navigate here.
+  // screen for its Part 1, same reuse principle Roslyn's own checkpoint already established. Every
+  // quarter (Fall/Winter/Spring/Summer) is two-part now, so this is reachable for any of them.
   const checkpoint = state.activeUCDavisCheckpoint?.part === 'transcript' ? state.activeUCDavisCheckpoint : null;
 
   const ucdavisTranscript = state.ucdavisTranscript || [];

@@ -450,10 +450,12 @@ function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, plan
 // (state.selectedUCDavisCourseIds) are actually FOR, so it becomes ONE real enrollment task
 // directly — no checkpoint needed, exactly mirroring how Roslyn's stage-0 course-request items
 // come straight from state.selectedCourseIds with no checkpoint. Every other quarter slot gets
-// its own checkpoint task (two-part only for 'fall', single-part otherwise, 'summer' explicitly
-// optional via required: false) plus — once that checkpoint's own selectedCourseIds is populated
-// — ONE real enrollment task for whatever was selected, same "checkpoint produces a dated task"
-// coexistence buildCourseItems already established for Roslyn.
+// its own checkpoint task — Fall, Winter, Spring, and Summer are all identically two-part
+// (transcript update + course selection), since real final grades post after every quarter, not
+// just once a year; 'summer' is still explicitly optional via required: false — plus, once that
+// checkpoint's own selectedCourseIds is populated, ONE real enrollment task for whatever was
+// selected, same "checkpoint produces a dated task" coexistence buildCourseItems already
+// established for Roslyn.
 function buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverrides, removed) {
   const yearSpan = stageNames.length;
   const next = getNextQuarter(planStartDate);
@@ -545,43 +547,46 @@ function buildUCDavisEnrollmentItem(courseIds, stageName, slot, planStartDate, d
 }
 
 // One checkpoint per quarter slot except the very first slot of the plan (handled directly by
-// buildUCDavisQuarterItems above, no checkpoint needed there). Fall is the only two-part one
-// (transcript + course selection, mirroring Roslyn's course-checkpoint exactly); Winter/Spring
-// are single-part (course selection only — no transcript re-prompt, since that year's courses
-// aren't graded yet); Summer is single-part AND `required: false`, which alone is enough to make
-// it render as the same hollow/dashed "optional" ring every optional opportunity already uses —
-// no new ring-rendering logic needed (see Roadmap.jsx's own three-way required/custom/dashed
-// branch). Deliberately does NOT do prerequisite-locking the way Roslyn's Part 2 does — Stage 2's
-// own catalog fetch never captured per-course prerequisite text for UC Davis (see
-// UCDavisCourseCard's own comment in CourseSelectionScreen.jsx), so there's no real data to check
-// against; fabricating a prerequisite rule here would be the exact "guess instead of parse" this
-// codebase's standing rule already forbids elsewhere.
+// buildUCDavisQuarterItems above, no checkpoint needed there — Stage 2's own onboarding
+// TranscriptScreen already collected that first transcript entry before Stage 3's course
+// selection ever ran, so there's no "Part 1" left to do for it).
+//
+// Every checkpoint — Fall, Winter, Spring, and Summer alike — is now a full two-part task
+// (transcript + course selection, mirroring Roslyn's own course-checkpoint exactly). An earlier
+// version only made Fall two-part and treated Winter/Spring/Summer as a lighter, single-part
+// "just pick courses" task, on the assumption that grades only change once a year — wrong for a
+// real quarter system, where final grades post after every quarter, not just once. Fixed by
+// dropping the single-part branch entirely: there is no longer any structural difference between
+// Fall's checkpoint and Winter/Spring/Summer's. Summer is still the one exception, but only along
+// a DIFFERENT axis — it's still `required: false` (optional to complete at all, not every student
+// takes summer courses), which alone is enough to make it render as the same hollow/dashed
+// "optional" ring every optional opportunity already uses — no new ring-rendering logic needed
+// (see Roadmap.jsx's own three-way required/custom/dashed branch). Deliberately does NOT do
+// prerequisite-locking the way Roslyn's Part 2 does — Stage 2's own catalog fetch never captured
+// per-course prerequisite text for UC Davis (see UCDavisCourseCard's own comment in
+// CourseSelectionScreen.jsx), so there's no real data to check against; fabricating a
+// prerequisite rule here would be the exact "guess instead of parse" this codebase's standing
+// rule already forbids elsewhere.
 function buildUCDavisCheckpointItem(stageName, slot, planStartDate, dateOverrides, removed) {
   const id = `ucdavis-checkpoint-${stageName}-${slot.quarter}`;
   if (removed[id]) return null;
-  const isTwoPart = slot.quarter === 'fall';
   const isOptional = slot.quarter === 'summer';
   const quarterLabel = QUARTER_LABELS[slot.quarter];
   const templateDate = clampToFuture(realAddDays(slot.startDate, -ESTIMATED_REGISTRATION_LEAD_DAYS), planStartDate);
   const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
   return {
     id,
-    title: isTwoPart
-      ? `Update your transcript & select ${quarterLabel} quarter courses`
-      : `Select your ${quarterLabel} quarter courses${isOptional ? ' (optional)' : ''}`,
+    title: `Update your transcript & select ${quarterLabel} quarter courses${isOptional ? ' (optional)' : ''}`,
     category: 'core',
     required: !isOptional,
     coreType: 'ucdavis-checkpoint',
     date: realDate,
     due: formatDate(realDate),
-    desc: isTwoPart
-      ? `Two steps: update your transcript with your final grades, then select your ${quarterLabel} quarter courses — this also refreshes your GPA everywhere it's used, including Reach/Match/Safety. This date is an estimate of UC Davis's registration window, not a published deadline.`
-      : `Select which courses you're planning to take ${quarterLabel} quarter${isOptional ? ' — this is entirely optional, not every student takes summer courses' : ''}. This date is an estimate of UC Davis's registration window, not a published deadline.`,
+    desc: `Two steps: update your transcript with your final grades from the prior quarter, then select your ${quarterLabel} quarter courses — this also refreshes your GPA everywhere it's used, including Reach/Match/Safety.${isOptional ? ' This quarter is entirely optional — not every student takes summer courses.' : ''} This date is an estimate of UC Davis's registration window, not a published deadline.`,
     resources: [],
     steps: null,
     checkpointStageName: stageName,
     checkpointQuarter: slot.quarter,
-    checkpointIsTwoPart: isTwoPart,
   };
 }
 

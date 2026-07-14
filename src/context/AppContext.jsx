@@ -61,22 +61,22 @@ const DEFAULT_STATE = {
   // where relevant, and returns to 'plan' instead of continuing the normal onboarding flow).
   // Cleared the moment either screen's checkpoint flow finishes or is backed out of.
   ucdavisQuarterCheckpoints: {}, // { [stageName]: { fall: { part1Done, selectedCourseIds },
-  // winter: { selectedCourseIds }, spring: { selectedCourseIds }, summer: { selectedCourseIds } } }
-  // — the UC Davis partner-school analog of courseCheckpoints above (see CLAUDE.md's "UC Davis
-  // Partner School, Stage 4" section), but keyed by QUARTER within each stage year too, not just
-  // stage name — UC Davis's real quarter system means registration happens ~3x per academic year,
-  // not once, so Roslyn's single yearly checkpoint had to be decoupled into one two-part
-  // "before Fall" checkpoint (transcript + Fall course selection, part1Done tracks the transcript
-  // half exactly like courseCheckpoints does) plus lighter single-part Winter/Spring checkpoints
-  // (course selection only — no transcript re-prompt, since that year's courses aren't graded
-  // yet) plus an explicitly optional Summer one. Every quarter's own `selectedCourseIds` feeds
-  // roadmapGenerator.js's UC Davis enrollment items once populated, same "checkpoint produces
-  // real dated tasks" contract courseCheckpoints already established.
+  // winter: { part1Done, selectedCourseIds }, spring: { part1Done, selectedCourseIds },
+  // summer: { part1Done, selectedCourseIds } } } — the UC Davis partner-school analog of
+  // courseCheckpoints above (see CLAUDE.md's "UC Davis Partner School, Stage 4" section), but
+  // keyed by QUARTER within each stage year too, not just stage name — UC Davis's real quarter
+  // system means registration (and real final grades) happen every quarter, not once a year, so
+  // EVERY quarter is a full two-part checkpoint (transcript update + course selection, part1Done
+  // tracks the transcript half exactly like courseCheckpoints does) — Fall, Winter, and Spring all
+  // identically, plus an explicitly optional Summer one (same two-part shape, just `required:
+  // false` on its spine node). Every quarter's own `selectedCourseIds` feeds roadmapGenerator.js's
+  // UC Davis enrollment items once populated, same "checkpoint produces real dated tasks" contract
+  // courseCheckpoints already established.
   activeUCDavisCheckpoint: null, // { stageName, quarter: 'fall'|'winter'|'spring'|'summer',
   // part: 'transcript' | 'courses' } | null — the UC Davis analog of activeCourseCheckpoint
   // above, extended with `quarter` since a stage year now has up to 4 checkpoint slots instead of
-  // 1. Only ever set to part: 'transcript' for the 'fall' quarter (the only two-part checkpoint);
-  // every other quarter only ever uses part: 'courses'.
+  // 1. Set to part: 'transcript' or part: 'courses' for ANY quarter — every quarter is two-part
+  // now, so there's no quarter-specific restriction on which `part` value applies here.
   selectedCareerIds: [],
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`
