@@ -636,10 +636,16 @@ document.body)` pattern rather than rendering it inline.
   that lookup to `OPPORTUNITY_TRACKS` (all tracks) — a no-op for anything selected via
   Recommended, since that narrower set is always a subset.
 - **A third view, "My School," sits alongside Recommended/Browse — real, independently-fetched
-  Roslyn High School club data, shown only for `educationLevel === 'highschool'` +
-  `currentSchool === 'Roslyn High School'`** (the exact same High-School/Roslyn boundary every
-  other partner-school feature already uses — Undergraduate/Transfer never see this tab, and
-  neither does a High School student who hasn't picked a school yet). Fetched directly from
+  club data, shown only for `educationLevel === 'highschool'` + `currentSchool === 'Roslyn High
+  School'`, OR Undergraduate/Transfer + `currentSchool === 'UC Davis'` (`isCollegeAtUCDavis`, the
+  same per-file-recomputed convention every other UC Davis feature uses)** — no other
+  education-level/school combination sees this tab, including a High School or college student who
+  hasn't picked a school yet. `getSchoolOpportunities(schoolName, level)` itself needed zero code
+  changes to serve a second school — it was always schoolName-agnostic, scanning for any
+  `schoolVerified` entry matching the given `schoolName`; only `OpportunityFinderScreen.jsx`'s
+  `showMySchoolTab` gate and its own hint-text copy (which branches on `currentSchool` to avoid
+  citing Roslyn-specific examples like DECA/Key Club for a UC Davis student) had to widen. Roslyn's
+  own data was fetched directly from
   `hs.roslynschools.org/student-center/clubs` (52 real clubs, name + description parsed from the
   page's own HTML structure — a bold-span/normal-span pair per club — not summarized or
   paraphrased) and reconciled against the existing `OPPORTUNITIES` data two ways, per the build
@@ -698,6 +704,48 @@ document.body)` pattern rather than rendering it inline.
     School") on any card with `schoolVerified: true`, in EVERY view it appears in** — not just My
     School — so a student browsing normally still sees when DECA/Key Club/etc. is grounded in
     real school data instead of generic copy.
+- **UC Davis's own My School clubs (`ucdc-*` ids) mirror Roslyn's pattern above, fetched from
+  `aggielife.ucdavis.edu/club_signup?view=all&` (UC Davis's own club directory, ~880 real groups
+  total) — but deliberately a curated ~70-club SAMPLE, not the full directory,** since ingesting
+  every group wasn't the ask and would have overwhelmed the tab. 7 clubs were selected from each of
+  11 real AggieLife categories the build spec named (Academic/Honors, Advocacy and/or Political,
+  Arts and Entertainment, Community Service, Dance Performance, Environmental/Sustainability,
+  Ethnic/Cultural/Identity-Based, Health and Wellness, Professional, Recreation/Sports,
+  Religious/and or Spiritual) — 77 total — selected by real mission-text substance (a genuine
+  quality/completeness signal, not cherry-picked by name), with 2 grad-student-only orgs that
+  surfaced in that selection swapped for undergrad-inclusive replacements, since the app's own
+  UC-Davis-reachable audience is Undergraduate/Transfer only. Purely administrative entries
+  (`Student Affairs Department`/`ASUCD` org types on AggieLife, e.g. the Center for Student
+  Involvement's own listing) were excluded before selection ever ran; AggieLife's own
+  "DO NOT REACTIVATE" filter category turned out to tag zero actual clubs in the fetched page, so
+  it needed no explicit exclusion logic. Each club's own real category routed it to whichever app
+  track fits its actual content — occasionally overriding AggieLife's own category tag when the
+  real mission text clearly pointed elsewhere (Davis Historical Fencing Club is tagged "Dance
+  Performance" on AggieLife but is routed to `sports` here as the martial-arts club it actually is;
+  Radio Association of Davis is tagged "Recreation/Sports" but is routed to `stem` as the
+  amateur-radio/electronics club it actually is) — identity/cultural/religious affinity clubs with
+  no genuine skill/career angle go to `GENERIC_OPPORTUNITIES` instead, same "don't force a fit"
+  precedent the 4 unmapped Roslyn clubs already established above. **Checked for genuine overlap
+  with this file's own pre-existing generic/templated opportunities before writing any of this**
+  (Model UN, ASUCD/student government, a campus newspaper/radio station, a UC Davis DECA chapter —
+  none of which turned up as a real club in the fetched AggieLife data) — unlike Roslyn's 7
+  enrichments, none of the 77 selected UC Davis clubs duplicated an existing entry closely enough
+  to honestly merge, so this batch is 77 new entries and zero enrichments; forcing a merge where
+  the content doesn't genuinely match would be a worse outcome than the honest "checked, found
+  none" documented in `opportunities.js`'s own header comment for this addition. Every entry
+  appears in BOTH that track's `undergraduate` and `transfer` arrays (identical content, identical
+  id, in both) since a real UC Davis club is equally open to either education level — unlike the
+  rest of this file's undergraduate-vs-transfer split (which often varies wording/framing by
+  level), there's no genuine content difference to write twice here, and reusing the same id across
+  the two arrays is safe since a given plan only ever reads one `educationLevel` at a time. Each
+  entry also carries a **new `website` field** (the club's real external site, extracted alongside
+  name/category/mission) — rendered as plain text in `OpportunityFinderScreen.jsx`'s `.card-meta`
+  grid, alongside `howToApply`, the same "informative text, not a clickable link" precedent
+  `stepResources` already established elsewhere in this file (the card itself is a `<button>`, so a
+  nested `<a>` would be invalid HTML — same reasoning documented elsewhere in this file for why
+  Course Selection's card body isn't a `<button>` either). Every `description` is a real, honest
+  1-3 sentence excerpt of that club's own fetched mission text, trimmed to a sentence boundary
+  (never invented or paraphrased), matching this file's existing description length elsewhere.
 - **Recurring competitions/clubs escalate across multi-year plans instead of clustering into
   year 1.** An opportunity can carry `recurring: true, progressionType: 'competition' |
   'leadership' | 'repeat'` (e.g. `deca`, `fbla`, `science-olympiad`, `hosa`,

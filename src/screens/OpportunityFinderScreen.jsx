@@ -15,11 +15,15 @@ export default function OpportunityFinderScreen() {
 
   // "My School" — real, independently-fetched club data for the student's actual school, a third
   // lens alongside Recommended/Browse rather than a filter within them. Scoped to High School +
-  // Roslyn specifically (the only real `currentSchool` value right now — src/data/schools.js), same
-  // boundary every other partner-school feature (Transcript & GPA, Course Selection) already uses.
-  // Undergraduate/Transfer never see this tab at all, matching that same scoping.
+  // Roslyn, or Undergraduate/Transfer + UC Davis specifically (the only two real `currentSchool`
+  // values right now — src/data/schools.js), same `isCollegeAtUCDavis` boundary every other
+  // partner-school feature (Transcript & GPA, Course Selection) already uses, recomputed here per
+  // this codebase's own per-file convention. Any other education-level/school combination never
+  // sees this tab at all.
   const isHighSchool = state.educationLevel === 'highschool';
-  const showMySchoolTab = isHighSchool && state.currentSchool === 'Roslyn High School';
+  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
+    && state.currentSchool === 'UC Davis';
+  const showMySchoolTab = (isHighSchool && state.currentSchool === 'Roslyn High School') || isCollegeAtUCDavis;
   const mySchoolOpportunities = showMySchoolTab
     ? getSchoolOpportunities(state.currentSchool, state.educationLevel)
     : [];
@@ -102,10 +106,14 @@ export default function OpportunityFinderScreen() {
 
       {viewMode === 'mySchool' && (
         <p className="field-hint" style={{ marginBottom: 18 }}>
-          Real clubs from {state.currentSchool}'s own club list — independently verified, not
-          generic national copy. Some (like DECA, Key Club, or Science Olympiad) match a national
-          program you'd see elsewhere in this app; those are enriched with Roslyn's real details
-          rather than shown twice.
+          {state.currentSchool === 'Roslyn High School'
+            ? "Real clubs from Roslyn High School's own club list — independently verified, not "
+              + 'generic national copy. Some (like DECA, Key Club, or Science Olympiad) match a '
+              + "national program you'd see elsewhere in this app; those are enriched with "
+              + "Roslyn's real details rather than shown twice."
+            : "Real clubs from UC Davis's own AggieLife directory — independently verified, not "
+              + 'generic national copy. This is a curated selection spanning UC Davis\'s major '
+              + 'club categories, not the full 800+ group directory.'}
         </p>
       )}
 
@@ -165,6 +173,12 @@ export default function OpportunityFinderScreen() {
                   <span className="label">How to apply</span>
                   <strong>{opp.howToApply}</strong>
                 </div>
+                {opp.website && (
+                  <div>
+                    <span className="label">Website</span>
+                    <strong>{opp.website.replace(/^https?:\/\//, '')}</strong>
+                  </div>
+                )}
               </div>
             </button>
           );
