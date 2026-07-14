@@ -1800,29 +1800,44 @@ cycle," and make only the yearly one two-part — is what's implemented here.
   open on a schedule that varies by class level, not one fixed date.
 - **`roadmapGenerator.js`'s `buildUCDavisQuarterItems` walks `buildStageQuarterLists`'s output
   and treats the very first quarter slot specially**: it's the quarter Stage 3's onboarding
-  selections (`state.selectedUCDavisCourseIds`) are actually FOR, so `buildUCDavisEnrollmentItems`
-  turns each selected course straight into a real, dated "Enroll in `[CODE]` for `[Quarter]`
-  quarter" task — no checkpoint needed, mirroring exactly how Roslyn's own stage-0 course-request
-  items come straight from `state.selectedCourseIds` with no checkpoint. Every OTHER quarter slot
-  (winter/spring/summer of stage 0, and all four quarters of every later stage) gets its own
-  `buildUCDavisCheckpointItem` — Fall is the only two-part one (`checkpointIsTwoPart: true`,
-  mirroring Roslyn's course-checkpoint exactly: Part 1 transcript, Part 2 course selection, GPA
-  refreshed feeding Reach/Match/Safety); Winter/Spring are single-part (course selection only, no
-  transcript re-prompt, since that year's courses aren't graded yet); Summer is single-part AND
-  `required: false` — which alone is enough to make it render with the same hollow/dashed
-  "optional" ring every optional opportunity already uses, confirmed via its own
-  `stroke-dasharray` and via removing it with no confirmation dialog (the required-only
+  selections (`state.selectedUCDavisCourseIds`) are actually FOR, so `buildUCDavisEnrollmentItem`
+  turns the WHOLE selected list into ONE real, dated "Select and enroll in your `[Quarter]`
+  quarter courses" task — no checkpoint needed, mirroring exactly how Roslyn's own stage-0
+  course-request items come straight from `state.selectedCourseIds` with no checkpoint. Every
+  OTHER quarter slot (winter/spring/summer of stage 0, and all four quarters of every later stage)
+  gets its own `buildUCDavisCheckpointItem` — Fall is the only two-part one
+  (`checkpointIsTwoPart: true`, mirroring Roslyn's course-checkpoint exactly: Part 1 transcript,
+  Part 2 course selection, GPA refreshed feeding Reach/Match/Safety); Winter/Spring are single-part
+  (course selection only, no transcript re-prompt, since that year's courses aren't graded yet);
+  Summer is single-part AND `required: false` — which alone is enough to make it render with the
+  same hollow/dashed "optional" ring every optional opportunity already uses, confirmed via its
+  own `stroke-dasharray` and via removing it with no confirmation dialog (the required-only
   confirm-before-remove check already keys off this same flag) — **zero new ring-rendering logic
   needed**, this is the existing `n.required` branch in `Roadmap.jsx` doing exactly what it
   already did. Once a checkpoint's own `selectedCourseIds` is populated (Part 2 for Fall, the
-  single part for everything else), real enrollment tasks appear alongside it, same "checkpoint
-  produces dated tasks" coexistence `buildCourseItems` already established for Roslyn.
+  single part for everything else), one real enrollment task appears alongside it, same
+  "checkpoint produces a dated task" coexistence `buildCourseItems` already established for
+  Roslyn.
   **Deliberately does NOT do prerequisite-locking the way Roslyn's Part 2 does** — Stage 2's own
   catalog fetch never captured per-course prerequisite text for UC Davis (see
   `UCDavisCourseCard`'s own comment in `CourseSelectionScreen.jsx`), so there's no real data to
   check against; the GPA-refresh and Reach/Match/Safety parts of "same logic as Roslyn's Part 2"
   are still fully real and honored, but fabricating a prerequisite rule with no source data would
   be exactly the "guess instead of parse" this codebase's standing rule forbids elsewhere.
+- **Fix: one spine task per registration cycle, not one per course.** The first version of
+  `buildUCDavisEnrollmentItem` (then plural, `buildUCDavisEnrollmentItems`) created a separate
+  node per selected course id — since every course selected for the same quarter shares the exact
+  same registration date, this was pure visual clutter: several same-dated nodes stacking up and
+  crowding/overlapping neighboring opportunity chains on any quarter with more than one or two
+  selections, a real, confirmed regression on a dense quarter. Fixed by consolidating to a single
+  function producing ONE item per quarter cycle
+  (`ucdavis-enroll-${stageName}-${quarter}` — no longer keyed by course id at all), whose `desc`
+  lists every selected course as `${code} (${name})` pairs — the same "a task's detail view can
+  hold a longer description" pattern any other task already uses, not a new UI. Applied
+  identically wherever enrollment tasks are produced — Stage 3's own direct onboarding selections
+  and every checkpoint's own resulting selections (Fall's two-part flow and the lighter Winter/
+  Spring/Summer ones alike) — so a quarter with 5 selected courses now shows as exactly 1 spine
+  node regardless of which path produced the selection.
 - **`state.ucdavisQuarterCheckpoints`/`state.activeUCDavisCheckpoint`** are the UC Davis analogs
   of Roslyn's `courseCheckpoints`/`activeCourseCheckpoint`, extended with a `quarter` key at every
   level a stage year now has up to 4 checkpoint slots instead of Roslyn's 1

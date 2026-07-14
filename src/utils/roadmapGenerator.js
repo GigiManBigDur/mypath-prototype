@@ -403,13 +403,13 @@ function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, plan
 // this app's usual today-relative template system — see that file's own header comment for why),
 // grouped into one array per plan stage via buildStageQuarterLists. The very first quarter slot
 // of the very first stage is special: it's the quarter Stage 3's onboarding selections
-// (state.selectedUCDavisCourseIds) are actually FOR, so it becomes real enrollment tasks directly
-// — no checkpoint needed, exactly mirroring how Roslyn's stage-0 course-request items come
-// straight from state.selectedCourseIds with no checkpoint. Every other quarter slot gets its own
-// checkpoint task (two-part only for 'fall', single-part otherwise, 'summer' explicitly optional
-// via required: false) plus — once that checkpoint's own selectedCourseIds is populated — real
-// enrollment tasks for whatever was selected, same "checkpoint produces dated tasks" coexistence
-// buildCourseItems already established for Roslyn.
+// (state.selectedUCDavisCourseIds) are actually FOR, so it becomes ONE real enrollment task
+// directly — no checkpoint needed, exactly mirroring how Roslyn's stage-0 course-request items
+// come straight from state.selectedCourseIds with no checkpoint. Every other quarter slot gets
+// its own checkpoint task (two-part only for 'fall', single-part otherwise, 'summer' explicitly
+// optional via required: false) plus — once that checkpoint's own selectedCourseIds is populated
+// — ONE real enrollment task for whatever was selected, same "checkpoint produces a dated task"
+// coexistence buildCourseItems already established for Roslyn.
 function buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverrides, removed) {
   const yearSpan = stageNames.length;
   const next = getNextQuarter(planStartDate);
@@ -421,9 +421,10 @@ function buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverride
     const stageName = stageNames[stageIndex];
     quarters.forEach((slot, slotIndex) => {
       if (stageIndex === 0 && slotIndex === 0) {
-        items.push(...buildUCDavisEnrollmentItems(
+        const item = buildUCDavisEnrollmentItem(
           state.selectedUCDavisCourseIds || [], stageName, slot, planStartDate, dateOverrides, removed,
-        ));
+        );
+        if (item) items.push(item);
         return;
       }
 
@@ -432,7 +433,8 @@ function buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverride
 
       const record = checkpoints[stageName]?.[slot.quarter];
       if (record?.selectedCourseIds?.length) {
-        items.push(...buildUCDavisEnrollmentItems(record.selectedCourseIds, stageName, slot, planStartDate, dateOverrides, removed));
+        const item = buildUCDavisEnrollmentItem(record.selectedCourseIds, stageName, slot, planStartDate, dateOverrides, removed);
+        if (item) items.push(item);
       }
     });
   });
@@ -449,30 +451,36 @@ function clampToFuture(date, planStartDate) {
   return date < earliest ? earliest : date;
 }
 
-function buildUCDavisEnrollmentItems(courseIds, stageName, slot, planStartDate, dateOverrides, removed) {
+// ONE spine task per registration cycle, not one per course — every course selected for a given
+// quarter shares the exact same registration date, so one-node-per-course was purely visual
+// clutter (a real, confirmed bug: several same-dated nodes stacking up and crowding/overlapping
+// neighboring opportunity chains on a dense quarter). The full course list (code + name for each)
+// lives in this one task's own `desc`, the same way any task's detail view can hold a longer
+// description — not as separate spine nodes. Returns null (task omitted) if every selected id
+// failed to resolve to a real course, or if the whole quarter's selection is empty.
+function buildUCDavisEnrollmentItem(courseIds, stageName, slot, planStartDate, dateOverrides, removed) {
   const quarterLabel = QUARTER_LABELS[slot.quarter];
-  return courseIds
-    .map((courseId) => {
-      const course = getUCDavisCourseById(courseId);
-      if (!course) return null;
-      const id = `ucdavis-enroll-${courseId}-${stageName}-${slot.quarter}`;
-      if (removed[id]) return null;
-      const templateDate = clampToFuture(realAddDays(slot.startDate, -ESTIMATED_REGISTRATION_LEAD_DAYS), planStartDate);
-      const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
-      return {
-        id,
-        title: `Enroll in ${course.code} for ${quarterLabel} quarter`,
-        category: 'core',
-        required: true,
-        coreType: 'ucdavis-enrollment',
-        date: realDate,
-        due: formatDate(realDate),
-        desc: `${course.name} (${course.department}). This date is an estimate of UC Davis's registration window (~${ESTIMATED_REGISTRATION_LEAD_DAYS} days before ${quarterLabel} quarter begins), not a published deadline — check Schedule Builder for your exact pass time.`,
-        resources: [],
-        steps: null,
-      };
-    })
-    .filter(Boolean);
+  const courses = courseIds.map((courseId) => getUCDavisCourseById(courseId)).filter(Boolean);
+  if (courses.length === 0) return null;
+
+  const id = `ucdavis-enroll-${stageName}-${slot.quarter}`;
+  if (removed[id]) return null;
+  const templateDate = clampToFuture(realAddDays(slot.startDate, -ESTIMATED_REGISTRATION_LEAD_DAYS), planStartDate);
+  const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+  const courseList = courses.map((course) => `${course.code} (${course.name})`).join(', ');
+
+  return {
+    id,
+    title: `Select and enroll in your ${quarterLabel} quarter courses`,
+    category: 'core',
+    required: true,
+    coreType: 'ucdavis-enrollment',
+    date: realDate,
+    due: formatDate(realDate),
+    desc: `Your selected courses for ${quarterLabel} quarter: ${courseList}. This date is an estimate of UC Davis's registration window (~${ESTIMATED_REGISTRATION_LEAD_DAYS} days before ${quarterLabel} quarter begins), not a published deadline — check Schedule Builder for your exact pass time.`,
+    resources: [],
+    steps: null,
+  };
 }
 
 // One checkpoint per quarter slot except the very first slot of the plan (handled directly by
