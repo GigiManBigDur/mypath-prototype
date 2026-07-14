@@ -303,6 +303,21 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
     [state.selectedMajorIds],
   );
 
+  // Same real, analogous gap the Roslyn off-by-one fix already closed for its own transcript
+  // (YEAR_OPTIONS scoped to state.schoolYear) — the UC Davis onboarding transcript's own "Class
+  // Year" pill row always offered all 4 of CLASS_YEAR_OPTIONS regardless of state.schoolYear
+  // (1st-4th year at UC Davis), letting a genuine incoming 1st-year student log "Senior"-level
+  // coursework that couldn't possibly exist yet. CLASS_YEAR_OPTIONS[i] represents "year i+1 at UC
+  // Davis" (Freshman = 1st year, ... Senior = 4th year), so only years STRICTLY BEFORE the
+  // student's own entering year have actually been completed —
+  // `CLASS_YEAR_OPTIONS.slice(0, schoolYear - 1)`. A 1st-year student (schoolYear 1) gets an
+  // EMPTY array — a true incoming first-year has no UC Davis coursework at all yet, unlike
+  // Roslyn's freshman who still had one real prior option (8th grade); the form below hides
+  // itself entirely in that case rather than rendering a permanently-unusable "Add Course" button
+  // (see the JSX below). Checkpoint mode (a separate, later-firing screen for a DIFFERENT, future
+  // stage) keeps the full range, same exception Roslyn's own fix already carved out.
+  const availableClassYearOptions = checkpoint ? CLASS_YEAR_OPTIONS : CLASS_YEAR_OPTIONS.slice(0, (state.schoolYear ?? 4) - 1);
+
   const canAdd = !!pendingCourse && !!letterGrade && !!classYear && !!quarter;
 
   const addEntry = () => {
@@ -404,13 +419,22 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
 
       {ucdavisTranscript.length === 0 && (
         <div className="transcript-skip-row">
-          <p>Haven't taken any UC Davis courses yet? That's completely fine.</p>
+          <p>
+            {!checkpoint && availableClassYearOptions.length === 0
+              ? "You're just starting at UC Davis — there's nothing to add yet."
+              : 'Haven\'t taken any UC Davis courses yet? That\'s completely fine.'}
+          </p>
           <button type="button" className="btn btn-outline" onClick={advance}>
             Skip — I haven't taken any UC Davis courses yet
           </button>
         </div>
       )}
 
+      {/* A true incoming 1st-year student has genuinely NO prior UC Davis coursework to log —
+          unlike Roslyn's freshman case (which still had one real prior option, 8th grade), there
+          is no equivalent partial case here, so the add-course form itself is hidden rather than
+          rendered as a permanently-unusable "Add Course" button with an empty Class Year row. */}
+      {(checkpoint || availableClassYearOptions.length > 0) && (
       <div className="transcript-form">
         <div className="transcript-form-field" style={{ flex: '1 1 260px' }}>
           <span className="label">Course</span>
@@ -450,7 +474,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
         <div className="transcript-form-field">
           <span className="label">Class Year</span>
           <div className="pill-group">
-            {CLASS_YEAR_OPTIONS.map((y) => (
+            {availableClassYearOptions.map((y) => (
               <button
                 type="button"
                 key={y}
@@ -483,6 +507,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
           Add Course
         </button>
       </div>
+      )}
 
       {ucdavisTranscript.length > 0 && (
         <>

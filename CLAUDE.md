@@ -838,6 +838,42 @@ entry — `configFor()` just gets two new `coreType` entries, `'course-request'`
   `stage0TargetLabel` and `CourseSelectionScreen.jsx`'s own (renamed) `currentYearLabel` now call
   this one function, so the roadmap task title and the on-screen banner can never independently
   drift again the way they just did.
+- **Mirrored for UC Davis's own Undergraduate/Transfer flows — but the actual root cause turned
+  out to be different, confirmed by direct investigation rather than assumed.**
+  `buildUCDavisQuarterItems` (UC Davis Stage 4) was built entirely on real calendar-date math via
+  `getNextQuarter`/`buildStageQuarterLists` from day one (see that section above) — it never
+  referenced `stageNames[1]` anywhere, so stage 0's own enrollment task was ALREADY correctly
+  targeting the real next quarter with no off-by-one to fix. The real, analogous gaps were
+  elsewhere:
+  - The Survey's year question was reworded for Undergraduate/Transfer too — **"What year are you
+    entering / about to start?"** (`SurveyScreen.jsx`), applied unconditionally across all 3
+    levels (the question is asked BEFORE the school-selection field further down, so wording
+    can't be conditioned on whether the student will end up at UC Davis or Roslyn).
+  - **A real, confirmed unscoped-options gap**, the UC Davis analog of Roslyn's original
+    `YEAR_OPTIONS` bug: `UCDavisTranscriptScreen`'s own "Class Year" pill row always offered all 4
+    of `CLASS_YEAR_OPTIONS` (`['Freshman', 'Sophomore', 'Junior', 'Senior']`) regardless of
+    `state.schoolYear`, letting a genuine incoming 1st-year student log "Senior"-level coursework
+    that couldn't exist yet. Fixed with `CLASS_YEAR_OPTIONS.slice(0, schoolYear - 1)` (checkpoint
+    mode keeps the full range, same exception Roslyn's fix already carved out) — a 1st-year
+    student gets an EMPTY array, since a true incoming first-year has genuinely zero prior UC
+    Davis coursework (unlike Roslyn's freshman, who still had one real option, 8th grade). Rather
+    than render a permanently-unusable "Add Course" form with an empty Class Year row, the whole
+    add-course form is hidden for that case, replaced with "You're just starting at UC Davis —
+    there's nothing to add yet." alongside the existing Skip button (Task 3 — this Skip option,
+    "Skip — I haven't taken any UC Davis courses yet," already existed from Stage 2 and needed no
+    changes, just confirmation it still works).
+  - **UC Davis's Course Selection had NO scope-clarifying banner at all before this fix** — not a
+    hardcoded-wrong-value bug like Roslyn's, a genuinely missing one. Added
+    `.course-scope-banner` to `UCDavisCourseSelectionScreen`, computing its named quarter via
+    `QUARTER_LABELS[getNextQuarter(startOfToday()).quarter]` — the exact same `getNextQuarter`
+    call `roadmapGenerator.js`'s own targeting logic uses, so this banner and the real enrollment
+    task's own title can never independently drift the way Roslyn's banner once did (confirmed
+    directly: seeding a plan and comparing the banner's named quarter against the roadmap's own
+    "Select and enroll in your `[Quarter]` quarter courses" task title show the identical
+    quarter).
+  - **Multi-year/Transfer-specific plan-length logic (`STAGE_PLAN.undergraduate`/`.transfer`,
+    unchanged) was deliberately left alone** — confirmed via Map 1's own year-marker count for
+    every `(educationLevel, schoolYear)` combination before and after this fix.
 - **`course-checkpoint`** — one per future high-school year *except the last* (`stageIndex` in
   `[1, yearSpan-2]` — see `buildCourseItems()`'s loop; this range is empty whenever `yearSpan <=
   2`, which is exactly when there's no year-after-next to plan for, e.g. an 11th- or 12th-grader

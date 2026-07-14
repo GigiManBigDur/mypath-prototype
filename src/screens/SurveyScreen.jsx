@@ -134,17 +134,19 @@ export default function SurveyScreen() {
 
       {state.educationLevel && (
         <div className="field-block">
-          {/* High School specifically asks "entering / about to start" rather than the ambiguous
-              "What grade are you in?" — the earlier wording was genuinely ambiguous between
-              "the grade you're currently completing" and "the grade you're about to start," and
-              the app's own Course Selection targeting was built assuming the former (register
-              now for grade+1's courses) while a real incoming freshman answering "9th" means the
-              latter. This fixed a real, confirmed off-by-one bug — see roadmapGenerator.js's own
-              stage0TargetLabel comment. Undergraduate/Transfer use "1st year"/"2nd year" phrasing,
-              not grade numbers, so they don't carry the same ambiguity and keep the original
-              wording. */}
+          {/* Both High School and Undergraduate/Transfer ask "entering / about to start" rather
+              than the ambiguous "What year/grade are you in?" — the earlier wording was
+              genuinely ambiguous between "the year you're currently completing" and "the year
+              you're about to start," and the app's own Course Selection/Transcript targeting for
+              UC Davis (mirroring the same fix already applied to Roslyn) was built assuming the
+              former (register now for year+1's courses) while a real incoming first-year student
+              answering "1st year" means the latter. Applied to all 3 levels uniformly — this
+              question is asked BEFORE the school-selection field further down, so wording can't
+              be conditioned on which school (Roslyn vs. UC Davis) the student will pick next, and
+              the clearer phrasing doesn't hurt Undergraduate/Transfer students who won't end up
+              at UC Davis either. */}
           <div className="field-label">
-            {state.educationLevel === 'highschool' ? 'What grade are you entering / about to start?' : 'What year are you in?'}
+            {state.educationLevel === 'highschool' ? 'What grade are you entering / about to start?' : 'What year are you entering / about to start?'}
           </div>
           <p className="field-hint">This scales your plan to how much time you actually have.</p>
           <div className="pill-group">

@@ -25,7 +25,8 @@ import {
 } from '../data/ucdavisCourses';
 import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
 import { getRecommendedUCDavisCourses } from '../data/ucdavisCourseRecommendations';
-import { QUARTER_LABELS } from '../data/ucdavisQuarters';
+import { QUARTER_LABELS, getNextQuarter } from '../data/ucdavisQuarters';
+import { startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -799,6 +800,16 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
     }
   }, [checkpoint, checkpointIsTwoPart, checkpointProgress?.part1Done]);
 
+  // Scope-clarifying banner (Task 4, mirroring Roslyn's own `.course-scope-banner`) — the
+  // onboarding (non-checkpoint) selection is always scoped to exactly ONE quarter: whichever is
+  // actually next relative to today. Reads the SAME `getNextQuarter` function
+  // roadmapGenerator.js's own targeting logic calls, so this banner and the resulting real
+  // enrollment task's title can never independently drift out of sync the way Roslyn's own
+  // banner once did (see trunkSteps.js's getStage0TargetLabel for that history). UC Davis had no
+  // equivalent banner at all before this fix — not a hardcoded-wrong-year bug like Roslyn's, just
+  // a genuinely missing one.
+  const nextQuarterLabel = useMemo(() => QUARTER_LABELS[getNextQuarter(startOfToday()).quarter], []);
+
   const selectedColleges = useMemo(
     () => getSelectedUCDavisColleges(state.selectedMajorIds),
     [state.selectedMajorIds],
@@ -881,6 +892,14 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
           ? `Pick the courses you're planning to take ${QUARTER_LABELS[checkpoint.quarter]} quarter.`
           : "Pick the courses you're planning to take, built around UC Davis's own real course catalog."}
       </p>
+
+      {!checkpoint && (
+        <div className="caveat-banner course-scope-banner">
+          This page is for selecting your courses for <strong>{nextQuarterLabel} quarter</strong> only —
+          not your full remaining path. You'll return here to choose courses for each future quarter as
+          they come up.
+        </div>
+      )}
 
       {!checkpoint && (
       <div className="field-block">
