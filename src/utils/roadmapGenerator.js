@@ -400,7 +400,18 @@ function buildCourseCheckpointItem(stageName, targetStageName, stageIndex, planS
 function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, planStartDate, dateOverrides, removed) {
   const yearSpan = stageNames.length;
   const isFinalRequestStage = yearSpan === 1;
-  const stage0TargetLabel = isFinalRequestStage ? null : TRUNK_STAGES.highschool[stageNames[1]].label;
+  // Stage 0's own Course Selection (Stage 3's onboarding pick) targets the CURRENT stage
+  // (stageNames[0]) directly — a real, confirmed off-by-one bug used to target stageNames[1]
+  // (the year AFTER the current one) instead, so a 9th-grader answering "Freshman" on the Survey
+  // ended up with Course Selection targeting "Sophomore Year." That off-by-one came from
+  // conflating stage 0's onboarding selection with a CHECKPOINT's own "register now for next
+  // year" pattern (which stays correct and unchanged below — a checkpoint fires mid-plan and
+  // legitimately preps the FOLLOWING stage's courses in advance, the normal "spring registration
+  // for next fall" pattern). Stage 0 is different: it's the very first, immediate Course
+  // Selection a student does during onboarding, representing "what you're taking this year" —
+  // per the Survey's own reworded question ("What grade are you entering / about to start?"),
+  // stageNames[0] already IS that grade, so no +1 shift belongs here.
+  const stage0TargetLabel = isFinalRequestStage ? null : TRUNK_STAGES.highschool[stageNames[0]].label;
   const items = [];
   const stage0Item = buildCourseRequestItem(selectedCourseIds, 0, isFinalRequestStage, stage0TargetLabel, planStartDate, dateOverrides, removed);
   if (stage0Item) items.push(stage0Item);

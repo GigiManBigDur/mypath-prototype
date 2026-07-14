@@ -800,6 +800,32 @@ entry — `configFor()` just gets two new `coreType` entries, `'course-request'`
   load (8 classes for 9th/10th grade, 7 for 11th, 6 for 12th, per this file's own Course Load Per
   Grade policy data) — each cycle's own id stays fully isolated from every other cycle's, so nothing
   merges across years.
+- **Fix: a real, confirmed off-by-one — stage 0's Course Selection now targets the CURRENT stage,
+  not stage+1.** `stage0TargetLabel` in `buildCourseItems()` used to read
+  `TRUNK_STAGES.highschool[stageNames[1]].label` (the year AFTER the current one) for stage 0's
+  own onboarding Course Selection — so a 9th-grader selecting "Freshman" on the Survey got Course
+  Selection targeting "Sophomore Year" instead of their own actual freshman year. Fixed by reading
+  `stageNames[0]` (the current stage) instead. The root cause was conflating stage 0's own
+  IMMEDIATE, once-only onboarding selection with a CHECKPOINT's legitimately different "register
+  now for next year" pattern (a checkpoint fires mid-plan and correctly preps the FOLLOWING
+  stage's courses in advance — that part is untouched and still correct, see `course-checkpoint`
+  below). The Survey's own High-School-only "What year are you in?" question was reworded to
+  **"What grade are you entering / about to start?"** (`SurveyScreen.jsx`, scoped to
+  `state.educationLevel === 'highschool'` only — Undergraduate/Transfer's "1st year"/"2nd year"
+  phrasing doesn't carry the same ambiguity and is unaffected) specifically to remove the
+  ambiguity that produced this bug: "what grade are you in" could mean either "currently
+  completing" or "about to start," and the app's own logic had assumed the former while a real
+  incoming freshman answering "9th" means the latter. `TranscriptScreen.jsx`'s own onboarding
+  "Year Taken" pill options are now also scoped to `state.schoolYear` (`YEAR_OPTIONS.filter(y =>
+  y < state.schoolYear)`) instead of always offering the full `[8, 9, 10, 11, 12]` range — a 9th
+  grader now only sees 8th grade (matching "skipping is fully valid and expected for a true
+  incoming freshman"), a 10th grader sees 8th+9th, and so on; checkpoint-mode transcript entry
+  (a separate, later-firing screen for a DIFFERENT, future stage) keeps the full range, since
+  scoping that to its own real current grade is a separate, unreported concern this fix doesn't
+  touch. **The multi-year plan-LENGTH logic (`STAGE_PLAN`, unchanged) was deliberately left
+  alone** — this fix is isolated to which year Course Selection/transcript entry target, not how
+  many years the plan spans; a 9th grader still gets the same 4-stage plan, a 10th grader the
+  same 3-stage plan, and so on, confirmed via Map 1's own year-marker count before and after.
 - **`course-checkpoint`** — one per future high-school year *except the last* (`stageIndex` in
   `[1, yearSpan-2]` — see `buildCourseItems()`'s loop; this range is empty whenever `yearSpan <=
   2`, which is exactly when there's no year-after-next to plan for, e.g. an 11th- or 12th-grader

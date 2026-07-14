@@ -134,7 +134,18 @@ export default function SurveyScreen() {
 
       {state.educationLevel && (
         <div className="field-block">
-          <div className="field-label">What year are you in?</div>
+          {/* High School specifically asks "entering / about to start" rather than the ambiguous
+              "What grade are you in?" — the earlier wording was genuinely ambiguous between
+              "the grade you're currently completing" and "the grade you're about to start," and
+              the app's own Course Selection targeting was built assuming the former (register
+              now for grade+1's courses) while a real incoming freshman answering "9th" means the
+              latter. This fixed a real, confirmed off-by-one bug — see roadmapGenerator.js's own
+              stage0TargetLabel comment. Undergraduate/Transfer use "1st year"/"2nd year" phrasing,
+              not grade numbers, so they don't carry the same ambiguity and keep the original
+              wording. */}
+          <div className="field-label">
+            {state.educationLevel === 'highschool' ? 'What grade are you entering / about to start?' : 'What year are you in?'}
+          </div>
           <p className="field-hint">This scales your plan to how much time you actually have.</p>
           <div className="pill-group">
             {YEAR_OPTIONS[state.educationLevel].map((y) => (

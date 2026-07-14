@@ -66,6 +66,15 @@ export default function TranscriptScreen() {
 
   const transcript = state.transcript || [];
 
+  // Off-by-one fix (see roadmapGenerator.js's buildCourseItems for the matching Course Selection
+  // fix): the onboarding transcript's own "Year Taken" options are now limited to grades the
+  // student has actually already completed, per their own Survey answer (now "What grade are you
+  // entering / about to start?") — a 9th-grader (entering freshman year) has only 8th grade
+  // behind them, a 10th-grader has 8th+9th, and so on. Checkpoint mode (revisiting a LATER year
+  // mid-plan) keeps the full range — scoping that to the checkpoint's own real current grade is a
+  // separate, unreported concern this fix doesn't touch.
+  const availableYearOptions = checkpoint ? YEAR_OPTIONS : YEAR_OPTIONS.filter((y) => y < (state.schoolYear ?? 12));
+
   const unweightedGpa = useMemo(() => calculateUnweightedGpa(transcript), [transcript]);
   const weightedGpa = useMemo(() => calculateWeightedGpa(transcript), [transcript]);
   const gpa4Scale = useMemo(() => calculate4ScaleGpa(transcript), [transcript]);
@@ -186,7 +195,7 @@ export default function TranscriptScreen() {
         <div className="transcript-form-field">
           <span className="label">Year Taken</span>
           <div className="pill-group">
-            {YEAR_OPTIONS.map((y) => (
+            {availableYearOptions.map((y) => (
               <button
                 type="button"
                 key={y}
