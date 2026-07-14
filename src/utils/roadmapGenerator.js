@@ -455,9 +455,26 @@ function clampToFuture(date, planStartDate) {
 // quarter shares the exact same registration date, so one-node-per-course was purely visual
 // clutter (a real, confirmed bug: several same-dated nodes stacking up and crowding/overlapping
 // neighboring opportunity chains on a dense quarter). The full course list (code + name for each)
-// lives in this one task's own `desc`, the same way any task's detail view can hold a longer
-// description — not as separate spine nodes. Returns null (task omitted) if every selected id
-// failed to resolve to a real course, or if the whole quarter's selection is empty.
+// lives in this one task's own `courseList` array — a real `${code} — ${name}` line per course,
+// rendered by Roadmap.jsx as an actual `<ul>` (the same "structured array, not a run-on paragraph"
+// pattern `resources` already established there — see its own `.modal-resources` block), not
+// crammed into `desc` as a comma-joined sentence the way an earlier version of this function did
+// (confirmed hard to scan once a student selects more than a couple courses). `desc` itself is
+// now just the estimated-date disclaimer, rendered above the list per the existing modal layout —
+// unchanged in substance from before, just no longer also carrying the course list. Returns null
+// (task omitted) if every selected id failed to resolve to a real course, or if the whole
+// quarter's selection is empty.
+//
+// A double-digit course count here is not itself a sign of a merging bug — confirmed directly:
+// Course Selection's own "Recommended for you" view merges across every selected major with no
+// course-load guardrail (e.g. 2 majors alone can surface 15 recommended courses), and nothing in
+// Stage 3 frames selections as "just this one quarter." A student selecting most or all of a
+// multi-major recommended list genuinely ends up with more than the ~3-5 courses (~12-16 units) a
+// real quarter holds — this function is correctly reporting whatever was actually selected, not
+// incorrectly combining separate quarters/years (each quarter's own id
+// `ucdavis-enroll-${stageName}-${quarter}` and its checkpoint's own nested
+// `ucdavisQuarterCheckpoints[stageName][quarter]` storage stay fully isolated from every other
+// quarter's).
 function buildUCDavisEnrollmentItem(courseIds, stageName, slot, planStartDate, dateOverrides, removed) {
   const quarterLabel = QUARTER_LABELS[slot.quarter];
   const courses = courseIds.map((courseId) => getUCDavisCourseById(courseId)).filter(Boolean);
@@ -467,7 +484,6 @@ function buildUCDavisEnrollmentItem(courseIds, stageName, slot, planStartDate, d
   if (removed[id]) return null;
   const templateDate = clampToFuture(realAddDays(slot.startDate, -ESTIMATED_REGISTRATION_LEAD_DAYS), planStartDate);
   const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
-  const courseList = courses.map((course) => `${course.code} (${course.name})`).join(', ');
 
   return {
     id,
@@ -477,7 +493,8 @@ function buildUCDavisEnrollmentItem(courseIds, stageName, slot, planStartDate, d
     coreType: 'ucdavis-enrollment',
     date: realDate,
     due: formatDate(realDate),
-    desc: `Your selected courses for ${quarterLabel} quarter: ${courseList}. This date is an estimate of UC Davis's registration window (~${ESTIMATED_REGISTRATION_LEAD_DAYS} days before ${quarterLabel} quarter begins), not a published deadline — check Schedule Builder for your exact pass time.`,
+    desc: `This date is an estimate of UC Davis's registration window (~${ESTIMATED_REGISTRATION_LEAD_DAYS} days before ${quarterLabel} quarter begins), not a published deadline — check Schedule Builder for your exact pass time.`,
+    courseList: courses.map((course) => `${course.code} — ${course.name}`),
     resources: [],
     steps: null,
   };

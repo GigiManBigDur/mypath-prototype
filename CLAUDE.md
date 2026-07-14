@@ -1830,14 +1830,27 @@ cycle," and make only the yearly one two-part — is what's implemented here.
   same registration date, this was pure visual clutter: several same-dated nodes stacking up and
   crowding/overlapping neighboring opportunity chains on any quarter with more than one or two
   selections, a real, confirmed regression on a dense quarter. Fixed by consolidating to a single
-  function producing ONE item per quarter cycle
-  (`ucdavis-enroll-${stageName}-${quarter}` — no longer keyed by course id at all), whose `desc`
-  lists every selected course as `${code} (${name})` pairs — the same "a task's detail view can
-  hold a longer description" pattern any other task already uses, not a new UI. Applied
-  identically wherever enrollment tasks are produced — Stage 3's own direct onboarding selections
-  and every checkpoint's own resulting selections (Fall's two-part flow and the lighter Winter/
-  Spring/Summer ones alike) — so a quarter with 5 selected courses now shows as exactly 1 spine
-  node regardless of which path produced the selection.
+  function producing ONE item per quarter cycle (`ucdavis-enroll-${stageName}-${quarter}` — no
+  longer keyed by course id at all). Applied identically wherever enrollment tasks are produced —
+  Stage 3's own direct onboarding selections and every checkpoint's own resulting selections
+  (Fall's two-part flow and the lighter Winter/Spring/Summer ones alike) — so a quarter with 5
+  selected courses now shows as exactly 1 spine node regardless of which path produced the
+  selection.
+- **Fix: the course list renders as a real `<ul>`, not a comma-joined sentence baked into
+  `desc`.** The consolidated task's own `courseList` field (an array of `${code} — ${name}`
+  strings) is a genuinely separate field from `desc` — `Roadmap.jsx` renders it as an actual
+  `<ul>`/`<li>` list (`.modal-course-list`, styled to match the pre-existing `.modal-resources`
+  block right below it), positioned ABOVE `desc`, which now holds ONLY the estimated-date
+  disclaimer sentence, unchanged in substance. **A double-digit course count on one task is not
+  itself a sign of a bug — confirmed directly before making this fix**: Course Selection's own
+  "Recommended for you" view merges across every selected major with no course-load guardrail (2
+  majors alone can surface 15 recommended courses, confirmed by seeding Economics + Computer
+  Science and counting the rendered cards), and nothing in Stage 3 frames a selection as "just
+  this one quarter" — a student selecting most of a multi-major recommended list genuinely ends up
+  with more than a real quarter's ~3-5 courses. Each quarter's own id and its checkpoint's own
+  nested `ucdavisQuarterCheckpoints[stageName][quarter]` storage stay fully isolated from every
+  other quarter's — there is no merging-across-quarters bug, only a real, legitimately large
+  selection that now simply displays as a scannable list instead of a run-on paragraph.
 - **`state.ucdavisQuarterCheckpoints`/`state.activeUCDavisCheckpoint`** are the UC Davis analogs
   of Roslyn's `courseCheckpoints`/`activeCourseCheckpoint`, extended with a `quarter` key at every
   level a stage year now has up to 4 checkpoint slots instead of Roslyn's 1

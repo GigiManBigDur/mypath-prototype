@@ -960,6 +960,9 @@ button.card.passed:hover {
 .modal-desc { font-size:14px; line-height:1.55; color: var(--ink); margin-bottom:16px; }
 .modal-resources { font-size:13px; color: var(--ink-soft); margin-bottom:20px; }
 .modal-resources ul { margin:6px 0 0; padding-left:18px; }
+.modal-course-list { font-size:13px; font-weight:600; color: var(--ink); margin-bottom:16px; }
+.modal-course-list ul { margin:6px 0 0; padding-left:18px; list-style: disc; font-weight:400; }
+.modal-course-list li { margin-bottom:4px; line-height:1.4; }
 
 .modal-edit-row { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--paper-line); }
 .modal-edit-date { display:flex; flex-direction:column; gap:4px; }

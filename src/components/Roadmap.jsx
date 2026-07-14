@@ -789,6 +789,19 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             </div>
             <h2 className="modal-title">{modalNode.title}</h2>
             <div className="modal-due">Due {formatDateWithYear(modalNode.date)}</div>
+
+            {/* UC Davis Course Selection Stage 4's consolidated enrollment task carries a real
+                courseList array (one `CODE — Name` line per selected course) — rendered as an
+                actual <ul>, same "structured array, not a run-on paragraph" pattern the
+                pre-existing `resources` block below already established, not squeezed into
+                `desc` as a comma-joined sentence. */}
+            {modalNode.courseList && modalNode.courseList.length > 0 && (
+              <div className="modal-course-list">
+                Your selected courses:
+                <ul>{modalNode.courseList.map((c) => <li key={c}>{c}</li>)}</ul>
+              </div>
+            )}
+
             <p className="modal-desc">{modalNode.desc}</p>
 
             {modalNode.resources && modalNode.resources.length > 0 && (
