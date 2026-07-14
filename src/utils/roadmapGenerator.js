@@ -312,44 +312,66 @@ function buildProjectChain(project, dateOverrides, removed) {
 }
 
 // Course Selection Stage 4 — wires Stage 3's course selections into real, dated, single-step
-// roadmap tasks. Two kinds of item, both built through this same function:
-//   - Stage 0's tasks come from `state.selectedCourseIds` (the "upcoming registration cycle"
+// roadmap tasks. Two kinds of source, both built through this same function into ONE task per
+// registration cycle (not one per course — see this function's own comment for why):
+//   - Stage 0's task comes from `state.selectedCourseIds` (the "upcoming registration cycle"
 //     picked during onboarding's Course Selection screen).
-//   - A future stage's tasks come from that stage's own `courseCheckpoints[stageName].
+//   - A future stage's task comes from that stage's own `courseCheckpoints[stageName].
 //     selectedCourseIds`, populated once the student completes that checkpoint's Part 2 (see
 //     buildCourseCheckpointItem below) — same shape, same builder, just a different source array
 //     and a later stageIndex.
 // Every item is required/single-step/core, so it flows through the exact same generic date-
 // override/removal/positioning path every other core item already uses — no special-casing.
-function buildCourseRequestItems(courseIds, requestStageIndex, isFinalRequestStage, planStartDate, dateOverrides, removed) {
-  return courseIds
-    .map((courseId) => {
-      const course = getCourseById(courseId);
-      if (!course) return null;
-      const id = `course-request-${courseId}-y${requestStageIndex}`;
-      if (removed[id]) return null;
-      const templateDate = anchorDate({ ...ESTIMATED_COURSE_REQUEST_WINDOW, yearOffset: requestStageIndex }, planStartDate);
-      const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
-      return {
-        id,
-        title: isFinalRequestStage ? `Finalize your registration for ${course.name}` : `Request ${course.name} for next year`,
-        category: 'core',
-        required: true,
-        coreType: 'course-request',
-        date: realDate,
-        due: formatDate(realDate),
-        desc: `${course.name} (${course.department}). This date is an estimate of Roslyn's course-request window, not a published deadline — check with your counselor for the exact date.`,
-        resources: [],
-        steps: null,
-      };
-    })
-    .filter(Boolean);
+//
+// ONE spine task per registration cycle, not one per course — mirrors the exact same fix applied
+// to UC Davis's buildUCDavisEnrollmentItem (see that function's own comment for the full
+// rationale): every course requested in the same cycle shares the exact same request date, so
+// one-node-per-course was pure visual clutter, a real, confirmed regression on any year with more
+// than a couple selections. The full course list (name + department for each) lives in a real
+// `courseList` array — Roadmap.jsx renders it as an actual `<ul>`, not a comma-joined sentence
+// baked into `desc`. `targetLabel` (e.g. "Sophomore Year") names which year's courses this cycle
+// is actually requesting — `null` only for `isFinalRequestStage` (no next Roslyn cycle to name).
+// Returns null if every selected id failed to resolve to a real course, or the whole cycle's
+// selection is empty.
+//
+// A large course count on one task is not itself a sign of a bug — confirmed the same way as the
+// UC Davis case: Course Selection's own "Recommended for you" view merges across every selected
+// interest track with no course-load cap (the Survey's own interest-tag picker has no selection
+// cap either — see its own header comment), so a student with several interest tags can
+// legitimately end up recommended (and select) more than a single year's real load (8 classes for
+// 9th/10th grade, 7 for 11th, 6 for 12th, per the app's own Course Load Per Grade policy data).
+// Each cycle's own id (`y${requestStageIndex}`) and each checkpoint's own nested
+// `courseCheckpoints[stageName].selectedCourseIds` stay fully isolated from every other cycle's —
+// there is no merging-across-years bug, only a real selection that now displays as a scannable
+// list instead of a run-on paragraph.
+function buildCourseRequestItem(courseIds, requestStageIndex, isFinalRequestStage, targetLabel, planStartDate, dateOverrides, removed) {
+  const courses = courseIds.map((courseId) => getCourseById(courseId)).filter(Boolean);
+  if (courses.length === 0) return null;
+
+  const id = `course-request-y${requestStageIndex}`;
+  if (removed[id]) return null;
+  const templateDate = anchorDate({ ...ESTIMATED_COURSE_REQUEST_WINDOW, yearOffset: requestStageIndex }, planStartDate);
+  const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+
+  return {
+    id,
+    title: isFinalRequestStage ? 'Finalize your course registration' : `Request your ${targetLabel} courses`,
+    category: 'core',
+    required: true,
+    coreType: 'course-request',
+    date: realDate,
+    due: formatDate(realDate),
+    desc: "This date is an estimate of Roslyn's course-request window, not a published deadline — check with your counselor for the exact date.",
+    courseList: courses.map((course) => `${course.name} (${course.department})`),
+    resources: [],
+    steps: null,
+  };
 }
 
 // One two-part "revisit" checkpoint per future high-school year except the last (see
 // generateRoadmap's yearSpan-2 upper bound) — dated within the CHECKPOINT's own stage, since
 // that's when the registration act for the FOLLOWING stage's courses actually happens (same
-// "request now, take next year" timing buildCourseRequestItems already uses for stage 0). Unlike
+// "request now, take next year" timing buildCourseRequestItem already uses for stage 0). Unlike
 // every other item here, this one carries no `steps` chain — its "two sequential parts" are
 // handled entirely through Roadmap.jsx's own special modal for `coreType === 'course-checkpoint'`
 // (see checkpointStageName below, which that modal reads to know which
@@ -377,19 +399,26 @@ function buildCourseCheckpointItem(stageName, targetStageName, stageIndex, planS
 
 function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, planStartDate, dateOverrides, removed) {
   const yearSpan = stageNames.length;
-  const items = buildCourseRequestItems(selectedCourseIds, 0, yearSpan === 1, planStartDate, dateOverrides, removed);
+  const isFinalRequestStage = yearSpan === 1;
+  const stage0TargetLabel = isFinalRequestStage ? null : TRUNK_STAGES.highschool[stageNames[1]].label;
+  const items = [];
+  const stage0Item = buildCourseRequestItem(selectedCourseIds, 0, isFinalRequestStage, stage0TargetLabel, planStartDate, dateOverrides, removed);
+  if (stage0Item) items.push(stage0Item);
 
   // Every future stage except the last gets a checkpoint (Task 3 — a 12th grader / the plan's
   // final stage has no next Roslyn cycle to register for, so this range is empty for them: for
   // yearSpan <= 2 there is no stageIndex satisfying 1 <= i <= yearSpan-2).
   for (let stageIndex = 1; stageIndex <= yearSpan - 2; stageIndex += 1) {
     const stageName = stageNames[stageIndex];
-    const checkpointItem = buildCourseCheckpointItem(stageName, stageNames[stageIndex + 1], stageIndex, planStartDate, dateOverrides, removed);
+    const targetStageName = stageNames[stageIndex + 1];
+    const checkpointItem = buildCourseCheckpointItem(stageName, targetStageName, stageIndex, planStartDate, dateOverrides, removed);
     if (checkpointItem) items.push(checkpointItem);
 
     const checkpoint = courseCheckpoints[stageName];
     if (checkpoint?.selectedCourseIds?.length) {
-      items.push(...buildCourseRequestItems(checkpoint.selectedCourseIds, stageIndex, false, planStartDate, dateOverrides, removed));
+      const targetLabel = TRUNK_STAGES.highschool[targetStageName].label;
+      const item = buildCourseRequestItem(checkpoint.selectedCourseIds, stageIndex, false, targetLabel, planStartDate, dateOverrides, removed);
+      if (item) items.push(item);
     }
   }
 

@@ -771,20 +771,35 @@ built entirely on top of the multi-year trunk above, no new spine concept.** Two
 core item kinds, both `category: 'core', required: true, steps: null` (solid ring, no new legend
 entry — `configFor()` just gets two new `coreType` entries, `'course-request'` and
 `'course-checkpoint'`, in `Roadmap.jsx`'s `CORE_TYPE_CONFIG`):
-- **`course-request`** — one per course in `state.selectedCourseIds` (stage 0) or a future
-  checkpoint's own `courseCheckpoints[stageName].selectedCourseIds` (see below), titled `Request
-  ${course.name} for next year` (or `Finalize your registration for ${course.name}` when this is
-  the plan's only/last stage — `yearSpan === 1`, i.e. a 12th-grader). Dated via
-  `ESTIMATED_COURSE_REQUEST_WINDOW` (`courses.js` — `{ month: 3, day: 1 }`, own header comment
-  explains why this is a clearly-labeled estimate, not scraped data: the parsed catalog states
-  registration deadlines exist but never publishes a fixed date). The estimate is surfaced two
-  ways: the coreType's own label reads `"Course Request (Est.)"` (visible on the spine without
+- **`course-request`** — **ONE task per registration cycle** (stage 0's `state.selectedCourseIds`,
+  or a future checkpoint's own `courseCheckpoints[stageName].selectedCourseIds`, see below) — NOT
+  one per course. An earlier version of this built one node per selected course id; since every
+  course requested in the same cycle shares the exact same request date, that was pure visual
+  clutter (same class of bug later confirmed and fixed for UC Davis's own enrollment tasks — see
+  that section). Titled `Request your ${targetLabel} courses` (naming the TARGET year, e.g.
+  "Request your Sophomore Year courses") or `Finalize your course registration` when this is the
+  plan's only/last stage — `yearSpan === 1`, i.e. a 12th-grader, with no next Roslyn cycle to
+  name. The actual selected courses (name + department per course) live in a real `courseList`
+  array on the item, rendered by `Roadmap.jsx` as an actual `<ul>`/`<li>` list
+  (`.modal-course-list`, styled to match the pre-existing `.modal-resources` block) — not a
+  comma-joined sentence baked into `desc`, which now holds only the estimated-date disclaimer.
+  Dated via `ESTIMATED_COURSE_REQUEST_WINDOW` (`courses.js` — `{ month: 3, day: 1 }`, own header
+  comment explains why this is a clearly-labeled estimate, not scraped data: the parsed catalog
+  states registration deadlines exist but never publishes a fixed date). The estimate is surfaced
+  two ways: the coreType's own label reads `"Course Request (Est.)"` (visible on the spine without
   opening anything), and the modal `desc` spells it out in full ("check with your counselor for
   the exact date"). Because these are ordinary required/core/single-step items, they flow through
-  the exact same `dateOverrides`/`removedNodeIds` path every other core item already uses —
-  `roadmapGenerator.js`'s `buildCourseRequestItems()` needed no new editing logic, and
-  `Roadmap.jsx`'s modal renders the standard date-edit/remove row and plain complete-toggle for
-  them, same as any other required task.
+  the exact same `dateOverrides`/`removedNodeIds` path every other core item already uses — the id
+  itself is now keyed by cycle (`course-request-y${stageIndex}`), not by course, matching that
+  same consolidation — and `Roadmap.jsx`'s modal renders the standard date-edit/remove row and
+  plain complete-toggle for them, same as any other required task. **A large course count on one
+  task is not itself a bug** — confirmed directly (same investigation later repeated for UC
+  Davis): Course Selection's own "Recommended for you" view merges across every selected interest
+  track with no course-load cap, and the Survey's own interest-tag picker has no selection cap
+  either, so a student with several tags can legitimately select more than a single year's real
+  load (8 classes for 9th/10th grade, 7 for 11th, 6 for 12th, per this file's own Course Load Per
+  Grade policy data) — each cycle's own id stays fully isolated from every other cycle's, so nothing
+  merges across years.
 - **`course-checkpoint`** — one per future high-school year *except the last* (`stageIndex` in
   `[1, yearSpan-2]` — see `buildCourseItems()`'s loop; this range is empty whenever `yearSpan <=
   2`, which is exactly when there's no year-after-next to plan for, e.g. an 11th- or 12th-grader
@@ -1938,10 +1953,11 @@ download). Cover at minimum:
   confirm the multi-stage cases show the right number of `.stage-label` dividers, and test the
   longest case (highschool 9th grade with several opportunities selected, ~35+ nodes) renders
   with zero cross-node label overlap and pans/zooms cleanly.
-- Course Selection Stage 4 (highschool only): a 9th-grader with Stage 3 selections shows a
-  `course-request` node per selected course on the CURRENT year's Map 2 view, titled "Request X
-  for next year," Required/solid-ring; a 12th-grader (or any `yearSpan === 1` plan) uses
-  "Finalize your registration for X" instead. Confirm checkpoints exist on every future stage
+- Course Selection Stage 4 (highschool only): a 9th-grader with Stage 3 selections shows ONE
+  `course-request` node (not one per course) on the CURRENT year's Map 2 view, titled "Request
+  your [Target Year] courses," Required/solid-ring, with every selected course listed as its own
+  `<li>` inside the modal's `courseList`; a 12th-grader (or any `yearSpan === 1` plan) uses
+  "Finalize your course registration" instead. Confirm checkpoints exist on every future stage
   except the last (e.g. 9th grade: sophomore + junior get one each, senior gets none; 11th grade:
   zero checkpoints at all, since senior is the only future stage and it's also the last one).
   Open a checkpoint and confirm Part 2 is disabled/locked until Part 1 is done. Complete Part 1
