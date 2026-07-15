@@ -488,20 +488,43 @@ Introductory Biology with lab, 3 credits of Chemistry or Physics, a Statistics/Q
 Literacy course) — exactly the kind of non-obvious, easy-to-miss structural fact this feature
 exists to surface, plus its own transfer-specific note (this coursework must be completed or in
 progress at time of application) and a plain-text `source` description rather than a fabricated
-URL, since no real citable link was verified for this entry. **Every other selected program (the
-~40+ not yet individually researched) shows a clearly distinct, honestly-worded fallback** ("We
-haven't independently verified school-specific requirements for this program yet...") rather than
-silence or a guessed claim — styled with a dashed border (`.school-req-card.unverified`) versus the
-verified card's solid teal one, so the two states are visually distinguishable at a glance, not
-just distinguishable by reading the text. Zero programs selected shows its own honest "Select a
-program in Discovery..." prompt rather than hiding the section entirely, same pattern the
-Program-Specific Course Recommendations section above already uses for its own empty state. Note
-that because `communications` now has 6 cards (`selectProgramsForGpa`'s `maxShownFor(1)` caps a
-single-major view at 4), Cornell isn't guaranteed to appear in Discovery's Programs step at every
-entered GPA — it reliably shows once the entered GPA reaches its own `gpaValue` (3.8) or higher,
-since `selectProgramsForGpa`'s no-reach branch always includes the single highest-`gpaValue`
-reachable program via `evenSample`'s endpoint-inclusive sampling; this is existing, unmodified
-selection behavior working as designed, not something special-cased for this one card.
+URL, since no real citable link was verified for this entry. Zero programs selected shows its own
+honest "Select a program in Discovery..." prompt rather than hiding the section entirely, same
+pattern the Program-Specific Course Recommendations section above already uses for its own empty
+state. Note that because `communications` now has 6 cards (`selectProgramsForGpa`'s
+`maxShownFor(1)` caps a single-major view at 4), Cornell isn't guaranteed to appear in Discovery's
+Programs step at every entered GPA — it reliably shows once the entered GPA reaches its own
+`gpaValue` (3.8) or higher, since `selectProgramsForGpa`'s no-reach branch always includes the
+single highest-`gpaValue` reachable program via `evenSample`'s endpoint-inclusive sampling; this is
+existing, unmodified selection behavior working as designed, not something special-cased for this
+one card.
+
+**Grown to 26 entries (Cornell plus 25) in a second research pass, scoped to every school under
+the `data-science`, `statistics`, `ms-ai-ml`, `ms-robotics`, and `ms-data-science` majors (all 5
+schools per major, not just the flagship) — every other major's programs (~196 of the ~221 total
+`institution::program` combinations) still show the honest unverified fallback, not a guess.**
+This pass was done by an autonomous research agent with real web-search/fetch access, each finding
+independently checked against one of three honest outcomes before being written here: a genuine
+non-obvious requirement (e.g. UC Berkeley gates its Data Science and Statistics majors behind a
+separate, competitive post-admission declaration process with its own course-specific GPA
+thresholds — general campus admission doesn't guarantee entry to the major itself; MIT EECS offers
+no standalone terminal master's to outside applicants at all, only a PhD track that awards a
+master's along the way; Stanford's undergraduate Statistics-focused major was actually
+discontinued in 2022 and folded into a new, differently-named Data Science major), an explicit
+"checked, and it's genuinely just the general admission minimum" finding (several Arizona State
+programs), or an honest "couldn't verify" left as the existing fallback. Most entries were fetched
+directly from a real institutional page (`source` says "verified directly"); a handful used a
+search-derived synthesis instead (`source` says "verified via search") — primarily because
+`stanford.edu`-family domains returned 403s to direct fetch all session, so those specific findings
+lean on multiple independently-cited `.edu` pages found via search rather than one directly-read
+page. The three highest-stakes claims (the Stanford major-discontinuation claim, MIT's
+no-terminal-master's policy, and a University of Utah requirement whose only found source was a
+2016-dated PDF) were independently re-verified in a second, separate search pass before being
+included, specifically because a wrong claim here is worse than the honest "not yet verified"
+fallback it would replace — see each of those three entries' own `source` field, which notes the
+re-verification. **The remaining ~196 programs were deliberately left unresearched rather than
+attempted with lower rigor** — the standing instruction for this feature is real verification or an
+honest fallback, never a rushed or lower-confidence guess just to fill in a card.
 
 **Course descriptions are complete, real catalog text — not manually truncated at parse time.**
 Stage 2/3's original data entry hand-trimmed every description to a short length with a trailing
