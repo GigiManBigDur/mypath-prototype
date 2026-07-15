@@ -5,10 +5,11 @@ import { useApp } from '../context/AppContext';
 // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — the first of a multi-stage build (sign-up ->
 // hub -> order enforcement -> guided pointing -> in-flow dialogue -> optional voiceover). This
 // screen only handles sign-up: collecting a username (required) plus two clearly-optional fields
-// (a preferred display name, an avatar icon), then handing off to the existing survey flow
-// unchanged. Later stages (the hub screen, the mascot's "Welcome, [username]!" greeting) are
-// deliberately out of scope here — this stage's only job is making sure `state.username` exists
-// by the time a later stage needs it.
+// (a preferred display name, an avatar icon), then handing off to the hub (Stage 2, HubScreen.jsx)
+// — the survey itself is now just one of the hub's own tiles, not the direct next screen. Later
+// stages (order enforcement, guided pointing, in-flow dialogue, voiceover) are deliberately out of
+// scope here — this stage's only job was making sure `state.username`/`displayName`/`avatarIcon`
+// exist by the time the hub needed them, which Stage 2 now does (see HubScreen.jsx's greeting).
 //
 // Deliberately no StepProgress here, matching `welcome`'s own precedent — this is a pre-flow
 // screen, not one of the 9 tracked survey-through-plan steps, so it doesn't get a step indicator
@@ -42,7 +43,7 @@ export default function SignUpScreen() {
       username: username.trim(),
       displayName: displayName.trim(),
       avatarIcon,
-      screen: 'survey',
+      screen: 'hub',
     });
   };
 

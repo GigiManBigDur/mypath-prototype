@@ -799,6 +799,100 @@ button.card.passed:hover {
    things on the page (per its own build spec), not just another muted aside. */
 .course-scope-banner { font-size: 14.5px; color: var(--ink); font-weight: 500; margin-top: 4px; }
 
+/* Dashboard/Guide feature, Stage 2 — the hub screen. Mascot + greeting sit centered above the
+   tile grid; "central character surrounded by tiles" is read loosely here (a focal mascot with
+   tiles flowing beneath it), not a literal circular layout, since a true radial arrangement would
+   be fragile across the viewport widths this app is already tested at (see CLAUDE.md's own
+   narrow-viewport testing convention). */
+.hub-screen { text-align: center; }
+.hub-mascot-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.hub-title { margin-top: 4px; }
+
+.mascot-svg { overflow: visible; }
+.mascot-shadow { fill: var(--ink); opacity: 0.1; }
+.mascot-body { fill: var(--teal); }
+.mascot-face-ring { fill: none; stroke: var(--paper); stroke-width: 3; opacity: 0.5; }
+.mascot-needle-north { fill: var(--gold); }
+.mascot-needle-tip { fill: #fff; opacity: 0.35; }
+.mascot-needle-pin { fill: var(--card); }
+.mascot-eye { fill: var(--card); animation: mascot-blink 4.5s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.mascot-mouth { fill: none; stroke: var(--card); stroke-width: 3; stroke-linecap: round; }
+
+.mascot-bob { animation: mascot-bob 3.2s ease-in-out infinite; transform-origin: 80px 136px; }
+/* 0 0, not 80px 80px — the outer <g transform="translate(80 80)"> (HubScreen.jsx) already moved
+   this element's own local coordinate space so its (0,0) IS the mascot's visual center; the
+   needle's own path points are drawn relative to that local origin, so the rotation pivot has to
+   be too. */
+.mascot-needle { animation: mascot-needle-spin 14s linear infinite; transform-origin: 0px 0px; }
+
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.015); }
+}
+@keyframes mascot-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes mascot-needle-spin {
+  0% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+  100% { transform: rotate(-6deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-bob, .mascot-eye, .mascot-needle { animation: none; }
+}
+
+/* Speech-bubble variant of .caveat-banner's own card/gold-accent language, per this stage's own
+   "styled consistently with the rest of the app's dialogue/callout patterns" requirement — this
+   is Stage 3's greeting only, not the full in-flow dialogue system (a later stage). */
+.mascot-greeting {
+  position: relative;
+  display: inline-block;
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-left: 4px solid var(--gold);
+  border-radius: 4px;
+  padding: 10px 20px;
+  max-width: 320px;
+}
+.mascot-greeting p {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.mascot-greeting::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--paper-line);
+}
+.mascot-greeting::after {
+  content: '';
+  position: absolute;
+  top: -6.5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 7px solid var(--card);
+}
+
+.hub-tile-grid { margin-top: 24px; }
+.hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.hub-tile-icon { color: var(--teal); margin-bottom: 4px; }
+
 .task-form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
 .task-form-field .label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); }
 .task-form-field input[type="text"],

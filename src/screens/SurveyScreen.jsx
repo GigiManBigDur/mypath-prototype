@@ -61,7 +61,7 @@ export default function SurveyScreen() {
 
   return (
     <div>
-      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'signup' })}>
+      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
         <ArrowLeft size={14} /> Back
       </button>
 

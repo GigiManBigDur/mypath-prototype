@@ -28,7 +28,17 @@ const SUB_STEP_COPY = {
 
 export default function DiscoveryScreen() {
   const { state, patch } = useApp();
-  const [subStep, setSubStep] = useState('careers');
+  // Dashboard/Guide hub (Stage 2, see CLAUDE.md) can land here on a specific sub-step (its own
+  // Careers/Majors/Programs tiles) via `state.discoveryEntryStep` — read once as the initial
+  // value (the lazy initializer only runs on mount), then immediately cleared back to null below
+  // so a later NORMAL entry into Discovery via the real admissions flow always starts fresh at
+  // 'careers' rather than replaying a stale hub click.
+  const [subStep, setSubStep] = useState(() => state.discoveryEntryStep || 'careers');
+
+  useEffect(() => {
+    if (state.discoveryEntryStep) patch({ discoveryEntryStep: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // "Recommended for you" / "Browse all ___" — one independent toggle per sub-step, local and
   // unpersisted (same "session-only UI convenience, not data worth surviving a reload" trade
   // Project Builder's and Opportunity Finder's own browse-mode toggles already make). The actual

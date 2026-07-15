@@ -110,30 +110,101 @@ bounced back to the welcome hero. `App.jsx`'s small persistent "MyPath — proto
 hidden specifically on `welcome` (`state.screen !== 'welcome'`) since that screen has its own
 large "MyPath" hero title — showing both stacked would read as duplicated branding.
 
-**Dashboard/Guide feature, Stage 1: a sign-up screen sits between `welcome` and `survey` —
+**Dashboard/Guide feature, Stage 1: a sign-up screen sits between `welcome` and `hub` —
 `SignUpScreen.jsx`.** This is the first of a multi-stage build (sign-up → hub → order enforcement
 → guided pointing → in-flow dialogue → optional voiceover); this stage only handles collecting a
-username, nothing downstream yet. `WelcomeScreen`'s "Get Started" button now targets `signup`
-instead of `survey`; `SurveyScreen`'s own Back button was updated to target `signup` instead of
-`welcome` to match, and `signup` itself has a Back button targeting `welcome`. Three new
+username, nothing downstream yet. `signup` itself has a Back button targeting `welcome`. Three new
 `DEFAULT_STATE` fields (`AppContext.jsx`): `username` (required — the only field `SignUpScreen`'s
 own `canContinue` gate depends on, trimmed before being saved), `displayName` (optional —
-"preferred name if different from username," meant to be what a later greeting falls back away
-from to `username` when blank, not built yet), and `avatarIcon` (optional — a plain id string from
-`SignUpScreen`'s own `AVATAR_OPTIONS`, e.g. `'compass'`, not a component reference — same "data
-holds icon NAMES, the screen owns the name→component map" convention `ProjectBuilderScreen`'s
-`CATEGORY_ICONS` already established). All three are local `useState` on `SignUpScreen`, seeded
-from existing `state` and committed to `AppContext` as one unit on submit — the same
-buffer-locally-commit-on-submit shape `AddTaskModal` already uses, rather than patching (and
-persisting to `localStorage`) on every keystroke. Both optional fields carry a visible
-`.optional-badge` pill next to their field label (global.css), not just hint text, since the build
-spec explicitly called for the optional fields to read as optional at a glance, not just be
-technically skippable. `signup` deliberately has no `StepProgress` indicator, matching `welcome`'s
-own precedent — it's a pre-flow screen, not one of the 9 tracked survey-through-plan steps.
-Deliberately out of scope for this stage: anything actually reading/displaying `username` (the hub
-mascot's "Welcome, [username]!" greeting is Stage 2), and real authentication of any kind — this
-stores exactly as much as the rest of the app's own `localStorage`-only state already does, no
-more.
+"preferred name if different from username," what Stage 2's hub greeting prefers over `username`
+when set — see below), and `avatarIcon` (optional — a plain id string from `SignUpScreen`'s own
+`AVATAR_OPTIONS`, e.g. `'compass'`, not a component reference — same "data holds icon NAMES, the
+screen owns the name→component map" convention `ProjectBuilderScreen`'s `CATEGORY_ICONS` already
+established; not consumed by anything yet, reserved for a later stage). All three are local
+`useState` on `SignUpScreen`, seeded from existing `state` and committed to `AppContext` as one
+unit on submit — the same buffer-locally-commit-on-submit shape `AddTaskModal` already uses,
+rather than patching (and persisting to `localStorage`) on every keystroke. Both optional fields
+carry a visible `.optional-badge` pill next to their field label (global.css), not just hint text,
+since the build spec explicitly called for the optional fields to read as optional at a glance,
+not just be technically skippable. `signup` deliberately has no `StepProgress` indicator, matching
+`welcome`'s own precedent — it's a pre-flow screen, not one of the 9 tracked survey-through-plan
+steps.
+
+**Dashboard/Guide feature, Stage 2: the hub — `HubScreen.jsx` — is now the landing screen after
+sign-up, replacing the old direct-to-survey entry.** `WelcomeScreen`'s "Get Started" button targets
+`signup`; `SignUpScreen`'s Continue now targets `hub` (not `survey` directly, as it did before this
+stage); `SurveyScreen`'s own Back button was updated to target `hub` to match, since the hub is now
+genuinely the real previous screen for that flow. `App.jsx`'s unknown-screen fallback
+(`SCREENS[state.screen] ? state.screen : ...`) was also switched from `'survey'` to `'hub'`, to
+match the hub's new role as the app's actual home base. Explicitly out of scope for this stage
+(later stages, per the feature's own build order): order enforcement (every tile navigates
+immediately, even to a screen whose own existing defensive checks will bounce it elsewhere — e.g.
+Discovery reached with zero interests selected yet still bounces per its own pre-existing
+`useEffect`, unchanged by this stage) and guided pointing.
+- **Tiles** are a plain static array (`TILES` in `HubScreen.jsx`), each `{ id, screen, Icon, title,
+  desc }`, rendered as `.card.hub-tile` buttons (reusing the shared `.card`/`.card-title`/
+  `.card-desc` classes every other content grid in this app already uses) in a `.grid.grid-3`.
+  Clicking one just `patch()`es `screen` to that tile's real, already-existing screen key — no new
+  screens were created for this stage. Eight tiles are always shown (Let's Build Your Plan →
+  `survey`; Careers of Interest / Related College Majors / Recommended Programs → `discovery`,
+  see below; Opportunity Finder → `opportunities`; Project Builder → `projectBuilder`; Academic
+  Plan → `plan`; Your School List → `programSummary`); a ninth, Course Selection → `transcript`,
+  is filtered out of the `TILES` array entirely (not rendered, not greyed out) unless
+  `state.currentSchool` is `'Roslyn High School'` or `'UC Davis'` — the same "only a real partner
+  school" gate every other Course Selection entry point in this app already uses, checked directly
+  against `currentSchool` rather than re-deriving `isCollegeAtUCDavis`, since the hub's own gate
+  needs to also cover Roslyn (High School), not just the UC Davis/college case that helper is
+  scoped to.
+- **Careers of Interest / Related College Majors / Recommended Programs are three distinct tiles
+  that all navigate to the one real `discovery` screen, landing on a different one of its three
+  existing sub-steps** (`DiscoveryScreen.jsx`'s own `subStep`, previously always hardcoded to start
+  at `'careers'` on every mount, since it was plain local `useState('careers')` with no external
+  entry point). A new one-shot `state.discoveryEntryStep` field carries which sub-step a hub tile
+  meant to land on: set by the tile's own `goTo()` right before navigating, read exactly once by
+  `DiscoveryScreen`'s `useState(() => state.discoveryEntryStep || 'careers')` lazy initializer,
+  then immediately cleared back to `null` in a mount-only `useEffect` — the same
+  read-once-then-clear shape `activeCourseCheckpoint`/`activeUCDavisCheckpoint` already use
+  elsewhere in this app, so a later NORMAL entry into Discovery (via the real admissions flow)
+  always starts fresh at `'careers'` rather than replaying a stale hub click from earlier in the
+  session. This needed no changes to Discovery's own sub-step logic (`canAdvance`/`handleNext`/
+  the majors-depend-on-selected-careers data dependency) — a hub click landing directly on
+  Majors/Programs before Careers/Majors have real selections yet simply shows whatever empty state
+  those sub-steps already render for zero selections, which is fine and expected given this
+  stage's own explicit "no order enforcement yet" scope.
+- **The mascot (`Mascot()` in `HubScreen.jsx`) is built from the app's own existing Compass
+  motif** — already the brand icon in the persistent header bar and the "You are here" trail
+  marker on `WelcomeScreen`/`YearOverview` — rather than an unrelated illustrated character, so it
+  reads as continuous with the rest of the app's identity. Pure inline SVG + CSS keyframes,
+  matching this codebase's standing preference for hand-drawn illustration over image assets. A
+  round teal body bobs gently (`@keyframes mascot-bob`, translateY + subtle scale, 3.2s loop) with
+  a fixed (non-bobbing) shadow beneath it — the shadow staying still while the body moves is what
+  actually sells a "lifting" illusion, a shadow bobbing in lockstep with the body wouldn't; two
+  eyes blink together on their own independent loop (`@keyframes mascot-blink`, a `scaleY` dip
+  that occupies only ~3% of a 4.5s cycle, so it reads as a natural occasional blink rather than a
+  metronome). A small compass-needle emblem sits lower on the body as a chest badge with its own
+  slow, independent side-to-side spin — **deliberately positioned below the face, not centered on
+  it**: an earlier pass centered the needle on the face itself, where its length overlapped the
+  eyes/mouth and read as an oversized nose rather than a compass emblem. **The needle's rotation is
+  split across two nested `<g>` elements, not one** — the outer `<g>` carries the positioning
+  `transform="translate(...)"` attribute, the inner `<g>` carries only the CSS `animation` that
+  sets `transform: rotate(...)`. A CSS `transform` on an SVG element REPLACES its
+  presentation-attribute `transform` rather than composing with it (the same landmine
+  `WelcomeScreen`'s own marker positioning and `Roadmap.jsx`'s node transforms already document
+  elsewhere in this codebase) — putting both on the same element was tried first and confirmed
+  broken: the needle visibly snapped away from the mascot's body to float near the SVG's raw
+  `(0,0)` origin the instant the spin animation applied, since the CSS transform silently dropped
+  the attribute's translate. `prefers-reduced-motion` is handled entirely via a plain CSS
+  `@media` block zeroing out all three animations (bob, blink, needle-spin) — no JS state needed,
+  since this is a continuous idle loop with no one-time entrance sequence to coordinate, unlike
+  `WelcomeScreen`'s own intro.
+- **The greeting (`.mascot-greeting`, a speech-bubble variant of `.caveat-banner`'s own
+  card/gold-accent-border language, with a small CSS-triangle tail pointing at the mascot) shows
+  `state.displayName || state.username`** — preferring the optional preferred-name field from
+  Stage 1 over the required username when the user actually set one, rather than literally always
+  showing `username` regardless. This is what gives Stage 1's `displayName` field an actual
+  purpose: it would otherwise be collected and never read anywhere. `username` itself is guaranteed
+  non-blank by the time a user can ever reach the hub (`SignUpScreen`'s own `canContinue` gate), so
+  the greeting has no separate "not set yet" case to handle.
 
 **`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
 `opportunities` for EVERY education level**, which is what the High-School-only skip below

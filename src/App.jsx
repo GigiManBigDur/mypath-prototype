@@ -2,6 +2,7 @@ import { Compass } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
+import HubScreen from './screens/HubScreen';
 import SurveyScreen from './screens/SurveyScreen';
 import AdmissionsOverviewScreen from './screens/AdmissionsOverviewScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
@@ -15,6 +16,7 @@ import AcademicPlanScreen from './screens/AcademicPlanScreen';
 const SCREENS = {
   welcome: WelcomeScreen,
   signup: SignUpScreen,
+  hub: HubScreen,
   survey: SurveyScreen,
   admissions: AdmissionsOverviewScreen,
   discovery: DiscoveryScreen,
@@ -35,12 +37,12 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'survey', 'admissions', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder',
+  'signup', 'hub', 'survey', 'admissions', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder',
 ]);
 
 function AppShell() {
   const { state } = useApp();
-  const screenKey = SCREENS[state.screen] ? state.screen : 'survey';
+  const screenKey = SCREENS[state.screen] ? state.screen : 'hub';
   const Screen = SCREENS[screenKey];
   // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
   // Overview, `planYearIndex === null`) is a normal, lightweight screen; Map 2 (the full

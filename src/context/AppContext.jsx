@@ -3,21 +3,30 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const STORAGE_KEY = 'mypath-prototype-state';
 
 const DEFAULT_STATE = {
-  // welcome | signup | survey | admissions | discovery | transcript | courseSelection |
-  // opportunities | projectBuilder | plan
+  // welcome | signup | hub | survey | admissions | discovery | transcript | courseSelection |
+  // programSummary | opportunities | projectBuilder | plan
   screen: 'welcome',
   // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — entered on SignUpScreen, which sits
-  // between welcome and survey. `username` is the only required field there and the only one
+  // between welcome and hub. `username` is the only required field there and the only one
   // SignUpScreen's own canContinue gate depends on; '' means not yet entered. `displayName` is
-  // optional ("preferred name if different from username") — '' means unset, in which case a
-  // later greeting (Stage 2's hub mascot, not built yet) should fall back to `username`, not
-  // show a blank name. `avatarIcon` is optional too, stored as a plain id string (one of
+  // optional ("preferred name if different from username") — '' means unset, in which case the
+  // hub mascot's greeting (Stage 2, HubScreen.jsx) falls back to `username` instead of showing a
+  // blank name. `avatarIcon` is optional too, stored as a plain id string (one of
   // SignUpScreen's own AVATAR_OPTIONS ids) rather than a component reference, matching this
   // codebase's existing "data holds icon NAMES, the screen owns the name→component map"
   // convention (see ProjectBuilderScreen's CATEGORY_ICONS) — null means skipped.
   username: '',
   displayName: '',
   avatarIcon: null,
+  // Dashboard/Guide feature, Stage 2 — a one-shot navigation signal, not a durable field. Set by
+  // HubScreen.jsx's Careers/Majors/Programs tiles right before navigating to `discovery`, so that
+  // screen knows which of its 3 sub-steps to open on instead of always restarting at 'careers'.
+  // DiscoveryScreen reads it once (as its initial subStep) and immediately clears it back to null
+  // on mount — the same read-once-then-clear shape `activeCourseCheckpoint`/
+  // `activeUCDavisCheckpoint` already use elsewhere in this file — so a later NORMAL entry into
+  // Discovery (via the real admissions flow) is never left starting on a stale sub-step from an
+  // old hub click. null means "start at careers," the screen's own original default.
+  discoveryEntryStep: null,
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
