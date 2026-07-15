@@ -320,6 +320,46 @@ button.card.passed:hover {
   margin: 0 0 14px;
 }
 
+/* Sign-up screen (Dashboard/Guide feature, Stage 1) — a visible "this field isn't required"
+   marker, distinct from .field-hint's own descriptive text below it, per that stage's own
+   requirement to mark optional fields visibly, not just leave them technically skippable. */
+.optional-badge {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--stone);
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.avatar-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+.avatar-option {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--paper-line);
+  background: var(--card);
+  color: var(--avatar-color, var(--ink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .12s ease;
+}
+.avatar-option:hover { border-color: var(--avatar-color, var(--teal)); }
+.avatar-option.selected {
+  background: var(--avatar-color, var(--ink));
+  border-color: var(--avatar-color, var(--ink));
+  color: #fff;
+}
+
 .pill-group { display: flex; gap: 10px; flex-wrap: wrap; }
 .pill {
   border: 1px solid var(--paper-line);

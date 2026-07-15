@@ -158,7 +158,7 @@ export default function WelcomeScreen() {
         <button
           type="button"
           className="btn btn-primary welcome-cta"
-          onClick={() => patch({ screen: 'survey' })}
+          onClick={() => patch({ screen: 'signup' })}
         >
           Get Started
         </button>

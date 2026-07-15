@@ -99,8 +99,9 @@ is secondary and manual only.
 
 **Screen flow is a single-page state machine, not a router.** `App.jsx` reads
 `state.screen` from `AppContext` and renders the matching component from a `SCREENS` map
-(`welcome → survey → admissions → discovery → transcript → courseSelection → programSummary →
-opportunities → projectBuilder → plan`). Screens advance by calling `patch({ screen: 'next' })` — there's no URL
+(`welcome → signup → survey → admissions → discovery → transcript → courseSelection →
+programSummary → opportunities → projectBuilder → plan`). Screens advance by calling
+`patch({ screen: 'next' })` — there's no URL
 routing, back/forward is handled by explicit "Back" buttons that patch `screen` backwards.
 `welcome` is `DEFAULT_STATE.screen` (`AppContext.jsx`), but only ever shown to a genuinely fresh
 visitor — `loadInitialState()` spreads any stored state *over* the default, so a returning user
@@ -108,6 +109,31 @@ whose saved `screen` is anything else (e.g. `'plan'`) resumes exactly where they
 bounced back to the welcome hero. `App.jsx`'s small persistent "MyPath — prototype" brand bar is
 hidden specifically on `welcome` (`state.screen !== 'welcome'`) since that screen has its own
 large "MyPath" hero title — showing both stacked would read as duplicated branding.
+
+**Dashboard/Guide feature, Stage 1: a sign-up screen sits between `welcome` and `survey` —
+`SignUpScreen.jsx`.** This is the first of a multi-stage build (sign-up → hub → order enforcement
+→ guided pointing → in-flow dialogue → optional voiceover); this stage only handles collecting a
+username, nothing downstream yet. `WelcomeScreen`'s "Get Started" button now targets `signup`
+instead of `survey`; `SurveyScreen`'s own Back button was updated to target `signup` instead of
+`welcome` to match, and `signup` itself has a Back button targeting `welcome`. Three new
+`DEFAULT_STATE` fields (`AppContext.jsx`): `username` (required — the only field `SignUpScreen`'s
+own `canContinue` gate depends on, trimmed before being saved), `displayName` (optional —
+"preferred name if different from username," meant to be what a later greeting falls back away
+from to `username` when blank, not built yet), and `avatarIcon` (optional — a plain id string from
+`SignUpScreen`'s own `AVATAR_OPTIONS`, e.g. `'compass'`, not a component reference — same "data
+holds icon NAMES, the screen owns the name→component map" convention `ProjectBuilderScreen`'s
+`CATEGORY_ICONS` already established). All three are local `useState` on `SignUpScreen`, seeded
+from existing `state` and committed to `AppContext` as one unit on submit — the same
+buffer-locally-commit-on-submit shape `AddTaskModal` already uses, rather than patching (and
+persisting to `localStorage`) on every keystroke. Both optional fields carry a visible
+`.optional-badge` pill next to their field label (global.css), not just hint text, since the build
+spec explicitly called for the optional fields to read as optional at a glance, not just be
+technically skippable. `signup` deliberately has no `StepProgress` indicator, matching `welcome`'s
+own precedent — it's a pre-flow screen, not one of the 9 tracked survey-through-plan steps.
+Deliberately out of scope for this stage: anything actually reading/displaying `username` (the hub
+mascot's "Welcome, [username]!" greeting is Stage 2), and real authentication of any kind — this
+stores exactly as much as the rest of the app's own `localStorage`-only state already does, no
+more.
 
 **`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
 `opportunities` for EVERY education level**, which is what the High-School-only skip below

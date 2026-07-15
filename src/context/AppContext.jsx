@@ -3,9 +3,21 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const STORAGE_KEY = 'mypath-prototype-state';
 
 const DEFAULT_STATE = {
-  // welcome | survey | admissions | discovery | transcript | courseSelection | opportunities |
-  // projectBuilder | plan
+  // welcome | signup | survey | admissions | discovery | transcript | courseSelection |
+  // opportunities | projectBuilder | plan
   screen: 'welcome',
+  // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — entered on SignUpScreen, which sits
+  // between welcome and survey. `username` is the only required field there and the only one
+  // SignUpScreen's own canContinue gate depends on; '' means not yet entered. `displayName` is
+  // optional ("preferred name if different from username") — '' means unset, in which case a
+  // later greeting (Stage 2's hub mascot, not built yet) should fall back to `username`, not
+  // show a blank name. `avatarIcon` is optional too, stored as a plain id string (one of
+  // SignUpScreen's own AVATAR_OPTIONS ids) rather than a component reference, matching this
+  // codebase's existing "data holds icon NAMES, the screen owns the name→component map"
+  // convention (see ProjectBuilderScreen's CATEGORY_ICONS) — null means skipped.
+  username: '',
+  displayName: '',
+  avatarIcon: null,
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
