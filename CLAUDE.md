@@ -522,9 +522,32 @@ no-terminal-master's policy, and a University of Utah requirement whose only fou
 2016-dated PDF) were independently re-verified in a second, separate search pass before being
 included, specifically because a wrong claim here is worse than the honest "not yet verified"
 fallback it would replace — see each of those three entries' own `source` field, which notes the
-re-verification. **The remaining ~196 programs were deliberately left unresearched rather than
+re-verification. **The remaining ~191 programs were deliberately left unresearched rather than
 attempted with lower rigor** — the standing instruction for this feature is real verification or an
 honest fallback, never a rushed or lower-confidence guess just to fill in a card.
+
+**A visibility gap surfaced once this shipped: the 25-program batch clustered entirely in one
+narrow, largely graduate-level corner of STEM, so a tester picking an obvious, popular program in
+any other track — or even MIT's plain Computer Science major in STEM — saw the honest fallback
+every time, not a real example.** Cross-checking the 26 entries (Cornell plus the 25) against each
+major's own flagship (most-selective) program found only 6 overlaps, and all 6 sat inside that same
+data-science/statistics/AI/robotics cluster — zero overlap with Business, Healthcare, Creative,
+Academic/Humanities, or any other track, and the single most obvious STEM pick (MIT's plain
+`Computer Science (EECS)` major, not the graduate AI track) was still unverified. Fixed by directly
+researching 5 more entries, one per track, each chosen specifically because it's the flagship/most
+recognizable pick a tester would naturally reach for: `University of Pennsylvania::Wharton School`
+(Business — Wharton's undergrad degree is nearly a third liberal-arts/language coursework despite
+being a business school), `MIT::Computer Science (EECS)` (STEM — MIT has no competitive secondary
+admission to declare Course 6 at all, a direct, useful contrast with UC Berkeley's EECS/Data
+Science/Statistics entries elsewhere in this file, which DO gate declaration behind a separate
+GPA-checked process), `Johns Hopkins University::Biology / Pre-Med Track` (Healthcare — "pre-med"
+isn't a major there, it's a university-wide advising track layered on top of any declared major,
+with its own real prerequisite checklist), `The Juilliard School::Music Performance` (Creative —
+a two-stage prescreening-video-then-NYC-only-audition process), and `Yale University::Yale Law
+School` (Academic/Humanities — accepts LSAT or GRE with no preference and explicitly no GPA/score
+cutoff of any kind). Same rigor as the 25-program batch: 3 of the 5 were fetched directly, 2 hit
+403s and are search-verified instead (each source field says which); nothing here is a guess dressed
+up to fill the visibility gap. 31 entries total now.
 
 **Course descriptions are complete, real catalog text — not manually truncated at parse time.**
 Stage 2/3's original data entry hand-trimmed every description to a short length with a trailing

@@ -35,6 +35,96 @@ export const SCHOOL_SPECIFIC_REQUIREMENTS = {
     source: "Cornell CALS undergraduate admissions requirements (verified directly, not inferred).",
   },
 
+  // The 5 entries below exist specifically to close a visibility gap: the batch further down (25
+  // entries, data-science/statistics/ms-ai-ml/ms-robotics/ms-data-science) turned out to cluster
+  // in one narrow, largely graduate-level corner of STEM that a typical tester exploring
+  // Business/STEM/Healthcare/Creative/Academic is unlikely to actually select — only 6 of those 26
+  // entries overlapped with each major's own flagship (most-selective) program, and none of them
+  // were the single most obvious pick in Business, core undergrad STEM, or Healthcare. These 5 are
+  // each the flagship program for a different, common track, chosen specifically so a tester who
+  // picks an obvious, popular program has a real chance of landing on a genuine finding instead of
+  // the honest fallback every time.
+  'University of Pennsylvania::Wharton School': {
+    requirement:
+      'Wharton undergrads must complete 37 course units, and despite being a business school, ' +
+      'roughly a third of that falls outside business coursework: a two-semester foreign ' +
+      'language competency requirement, 7 units of General Education Distribution (Social ' +
+      'Structures; Language, Arts & Culture; Science & Technology), 2 Non-Business Electives, ' +
+      "3 units in 'Global Environment,' a required Critical Writing Seminar, a required " +
+      'leadership/teamwork course (MGMT 100), and specific societal-awareness coursework.',
+    why:
+      'A prospective business student would reasonably expect an all-business curriculum; ' +
+      "Wharton's own requirements page shows roughly a third of the degree is liberal-arts and " +
+      'language coursework, not business classes.',
+    source: 'Wharton Undergraduate Program — degree requirements page ' +
+      '(undergrad-inside.wharton.upenn.edu/requirements/), verified directly.',
+  },
+  'MIT::Computer Science (EECS)': {
+    requirement:
+      'MIT applies students for general university admission only, never to a specific major ' +
+      'or department. Students spend their first year undeclared, explore freely, and select ' +
+      'Course 6 (EECS/Computer Science) — or any other major — at the end of their first year ' +
+      'with an advisor. There is no competitive secondary admission, GPA gate, or additional ' +
+      'application required to declare it.',
+    why:
+      'This is the opposite of how several peer CS programs work — UC Berkeley\'s EECS and ' +
+      'Data Science/Statistics majors (see those entries elsewhere in this file) require a ' +
+      'separate, competitive, GPA-gated declaration AFTER general admission. A student ' +
+      "assuming \"getting into MIT\" and \"getting into MIT's CS program\" are two different " +
+      "hurdles, the way they are at Berkeley, would be wrong — at MIT they're the same hurdle.",
+    source: 'MIT Admissions FAQ on majors (mitadmissions.org/help/faq/majors/), verified ' +
+      "directly, corroborated by MIT Registrar's declaring-a-major page (registrar.mit.edu).",
+  },
+  'Johns Hopkins University::Biology / Pre-Med Track': {
+    requirement:
+      '"Pre-med" is not itself a major at Johns Hopkins — it\'s an advising track through the ' +
+      'Office of Pre-Professional Advising that a student pursuing ANY major (not just ' +
+      'Biology) can also follow. The recommended coursework is specific: 2 general chemistry ' +
+      'courses with labs, 2 organic chemistry courses with labs, 1 biochemistry course, 2 ' +
+      'general physics courses with labs (requiring Calculus I and II as co-requisites), 1 ' +
+      'math course, and 1 statistics course.',
+    why:
+      'A student targeting "Johns Hopkins pre-med" might assume it\'s a major itself, or that ' +
+      "it's tied only to the Biology department; in reality it's a university-wide advising " +
+      "track layered on top of whatever major a student actually declares, with its own " +
+      "specific, real course checklist separate from the Biology major's own requirements.",
+    source: 'Johns Hopkins Office of Pre-Professional Advising — prerequisites page ' +
+      '(studentaffairs.jhu.edu/preprofadvising/pre-medhealth/prerequisites/), verified via ' +
+      'search (direct fetch returned a 403).',
+  },
+  'The Juilliard School::Music Performance': {
+    requirement:
+      'Applying requires a two-stage process: first, submitting prescreening audio or video ' +
+      'recordings (unedited, no effects like reverb applied) by a November 1 or December 1 ' +
+      'deadline depending on instrument; only applicants who pass prescreening are then ' +
+      "invited to an in-person audition, held exclusively at Juilliard's New York City campus " +
+      '— there is no remote or off-site audition option.',
+    why:
+      'A student might expect a single audition event; Juilliard actually screens out most ' +
+      'applicants at a recorded-video stage first, and the required in-person round only ' +
+      'happens in NYC, which has real travel/logistics implications most conservatory ' +
+      "applicants don't anticipate.",
+    source: 'The Juilliard School — Bachelor of Music application & audition requirements ' +
+      'pages (juilliard.edu/arm/music/college), verified via search (direct fetch returned a ' +
+      '403).',
+  },
+  'Yale University::Yale Law School': {
+    requirement:
+      'Yale Law accepts either the LSAT or the GRE with no preference between them (though an ' +
+      'applicant may only submit scores from one of the two), and explicitly states it does ' +
+      'not use any GPA or standardized test score cutoff in its review — it also does not ' +
+      "require a Dean's Certification form until after an offer of admission is made, unlike " +
+      'many law schools that require it earlier in the process.',
+    why:
+      'Most students assume elite law schools quietly enforce a real minimum LSAT/GPA floor ' +
+      "even if not officially published; Yale's own page explicitly disclaims any cutoff of " +
+      'any kind, and the dual LSAT/GRE acceptance with equal standing is a distinctive, ' +
+      'non-default policy among top law schools.',
+    source: 'Yale Law School — JD application components page ' +
+      '(law.yale.edu/admissions/jd-admissions/apply-yale-law-school/application-components), ' +
+      'verified directly.',
+  },
+
   // The 25 entries below were researched by an autonomous research pass across every program
   // under the data-science/statistics/ms-ai-ml/ms-robotics/ms-data-science majors (all 5 schools
   // per major, not just the flagship). Every `requirement`/`why` claim was independently
