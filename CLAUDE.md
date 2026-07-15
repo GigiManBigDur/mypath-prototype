@@ -136,25 +136,26 @@ sign-up, replacing the old direct-to-survey entry.** `WelcomeScreen`'s "Get Star
 stage); `SurveyScreen`'s own Back button was updated to target `hub` to match, since the hub is now
 genuinely the real previous screen for that flow. `App.jsx`'s unknown-screen fallback
 (`SCREENS[state.screen] ? state.screen : ...`) was also switched from `'survey'` to `'hub'`, to
-match the hub's new role as the app's actual home base. Explicitly out of scope for this stage
-(later stages, per the feature's own build order): order enforcement (every tile navigates
-immediately, even to a screen whose own existing defensive checks will bounce it elsewhere — e.g.
-Discovery reached with zero interests selected yet still bounces per its own pre-existing
-`useEffect`, unchanged by this stage) and guided pointing.
+match the hub's new role as the app's actual home base. Guided pointing, in-flow dialogue, and
+optional voiceover remain later, not-yet-built stages of this same feature; order enforcement
+(Stage 3, immediately below) has been built.
 - **Tiles** are a plain static array (`TILES` in `HubScreen.jsx`), each `{ id, screen, Icon, title,
-  desc }`, rendered as `.card.hub-tile` buttons (reusing the shared `.card`/`.card-title`/
-  `.card-desc` classes every other content grid in this app already uses) in a `.grid.grid-3`.
-  Clicking one just `patch()`es `screen` to that tile's real, already-existing screen key — no new
-  screens were created for this stage. Eight tiles are always shown (Let's Build Your Plan →
-  `survey`; Careers of Interest / Related College Majors / Recommended Programs → `discovery`,
-  see below; Opportunity Finder → `opportunities`; Project Builder → `projectBuilder`; Academic
-  Plan → `plan`; Your School List → `programSummary`); a ninth, Course Selection → `transcript`,
-  is filtered out of the `TILES` array entirely (not rendered, not greyed out) unless
-  `state.currentSchool` is `'Roslyn High School'` or `'UC Davis'` — the same "only a real partner
-  school" gate every other Course Selection entry point in this app already uses, checked directly
-  against `currentSchool` rather than re-deriving `isCollegeAtUCDavis`, since the hub's own gate
-  needs to also cover Roslyn (High School), not just the UC Davis/college case that helper is
-  scoped to.
+  desc, unlock, lockedReason }`, rendered as `.card.hub-tile` buttons (reusing the shared
+  `.card`/`.card-title`/`.card-desc` classes every other content grid in this app already uses) in
+  a `.grid.grid-3`. Clicking an unlocked one just `patch()`es `screen` to that tile's real,
+  already-existing screen key — no new screens were created for either stage. Eight tiles are
+  always shown (Let's Build Your Plan → `survey`; Careers of Interest / Related College Majors /
+  Recommended Programs → `discovery`, see below; Opportunity Finder → `opportunities`; Project
+  Builder → `projectBuilder`; Academic Plan → `plan`; Your School List → `programSummary`); two
+  more, Transcript & GPA → `transcript` and Course Selection → `courseSelection`, are filtered out
+  of the `TILES` array entirely (not rendered, not greyed out) unless `state.currentSchool` is
+  `'Roslyn High School'` or `'UC Davis'` — the same "only a real partner school" gate every other
+  Course Selection entry point in this app already uses, checked directly against `currentSchool`
+  rather than re-deriving `isCollegeAtUCDavis`, since the hub's own gate needs to also cover Roslyn
+  (High School), not just the UC Davis/college case that helper is scoped to. (Transcript & GPA was
+  missed in Stage 2's own original tile list and added in Stage 3 — Course Selection's own tile
+  target changed from `transcript` to the real `courseSelection` screen key at the same time, now
+  that Transcript & GPA is its own separate tile covering the `transcript` step.)
 - **Careers of Interest / Related College Majors / Recommended Programs are three distinct tiles
   that all navigate to the one real `discovery` screen, landing on a different one of its three
   existing sub-steps** (`DiscoveryScreen.jsx`'s own `subStep`, previously always hardcoded to start
@@ -205,6 +206,54 @@ Discovery reached with zero interests selected yet still bounces per its own pre
   purpose: it would otherwise be collected and never read anywhere. `username` itself is guaranteed
   non-blank by the time a user can ever reach the hub (`SignUpScreen`'s own `canContinue` gate), so
   the greeting has no separate "not set yet" case to handle.
+
+**Dashboard/Guide feature, Stage 3: real prerequisite-based lock/unlock for hub tiles, plus the
+missing Transcript & GPA tile from Stage 2.** Every `TILES` entry (`HubScreen.jsx`) now carries
+`unlock: (state, hasPartnerSchool) => boolean` and `lockedReason: (state, hasPartnerSchool) =>
+string` — both take the same two-argument shape even though only Opportunity Finder's condition
+actually depends on `hasPartnerSchool`, so every tile's config reads uniformly rather than mixing
+plain booleans/strings with functions for the one tile that needs them. A locked tile stays fully
+visible (icon/title/desc unchanged) but renders `.hub-tile.locked`: dimmed via the same
+dim-and-suppress-hover treatment `.card.passed` (Opportunity Finder's own "deadline passed" cards)
+already established rather than inventing a new disabled-card language, its own theme `Icon`
+swapped for a `Lock` icon, a real `disabled` attribute on the underlying `<button>` (not just a
+JS-side click guard — clicking it is a genuine no-op, the same way a native disabled button
+already behaves), and a visible `.hub-tile-lock-reason` line naming exactly what unlocks it. The
+unlock sequence itself, in order:
+1. **Let's Build Your Plan** (`survey`) — always unlocked (`unlock: () => true`).
+2. **Careers of Interest** — unlocked once `isSurveyComplete(state)` (see below) is true.
+3. **Related College Majors** — `state.selectedCareerIds.length > 0`.
+4. **Recommended Programs** — `state.selectedMajorIds.length > 0`.
+5. **Academic Plan** and **Your School List** — both `state.selectedProgramKeys.length > 0`,
+   deliberately the SAME early gate as step 4 progressing into step 6 below, not chained behind
+   Transcript & GPA/Course Selection/Opportunities/Project Builder — the build spec's own explicit
+   reasoning is that the Academic Plan is meant to be revisited constantly as more gets added to
+   it over time, not something only reachable once every later step is separately finished.
+6. **Transcript & GPA** (partner-school only) — `state.selectedProgramKeys.length > 0`, the same
+   gate as step 5.
+7. **Course Selection** (partner-school only) — `state.gpa !== ''`. Reuses the exact same
+   "blank means not entered yet, non-blank means done-or-skipped" signal every other GPA-aware
+   consumer in this app already treats this field as (see `TranscriptScreen`'s own Continue/Skip
+   behavior, both of which write a real value here) — not a new completion concept invented for
+   this stage.
+8. **Opportunity Finder** — `hasPartnerSchool ? state.gpa !== '' : state.selectedProgramKeys.length
+   > 0`. Partner-school users follow the real screen-flow order (`transcript` → `courseSelection`
+   → `opportunities`), so this unlocks at the exact same point Course Selection itself does, not a
+   step later — Course Selection has no hard completion gate of its own in the real flow either
+   (its own Continue always advances regardless of whether any courses were actually picked).
+   Non-partner-school users have no Transcript & GPA/Course Selection step to wait on at all, so
+   they fall back to the same "at least one program selected" gate most other tiles use.
+9. **Project Builder** — `state.selectedProgramKeys.length > 0`, same reasoning as step 5/6 — it's
+   optional/skippable content by its own design (see `ProjectBuilderScreen`'s own "Skip for now"
+   control), so it doesn't need a stricter gate than the other program-gated tiles.
+
+`isSurveyComplete(state)` is exported from `SurveyScreen.jsx` (not reimplemented in `HubScreen.jsx`
+as a second copy) and is the EXACT formula `SurveyScreen`'s own `canContinue` already gated on
+before this stage — extracted once so the hub's "is the survey done" check and the survey's own
+"can I press Continue" check can never independently drift the way this codebase's own
+`getStage0TargetLabel` precedent already had to fix a real bug for once (see `trunkSteps.js`).
+Explicitly still out of scope for this stage: guided pointing (visually directing the user toward
+the next unlocked tile) and in-flow dialogue/voiceover — both later stages of this same feature.
 
 **`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
 `opportunities` for EVERY education level**, which is what the High-School-only skip below

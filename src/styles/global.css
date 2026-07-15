@@ -893,6 +893,24 @@ button.card.passed:hover {
 .hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .hub-tile-icon { color: var(--teal); margin-bottom: 4px; }
 
+/* Dashboard/Guide hub, Stage 3 — a locked tile stays visible (icon/title/desc unchanged) but
+   reads as unavailable at a glance: dimmed, a lock icon in place of its usual theme icon, and a
+   real reason line, not just a silently-inert button. Mirrors the existing `.card.passed`
+   (Opportunity Finder's "deadline passed" cards) dim-and-suppress-hover pattern rather than
+   inventing a new disabled-card language. */
+button.card.hub-tile.locked { opacity: 0.55; cursor: not-allowed; }
+button.card.hub-tile.locked:hover { transform: none; box-shadow: none; border-color: var(--paper-line); }
+.hub-tile-lock-icon { color: var(--stone); }
+.hub-tile-lock-reason {
+  margin: 2px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--stone);
+}
+
 .task-form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
 .task-form-field .label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); }
 .task-form-field input[type="text"],

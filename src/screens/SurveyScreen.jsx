@@ -32,6 +32,17 @@ const YEAR_OPTIONS = {
   ],
 };
 
+// Exported so the Dashboard/Guide hub (Stage 3, see CLAUDE.md) can check "is the survey done" for
+// its own Let's Build Your Plan -> Careers of Interest unlock gate, using the EXACT same formula
+// this screen's own Continue button already gates on — extracted once so the two can never
+// independently drift the way this codebase's own getStage0TargetLabel precedent already fixed a
+// real bug for (see trunkSteps.js).
+export function isSurveyComplete(state) {
+  const isHighSchool = state.educationLevel === 'highschool';
+  return state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
+    && (!isHighSchool || !!state.currentSchool);
+}
+
 export default function SurveyScreen() {
   const { state, patch } = useApp();
   const [openCategory, setOpenCategory] = useState(null);
@@ -56,8 +67,7 @@ export default function SurveyScreen() {
   const isHighSchool = state.educationLevel === 'highschool';
   const isCollege = state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer';
   const hasSchoolField = isHighSchool || isCollege;
-  const canContinue = state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
-    && (!isHighSchool || !!state.currentSchool);
+  const canContinue = isSurveyComplete(state);
 
   return (
     <div>

@@ -1,63 +1,105 @@
 import {
-  ClipboardList, Briefcase, GraduationCap, Landmark, BookOpen, Search, Hammer, Map, ListChecks,
+  ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer, Map,
+  ListChecks, Lock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isSurveyComplete } from './SurveyScreen';
 
-// Dashboard/Guide feature, Stage 2 (see CLAUDE.md) — the central hub, now the landing screen
-// after sign-up (replacing the old direct-to-survey entry). This stage is layout + mascot +
-// working navigation ONLY: no order enforcement (a tile always navigates, even if the target
-// screen's own existing defensive checks bounce it elsewhere — e.g. Discovery reached with no
-// interests selected yet) and no guided pointing — both explicitly later stages. Every tile
-// target is a real, already-built screen; nothing here creates new screens or new flow logic
-// beyond the two small additions noted below.
+// Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
+// after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
+// navigation only, with no order enforcement at all. Stage 3 adds real lock/unlock: every tile
+// still navigates to a real, already-built screen (no new screens here), but a locked tile is
+// disabled and shows why, instead of just quietly doing nothing when clicked. `unlock` and
+// `lockedReason` are both `(state, hasPartnerSchool) => value` for a uniform shape even though
+// most tiles ignore `hasPartnerSchool` — only Opportunity Finder's condition actually depends on
+// it. `state.gpa !== ''` is reused as "Transcript & GPA is done or was explicitly skipped" —
+// TranscriptScreen's Continue AND Skip both write a real (non-blank) value there (see CLAUDE.md's
+// Course Selection Stage 2 section), so this is the same signal every other GPA-aware consumer in
+// this app already treats as "don't guess, blank means not entered yet," not a new concept.
 const TILES = [
   {
     id: 'survey', screen: 'survey', Icon: ClipboardList,
     title: "Let's Build Your Plan",
     desc: 'Tell us your interests, grade, and school to get started.',
+    unlock: () => true,
   },
   {
     id: 'careers', screen: 'discovery', discoveryEntryStep: 'careers', Icon: Briefcase,
     title: 'Careers of Interest',
     desc: 'Explore careers that match what excites you.',
+    unlock: (state) => isSurveyComplete(state),
+    lockedReason: () => "Complete Let's Build Your Plan first",
   },
   {
     id: 'majors', screen: 'discovery', discoveryEntryStep: 'majors', Icon: GraduationCap,
     title: 'Related College Majors',
     desc: 'See majors that lead toward your chosen careers.',
+    unlock: (state) => state.selectedCareerIds.length > 0,
+    lockedReason: () => 'Select at least one career first',
   },
   {
     id: 'programs', screen: 'discovery', discoveryEntryStep: 'programs', Icon: Landmark,
     title: 'Recommended Programs',
     desc: 'Browse real schools known for your selected majors.',
+    unlock: (state) => state.selectedMajorIds.length > 0,
+    lockedReason: () => 'Select at least one major first',
   },
   {
-    id: 'courseSelection', screen: 'transcript', Icon: BookOpen,
-    title: 'Course Selection',
-    desc: 'Update your transcript and pick next year\'s courses.',
-    // Only ever shown once a real partner school is selected (Roslyn or UC Davis) — hidden
-    // entirely otherwise, not greyed out, per this stage's own spec. Filtered below, not here.
-    requiresPartnerSchool: true,
-  },
-  {
-    id: 'opportunities', screen: 'opportunities', Icon: Search,
-    title: 'Opportunity Finder',
-    desc: 'Find real competitions, clubs, and programs worth pursuing.',
-  },
-  {
-    id: 'projectBuilder', screen: 'projectBuilder', Icon: Hammer,
-    title: 'Project Builder',
-    desc: 'Start a hands-on project to build your portfolio.',
-  },
-  {
+    // Deliberately unlocked as soon as a program is selected, same gate as Your School List
+    // right below it — not gated behind Transcript & GPA/Course Selection/Opportunities, since
+    // the Academic Plan is meant to be revisited constantly as more gets added to it, not
+    // something only reachable once every later step is done.
     id: 'plan', screen: 'plan', Icon: Map,
     title: 'Academic Plan',
     desc: 'Your personalized roadmap, task by task.',
+    unlock: (state) => state.selectedProgramKeys.length > 0,
+    lockedReason: () => 'Select at least one program first',
   },
   {
     id: 'programSummary', screen: 'programSummary', Icon: ListChecks,
     title: 'Your School List',
     desc: 'Your selected programs, grouped by Reach, Match, and Safety.',
+    unlock: (state) => state.selectedProgramKeys.length > 0,
+    lockedReason: () => 'Select at least one program first',
+  },
+  {
+    // Only ever shown once a real partner school is selected (Roslyn or UC Davis) — hidden
+    // entirely otherwise, not greyed out. Filtered below, not here (this flag only controls
+    // visibility; `unlock` below is the separate lock/unlock check for once it IS shown).
+    id: 'transcript', screen: 'transcript', Icon: FileText,
+    title: 'Transcript & GPA',
+    desc: 'Log your grades and see your calculated GPA.',
+    requiresPartnerSchool: true,
+    unlock: (state) => state.selectedProgramKeys.length > 0,
+    lockedReason: () => 'Select at least one program first',
+  },
+  {
+    id: 'courseSelection', screen: 'courseSelection', Icon: BookOpen,
+    title: 'Course Selection',
+    desc: "Pick next year's courses from your school's real catalog.",
+    requiresPartnerSchool: true,
+    unlock: (state) => state.gpa !== '',
+    lockedReason: () => 'Complete or skip Transcript & GPA first',
+  },
+  {
+    // Partner-school users follow the real screen-flow order (transcript -> courseSelection ->
+    // opportunities), so this unlocks at the same point Course Selection itself does, not a step
+    // later — Course Selection has no hard completion gate of its own in the real flow either
+    // (its own Continue always advances regardless of whether any courses were picked). Everyone
+    // else has no Transcript & GPA/Course Selection step to wait on at all, so it falls back to
+    // the same "at least one program selected" gate most other tiles use.
+    id: 'opportunities', screen: 'opportunities', Icon: Search,
+    title: 'Opportunity Finder',
+    desc: 'Find real competitions, clubs, and programs worth pursuing.',
+    unlock: (state, hasPartnerSchool) => (hasPartnerSchool ? state.gpa !== '' : state.selectedProgramKeys.length > 0),
+    lockedReason: (state, hasPartnerSchool) => (hasPartnerSchool ? 'Complete or skip Transcript & GPA first' : 'Select at least one program first'),
+  },
+  {
+    id: 'projectBuilder', screen: 'projectBuilder', Icon: Hammer,
+    title: 'Project Builder',
+    desc: 'Start a hands-on project to build your portfolio.',
+    unlock: (state) => state.selectedProgramKeys.length > 0,
+    lockedReason: () => 'Select at least one program first',
   },
 ];
 
@@ -93,18 +135,27 @@ export default function HubScreen() {
       <p className="page-sub">Pick anything below — you can always come back here.</p>
 
       <div className="grid grid-3 hub-tile-grid">
-        {tiles.map((tile) => (
-          <button
-            type="button"
-            key={tile.id}
-            className="card hub-tile"
-            onClick={() => goTo(tile)}
-          >
-            <tile.Icon className="hub-tile-icon" size={26} />
-            <div className="card-title">{tile.title}</div>
-            <p className="card-desc">{tile.desc}</p>
-          </button>
-        ))}
+        {tiles.map((tile) => {
+          const unlocked = tile.unlock(state, hasPartnerSchool);
+          return (
+            <button
+              type="button"
+              key={tile.id}
+              className={`card hub-tile${unlocked ? '' : ' locked'}`}
+              disabled={!unlocked}
+              onClick={() => goTo(tile)}
+            >
+              {unlocked
+                ? <tile.Icon className="hub-tile-icon" size={26} />
+                : <Lock className="hub-tile-icon hub-tile-lock-icon" size={22} />}
+              <div className="card-title">{tile.title}</div>
+              <p className="card-desc">{tile.desc}</p>
+              {!unlocked && (
+                <p className="hub-tile-lock-reason">{tile.lockedReason(state, hasPartnerSchool)}</p>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
