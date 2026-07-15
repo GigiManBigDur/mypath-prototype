@@ -812,6 +812,10 @@ button.card.passed:hover {
   gap: 14px;
   margin-bottom: 8px;
 }
+/* Sized tightly to the mascot SVG alone (not the whole .hub-mascot-area, which also contains the
+   greeting bubble below it) — this is what the Stage 4 pointer arrow anchors and measures its
+   angle against, so it has to be scoped to just the character, not the bubble underneath it. */
+.hub-mascot-figure { position: relative; width: 140px; height: 140px; }
 .hub-title { margin-top: 4px; }
 
 .mascot-svg { overflow: visible; }
@@ -888,9 +892,44 @@ button.card.passed:hover {
   border-right: 7px solid transparent;
   border-bottom: 7px solid var(--card);
 }
+/* Stage 4's guided-sequence line — a second, lighter-weight line under the Stage 2 greeting
+   itself, reading as "name line, then what the mascot is actually saying" rather than two
+   competing headlines of equal weight. */
+.mascot-greeting p.mascot-dialogue {
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+/* Dashboard/Guide hub, Stage 4 — the mascot's own pointing gesture. A small arrow anchored at the
+   mascot's own right edge (not directly below it — confirmed by direct screenshot inspection
+   that a below-mascot anchor sits almost exactly where .mascot-greeting's own upward-pointing
+   tail triangle renders, and being a later DOM sibling, the tail painted over the arrow and hid
+   it completely), rotated (via inline style, computed in HubScreen.jsx's PointerArrow) to the
+   real angle toward whichever tile is currently the guided target. The nudge animation moves the
+   arrowhead back and forth along its OWN local rightward axis — which, after the outer element's
+   rotation, reads as "gesturing toward" the target regardless of which direction that ends up
+   being, without needing a different keyframe per direction. */
+.mascot-pointer {
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  color: var(--gold);
+}
+.mascot-pointer-inner { animation: mascot-pointer-nudge 1.4s ease-in-out infinite; }
+@keyframes mascot-pointer-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-pointer-inner { animation: none; }
+}
 
 .hub-tile-grid { margin-top: 24px; }
-.hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: relative; }
 .hub-tile-icon { color: var(--teal); margin-bottom: 4px; }
 
 /* Dashboard/Guide hub, Stage 3 — a locked tile stays visible (icon/title/desc unchanged) but
@@ -901,6 +940,25 @@ button.card.passed:hover {
 button.card.hub-tile.locked { opacity: 0.55; cursor: not-allowed; }
 button.card.hub-tile.locked:hover { transform: none; box-shadow: none; border-color: var(--paper-line); }
 .hub-tile-lock-icon { color: var(--stone); }
+
+/* Dashboard/Guide hub, Stage 4 — the pulsing/glowing highlight on the mascot's current guided
+   target, the second of the 3 required pointing signals alongside the arrow gesture and the
+   dialogue line. A pulsing box-shadow (not a border-color change) so it stays visible layered on
+   top of `.card.selected`'s own box-shadow-inset style elsewhere in this app without fighting it
+   — this class never actually co-occurs with `.selected` in practice (hub tiles aren't
+   selectable), but keeping the visual language consistent (glow via box-shadow, not border)
+   avoids introducing a second, different "this is highlighted" convention. */
+button.card.hub-tile.pointing-target {
+  border-color: var(--gold);
+  animation: hub-tile-pulse-glow 1.8s ease-in-out infinite;
+}
+@keyframes hub-tile-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 138, 43, 0.45); }
+  50% { box-shadow: 0 0 0 8px rgba(201, 138, 43, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.card.hub-tile.pointing-target { animation: none; box-shadow: 0 0 0 3px rgba(201, 138, 43, 0.35); }
+}
 .hub-tile-lock-reason {
   margin: 2px 0 0;
   font-family: 'IBM Plex Mono', monospace;

@@ -252,8 +252,60 @@ as a second copy) and is the EXACT formula `SurveyScreen`'s own `canContinue` al
 before this stage — extracted once so the hub's "is the survey done" check and the survey's own
 "can I press Continue" check can never independently drift the way this codebase's own
 `getStage0TargetLabel` precedent already had to fix a real bug for once (see `trunkSteps.js`).
-Explicitly still out of scope for this stage: guided pointing (visually directing the user toward
-the next unlocked tile) and in-flow dialogue/voiceover — both later stages of this same feature.
+
+**Dashboard/Guide feature, Stage 4: the mascot actively guides the user through a PRIMARY
+sequence, distinct from Stage 3's unlock rules.** `GUIDED_SEQUENCE` (`HubScreen.jsx`) is a
+separate, ordered array from `TILES` — unlock controls what's clickable; this controls what the
+mascot actively points at as "the next thing to do." It deliberately excludes Academic Plan and
+Your School List (they unlock early per Stage 3 and stay available the whole time, but the
+mascot never force-points at them mid-sequence) and only has 8 real steps: survey → careers →
+majors → programs → transcript → courseSelection (both partner-school only) → opportunities →
+projectBuilder. Each step's own `isDone(state)` reuses the exact same real state signal that
+step's tile (or the next tile's `unlock`) already checks — e.g. "Careers of Interest is done" is
+the identical `selectedCareerIds.length > 0` check that unlocks Related College Majors — not a
+new completion concept invented for the mascot. `getNextGuidedStep(state, hasPartnerSchool)`
+filters the sequence to the steps relevant for this user and returns the FIRST one that isn't
+done, or a synthetic `ENDPOINT_STEP` (`{ id: 'plan', intro: 'Your plan is really coming
+together!...' }`) once every real step is finished — this is a plain function of the current
+`state`, recomputed fresh on every render, so returning to the hub after finishing a step always
+reflects the current next-incomplete-step; there's no caching to go stale. `projectBuilder`'s own
+`isDone` (`state.startedProjects.length > 0`) is a deliberate judgment call, documented inline:
+Project Builder is explicitly optional/skippable (its own screen has a persistent "Skip for now"),
+and this app has no separate "explicitly skipped" flag anywhere in state to check instead, so
+"done" means the same "did they take a real, trackable action" shape every earlier step already
+uses, not a new concept.
+- **Three signals, combined**, matching the build spec's own explicit requirement: a pulsing gold
+  glow on the target tile (`.hub-tile.pointing-target`, `@keyframes hub-tile-pulse-glow` animating
+  `box-shadow`, disabled under `prefers-reduced-motion` in favor of a static glow ring instead of
+  removing the affordance entirely); a dialogue line in the existing `.mascot-greeting` speech
+  bubble (`.mascot-dialogue`, a second, lighter-weight line under the Stage 2 "Welcome, [name]!"
+  greeting rather than replacing it) with short, generic placeholder text per this stage's own
+  explicit scope — real varied dialogue is Stage 5; and a real pointing gesture from the mascot
+  itself (`PointerArrow`, below).
+- **`PointerArrow` computes a REAL angle from the mascot to the target tile's actual on-screen
+  position** (`Math.atan2` over `getBoundingClientRect()` on both), rotating a small `ArrowRight`
+  icon to match — the same "don't fake it, measure it" approach `WelcomeScreen`'s own trail-marker
+  placement already established (`getPointAtLength` there, `getBoundingClientRect` here), chosen
+  deliberately over a fixed-direction nudge because tiles genuinely reflow across viewport widths
+  and whenever the number of rendered tiles changes (`hasPartnerSchool` toggling). A `resize`
+  listener recomputes it live. **A real timing bug surfaced and was fixed during this stage**: a
+  synchronous `recompute()` call inside the measuring `useLayoutEffect` raced React StrictMode's
+  dev-only double-mount cycle — confirmed directly via logging that both `mascotRef.current` and
+  every `tileRefs` entry read as unset at the exact moment that specific effect fired, populated
+  only a moment later — so the arrow never appeared in the dev server at all (this app's own
+  everyday testing environment, StrictMode-wrapped in `main.jsx`). Fixed by deferring the initial
+  measurement one `requestAnimationFrame`, the same "don't trust synchronous-at-mount DOM state,
+  wait a frame" lesson `WelcomeScreen`'s own double-rAF trail reveal already established for this
+  codebase — just one rAF here since there's no CSS transition being raced, only a DOM read.
+  **A second real bug, caught by direct screenshot inspection, not just automated assertions**:
+  the arrow was originally anchored directly below the mascot, which turned out to sit almost
+  exactly where `.mascot-greeting`'s own upward-pointing tail triangle renders — being a later DOM
+  sibling, the tail painted over the arrow and hid it completely (the automated test only checked
+  that a rotation value existed, which it did; only a real screenshot revealed the arrow itself
+  was invisible). Fixed by anchoring the arrow to the mascot's own right-edge instead
+  (`.mascot-pointer { right: -4px; top: 50%; }`), with the angle calculation's own "from" point
+  moved to match (`mascotRect.right`, `mascotRect.top + height/2`) so the visual anchor and the
+  math it's rotated by describe the same point.
 
 **`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
 `opportunities` for EVERY education level**, which is what the High-School-only skip below
