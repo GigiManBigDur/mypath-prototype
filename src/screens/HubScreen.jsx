@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import {
   ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
-  Map as MapIcon, ListChecks, Lock, ArrowRight,
+  Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -195,7 +195,7 @@ function getNextGuidedStep(state, hasPartnerSchool) {
 }
 
 export default function HubScreen() {
-  const { state, patch } = useApp();
+  const { state, patch, reset } = useApp();
 
   const hasPartnerSchool = state.currentSchool === 'Roslyn High School' || state.currentSchool === 'UC Davis';
   const tiles = TILES.filter((t) => !t.requiresPartnerSchool || hasPartnerSchool);
@@ -218,6 +218,19 @@ export default function HubScreen() {
     // elsewhere in this app, so a LATER hub click into Discovery is never left starting on a
     // stale sub-step from an earlier visit.
     patch({ screen: tile.screen, ...(tile.discoveryEntryStep ? { discoveryEntryStep: tile.discoveryEntryStep } : {}) });
+  };
+
+  // A testing convenience, not a primary user-facing feature — see CLAUDE.md — so it's
+  // deliberately small/muted (`.hub-reset-btn`, styled dimmer than `.btn-ghost`'s already-quiet
+  // default) rather than sitting alongside the tile grid's own real actions. `window.confirm` is
+  // the same lightweight, synchronous confirmation pattern this codebase already uses for another
+  // real "are you sure" moment (Roadmap.jsx's own required-task removal) — no need for a bespoke
+  // modal just for this. `reset()` (AppContext.jsx) already clears every field back to
+  // DEFAULT_STATE — including `screen: 'welcome'` — and wipes localStorage, so returning to the
+  // welcome screen with zero leftover state is just what calling it already does; nothing else
+  // needs to happen here.
+  const handleReset = () => {
+    if (window.confirm('Are you sure? This will erase all progress.')) reset();
   };
 
   const greetingName = state.displayName || state.username;
@@ -275,6 +288,10 @@ export default function HubScreen() {
           );
         })}
       </div>
+
+      <button type="button" className="hub-reset-btn" onClick={handleReset}>
+        <RotateCcw size={12} /> Reset
+      </button>
     </div>
   );
 }

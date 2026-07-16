@@ -1039,6 +1039,29 @@ button.card.passed:hover {
 .hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: relative; }
 .hub-tile-icon { color: var(--teal); margin-bottom: 4px; }
 
+/* A testing convenience, not a primary action (see CLAUDE.md) — deliberately smaller/dimmer than
+   even .btn-ghost's already-quiet default, and set apart from the tile grid above it rather than
+   looking like one more real action in that row. */
+.hub-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  /* Horizontal centering comes from .hub-screen's own text-align: center (inline-flex respects
+     it like any other inline-level box) — no margin: auto needed, which wouldn't apply to an
+     inline-flex element without an explicit width anyway. */
+  margin: 32px 0 0;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  opacity: 0.55;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.hub-reset-btn:hover { opacity: 1; color: var(--rust); }
+
 /* Dashboard/Guide hub, Stage 3 — a locked tile stays visible (icon/title/desc unchanged) but
    reads as unavailable at a glance: dimmed, a lock icon in place of its usual theme icon, and a
    real reason line, not just a silently-inert button. Mirrors the existing `.card.passed`

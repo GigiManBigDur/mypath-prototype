@@ -676,6 +676,19 @@ stage, not a bug to chase.
   property, unlike wholesale reassignment) — both leave the visible dialogue text and the rest of
   the app fully functional, with zero `speak()` calls attempted.
 
+**The hub has its own small "Reset" button** (`HubScreen.jsx`), a plain testing convenience — not
+a primary user-facing feature — so state can be cleared without digging through devtools/
+localStorage by hand. Reuses `reset()` (`AppContext.jsx`) exactly as-is: it already clears every
+field back to `DEFAULT_STATE` (including `screen: 'welcome'`) and wipes `localStorage`, so
+"returns fully to the welcome screen with no leftover state" is just what calling it already does
+— no extra logic needed here beyond the confirmation gate. `window.confirm('Are you sure? This
+will erase all progress.')` guards the actual call, the same lightweight synchronous confirmation
+pattern this codebase already uses for its one other real "are you sure" moment
+(`Roadmap.jsx`'s required-task removal) — not worth a bespoke modal for a testing-only control.
+Deliberately styled smaller/dimmer than even `.btn-ghost`'s already-quiet default
+(`.hub-reset-btn`, 11px, 55% opacity until hover) and placed below the entire tile grid, set apart
+from the hub's own real actions rather than looking like one more option in that row.
+
 **`ProgramSummaryScreen.jsx` aggregates every program the student selected across Discovery into
 one Reach/Match/Safety-grouped list — deliberately a pure display layer, not a new scoring
 system.** Every program's tag comes from calling the exact same `reachMatchSafetyTag(state.gpa,
