@@ -29,6 +29,9 @@ import { QUARTER_LABELS, getNextQuarter } from '../data/ucdavisQuarters';
 import { startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
+import MascotWidget from '../components/MascotWidget';
+import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { getMascotLine } from '../data/mascotDialogue';
 
 // A preview needs to end at a sentence or word boundary, never mid-word — the bug this fixes
 // was a card showing "The program is..." because the STORED description itself used to be
@@ -233,6 +236,19 @@ export default function CourseSelectionScreen() {
   const [creditFilter, setCreditFilter] = useState([]);
   const [attrFilter, setAttrFilter] = useState([]);
 
+  // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — checkpoint mode always shows the same
+  // repeatable "courseSelection-checkpoint" line (never marked seen, matching TranscriptScreen's
+  // own checkpoint handling); onboarding mode is a real intro-once-then-revisit, same pattern as
+  // every other screen in this stage.
+  // Snapshotted, not a live check — see useMascotSeen.js's own comment on why a live
+  // `state.mascotSeenKeys.includes(...)` check here would make the intro line vanish within
+  // milliseconds of the mark-seen effect below actually running.
+  const courseSelIntroSeen = useMascotSeenSnapshot(checkpoint ? null : 'courseSelection-intro');
+  useMarkMascotSeen(!checkpoint && !courseSelIntroSeen ? 'courseSelection-intro' : null);
+  const mascotText = checkpoint
+    ? getMascotLine('courseSelection-checkpoint')
+    : getMascotLine(courseSelIntroSeen ? 'courseSelection-revisit' : 'courseSelection-intro');
+
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const recommendedCourses = useMemo(
     () => getRecommendedCourses(opportunityTracks, getCourseById),
@@ -339,6 +355,7 @@ export default function CourseSelectionScreen() {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button
         type="button"
         className="btn btn-ghost"
@@ -818,6 +835,17 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
     [state.selectedMajorIds],
   );
 
+  // Same pattern as the Roslyn CourseSelectionScreen above — no UC-Davis-specific dialogue text
+  // was written separately, since the content applies just as well here.
+  // Snapshotted, not a live check — see useMascotSeen.js's own comment on why a live
+  // `state.mascotSeenKeys.includes(...)` check here would make the intro line vanish within
+  // milliseconds of the mark-seen effect below actually running.
+  const courseSelIntroSeen = useMascotSeenSnapshot(checkpoint ? null : 'courseSelection-intro');
+  useMarkMascotSeen(!checkpoint && !courseSelIntroSeen ? 'courseSelection-intro' : null);
+  const mascotText = checkpoint
+    ? getMascotLine('courseSelection-checkpoint')
+    : getMascotLine(courseSelIntroSeen ? 'courseSelection-revisit' : 'courseSelection-intro');
+
   const unitsOptions = useMemo(
     () => [...new Set(UCDAVIS_COURSES.map((course) => course.units))].sort((a, b) => parseFloat(a) - parseFloat(b)),
     [],
@@ -874,6 +902,7 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button
         type="button"
         className="btn btn-ghost"

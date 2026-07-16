@@ -5,6 +5,8 @@ import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/
 import { getOpportunityPool, getSchoolOpportunities } from '../data/opportunities';
 import { anchorDate, formatDate, startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
+import MascotWidget from '../components/MascotWidget';
+import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
@@ -59,8 +61,11 @@ export default function OpportunityFinderScreen() {
       : [...prev, track]));
   };
 
+  const mascotText = useMascotIntroThenRevisit('opportunities-intro', 'opportunities-revisit');
+
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button
         type="button"
         className="btn btn-ghost"

@@ -8,8 +8,20 @@ import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
 import ProgramsStep from './discovery/ProgramsStep';
 import StepProgress from '../components/StepProgress';
+import MascotWidget from '../components/MascotWidget';
+import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 
 const SUB_STEPS = ['careers', 'majors', 'programs'];
+
+// Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — unlike Survey's single continuous page,
+// each of Discovery's 3 sub-steps only ever changes via an explicit user action (handleNext/
+// goBackSubStep calling setSubStep), never automatically from a dependent field settling — so
+// there's no cascade risk here the way Survey's field-sequence effect had to guard against.
+const DISCOVERY_MASCOT_KEYS = {
+  careers: { intro: 'discovery-careers-intro', revisit: 'discovery-careers-revisit' },
+  majors: { intro: 'discovery-majors-intro', revisit: 'discovery-majors-revisit' },
+  programs: { intro: 'discovery-programs-intro', revisit: 'discovery-programs-revisit' },
+};
 
 const SUB_STEP_COPY = {
   careers: {
@@ -66,6 +78,9 @@ export default function DiscoveryScreen() {
   useEffect(() => {
     if (tracks.length === 0) patch({ screen: afterDiscovery });
   }, [tracks.length, afterDiscovery]);
+
+  const mascotKeys = DISCOVERY_MASCOT_KEYS[subStep];
+  const mascotText = useMascotIntroThenRevisit(mascotKeys.intro, mascotKeys.revisit);
 
   if (tracks.length === 0) return null;
 
@@ -141,6 +156,7 @@ export default function DiscoveryScreen() {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <BackBar onBack={goBackSubStep} />
       <StepProgress step={3} total={9} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>

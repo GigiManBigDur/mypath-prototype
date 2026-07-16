@@ -10,6 +10,9 @@ import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from
 import { LETTER_GRADE_OPTIONS, calculateUCDavisGpa } from '../utils/ucdavisGpa';
 import StepProgress from '../components/StepProgress';
 import CourseSearchField from '../components/CourseSearchField';
+import MascotWidget from '../components/MascotWidget';
+import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { getMascotLine } from '../data/mascotDialogue';
 
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
@@ -65,6 +68,25 @@ export default function TranscriptScreen() {
   const [yearTaken, setYearTaken] = useState(null);
 
   const transcript = state.transcript || [];
+
+  // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — checkpoint mode reuses the same
+  // "courseSelection-checkpoint" line Course Selection's own Part 2 uses, since it already covers
+  // both halves of the checkpoint ("update your grades first, then pick your next courses") and
+  // is meant to repeat every time, so it's never tracked via useMarkMascotSeen. Onboarding mode
+  // picks between two real first-time intro lines depending on whether the transcript is
+  // currently empty (matching the visible skip-row messaging right below) or already has entries
+  // — whichever was shown first is the one that gets marked seen; after that, every visit shows
+  // the short revisit line instead.
+  const transcriptIntroKey = transcript.length === 0 ? 'transcript-empty' : 'transcript-intro';
+  // Snapshotted (not a live `state.mascotSeenKeys.includes(...)` check) — see
+  // useMascotSeen.js's own comment: reading live would flip this true the instant
+  // useMarkMascotSeen's effect below marks the key seen, making the intro vanish within
+  // milliseconds of ever showing.
+  const transcriptIntroSeen = useMascotSeenSnapshot(checkpoint ? null : transcriptIntroKey);
+  useMarkMascotSeen(!checkpoint && !transcriptIntroSeen ? transcriptIntroKey : null);
+  const mascotText = checkpoint
+    ? getMascotLine('courseSelection-checkpoint')
+    : getMascotLine(transcriptIntroSeen ? 'transcript-revisit' : transcriptIntroKey);
 
   // Off-by-one fix (see roadmapGenerator.js's buildCourseItems for the matching Course Selection
   // fix): the onboarding transcript's own "Year Taken" options are now limited to grades the
@@ -137,6 +159,7 @@ export default function TranscriptScreen() {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button type="button" className="btn btn-ghost" onClick={goBack}>
         <ArrowLeft size={14} /> Back
       </button>
@@ -302,6 +325,18 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
     [state.selectedMajorIds],
   );
 
+  // Same pattern as the Roslyn TranscriptScreen above — no UC-Davis-specific dialogue text was
+  // written separately, since the content ("search for real courses, enter real grades") applies
+  // just as well here; reusing the same keys means a student who somehow encounters both a Roslyn
+  // and a UC Davis transcript (not a real path today, but harmless either way) doesn't see the
+  // intro line twice under two different names.
+  const transcriptIntroKey = ucdavisTranscript.length === 0 ? 'transcript-empty' : 'transcript-intro';
+  const transcriptIntroSeen = useMascotSeenSnapshot(checkpoint ? null : transcriptIntroKey);
+  useMarkMascotSeen(!checkpoint && !transcriptIntroSeen ? transcriptIntroKey : null);
+  const mascotText = checkpoint
+    ? getMascotLine('courseSelection-checkpoint')
+    : getMascotLine(transcriptIntroSeen ? 'transcript-revisit' : transcriptIntroKey);
+
   // Same real, analogous gap the Roslyn off-by-one fix already closed for its own transcript
   // (YEAR_OPTIONS scoped to state.schoolYear) — the UC Davis onboarding transcript's own "Class
   // Year" pill row always offered all 4 of CLASS_YEAR_OPTIONS regardless of state.schoolYear
@@ -371,6 +406,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button type="button" className="btn btn-ghost" onClick={goBack}>
         <ArrowLeft size={14} /> Back
       </button>

@@ -307,6 +307,179 @@ uses, not a new concept.
   moved to match (`mascotRect.right`, `mascotRect.top + height/2`) so the visual anchor and the
   math it's rotated by describe the same point.
 
+**Dashboard/Guide feature, Stage 5: in-flow dialogue — the mascot now appears on every real
+screen after the hub (not just the hub itself), with real contextual, hand-written dialogue per
+screen/sub-step.** This is primarily a content/voice task layered onto a small, reusable
+mechanism, not a new pointing/guidance system — it doesn't touch Stage 4's hub-only
+glow/pointer/greeting at all.
+- **`MascotIcon.jsx`** is the mascot SVG illustration itself, extracted out of `HubScreen.jsx`'s
+  former local `Mascot()` function (byte-identical markup/animations) so both the hub's own large
+  mascot and this stage's smaller in-flow widget render the same illustration. Takes a `size` prop
+  (hub uses 140, the widget uses 52); all internal coordinates/keyframes are otherwise unchanged.
+- **`state.mascotSeenKeys`** (`AppContext.jsx`, a flat string array, persisted like everything
+  else) is the single source of truth for "has this student already seen this specific line" —
+  every distinct dialogue moment gets its own stable string key (e.g. `'survey-intro'`,
+  `'discovery-majors-intro'`), appended once and never removed.
+- **`src/data/mascotDialogue.js`** exports `MASCOT_LINES` (flat `key: text`) and
+  `getMascotLine(key)` — pure content, matching this codebase's existing "data files stay free of
+  logic, screens own the resolution logic" convention (`courses.js`, `opportunities.js`, ...).
+  Every `-intro` key is meant to show at most once ever; a matching `-revisit` key (where one
+  exists) is short/generic and repeats freely on every later visit; a screen with no `-revisit`
+  key defined simply goes quiet on return visits rather than forcing a generic line that wouldn't
+  add anything real — this is a deliberate per-screen judgment call (see the hook API below), not
+  a hardcoded rule. A few keys extend beyond the original spec's explicit examples (e.g.
+  `transcript-empty` for the "no transcript yet" skip state, `courseSelection-checkpoint` for
+  Course Selection Stage 4's own two-part revisit mode, `programSummary-empty`,
+  `projectBuilder-revisit`), written in the same voice, per the stage's own "don't leave any major
+  step silent" instruction.
+- **`MascotWidget.jsx`** is the small, dismissible, corner-of-the-screen widget every real screen
+  renders: `{ text }` in, a mascot icon + text + dismiss (X) button out, `null` if `text` is
+  falsy. Local `dismissed` state resets to `false` whenever `text` itself changes (a NEW line
+  always starts undismissed; dismissing one line only hides that line, never silences the widget
+  for the rest of the screen). **Rendered via `createPortal(..., document.body)`, not inline — a
+  real, confirmed bug fix, not a style choice.** Every screen this widget appears on is wrapped by
+  `App.jsx`'s `.screen-transition` div, whose `screen-enter` keyframe animates
+  `transform: translateY(...)` with `animation-fill-mode: both` — per the CSS spec, ANY non-`none`
+  transform on an ancestor (including one from a still-`fill`-ing animation) makes that ancestor a
+  containing block for `position: fixed` descendants. This is the exact same landmine already
+  documented and fixed once for the course detail modal (see the Course Selection Stage 3/4
+  section) — confirmed directly here too via `getBoundingClientRect()`: the widget's own
+  `left: 20px` resolved to `x≈280` instead of `x≈20`, offset by `.screen-transition`'s centered
+  `.app-shell` position, which let the widget's real, visible dismiss button silently land on top
+  of and intercept clicks meant for the underlying form (confirmed via Playwright: a real click on
+  Survey's "High School" pill failed with the dismiss button reported as the actual hit target).
+  The portal escapes the ancestor entirely, same fix that already worked for the modal. **The
+  widget's own container also needs `pointer-events: none`** (`.mascot-widget` in `global.css`),
+  with `pointer-events: auto` re-enabled only on the dismiss button and the text — needed
+  separately from the portal fix, confirmed via Playwright reporting the widget's own empty
+  bounding box as intercepting clicks meant for content well outside its visible card.
+- **`src/hooks/useMascotSeen.js`** is the shared resolution layer every screen uses:
+  - `useMarkMascotSeen(key)` — the core "append this key to `mascotSeenKeys` once" primitive, a
+    plain `useEffect` keyed on `key`, mirroring this codebase's existing one-shot read/clear
+    patterns (`discoveryEntryStep`, `activeCourseCheckpoint`).
+  - `useMascotIntroOnce(key)` — the common "one intro line, no revisit text, go quiet after" shape
+    (pure info screens like Admissions Overview, or a screen where the summary already shown
+    covers what a revisit would say).
+  - `useMascotIntroThenRevisit(introKey, revisitKey)` — the other common shape: a real intro once,
+    then a short, freely-repeatable revisit line on every later visit. `revisitKey` is optional;
+    omitting it reproduces `useMascotIntroOnce`'s own quiet-after behavior for a caller that only
+    sometimes has a revisit line (e.g. Discovery's per-sub-step key set, where not every sub-step
+    got one).
+  - `useMascotSeenSnapshot(key)` — exported separately for screens with a real precondition beyond
+    plain "have they seen it" (TranscriptScreen/CourseSelectionScreen choosing between two
+    mutually-exclusive intro variants depending on current state, or a checkpoint-mode branch that
+    bypasses the intro/revisit split entirely) — see the flicker bug below for why this exists as
+    its own primitive rather than being inlined per-caller.
+  - **A real, confirmed bug found via this stage's own Playwright testing: naively checking
+    `state.mascotSeenKeys.includes(key)` directly in a screen's render body (to decide what TEXT to
+    show) self-invalidates within milliseconds.** `useMarkMascotSeen`'s effect fires essentially
+    immediately after mount, appending the key to `mascotSeenKeys` — which triggers a re-render in
+    which that SAME live check now reads `true`, so the intro line vanishes (or flips to a revisit
+    line) before a user could ever actually read it. Confirmed directly: a widget built this way
+    rendered NO text at any point after mount, not even for one frame — by the time the DOM was
+    queried, the mark-seen round trip had already completed. `useMascotSeenSnapshot`'s fix is to
+    freeze the "was this key already seen" answer for as long as the CALLER keeps asking about the
+    SAME key value across consecutive renders, and only re-derive it fresh from live state the
+    moment the key value actually CHANGES (via a `useRef` pair tracking the last-seen key and its
+    snapshot, compared directly in the render body, not inside an effect). A plain
+    `useState(() => ...)` lazy initializer isn't enough on its own here — it only captures a value
+    once per component MOUNT, but DiscoveryScreen's single mounted instance asks about a
+    DIFFERENT key on every sub-step change (`discovery-careers-intro` ->
+    `discovery-majors-intro` -> ...), and later navigating BACK to a sub-step already visited
+    needs to re-read the NOW-current seen-state (showing the revisit line), not a value frozen
+    from the first-ever visit — recomputing on every key CHANGE (not "first time this key is ever
+    seen") gets both right: the mark-seen effect's own re-render keeps the SAME key, so the
+    snapshot stays frozen (no flicker); leaving and returning changes the key away and back,
+    which counts as a fresh transition, so the snapshot re-reads current state on return.
+- **`SurveyScreen.jsx` has the most involved wiring, since it's one continuous page with no real
+  sub-screens** — its "landing on a new sub-step" moment is field-completion-driven rather than
+  screen-navigation-driven. `SURVEY_MASCOT_SEQUENCE` pairs each dialogue key with a `when(state)`
+  precondition (interests -> educationLevel -> schoolYear -> school), mirroring Stage 4's own
+  `GUIDED_SEQUENCE`/`getNextGuidedStep` pattern at the field level instead of the tile level.
+  `pendingMascotSteps(state)` snapshots every currently-eligible-and-unseen step as a plain array;
+  an effect gated on the real progress fields ONLY (`interestTags.length`, `educationLevel`,
+  `schoolYear`, `currentSchool` — deliberately NOT `mascotSeenKeys`) reveals that queue one step at
+  a time via `setTimeout` (`MASCOT_STEP_DELAY_MS`, 2200ms), storing the currently-shown key in
+  local `useState` rather than recomputing it live from `state.mascotSeenKeys` on every render.
+  Two real, confirmed bugs were found and fixed building this:
+  - **The cascade bug**: gating the resolution effect on `state.mascotSeenKeys` itself (instead of
+    only the real progress fields) meant that marking one key seen was itself a state change that
+    re-triggered the SAME effect, which immediately found the NEXT eligible-and-unseen step and
+    marked THAT seen too — cascading through the whole sequence within milliseconds on a single
+    fresh mount, confirmed directly (`mascotSeenKeys` ended up with both `'survey-intro'` AND
+    `'survey-interests'` within one render pass). Excluding `mascotSeenKeys` from the effect's own
+    dependency array fixes this — the effect only re-fires when the user genuinely changes a
+    tracked field.
+  - **The one-action-late lag bug**: resolving only the FIRST eligible-and-unseen step per trigger
+    (an early version of this effect) starves every step after the first "free" one (no real
+    precondition, e.g. `'survey-intro'`/`'survey-interests'`) until some LATER, unrelated field
+    change happens to fire the effect again — in practice, a field's own prompt (e.g. "Now, where
+    are you in your journey right now?") only appeared AFTER the user had already answered it, one
+    action late, never before. Fixed by queuing every currently-eligible-unseen step (not just the
+    first) and revealing them one at a time on the `MASCOT_STEP_DELAY_MS` timer instead of
+    requiring a distinct real field-change per reveal — this does NOT reintroduce the cascade bug
+    above, since each reveal still only marks ONE key seen and the queue itself is a plain
+    snapshot, never recomputed against a mid-walk `mascotSeenKeys`.
+- **`DiscoveryScreen.jsx`** keys its 3 sub-step dialogue moments (`discovery-careers-intro`/
+  `-revisit`, `-majors-`, `-programs-`) directly off its own existing `subStep` local state via
+  `useMascotIntroThenRevisit` — structurally simpler/safer than Survey's case, since `subStep` only
+  ever changes via an explicit user action (`handleNext`/`goBackSubStep`), never automatically from
+  a dependent field settling, so there's no cascade risk to guard against here.
+- **`TranscriptScreen.jsx`/`CourseSelectionScreen.jsx`** (both the Roslyn AND UC Davis variants in
+  each file) share one pattern: checkpoint mode (Course Selection Stage 4's own two-part revisit)
+  always shows the same repeatable `'courseSelection-checkpoint'` line — covering both halves
+  ("update your grades first, then pick your next courses") — and is never marked seen, since it's
+  meant to repeat every time a checkpoint is reached; onboarding mode picks between two real
+  mutually-exclusive intro variants based on current emptiness (`transcript-empty` vs.
+  `transcript-intro`, depending on whether `state.transcript`/`ucdavisTranscript` is currently
+  empty) via `useMascotSeenSnapshot`, falling back to the matching revisit line once seen. No
+  UC-Davis-specific dialogue text was written separately for either screen — the content applies
+  just as well to both variants, so both reuse the identical Roslyn-authored keys.
+- **`ProgramSummaryScreen.jsx`** picks between `programSummary-intro`/`programSummary-empty`
+  (whichever applies to the CURRENT selected-programs count) via a plain `useMascotIntroOnce` call
+  — no revisit line was written for this screen, since there's nothing new to say on a later visit
+  that the summary itself doesn't already show.
+- **`OpportunityFinderScreen.jsx`** is the simplest case: one `useMascotIntroThenRevisit(
+  'opportunities-intro', 'opportunities-revisit')` call, independent of which of the 3 browse
+  views (Recommended/Browse/My School) is currently active.
+- **`ProjectBuilderScreen.jsx`**: the intro line is one-time-ever regardless of which of the 3
+  sub-views (categories/category/projectType) the student is on, since it's about the FEATURE, not
+  a specific category. The revisit line (`'projectBuilder-revisit'`, "Ready to add another step to
+  your project?") is deliberately gated on an actually-active started project
+  (`state.startedProjects.some(p => p.status === 'active')`), not just "has seen the intro before"
+  — a student who's browsed this screen once but never started anything has no next step to be
+  nudged toward, so they see nothing on a return visit instead.
+- **`YearOverview.jsx`** (Academic Plan Map 1 — the "(first view)" the original task spec called
+  out) gets `plan-intro`/`plan-revisit` via `useMascotIntroThenRevisit`, called directly inside
+  this component via `useApp()` even though it's technically a shared component, not a top-level
+  screen — the same precedent `Roadmap.jsx` already established for reading `state`/`patch`
+  directly rather than threading them down as extra props. **Deliberately NOT `Roadmap.jsx` (Map
+  2)** — matching the original task's own explicit "(first view)" framing and this codebase's
+  established Map 1/Map 2 distinction; Map 2 never gets its own mascot line.
+- **A third, unrelated but real bug surfaced and was fixed while regression-testing this
+  stage against the existing Playwright suite (`test-hub.js`)**: a test helper
+  (`seedAndGoto`) that does `page.goto(BASE)` immediately followed by overwriting `localStorage`
+  and `page.reload()`, with zero settle time in between, intermittently lost a race against the
+  FIRST page's own legitimate async effects — specifically, DiscoveryScreen's own mascot-marking
+  `patch()` call (a real, new mount-time side effect this stage introduced) firing asynchronously
+  after commit could land AFTER the test's `evaluate()` seed but before/during `reload()`,
+  clobbering the fresh seed with the old page's own stale state right as the new page was booting.
+  This was NOT a real user-facing bug (no real user has an external process racing to overwrite
+  their own browser's localStorage in the same instant they reload) — confirmed by tracing the
+  exact `patch()` call site and its stack trace, and by verifying the SAME race could be forced
+  even on unrelated screens by giving them a mount-time `patch()` call. Fixed at the test-harness
+  level (`seedAndGoto` in `test-hub.js` now waits briefly after the initial `goto()` before
+  overwriting localStorage, so any of that first page's own in-flight writes settle before the
+  test's own seed becomes the definitively last write before reload) — not in the app itself,
+  since the app's own behavior (marking a genuinely-just-shown intro line seen) is correct.
+  Separately, `AppContext.jsx`'s own persistence effect was hardened to skip a redundant write on
+  mount (comparing `state` by reference against a ref snapshotted at mount, not a boolean "have we
+  run yet" flag — a boolean alone isn't enough under React StrictMode's dev-only double-effect
+  invocation on mount, confirmed via a stack trace showing the write coming from React's own
+  `reconnectPassiveEffects` replay) — a legitimate, harmless reduction in redundant localStorage
+  writes, though the actual test race above turned out to live in the test harness, not this
+  effect.
+
 **`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
 `opportunities` for EVERY education level**, which is what the High-School-only skip below
 actually resolves *to* now, not `opportunities` directly.
@@ -2352,3 +2525,28 @@ download). Cover at minimum:
   Map 2 view. Confirm editing the due date and removing a `course-request` task both work through
   the plain generic modal (date input + Remove task, with the real-task confirm dialog for
   required nodes) — no special-casing needed there.
+- Dashboard/Guide Stage 5 (mascot in-flow dialogue): walk the full flow (Survey through Academic
+  Plan/YearOverview) with a fresh `mascotSeenKeys: []` and confirm each screen/sub-step shows its
+  correct, correctly-voiced intro line — most reliably done by seeding `localStorage` directly per
+  screen (with the right prerequisite state, e.g. `selectedProgramKeys`/`selectedMajorIds` for
+  ProgramSummary/CourseSelection) rather than always clicking through the entire flow live, though
+  Survey specifically should be tested via real clicks (`.tag`, education-level/grade pills) since
+  its dialogue resolution is field-completion-driven, not just a static per-screen key. Confirm the
+  widget is dismissible everywhere (click `.mascot-widget-dismiss`, confirm it disappears and the
+  underlying form is still fully clickable — a real regression risk given the containing-block/
+  portal bug already documented above) and NEVER blocks a real click on the underlying screen
+  (assert the click's actual effect, e.g. a selection count changing, not just that the click
+  didn't throw). Confirm revisiting an already-completed screen/sub-step shows the shorter
+  revisit line (or nothing, for screens with none defined) instead of replaying the full intro —
+  for Discovery specifically, test navigating away from a sub-step and back within the SAME
+  mounted screen instance (careers -> majors -> back to careers), not just a fresh reload, since
+  that in-session revisit path is what the snapshot-based anti-flicker hook has to get right.
+  Regression-test the 3 real bugs found building this stage directly rather than just trusting
+  they stay fixed: (1) seed a fresh mount and confirm `mascotSeenKeys` gains at most 1 entry within
+  ~400ms (no cascade); (2) confirm `.mascot-widget`'s `getBoundingClientRect()` reports a real
+  left-edge x-coordinate (well under 100px at a normal viewport width), not offset by
+  `.screen-transition`'s centered shell (the containing-block bug); (3) confirm a screen whose
+  intro key was already marked seen actually SHOWS its revisit text (or nothing) rather than
+  flickering the full intro for one frame before disappearing (the snapshot-hook flicker bug) —
+  isolated per-key checks alone won't catch this, it needs the text read immediately after mount,
+  not after an arbitrary wait.

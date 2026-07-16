@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 const STORAGE_KEY = 'mypath-prototype-state';
 
@@ -27,6 +27,16 @@ const DEFAULT_STATE = {
   // Discovery (via the real admissions flow) is never left starting on a stale sub-step from an
   // old hub click. null means "start at careers," the screen's own original default.
   discoveryEntryStep: null,
+  // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — every mascot dialogue "intro" key
+  // (src/data/mascotDialogue.js) that has ever been shown to this user, permanently. Each screen
+  // computes its OWN currently-relevant dialogue key from real progress state (mirroring Stage
+  // 4's GUIDED_SEQUENCE pattern) and checks this array before deciding whether to show that key's
+  // intro line or fall through to a shorter, freely-repeatable "revisit" line (or nothing) —
+  // `useMarkMascotSeen` (src/hooks/useMascotSeen.js) is the one place a key ever gets appended
+  // here, and it never removes one, so an intro line is shown at most once per user, ever. Revisit
+  // lines are deliberately NOT tracked here — they're short/generic by design and safe to repeat
+  // on every subsequent visit, so tracking them would only add bookkeeping with no real benefit.
+  mascotSeenKeys: [],
   interestTags: [],
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
@@ -139,7 +149,24 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [state, setState] = useState(loadInitialState);
 
+  // Skips the redundant write on mount: `state` at that point was just READ from this same key
+  // (via `loadInitialState` above), so writing it straight back out is a pure no-op in terms of
+  // data — it only ever matters if something else touches localStorage in the brief window before
+  // this effect flushes (found while chasing an unrelated flaky-test investigation: a Playwright
+  // test that seeds fresh state and reloads immediately after a plain `page.goto()` could lose a
+  // race against this exact no-op write). Comparing `state` by reference against a ref snapshotted
+  // at mount — rather than a simple boolean "have we run yet" flag — is what makes this safe under
+  // React StrictMode (main.jsx): StrictMode double-invokes every effect on mount via its own
+  // `reconnectPassiveEffects` replay, with no new render in between, so a boolean flag gets
+  // flipped to "allow" by the first invocation and still lets the second one write; comparing
+  // against the same snapshotted object correctly skips BOTH invocations, while any REAL
+  // subsequent `patch()` call (which always produces a new object via spread) still writes
+  // normally. That said, the actual flaky-test race turned out to live in the test harness itself,
+  // not here — see test-hub.js's `seedAndGoto` fix for the real cause and fix.
+  const lastPersisted = useRef(state);
   useEffect(() => {
+    if (state === lastPersisted.current) return;
+    lastPersisted.current = state;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {

@@ -9,6 +9,9 @@ import { generateRoadmap } from '../utils/roadmapGenerator';
 import { parseDateInputValue, realDaysBetween, formatDate } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
+import MascotWidget from '../components/MascotWidget';
+import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { getMascotLine } from '../data/mascotDialogue';
 
 const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
 // Cycles through the app's existing accent tokens rather than introducing new colors — 6
@@ -83,8 +86,23 @@ export default function ProjectBuilderScreen() {
     setStartDate('');
   };
 
+  // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — the intro line is a one-time, ever line
+  // regardless of which of the 3 sub-views the student is on (it's about the FEATURE, not a
+  // specific category/project type). The revisit line ("Ready to add another step to your
+  // project?") is deliberately gated on an actually-active started project, not just "has seen
+  // the intro before" — a student who's browsed this screen once but never started anything has
+  // no next step to be nudged toward, so they see nothing on a return visit instead.
+  const hasActiveProject = (state.startedProjects || []).some((p) => p.status === 'active');
+  // Snapshotted, not a live check — see useMascotSeen.js's own comment.
+  const pbIntroSeen = useMascotSeenSnapshot('projectBuilder-intro');
+  useMarkMascotSeen(pbIntroSeen ? null : 'projectBuilder-intro');
+  const mascotText = !pbIntroSeen
+    ? getMascotLine('projectBuilder-intro')
+    : (hasActiveProject ? getMascotLine('projectBuilder-revisit') : null);
+
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <div className="pb-topbar">
         <button type="button" className="btn btn-ghost" onClick={goBack}>
           <ArrowLeft size={14} /> Back

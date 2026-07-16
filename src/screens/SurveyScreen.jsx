@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 import StepProgress from '../components/StepProgress';
 import SchoolSearchField from '../components/SchoolSearchField';
 import { SCHOOLS, COLLEGE_SCHOOLS } from '../data/schools';
+import MascotWidget from '../components/MascotWidget';
+import { useMarkMascotSeen } from '../hooks/useMascotSeen';
+import { getMascotLine } from '../data/mascotDialogue';
 
 const LEVELS = [
   { id: 'highschool', label: 'High School' },
@@ -43,6 +46,38 @@ export function isSurveyComplete(state) {
     && (!isHighSchool || !!state.currentSchool);
 }
 
+// Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — SurveyScreen has no internal sub-screens
+// (it's one continuous page), so unlike Discovery's careers/majors/programs, its "landing on a
+// new sub-step" moment is FIELD-completion-driven rather than screen-navigation-driven. This
+// mirrors Stage 4's own GUIDED_SEQUENCE/getNextGuidedStep pattern (HubScreen.jsx) at the field
+// level: find the first step whose precondition is currently true AND hasn't been shown yet. Each
+// key is marked seen (via useMarkMascotSeen) the moment it's shown, so as the student fills in
+// one field after another in a single sitting, they naturally see intro -> interests ->
+// educationLevel -> schoolYear -> school in sequence, each exactly once — not re-triggered on
+// every keystroke within a field, since each key only ever satisfies "not yet seen" once.
+const SURVEY_MASCOT_SEQUENCE = [
+  { key: 'survey-intro', when: () => true },
+  { key: 'survey-interests', when: () => true },
+  { key: 'survey-educationLevel', when: (state) => state.interestTags.length > 0 },
+  { key: 'survey-schoolYear', when: (state) => !!state.educationLevel },
+  {
+    key: 'survey-school',
+    when: (state) => !!state.schoolYear
+      && (state.educationLevel === 'highschool' || state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer'),
+  },
+];
+
+// How long a queued step stays on screen before the next one auto-advances (see the effect
+// below). Long enough to actually read a 1-2 sentence line, short enough that a fast-moving
+// user doesn't have to wait it out — this is a judgment call, not a measured value.
+const MASCOT_STEP_DELAY_MS = 2200;
+
+function pendingMascotSteps(state) {
+  return SURVEY_MASCOT_SEQUENCE
+    .filter((s) => s.when(state) && !state.mascotSeenKeys.includes(s.key))
+    .map((s) => s.key);
+}
+
 export default function SurveyScreen() {
   const { state, patch } = useApp();
   const [openCategory, setOpenCategory] = useState(null);
@@ -69,8 +104,54 @@ export default function SurveyScreen() {
   const hasSchoolField = isHighSchool || isCollege;
   const canContinue = isSurveyComplete(state);
 
+  // Resolved into local state via an effect gated on the REAL progress fields only — not
+  // recomputed directly in the render body on every render. Marking a key seen (below) itself
+  // changes `state.mascotSeenKeys`, which would otherwise trigger an immediate re-render whose
+  // fresh resolution already sees THIS key as seen and instantly resolves the NEXT eligible step
+  // too, cascading through the whole sequence within milliseconds — before the user ever had a
+  // chance to read the first line (confirmed directly: an unguarded version of this marked BOTH
+  // 'survey-intro' and 'survey-interests' seen within the same render pass on a fresh mount).
+  // Gating the recompute on the actual field values means it only re-runs when the user genuinely
+  // does something — filling in the next field — not as a side effect of the mascot's own
+  // bookkeeping.
+  //
+  // A single trigger can leave MORE than one step eligible+unseen at once — e.g. on mount, both
+  // 'survey-intro' and 'survey-interests' have no precondition at all, and picking an interest
+  // makes 'survey-educationLevel' eligible on the very same tick 'survey-interests' might still
+  // be showing. An earlier version of this resolved only the first eligible+unseen step per
+  // trigger, which starved every step after the first "free" one until some LATER, unrelated
+  // field change happened to fire the effect again — in practice a field's own prompt (e.g. "Now,
+  // where are you in your journey right now?") only appeared AFTER the user had already answered
+  // it, one action late, not before. Queuing every currently-eligible-unseen step as a plain
+  // snapshot and revealing them one at a time on a short timer fixes this without reintroducing
+  // the cascade above — each reveal still only marks ONE key seen, and the queue itself is never
+  // recomputed against a mid-walk `mascotSeenKeys`.
+  const [mascotKey, setMascotKey] = useState(null);
+  useEffect(() => {
+    const queue = pendingMascotSteps(state);
+    if (queue.length === 0) {
+      setMascotKey(isSurveyComplete(state) ? 'survey-revisit' : null);
+      return undefined;
+    }
+    let cancelled = false;
+    let timer;
+    const revealAt = (i) => {
+      if (cancelled) return;
+      setMascotKey(queue[i]);
+      if (i + 1 < queue.length) timer = setTimeout(() => revealAt(i + 1), MASCOT_STEP_DELAY_MS);
+    };
+    revealAt(0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.interestTags.length, state.educationLevel, state.schoolYear, state.currentSchool]);
+  useMarkMascotSeen(mascotKey && mascotKey !== 'survey-revisit' ? mascotKey : null);
+
   return (
     <div>
+      <MascotWidget text={getMascotLine(mascotKey)} />
       <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
         <ArrowLeft size={14} /> Back
       </button>

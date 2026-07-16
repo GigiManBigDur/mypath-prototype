@@ -928,6 +928,82 @@ button.card.passed:hover {
   .mascot-pointer-inner { animation: none; }
 }
 
+/* Dashboard/Guide feature, Stage 5 — the in-flow mascot widget, appearing in a fixed screen
+   corner on every real content screen (not welcome/signup/hub — see MascotWidget.jsx's own
+   comment). Bottom-LEFT deliberately, not bottom-right: this app's own established pattern puts
+   every screen's primary "Continue" button at bottom-right (`.btn-row { justifyContent:
+   flex-end }`), so anchoring here instead avoids the widget ever sitting on top of the one
+   control every screen actually needs the student to reach. z-index sits above ordinary content
+   but below `.overlay`'s modals (z-index 20) — see the z-index survey done before choosing this
+   value — so an open modal (course detail, Add Task, etc.) is never covered by it.
+
+   `pointer-events: none` on the outer container, re-enabled only on the two elements a student
+   could actually mean to click (the dismiss button, the text bubble) is NOT a style nicety here —
+   it's a confirmed bug fix. Without it, the widget's own invisible flex-box bounding area (which
+   extends well beyond the visible icon/bubble shapes) silently intercepted clicks on whatever
+   real form control happened to render underneath it on a shorter viewport — caught directly by
+   Playwright failing to click SurveyScreen's own "High School" pill with `<div class=
+   "mascot-widget"> intercepts pointer events` in the error log, a real, literal violation of this
+   stage's own "never blocks interaction with the underlying form" requirement, not a hypothetical
+   one. */
+.mascot-widget {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  z-index: 15;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 320px;
+  animation: mascot-widget-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.mascot-widget-dismiss {
+  position: absolute;
+  top: -6px;
+  left: 40px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--ink-soft);
+  padding: 0;
+  pointer-events: auto;
+}
+.mascot-widget-dismiss:hover { color: var(--ink); border-color: var(--teal); }
+.mascot-widget-text {
+  position: relative;
+  margin: 0 0 6px;
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-left: 4px solid var(--gold);
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-family: 'Fraunces', serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+  box-shadow: 0 10px 24px -14px rgba(30,61,50,0.35);
+  pointer-events: auto;
+}
+@keyframes mascot-widget-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-widget { animation: none; }
+}
+@media (max-width: 640px) {
+  /* On a narrow viewport the fixed corner widget can crowd small screens' own bottom controls —
+     shrink it and drop the max-width cap's margin so it doesn't overrun the viewport edge. */
+  .mascot-widget { left: 10px; bottom: 10px; max-width: calc(100vw - 20px); }
+}
+
 .hub-tile-grid { margin-top: 24px; }
 .hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: relative; }
 .hub-tile-icon { color: var(--teal); margin-bottom: 4px; }

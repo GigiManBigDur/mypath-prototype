@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, RotateCcw, Compass, MapPin } from 'lucide-react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import MascotWidget from './MascotWidget';
+import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 
 // Map 1 — a small, animated "which year am I looking at" overview, sitting in front of Map 2
 // (the full per-year task roadmap in Roadmap.jsx). Deliberately much lighter than Map 2: no
@@ -38,6 +40,10 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
   const [pathLength, setPathLength] = useState(0);
   const [drawn, setDrawn] = useState(skipEntrance);
   const [revealed, setRevealed] = useState(skipEntrance ? years.length : 0);
+
+  // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — Map 1 only, per the task's own "(first
+  // view)" framing; Map 2 (Roadmap.jsx) deliberately doesn't get its own mascot line.
+  const mascotText = useMascotIntroThenRevisit('plan-intro', 'plan-revisit');
 
   const n = years.length;
   const canvasHeight = TOP_MARGIN + BOTTOM_MARGIN + Math.max(0, n - 1) * MARKER_GAP;
@@ -86,6 +92,7 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <div className="pb-topbar">
         <button type="button" className="btn btn-ghost" onClick={onBack}>
           <ArrowLeft size={14} /> Back

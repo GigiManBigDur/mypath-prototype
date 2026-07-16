@@ -3,9 +3,16 @@ import { ADMISSIONS_TEXT } from '../data/admissionsText';
 import { getBuiltTracks } from '../data/interests';
 import { useApp } from '../context/AppContext';
 import StepProgress from '../components/StepProgress';
+import MascotWidget from '../components/MascotWidget';
+import { useMascotIntroOnce } from '../hooks/useMascotSeen';
 
 export default function AdmissionsOverviewScreen() {
   const { state, patch } = useApp();
+  // A pure info/rundown screen with no student-entered data to track completion of — once its
+  // one intro line has been shown, a later revisit honestly has nothing NEW to say, so (per this
+  // stage's own explicit "or nothing at all" allowance) it just goes quiet rather than repeating
+  // a generic line that wouldn't add anything real.
+  const mascotText = useMascotIntroOnce('admissions-intro');
   const copy = ADMISSIONS_TEXT[state.educationLevel];
   const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
   // Course Selection (Transcript & GPA -> Course Selection) applies to High School, and — as of
@@ -22,6 +29,7 @@ export default function AdmissionsOverviewScreen() {
 
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'survey' })}>
         <ArrowLeft size={14} /> Back
       </button>

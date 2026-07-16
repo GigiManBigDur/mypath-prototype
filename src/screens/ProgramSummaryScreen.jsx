@@ -4,6 +4,8 @@ import { getBuiltTracks } from '../data/interests';
 import { getMergedPrograms, reachMatchSafetyTag, gpaBenchmarkText } from '../data/programs';
 import { MAJORS } from '../data/majors';
 import StepProgress from '../components/StepProgress';
+import MascotWidget from '../components/MascotWidget';
+import { useMascotIntroOnce } from '../hooks/useMascotSeen';
 
 // Reach/Match/Safety Summary — sits right after Course Selection (High School) / right after
 // Discovery (Undergraduate/Transfer, who skip Course Selection entirely) and before Opportunity
@@ -80,8 +82,17 @@ export default function ProgramSummaryScreen() {
     else uncategorized.push(p);
   });
 
+  // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — no revisit line was written for this
+  // screen (nothing new to say on a later visit that the summary itself doesn't already show), so
+  // this stays a plain intro-once-then-quiet, same as Admissions Overview. Which of the two real
+  // intro variants applies depends on whether any programs are currently selected — same
+  // mutually-exclusive-by-current-state pattern TranscriptScreen's own intro/empty split uses.
+  const mascotIntroKey = selectedPrograms.length === 0 ? 'programSummary-empty' : 'programSummary-intro';
+  const mascotText = useMascotIntroOnce(mascotIntroKey);
+
   return (
     <div>
+      <MascotWidget text={mascotText} />
       <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: backTarget })}>
         <ArrowLeft size={14} /> Back
       </button>
