@@ -170,6 +170,32 @@ body {
   flex-shrink: 0;
 }
 
+/* Hub redesign (see CLAUDE.md) — the hub gets its own full-bleed shell, mirroring
+   `.app-shell-plan`'s own precedent immediately above, plus a fresh, self-contained color
+   palette (light neutral background, white cards, a small closed set of pastel tile-accent
+   colors) matching the reference design's own look. Deliberately scoped to `.app-shell-hub`
+   (added by App.jsx only when `state.screen === 'hub'`) so NONE of this — including the color
+   tokens below — can leak onto any other screen, per this redesign's own explicit "hub only"
+   color scope; every other screen keeps reading the app's existing parchment/teal/gold/rust
+   tokens completely untouched. */
+.app-shell.app-shell-hub {
+  --hub-bg: #F4F4F1;
+  --hub-card: #FFFFFF;
+  --hub-card-border: #EAEAE5;
+  --hub-ink: #1E211C;
+  --hub-ink-soft: #6E7268;
+  --hub-shadow: 0 12px 28px -16px rgba(20, 24, 18, 0.16);
+  --hub-shadow-hover: 0 18px 36px -16px rgba(20, 24, 18, 0.22);
+  --hub-accent: #2F8F5B;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--hub-bg);
+}
+.app-shell.app-shell-hub .app-header { padding: 22px 32px 0; margin-bottom: 0; }
+
 /* Typography */
 h1.page-title {
   font-family: 'Fraunces', serif;
@@ -900,41 +926,80 @@ button.card.passed:hover {
    things on the page (per its own build spec), not just another muted aside. */
 .course-scope-banner { font-size: 14.5px; color: var(--ink); font-weight: 500; margin-top: 4px; }
 
-/* Dashboard/Guide feature, Stage 2 — the hub screen. Mascot + greeting sit centered above the
-   tile grid; "central character surrounded by tiles" is read loosely here (a focal mascot with
-   tiles flowing beneath it), not a literal circular layout, since a true radial arrangement would
-   be fragile across the viewport widths this app is already tested at (see CLAUDE.md's own
-   narrow-viewport testing convention). */
-.hub-screen { text-align: center; }
+/* Hub redesign (see CLAUDE.md) — mascot + dialogue still sit centered above the tile grid;
+   "central character surrounded by tiles" is still read loosely here (a focal mascot with tiles
+   flowing beneath it), not a literal radial/orbit arrangement like the reference image's own
+   layout — a true circular layout positioned per-tile would be fragile across the viewport widths
+   this app is already tested at (see CLAUDE.md's own narrow-viewport testing convention) AND
+   across this app's own variable real tile count (8 tiles normally, 10 for a partner-school
+   student), neither of which the reference's fixed 6-tile mockup had to account for. The
+   NEW card/color visual language below is what actually delivers "matches the reference's design"
+   — same reasoning this screen's layout already used before this redesign, just restyled. */
+.hub-screen {
+  text-align: center;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 32px 64px;
+  color: var(--hub-ink);
+}
+.hub-header-row { text-align: left; margin-bottom: 8px; }
+.hub-welcome-line {
+  margin: 0 0 4px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
+  color: var(--hub-ink-soft);
+}
+.hub-header-row .hub-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  color: var(--hub-ink);
+  margin: 0 0 6px;
+}
+.hub-header-row .page-sub { color: var(--hub-ink-soft); }
+
 .hub-mascot-area {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  margin-bottom: 8px;
+  margin: 12px 0 8px;
 }
 /* Sized tightly to the mascot SVG alone (not the whole .hub-mascot-area, which also contains the
    greeting bubble below it) — this is what the Stage 4 pointer arrow anchors and measures its
    angle against, so it has to be scoped to just the character, not the bubble underneath it. */
-.hub-mascot-figure { position: relative; width: 140px; height: 140px; }
-.hub-title { margin-top: 4px; }
+.hub-mascot-figure { position: relative; width: 150px; height: 150px; }
 
+/* Hub redesign (see CLAUDE.md) — a self-contained set of fresh colors for the new robot-with-a-
+   leaf character (cream/off-white body, near-black screen face, soft glowing eyes, leaf green),
+   deliberately NOT reusing --teal/--gold/--card literally even though this app already has those
+   tokens: the character is a genuinely new visual design, and this mascot appears on every screen
+   (not just the hub, via Stage 5's MascotWidget), so its own internal illustration colors are
+   independent from whichever screen's background/card palette it happens to sit on top of — this
+   is NOT the same thing as "changing a screen's established palette" (the hub-only color scope
+   note applies to page backgrounds/cards/text, not this small shared illustration). */
 .mascot-svg { overflow: visible; }
-.mascot-shadow { fill: var(--ink); opacity: 0.1; }
-.mascot-body { fill: var(--teal); }
-.mascot-face-ring { fill: none; stroke: var(--paper); stroke-width: 3; opacity: 0.5; }
-.mascot-needle-north { fill: var(--gold); }
-.mascot-needle-tip { fill: #fff; opacity: 0.35; }
-.mascot-needle-pin { fill: var(--card); }
-.mascot-eye { fill: var(--card); animation: mascot-blink 4.5s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
-.mascot-mouth { fill: none; stroke: var(--card); stroke-width: 3; stroke-linecap: round; }
+.mascot-shadow { fill: var(--ink); opacity: 0.12; }
+.mascot-body { fill: #F8F6EF; stroke: #E3DFD2; stroke-width: 2; }
+.mascot-ear { fill: #23261F; }
+.mascot-face { fill: #1B1E19; }
+.mascot-eye {
+  fill: none;
+  stroke: #CFF3D6;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  animation: mascot-blink 4.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.mascot-chest-light { fill: var(--teal); animation: mascot-chest-pulse 2.4s ease-in-out infinite; }
+.mascot-leaf-shape { fill: #3FAE58; }
 
-.mascot-bob { animation: mascot-bob 3.2s ease-in-out infinite; transform-origin: 80px 136px; }
-/* 0 0, not 80px 80px — the outer <g transform="translate(80 80)"> (HubScreen.jsx) already moved
-   this element's own local coordinate space so its (0,0) IS the mascot's visual center; the
-   needle's own path points are drawn relative to that local origin, so the rotation pivot has to
-   be too. */
-.mascot-needle { animation: mascot-needle-spin 14s linear infinite; transform-origin: 0px 0px; }
+.mascot-bob { animation: mascot-bob 3.2s ease-in-out infinite; transform-origin: 80px 142px; }
+/* 0 0, not 80px 26px — the outer <g transform="translate(80 26)"> (MascotIcon.jsx) already moved
+   this element's own local coordinate space so its (0,0) IS the leaf's own attachment point; the
+   leaf's own path points are drawn relative to that local origin, so the sway pivot has to be
+   too — same landmine already documented for the old compass needle this replaced. */
+.mascot-leaf { animation: mascot-leaf-sway 5s ease-in-out infinite; transform-origin: 0px 0px; }
 
 @keyframes mascot-bob {
   0%, 100% { transform: translateY(0) scale(1); }
@@ -942,65 +1007,101 @@ button.card.passed:hover {
 }
 @keyframes mascot-blink {
   0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
+  95% { transform: scaleY(0.15); }
 }
-@keyframes mascot-needle-spin {
-  0% { transform: rotate(-6deg); }
+@keyframes mascot-chest-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+@keyframes mascot-leaf-sway {
+  0%, 100% { transform: rotate(-6deg); }
   50% { transform: rotate(6deg); }
-  100% { transform: rotate(-6deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mascot-bob, .mascot-eye, .mascot-needle { animation: none; }
+  .mascot-bob, .mascot-eye, .mascot-chest-light, .mascot-leaf { animation: none; }
 }
 
-/* Speech-bubble variant of .caveat-banner's own card/gold-accent language, per this stage's own
-   "styled consistently with the rest of the app's dialogue/callout patterns" requirement — this
-   is Stage 3's greeting only, not the full in-flow dialogue system (a later stage). */
+/* Hub redesign (see CLAUDE.md) — the speech-bubble greeting restyled to match the reference's own
+   white rounded dialogue card (was a gold-left-border "caveat banner" variant before this
+   redesign; that treatment is still exactly what every OTHER caveat/callout in this app uses —
+   only this hub-exclusive bubble changed). Entrance/idle animation added for Task 3's own "feel
+   alive" requirement: a soft pop-in plays whenever `.mascot-dialogue`'s own text content actually
+   changes (a new key on the wrapping element — see HubScreen.jsx — forces React to treat it as a
+   fresh DOM node, which is what makes a CSS animation replay on every new line rather than only
+   once ever). */
 .mascot-greeting {
   position: relative;
   display: inline-block;
-  background: var(--card);
-  border: 1px solid var(--paper-line);
-  border-left: 4px solid var(--gold);
-  border-radius: 4px;
-  padding: 10px 20px;
-  max-width: 320px;
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 18px;
+  padding: 16px 22px;
+  max-width: 340px;
+  box-shadow: var(--hub-shadow);
 }
 .mascot-greeting p {
   margin: 0;
-  font-family: 'Fraunces', serif;
-  font-size: 16px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--hub-ink);
 }
 .mascot-greeting::before {
   content: '';
   position: absolute;
-  top: -8px;
+  top: -9px;
   left: 50%;
   transform: translateX(-50%);
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid var(--paper-line);
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 9px solid var(--hub-card-border);
 }
 .mascot-greeting::after {
   content: '';
   position: absolute;
-  top: -6.5px;
+  top: -7.5px;
   left: 50%;
   transform: translateX(-50%);
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-bottom: 7px solid var(--card);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--hub-card);
 }
 /* Stage 4's guided-sequence line — a second, lighter-weight line under the Stage 2 greeting
    itself, reading as "name line, then what the mascot is actually saying" rather than two
    competing headlines of equal weight. */
 .mascot-greeting p.mascot-dialogue {
   font-weight: 400;
-  font-size: 14px;
-  color: var(--ink-soft);
-  margin-top: 4px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--hub-ink-soft);
+  margin-top: 6px;
+  animation: hub-dialogue-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes hub-dialogue-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* The reference's own "1/6" step-position indicator, computed from the REAL guided-sequence
+   position (HubScreen.jsx) rather than invented — same honesty standard this app already applies
+   to every other on-screen progress number. */
+.hub-progress-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.hub-progress-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hub-card-border); transition: background 0.2s ease, transform 0.2s ease; }
+.hub-progress-dot.done { background: var(--hub-accent); }
+.hub-progress-dot.current { background: var(--hub-accent); transform: scale(1.4); }
+.hub-progress-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--hub-ink-soft);
+  margin-left: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-greeting p.mascot-dialogue { animation: none; }
 }
 
 /* Dashboard/Guide hub, Stage 4 — the mascot's own pointing gesture. A small arrow anchored at the
@@ -1018,7 +1119,13 @@ button.card.passed:hover {
   top: 50%;
   width: 0;
   height: 0;
-  color: var(--gold);
+  color: var(--hub-accent);
+  /* Task 3 (animation quality) — a real, previously-missing transition: the target-to-target
+     ROTATION itself (the inline `transform: rotate(...)` HubScreen.jsx's own PointerArrow sets)
+     used to snap instantly whenever the guided step advanced to a different tile. This doesn't
+     touch the angle math itself (still computed fresh from real measured positions every time,
+     see PointerArrow's own comment) — purely how the already-correct new angle gets revealed. */
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .mascot-pointer-inner { animation: mascot-pointer-nudge 1.4s ease-in-out infinite; }
 @keyframes mascot-pointer-nudge {
@@ -1026,6 +1133,7 @@ button.card.passed:hover {
   50% { transform: translateX(6px); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .mascot-pointer { transition: none; }
   .mascot-pointer-inner { animation: none; }
 }
 
@@ -1105,9 +1213,61 @@ button.card.passed:hover {
   .mascot-widget { left: 10px; bottom: 10px; max-width: calc(100vw - 20px); }
 }
 
-.hub-tile-grid { margin-top: 24px; }
-.hub-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: relative; }
-.hub-tile-icon { color: var(--teal); margin-bottom: 4px; }
+/* Hub redesign (see CLAUDE.md) — tiles no longer share the app-wide `.card` class at all (used
+   to be `class="card hub-tile ..."`) — deliberately a clean break, not an override-on-top, so
+   there's no risk of the shared `.card`/`.card-title`/`.card-desc` rules every OTHER screen's
+   content grids still use ever needing to account for hub-specific values, and vice versa. Every
+   hub-specific class below is new (`.hub-tile-icon-box`, `.hub-tile-title`, `.hub-tile-desc`),
+   not a hub-scoped override of the shared `.card-title`/`.card-desc` typography. */
+.hub-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+@media (max-width: 900px) { .hub-tile-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .hub-tile-grid { grid-template-columns: 1fr; } }
+
+.hub-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  position: relative;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--hub-shadow);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease;
+}
+.hub-tile:hover:not(:disabled) { transform: translateY(-4px); box-shadow: var(--hub-shadow-hover); }
+.hub-tile:active:not(:disabled) { transform: translateY(-1px) scale(0.985); }
+
+/* `--tile-accent`/`--tile-accent-bg` are set inline per tile (HubScreen.jsx), cycling through a
+   small fixed set of pastel colors — the same "data holds the value, CSS just reads a custom
+   property" convention `ProjectBuilderScreen.jsx`'s own `--pb-accent` cycling already established
+   in this codebase, not a new pattern invented for this redesign. */
+.hub-tile-icon-box {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  background: var(--tile-accent-bg, #E7F3EC);
+  color: var(--tile-accent, var(--hub-accent));
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hub-tile:hover:not(:disabled) .hub-tile-icon-box { transform: scale(1.08) rotate(-4deg); }
+
+.hub-tile-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 16px; font-weight: 700; color: var(--hub-ink); margin: 0 0 4px; }
+.hub-tile-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: var(--hub-ink-soft); line-height: 1.45; margin: 0; }
 
 /* A testing convenience, not a primary action (see CLAUDE.md) — deliberately smaller/dimmer than
    even .btn-ghost's already-quiet default, and set apart from the tile grid above it rather than
@@ -1123,7 +1283,7 @@ button.card.passed:hover {
   padding: 6px 10px;
   background: none;
   border: none;
-  color: var(--ink-soft);
+  color: var(--hub-ink-soft);
   opacity: 0.55;
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -1137,36 +1297,63 @@ button.card.passed:hover {
    real reason line, not just a silently-inert button. Mirrors the existing `.card.passed`
    (Opportunity Finder's "deadline passed" cards) dim-and-suppress-hover pattern rather than
    inventing a new disabled-card language. */
-button.card.hub-tile.locked { opacity: 0.55; cursor: not-allowed; }
-button.card.hub-tile.locked:hover { transform: none; box-shadow: none; border-color: var(--paper-line); }
-.hub-tile-lock-icon { color: var(--stone); }
+.hub-tile.locked { opacity: 0.55; cursor: not-allowed; }
+.hub-tile.locked:hover { transform: none; box-shadow: var(--hub-shadow); }
+.hub-tile.locked .hub-tile-icon-box { background: #EDEDE8; color: var(--hub-ink-soft); }
+.hub-tile-lock-icon { color: var(--hub-ink-soft); }
 
 /* Dashboard/Guide hub, Stage 4 — the pulsing/glowing highlight on the mascot's current guided
    target, the second of the 3 required pointing signals alongside the arrow gesture and the
-   dialogue line. A pulsing box-shadow (not a border-color change) so it stays visible layered on
-   top of `.card.selected`'s own box-shadow-inset style elsewhere in this app without fighting it
-   — this class never actually co-occurs with `.selected` in practice (hub tiles aren't
-   selectable), but keeping the visual language consistent (glow via box-shadow, not border)
-   avoids introducing a second, different "this is highlighted" convention. */
-button.card.hub-tile.pointing-target {
-  border-color: var(--gold);
-  animation: hub-tile-pulse-glow 1.8s ease-in-out infinite;
+   dialogue line. Restyled to the hub's new green accent (was gold, matching the app-wide palette
+   this screen no longer uses) — still a pulsing box-shadow layered ON TOP of the tile's own resting
+   shadow, not a replacement of it, so the card doesn't visually "flatten" every time the glow dims
+   mid-pulse. */
+.hub-tile.pointing-target {
+  border-color: var(--hub-accent);
+  animation: hub-tile-pulse-glow 2s ease-in-out infinite;
 }
 @keyframes hub-tile-pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 138, 43, 0.45); }
-  50% { box-shadow: 0 0 0 8px rgba(201, 138, 43, 0); }
+  0%, 100% { box-shadow: var(--hub-shadow), 0 0 0 0 rgba(47, 143, 91, 0.4); }
+  50% { box-shadow: var(--hub-shadow), 0 0 0 10px rgba(47, 143, 91, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  button.card.hub-tile.pointing-target { animation: none; box-shadow: 0 0 0 3px rgba(201, 138, 43, 0.35); }
+  .hub-tile.pointing-target { animation: none; box-shadow: var(--hub-shadow), 0 0 0 3px rgba(47, 143, 91, 0.35); }
 }
 .hub-tile-lock-reason {
-  margin: 2px 0 0;
+  margin: 6px 0 0;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .03em;
-  color: var(--stone);
+  color: var(--hub-ink-soft);
+}
+
+/* Task 3 (animation quality) — every tile pops in with a short staggered entrance the first time
+   the hub's own tile grid mounts (a fresh navigation TO the hub, e.g. from Sign Up, or any other
+   screen's Continue/Back — see the "Return to Hub" routing restructure elsewhere in this file's
+   own history for why that's now EVERY screen's real previous step). `nth-child` delays, the same
+   plain-CSS staggering approach `:is(.grid, .tag-list, ...)`'s own polish pass already established
+   elsewhere in this app — no per-item JS index bookkeeping needed. */
+.hub-tile-grid .hub-tile {
+  animation: hub-tile-pop-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hub-tile-grid .hub-tile:nth-child(1) { animation-delay: 0ms; }
+.hub-tile-grid .hub-tile:nth-child(2) { animation-delay: 40ms; }
+.hub-tile-grid .hub-tile:nth-child(3) { animation-delay: 80ms; }
+.hub-tile-grid .hub-tile:nth-child(4) { animation-delay: 120ms; }
+.hub-tile-grid .hub-tile:nth-child(5) { animation-delay: 160ms; }
+.hub-tile-grid .hub-tile:nth-child(6) { animation-delay: 200ms; }
+.hub-tile-grid .hub-tile:nth-child(7) { animation-delay: 240ms; }
+.hub-tile-grid .hub-tile:nth-child(8) { animation-delay: 280ms; }
+.hub-tile-grid .hub-tile:nth-child(9) { animation-delay: 320ms; }
+.hub-tile-grid .hub-tile:nth-child(10) { animation-delay: 360ms; }
+@keyframes hub-tile-pop-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-tile-grid .hub-tile { animation: none; }
 }
 
 .task-form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }

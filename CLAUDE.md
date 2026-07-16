@@ -2113,6 +2113,106 @@ old single-canvas roadmap kept hitting.
   layout (`App.jsx`'s `isPlanDetail` check, `screenKey === 'plan' && state.planYearIndex !== null`);
   Map 1 does not.
 
+**Hub redesign: the hub's visual presentation was rebuilt to match an AI-generated reference
+image's own colors/layout/character style — scoped strictly to the hub screen and the shared
+mascot illustration, not the app's established palette everywhere else.** The reference image
+itself showed several fictional features (a working search bar, notifications, an avatar, a
+"Your Progress" stats card, an "Ask MyPath AI anything" chat input, a "Quick Actions" panel, a
+literal circular/orbit tile arrangement connected by dotted lines) that don't exist in this app
+and were deliberately NOT built — the AI-chat-input framing in particular would have violated
+this app's own hard "no AI/LLM calls anywhere" constraint if implemented functionally, not just
+stylistically. Only the real 10-tile list (`TILES` in `HubScreen.jsx`, unchanged from Stage 3)
+was restyled; the "central mascot, tiles below" structural layout from Stage 2 was kept rather
+than a literal orbit (still too fragile across this app's own variable 8-10 tile count and
+already-tested narrow-viewport range — see `.hub-screen`'s own comment in global.css for the
+full reasoning, carried over from before this redesign).
+- **A new, hub-scoped color system** (`.app-shell.app-shell-hub` in global.css) parallels the
+  existing `.app-shell-plan` full-bleed override exactly — `App.jsx`'s `isHub` check
+  (`screenKey === 'hub'`) applies `app-shell-hub` in place of `.polish` (deliberately excluded
+  from `.polish` the same way `.app-shell-plan` already is, since the hub's own tile hover/press
+  treatment is redesigned from scratch, not the shared one every other `.card`-based screen
+  uses) instead of the app-wide parchment/teal/gold palette: `--hub-bg` (#F4F4F1, light
+  off-white), `--hub-card` (white), `--hub-card-border`, `--hub-ink`/`--hub-ink-soft`,
+  `--hub-shadow`/`--hub-shadow-hover`, and `--hub-accent` (#2F8F5B, green). These tokens are
+  genuinely new, not aliases of `--paper`/`--teal`/`--gold` — every other screen (Survey,
+  Discovery, Academic Plan, etc.) keeps the original palette completely unchanged, confirmed
+  directly via screenshot comparison before/after this redesign.
+- **Tiles no longer share the app-wide `.card`/`.card-title`/`.card-desc` classes at all** — a
+  deliberate clean break (`.hub-tile`/`.hub-tile-title`/`.hub-tile-desc`), not an override layered
+  on top, so neither the shared classes nor the hub-specific ones ever need to account for the
+  other's values. Each tile's icon sits in a `.hub-tile-icon-box` (46×46px rounded square) reading
+  `--tile-accent`/`--tile-accent-bg` custom properties set inline per tile in `HubScreen.jsx`
+  (`TILE_ACCENTS`, a small fixed 6-color pastel palette — green/purple/orange/pink/blue/teal —
+  cycled by index via `i % TILE_ACCENTS.length`) — the same "data/JSX picks the value, CSS just
+  reads a custom property" convention `ProjectBuilderScreen.jsx`'s own `--pb-accent` cycling
+  already established in this codebase, reused rather than inventing a new pattern. A locked
+  tile's icon box swaps to a muted grey with a `Lock` icon exactly as it did before this
+  redesign — only the visual language changed, not the real lock/unlock logic from Stage 3, which
+  this pass didn't touch at all (`unlock`/`lockedReason`/`disabled={!unlocked}` are untouched).
+  The pointing-target pulse (Stage 4) was restyled to the hub's new green accent (was gold) —
+  still a glow layered on top of the tile's own resting shadow, not a replacement of it.
+- **The header was restructured to match the reference's own "Welcome back, [name]!" + headline
+  layout** (`.hub-header-row`/`.hub-welcome-line`, left-aligned, above the mascot) — this MOVED
+  the greeting name out of the speech bubble entirely (where Stage 2 originally put it) into its
+  own header line, still using the identical `state.displayName || state.username` fallback
+  logic Stage 2 established. The speech bubble (`.mascot-greeting`) now holds only the Stage 4
+  guided-step dialogue line and a new progress-dots indicator.
+- **The progress-dots indicator (`.hub-progress-dots`) is the reference's own "1/6" step-position
+  readout, rebuilt from real data, not invented.** `getGuidedProgress(state, hasPartnerSchool)`
+  (`HubScreen.jsx`) filters `GUIDED_SEQUENCE` (Stage 4, unchanged) to the steps relevant for this
+  student and reports `{ total, currentIndex, doneCount }` — the same real per-step `isDone`
+  checks Stage 4 already computes, not a new completion concept. No "AI" branding appears
+  anywhere near it (the reference's own bubble was labeled "MyPath AI ✨"), matching this app's
+  hard no-AI constraint.
+- **The mascot character itself was redesigned** (`src/components/MascotIcon.jsx`, fully
+  rewritten) from the original Compass-motif circle+needle illustration to a friendly rounded
+  robot-with-a-leaf-sprout character matching the reference's own design language — cream/off-
+  white rounded body, a near-black rounded "screen" face with two curved glowing-mint eyes, small
+  dark ear dots on each side, a green 2-leaf sprout on top (independently swaying via its own
+  nested `<g>`, same "outer g carries the translate, inner g carries only the CSS-animated
+  transform" split this codebase's own WelcomeScreen/Roadmap.jsx transforms already document —
+  putting both on one element would silently drop the positioning the instant the sway animation
+  applied), and a small pulsing teal "chest light." Still pure inline SVG + CSS keyframes, matching
+  this codebase's standing preference for hand-drawn illustration over image assets — only the
+  shapes/colors changed, not the underlying approach. **This redesign is global, not hub-scoped**
+  (Task 2 had no color-scope qualifier the way Task 1 did): `MascotIcon` is shared between the
+  hub's own large instance and Stage 5's in-flow `MascotWidget`, so the new character appears
+  everywhere the mascot already did — but `MascotWidget`'s own speech-bubble chrome (the gold-
+  left-border `.mascot-widget-text` card) was deliberately left untouched, since that's part of
+  every OTHER screen's own established palette, not the hub's. The reference's own wooden pointer
+  stick prop was not replicated — this app already has a separate, real pointing mechanism
+  (`PointerArrow`, Stage 4) that computes a genuine angle from measured DOM positions; adding a
+  second, static prop would be redundant with (and could visually conflict with) the one that
+  already works.
+- **Task 3 (animation quality) added one genuinely new interaction on top of the existing Stage 4
+  pointing mechanism, without touching its angle math**: `.mascot-pointer` (the arrow's own
+  rotation) now carries a `transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)`, so
+  advancing to a new guided target eases the arrow smoothly to its new angle instead of snapping
+  instantly — `PointerArrow`'s own `Math.atan2` measurement (still computed fresh from real
+  `getBoundingClientRect()` positions every time) is completely unchanged; only how the
+  already-correct new angle gets revealed changed. `.mascot-dialogue`'s own text is keyed by its
+  content (`key={nextStepIntro}` in `HubScreen.jsx`) so React mounts a fresh DOM node whenever the
+  guided step's line actually changes, which is what makes its `hub-dialogue-in` CSS entrance
+  animation replay on every new line rather than only once ever. Tiles pop in with a short
+  `nth-child`-staggered entrance on mount (`hub-tile-pop-in`, up to 10 tiles, 40ms increments per
+  tile) — the same plain-CSS staggering approach this app's earlier animation/polish pass already
+  established elsewhere (`:is(.grid, .tag-list, ...)`), reused rather than inventing per-item JS
+  index bookkeeping. All of the above respects `prefers-reduced-motion` via the same plain CSS
+  `@media` block pattern this codebase already uses everywhere else for continuous/entrance
+  animations — no JS state needed.
+- Verified after this pass: every one of the 10 real tiles renders correctly with no fictional
+  reference-image feature present; the mascot's pointing/greeting/dialogue/voiceover all still
+  function correctly with the new appearance (confirmed via the existing hub/voice/mascot
+  Playwright regression suite — `test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`,
+  `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`,
+  `test-voice-picker.js`, `test-signup.js`, all passing; several of these needed their own
+  `.card-title` → `.hub-tile-title` selector updates to match the intentional class-name change,
+  the same "fix pre-existing tests after an intentional markup change" pattern this codebase's
+  test suite has already needed before); no other screen's palette changed (spot-checked via
+  screenshot against Survey and Academic Plan Map 1, both still rendering the original parchment/
+  teal/gold palette unchanged); a narrow (375px) viewport collapses the tile grid to one column
+  cleanly with no overlap or clipping.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

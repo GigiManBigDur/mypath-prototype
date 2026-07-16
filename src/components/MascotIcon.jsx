@@ -1,50 +1,40 @@
-// The illustrated mascot — built from the app's own existing Compass motif (already the brand
-// icon in the persistent header bar, and the "You are here" trail marker on WelcomeScreen/
-// YearOverview) rather than an unrelated character, so it reads as continuous with the rest of
-// the app's identity instead of a bolted-on addition. Pure inline SVG + CSS keyframes, matching
-// this codebase's standing preference for hand-drawn illustration over image assets (see
-// WelcomeScreen's own trail/marker SVG). `prefers-reduced-motion` is handled entirely in CSS
-// (global.css's own `@media (prefers-reduced-motion: reduce)` block zeroes out both animations
-// directly) rather than JS state, since this is a plain continuous idle loop with no one-time
-// entrance sequence to coordinate — unlike WelcomeScreen's intro, there's nothing here that a
-// double-rAF or staggered timer needs to get right.
+// Hub redesign (see CLAUDE.md) — a friendly rounded robot-with-a-leaf-sprout character,
+// replacing the original Compass-motif illustration to match the reference image's own character
+// design. Pure inline SVG + CSS keyframes still, matching this codebase's standing preference for
+// hand-drawn illustration over image assets (see WelcomeScreen's own trail/marker SVG) — only the
+// shapes/colors changed, not the underlying approach. `prefers-reduced-motion` is still handled
+// entirely in CSS (global.css's own `@media (prefers-reduced-motion: reduce)` block) rather than
+// JS state, for the same reason as before: a plain continuous idle loop, nothing to coordinate.
 //
-// Extracted out of HubScreen.jsx (Dashboard/Guide Stage 2) so Stage 5's in-flow MascotWidget can
-// reuse the exact same illustration at a smaller size, rather than a second hand-copied SVG
-// silently drifting out of sync with the hub's own version — the `size` prop scales the whole
-// thing uniformly (the SVG's internal 160x160 viewBox and every coordinate inside it stay fixed;
-// only the rendered width/height change), so nothing about the animations/geometry needed to
-// change to support a smaller widget-sized instance.
+// Still shared between the hub's own large instance and Stage 5's in-flow MascotWidget (the
+// `size` prop scales the whole thing uniformly; the SVG's internal 160x160 viewBox and every
+// coordinate inside it stay fixed) — one illustration, not two copies drifting apart.
 export default function MascotIcon({ size = 140 }) {
   return (
     <svg className="mascot-svg" viewBox="0 0 160 160" width={size} height={size} aria-hidden="true">
       {/* Fixed, not part of the bob group — a still shadow under a bobbing body is what actually
           sells the "lifting" illusion; a shadow that moves in lockstep with the body wouldn't. */}
-      <ellipse className="mascot-shadow" cx="80" cy="146" rx="38" ry="7" />
+      <ellipse className="mascot-shadow" cx="80" cy="149" rx="36" ry="7" />
       <g className="mascot-bob">
-        <circle className="mascot-body" cx="80" cy="80" r="56" />
-        <circle className="mascot-face-ring" cx="80" cy="80" r="56" />
-        <ellipse className="mascot-eye" cx="63" cy="66" rx="5" ry="7" />
-        <ellipse className="mascot-eye" cx="97" cy="66" rx="5" ry="7" />
-        <path className="mascot-mouth" d="M 67 88 Q 80 98 93 88" />
-        {/* Compass needle, echoing the brand icon — a small chest emblem below the face (not
-            centered on it, which read as a nose overlapping the eyes/mouth in an earlier pass),
-            slow independent spin, decorative only. Two nested <g>s, not one: a CSS transform on
-            an SVG element REPLACES its presentation-attribute transform rather than composing
-            with it (the same landmine WelcomeScreen's own marker positioning and Roadmap.jsx's
-            node transforms already document) — putting the CSS-animated rotation on the SAME
-            element that carries the positioning `transform="translate(...)"` attribute would
-            silently drop the translate the moment the animation applied, snapping the needle
-            back to the SVG's raw (0,0) origin. The outer <g> only ever carries the attribute
-            translate; the inner <g> only ever carries the CSS animation, so neither one's
-            transform can clobber the other's. */}
-        <g transform="translate(80 112)">
-          <g className="mascot-needle">
-            <path d="M 0 -14 L 6 0 L 0 14 L -6 0 Z" className="mascot-needle-north" />
-            <path d="M 0 -14 L 6 0 L 0 0 Z" className="mascot-needle-tip" />
+        <rect className="mascot-body" x="35" y="30" width="90" height="112" rx="45" />
+        <circle className="mascot-ear" cx="38" cy="74" r="7" />
+        <circle className="mascot-ear" cx="122" cy="74" r="7" />
+        <rect className="mascot-face" x="52" y="56" width="56" height="42" rx="21" />
+        <path className="mascot-eye" d="M 64 79 Q 69 71 74 79" />
+        <path className="mascot-eye" d="M 86 79 Q 91 71 96 79" />
+        <circle className="mascot-chest-light" cx="80" cy="119" r="6" />
+        {/* Leaf sprout — sways independently via its own inner <g>, same "outer <g> carries the
+            positioning translate, inner <g> carries only the CSS-animated transform" split this
+            codebase's own WelcomeScreen/Roadmap.jsx transforms already document — a CSS transform
+            REPLACES an SVG element's presentation-attribute transform rather than composing with
+            it, so putting both on one element would silently drop the translate the instant the
+            sway animation applied. */}
+        <g transform="translate(80 26)">
+          <g className="mascot-leaf">
+            <path className="mascot-leaf-shape" d="M 0 6 Q -14 -6 -9 -19 Q 5 -13 0 6 Z" />
+            <path className="mascot-leaf-shape" d="M 0 6 Q 14 -6 9 -19 Q -5 -13 0 6 Z" />
           </g>
         </g>
-        <circle className="mascot-needle-pin" cx="80" cy="112" r="3.5" />
       </g>
     </svg>
   );

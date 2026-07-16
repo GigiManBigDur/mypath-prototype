@@ -194,6 +194,32 @@ function getNextGuidedStep(state, hasPartnerSchool) {
   return relevant.find((s) => !s.isDone(state)) || ENDPOINT_STEP;
 }
 
+// Hub redesign (see CLAUDE.md) — the reference image's own "1/6" step-position indicator, rebuilt
+// here from REAL guided-sequence data rather than invented: `relevant.length` and the current
+// step's own 1-based position within it (the endpoint counts as the final, completed position, not
+// a synthetic extra step). No "AI" framing anywhere in this — it's a plain progress readout over
+// GUIDED_SEQUENCE, the same real data `getNextGuidedStep` already derives.
+function getGuidedProgress(state, hasPartnerSchool) {
+  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool);
+  const doneCount = relevant.filter((s) => s.isDone(state)).length;
+  const currentIndex = Math.min(doneCount, relevant.length - 1);
+  return { total: relevant.length, currentIndex, doneCount };
+}
+
+// Hub redesign (see CLAUDE.md) — a small fixed pastel palette cycled per tile via inline
+// `--tile-accent`/`--tile-accent-bg` custom properties, the same "data/JSX picks the value, CSS
+// just reads a custom property" convention ProjectBuilderScreen.jsx's own `--pb-accent` cycling
+// already established — not a new pattern invented for this redesign. Matches the reference
+// image's own mix of green/purple/orange/pink/blue/teal icon tiles.
+const TILE_ACCENTS = [
+  { fg: '#2F8F5B', bg: '#E5F4EB' },
+  { fg: '#7C5CFC', bg: '#EFEAFE' },
+  { fg: '#E08A2E', bg: '#FCEEDB' },
+  { fg: '#E0568C', bg: '#FCE7F0' },
+  { fg: '#3B82C4', bg: '#E4F0FA' },
+  { fg: '#1B9C8E', bg: '#E1F5F2' },
+];
+
 export default function HubScreen() {
   const { state, patch, reset } = useApp();
 
@@ -234,36 +260,50 @@ export default function HubScreen() {
   };
 
   const greetingName = state.displayName || state.username;
+  const progress = getGuidedProgress(state, hasPartnerSchool);
 
   const mascotRef = useRef(null);
   const tileRefs = useRef(new Map());
 
   return (
     <div className="hub-screen">
+      <div className="hub-header-row">
+        {greetingName && <p className="hub-welcome-line">Welcome back, {greetingName}!</p>}
+        <h1 className="page-title hub-title">Where to next?</h1>
+        <p className="page-sub">Pick anything below — you can always come back here.</p>
+      </div>
+
       <div className="hub-mascot-area">
         {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
             .hub-mascot-area (which also contains the greeting bubble stacked below). The pointer
             arrow anchors to THIS ref, so it renders right at the mascot's own base and its angle
             is measured from the mascot's real center, not from further down past the bubble. */}
         <div className="hub-mascot-figure" ref={mascotRef}>
-          <MascotIcon size={140} />
+          <MascotIcon size={150} />
           <PointerArrow mascotRef={mascotRef} tileRefs={tileRefs} targetId={nextStep.id} tileCount={tiles.length} />
         </div>
-        {(greetingName || nextStep) && (
-          <div className="mascot-greeting">
-            {greetingName && <p>Welcome, {greetingName}!</p>}
-            <p className="mascot-dialogue">{nextStepIntro}</p>
+        <div className="mascot-greeting">
+          {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing to
+              a new guided step), which is what makes .mascot-dialogue's CSS entrance animation
+              replay on every new line instead of only once ever — see global.css's own comment. */}
+          <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>
+          {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
+              (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
+          <div className="hub-progress-dots">
+            {Array.from({ length: progress.total }).map((_, i) => (
+              // eslint-disable-next-line react/no-array-index-key
+              <span key={i} className={`hub-progress-dot${i < progress.doneCount ? ' done' : ''}${i === progress.currentIndex ? ' current' : ''}`} />
+            ))}
+            <span className="hub-progress-count">{Math.min(progress.currentIndex + 1, progress.total)}/{progress.total}</span>
           </div>
-        )}
+        </div>
       </div>
 
-      <h1 className="page-title hub-title">Where to next?</h1>
-      <p className="page-sub">Pick anything below — you can always come back here.</p>
-
-      <div className="grid grid-3 hub-tile-grid">
-        {tiles.map((tile) => {
+      <div className="hub-tile-grid">
+        {tiles.map((tile, i) => {
           const unlocked = tile.unlock(state, hasPartnerSchool);
           const isPointingTarget = tile.id === nextStep.id;
+          const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
           return (
             <button
               type="button"
@@ -272,15 +312,18 @@ export default function HubScreen() {
                 if (el) tileRefs.current.set(tile.id, el);
                 else tileRefs.current.delete(tile.id);
               }}
-              className={`card hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}`}
+              className={`hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}`}
               disabled={!unlocked}
               onClick={() => goTo(tile)}
+              style={{ '--tile-accent': accent.fg, '--tile-accent-bg': accent.bg }}
             >
-              {unlocked
-                ? <tile.Icon className="hub-tile-icon" size={26} />
-                : <Lock className="hub-tile-icon hub-tile-lock-icon" size={22} />}
-              <div className="card-title">{tile.title}</div>
-              <p className="card-desc">{tile.desc}</p>
+              <div className="hub-tile-icon-box">
+                {unlocked
+                  ? <tile.Icon size={22} />
+                  : <Lock className="hub-tile-lock-icon" size={20} />}
+              </div>
+              <div className="hub-tile-title">{tile.title}</div>
+              <p className="hub-tile-desc">{tile.desc}</p>
               {!unlocked && (
                 <p className="hub-tile-lock-reason">{tile.lockedReason(state, hasPartnerSchool)}</p>
               )}

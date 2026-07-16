@@ -57,6 +57,12 @@ function AppShell() {
   // padded/scrolling shell (and .polish button/card treatment) every other screen gets.
   const isPlanDetail = screenKey === 'plan' && state.planYearIndex !== null;
   const needsTransition = TRANSITION_SCREENS.has(screenKey) || (screenKey === 'plan' && !isPlanDetail);
+  // Hub redesign (see CLAUDE.md) — the hub gets its own full-bleed shell + color palette, scoped
+  // via `.app-shell-hub` the same way `.app-shell-plan` already gets its own full-bleed treatment
+  // for Map 2. Deliberately excluded from `.polish` (like `.app-shell-plan` already is) since the
+  // hub's own tile/card hover-press treatment is redesigned from scratch below, not the shared
+  // one every other `.card`-based screen uses — applying both would double up or fight each other.
+  const isHub = screenKey === 'hub';
 
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — prime the browser's voice list once, as
   // early as possible in the app's lifetime, so it's very likely already populated by the time
@@ -67,7 +73,7 @@ function AppShell() {
   }, []);
 
   return (
-    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : ' polish'}`}>
+    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}`}>
       {state.screen !== 'welcome' && (
         <div className="app-header">
           <div className="brand">
