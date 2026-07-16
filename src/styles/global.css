@@ -937,12 +937,96 @@ button.card.passed:hover {
    — same reasoning this screen's layout already used before this redesign, just restyled. */
 .hub-screen {
   text-align: center;
-  max-width: 1180px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: 28px 32px 64px;
+  padding: 0 32px 64px;
   color: var(--hub-ink);
 }
-.hub-header-row { text-align: left; margin-bottom: 8px; }
+
+/* Radial-layout pass (see CLAUDE.md) — a dedicated hub-only top bar (logo, a placeholder search
+   field, a decorative notification bell, and the student's own picked avatar), replacing the
+   generic app-wide `.app-header` specifically on the hub screen (App.jsx's `isHub` check skips
+   rendering that one here) so there's exactly one top bar, not two stacked. The real mute/voice-
+   settings controls that `.app-header` normally carries move into this bar's own right-hand
+   cluster instead of disappearing — see HubScreen.jsx. */
+.hub-topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 0 18px;
+}
+.hub-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 19px;
+  color: var(--hub-ink);
+  flex-shrink: 0;
+}
+.hub-topbar-search {
+  flex: 1;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 12px;
+  padding: 9px 14px;
+  color: var(--hub-ink-soft);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+}
+.hub-topbar-search input {
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  color: var(--hub-ink);
+  flex: 1;
+  min-width: 0;
+}
+.hub-topbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; }
+.hub-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  color: var(--hub-ink-soft);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.hub-icon-btn:hover { color: var(--hub-ink); border-color: var(--hub-accent); }
+.hub-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hub-accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* The reference's own header text (left) + "Your Progress" card (right), side by side. Wraps to
+   a stacked column on a narrow viewport rather than squeezing both into one row. */
+.hub-top-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.hub-header-row { text-align: left; }
 .hub-welcome-line {
   margin: 0 0 4px;
   font-family: 'IBM Plex Sans', sans-serif;
@@ -957,12 +1041,89 @@ button.card.passed:hover {
 }
 .hub-header-row .page-sub { color: var(--hub-ink-soft); }
 
+/* Radial-layout pass — "Your Progress" (Task 3), computed from real Academic Plan / guided-
+   sequence data (HubScreen.jsx's own `getPlanProgress`/`getGuidedProgress`), never invented
+   numbers. The ring itself is a plain conic-gradient trick (no chart library): an outer circle
+   painted `accent` for `pct`% of its circumference and `--hub-card-border` for the rest, with a
+   smaller solid circle centered on top to punch out the donut hole the percentage text sits in. */
+.hub-progress-card {
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 18px;
+  box-shadow: var(--hub-shadow);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+  min-width: 300px;
+}
+.hub-progress-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--hub-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 10px;
+}
+.hub-progress-ring { position: relative; width: 76px; height: 76px; border-radius: 50%; flex-shrink: 0; }
+.hub-progress-ring-hole {
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--hub-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.hub-progress-ring-pct { font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; color: var(--hub-ink); line-height: 1; }
+.hub-progress-ring-label { font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; color: var(--hub-ink-soft); margin-top: 2px; }
+.hub-progress-stats { display: flex; flex-direction: column; gap: 5px; }
+.hub-progress-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--hub-ink-soft);
+}
+.hub-progress-stat-row strong { color: var(--hub-ink); font-weight: 700; }
+.hub-progress-view-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--hub-accent);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hub-progress-view-link:hover { text-decoration: underline; }
+
+/* Radial-layout pass (see CLAUDE.md) — genuinely centered within `.hub-radial-wrap` (absolute +
+   translate, not just "first flow child happens to render near the top"), so the tile ring
+   (RADIAL_POSITIONS, HubScreen.jsx) is scattered around a real fixed point rather than around
+   wherever this element's own content height happened to push it. */
 .hub-mascot-area {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  margin: 12px 0 8px;
+  z-index: 5;
+  width: min(92%, 460px);
 }
 /* Sized tightly to the mascot SVG alone (not the whole .hub-mascot-area, which also contains the
    greeting bubble below it) — this is what the Stage 4 pointer arrow anchors and measures its
@@ -1017,8 +1178,36 @@ button.card.passed:hover {
   0%, 100% { transform: rotate(-6deg); }
   50% { transform: rotate(6deg); }
 }
+
+/* Radial-layout pass, Task 4 (see CLAUDE.md) — a distinct "speaking" animation state, separate
+   from idle (above) and pointing (.mascot-pointer, below). Deliberately reuses the exact same
+   elements the idle animation already targets (the body's own bob, the eyes, the chest light) —
+   only the animation preset each one plays changes (a quicker/livelier bob, a rhythmic eye squeeze
+   instead of an occasional blink, a faster chest pulse), driven by MascotIcon.jsx's own `speaking`
+   prop swapping in these classes. The character's shapes/markup are completely untouched. Compound
+   selectors (`.mascot-bob.mascot-speaking`) beat the plain single-class idle rules above regardless
+   of declaration order, so no `!important` is needed here. */
+.mascot-bob.mascot-speaking { animation: mascot-speak-bob 0.5s ease-in-out infinite; }
+.mascot-eye.mascot-eye-talking { animation: mascot-eye-talk 0.42s ease-in-out infinite; }
+.mascot-chest-light.mascot-chest-light-talking { animation: mascot-chest-pulse-fast 0.6s ease-in-out infinite; }
+@keyframes mascot-speak-bob {
+  0%, 100% { transform: translateY(-2px) scale(1.008); }
+  50% { transform: translateY(-5px) scale(1.025); }
+}
+@keyframes mascot-eye-talk {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.5); }
+}
+@keyframes mascot-chest-pulse-fast {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mascot-bob, .mascot-eye, .mascot-chest-light, .mascot-leaf { animation: none; }
+  .mascot-bob, .mascot-eye, .mascot-chest-light, .mascot-leaf,
+  .mascot-bob.mascot-speaking, .mascot-eye.mascot-eye-talking, .mascot-chest-light.mascot-chest-light-talking {
+    animation: none;
+  }
 }
 
 /* Hub redesign (see CLAUDE.md) — the speech-bubble greeting restyled to match the reference's own
@@ -1213,20 +1402,23 @@ button.card.passed:hover {
   .mascot-widget { left: 10px; bottom: 10px; max-width: calc(100vw - 20px); }
 }
 
-/* Hub redesign (see CLAUDE.md) — tiles no longer share the app-wide `.card` class at all (used
-   to be `class="card hub-tile ..."`) — deliberately a clean break, not an override-on-top, so
-   there's no risk of the shared `.card`/`.card-title`/`.card-desc` rules every OTHER screen's
-   content grids still use ever needing to account for hub-specific values, and vice versa. Every
-   hub-specific class below is new (`.hub-tile-icon-box`, `.hub-tile-title`, `.hub-tile-desc`),
-   not a hub-scoped override of the shared `.card-title`/`.card-desc` typography. */
-.hub-tile-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-top: 20px;
+/* Hub redesign, radial-layout pass (see CLAUDE.md) — `.hub-radial-wrap` is the single container
+   for the mascot AND every scattered tile: a fixed-height, `position: relative` box on desktop
+   (tiles positioned absolutely within it by hand-tuned percentage coordinates, see
+   `RADIAL_POSITIONS` in HubScreen.jsx), which becomes a plain CSS grid on a narrow viewport (see
+   the fallback media queries at the end of this section) — the SAME container serves both
+   layouts, just with tiles' positioning mode flipped, rather than two parallel DOM structures.
+   Tiles no longer share the app-wide `.card` class at all (used to be `class="card hub-tile
+   ..."`) — deliberately a clean break, not an override-on-top, so there's no risk of the shared
+   `.card`/`.card-title`/`.card-desc` rules every OTHER screen's content grids still use ever
+   needing to account for hub-specific values, and vice versa. */
+.hub-radial-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  height: 880px;
 }
-@media (max-width: 900px) { .hub-tile-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { .hub-tile-grid { grid-template-columns: 1fr; } }
 
 .hub-tile {
   display: flex;
@@ -1241,17 +1433,42 @@ button.card.passed:hover {
   background: var(--hub-card);
   border: 1px solid var(--hub-card-border);
   border-radius: 18px;
-  padding: 20px;
+  padding: 18px;
   box-shadow: var(--hub-shadow);
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease;
 }
 .hub-tile:hover:not(:disabled) { transform: translateY(-4px); box-shadow: var(--hub-shadow-hover); }
 .hub-tile:active:not(:disabled) { transform: translateY(-1px) scale(0.985); }
 
+/* Desktop-only: each tile is pinned to a hand-tuned {x%, y%} slot around the mascot (left/top set
+   inline per tile, HubScreen.jsx's `RADIAL_POSITIONS`), scattered left/right of a center column
+   the mascot + dialogue bubble occupy so nothing ever overlaps them — a loose ring, not a grid,
+   matching the reference image's own scattered composition.
+
+   A real, confirmed bug surfaced building this: `.hub-tile` itself both needs `transform:
+   translate(-50%, -50%)` to center on its anchor point AND already carries several OTHER
+   transform-driven states of its own (the entrance `hub-tile-pop-in` keyframe, the hover lift,
+   the active press) — a CSS animation's/rule's own `transform` value doesn't compose with a
+   different rule's `transform`, it REPLACES it (the exact same landmine already documented
+   elsewhere in this file for SVG transforms), so the pop-in animation's `to { transform:
+   translateY(0) scale(1) }` silently discarded the centering translate the instant it played,
+   leaving every tile's TOP-LEFT corner (not its center) pinned to its {x%, y%} point — confirmed
+   directly via `getBoundingClientRect()` showing each tile's top edge sitting exactly at its raw,
+   un-shifted anchor coordinate. Fixed with the same "outer element carries position, inner
+   element carries animation" split this codebase's own SVG transforms already use: `.hub-tile-
+   slot` is a plain, NEVER-animated wrapper doing only the centering; the real `.hub-tile` button
+   (with all its existing hover/active/entrance animations, completely unchanged) lives inside it. */
+.hub-tile-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 232px;
+  z-index: 4;
+}
+
 /* `--tile-accent`/`--tile-accent-bg` are set inline per tile (HubScreen.jsx), cycling through a
-   small fixed set of pastel colors — the same "data holds the value, CSS just reads a custom
-   property" convention `ProjectBuilderScreen.jsx`'s own `--pb-accent` cycling already established
-   in this codebase, not a new pattern invented for this redesign. */
+   small fixed set of VIVID colors (Task 2) — the same "data holds the value, CSS just reads a
+   custom property" convention `ProjectBuilderScreen.jsx`'s own `--pb-accent` cycling already
+   established in this codebase, not a new pattern invented for this redesign. */
 .hub-tile-icon-box {
   width: 46px;
   height: 46px;
@@ -1260,26 +1477,24 @@ button.card.passed:hover {
   align-items: center;
   justify-content: center;
   margin-bottom: 10px;
-  background: var(--tile-accent-bg, #E7F3EC);
-  color: var(--tile-accent, var(--hub-accent));
+  background: var(--tile-accent-bg, var(--hub-accent));
+  color: var(--tile-accent-fg, #fff);
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .hub-tile:hover:not(:disabled) .hub-tile-icon-box { transform: scale(1.08) rotate(-4deg); }
 
-.hub-tile-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 16px; font-weight: 700; color: var(--hub-ink); margin: 0 0 4px; }
-.hub-tile-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; color: var(--hub-ink-soft); line-height: 1.45; margin: 0; }
+.hub-tile-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 15.5px; font-weight: 700; color: var(--hub-ink); margin: 0 0 4px; }
+.hub-tile-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 12.5px; color: var(--hub-ink-soft); line-height: 1.4; margin: 0; }
 
 /* A testing convenience, not a primary action (see CLAUDE.md) — deliberately smaller/dimmer than
-   even .btn-ghost's already-quiet default, and set apart from the tile grid above it rather than
-   looking like one more real action in that row. */
+   even .btn-ghost's already-quiet default. Kept alongside the new Quick Actions "Start Over"
+   (which wires to this exact same handler) rather than removed, since it's still real, existing
+   test coverage's own entry point and doesn't visually compete with anything above it. */
 .hub-reset-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  /* Horizontal centering comes from .hub-screen's own text-align: center (inline-flex respects
-     it like any other inline-level box) — no margin: auto needed, which wouldn't apply to an
-     inline-flex element without an explicit width anyway. */
-  margin: 32px 0 0;
+  margin: 18px auto 0;
   padding: 6px 10px;
   background: none;
   border: none;
@@ -1296,7 +1511,8 @@ button.card.passed:hover {
    reads as unavailable at a glance: dimmed, a lock icon in place of its usual theme icon, and a
    real reason line, not just a silently-inert button. Mirrors the existing `.card.passed`
    (Opportunity Finder's "deadline passed" cards) dim-and-suppress-hover pattern rather than
-   inventing a new disabled-card language. */
+   inventing a new disabled-card language. Task 2's vivid-color treatment explicitly excludes
+   locked tiles — they stay muted/grey until unlocked, per this stage's own spec. */
 .hub-tile.locked { opacity: 0.55; cursor: not-allowed; }
 .hub-tile.locked:hover { transform: none; box-shadow: var(--hub-shadow); }
 .hub-tile.locked .hub-tile-icon-box { background: #EDEDE8; color: var(--hub-ink-soft); }
@@ -1330,31 +1546,198 @@ button.card.passed:hover {
 }
 
 /* Task 3 (animation quality) — every tile pops in with a short staggered entrance the first time
-   the hub's own tile grid mounts (a fresh navigation TO the hub, e.g. from Sign Up, or any other
-   screen's Continue/Back — see the "Return to Hub" routing restructure elsewhere in this file's
-   own history for why that's now EVERY screen's real previous step). `nth-child` delays, the same
-   plain-CSS staggering approach `:is(.grid, .tag-list, ...)`'s own polish pass already established
-   elsewhere in this app — no per-item JS index bookkeeping needed. */
-.hub-tile-grid .hub-tile {
+   the hub's own radial layout mounts (a fresh navigation TO the hub, e.g. from Sign Up, or any
+   other screen's Continue/Back — see the "Return to Hub" routing restructure elsewhere in this
+   file's own history for why that's now EVERY screen's real previous step). The delay itself is
+   set inline per tile (HubScreen.jsx, `animationDelay: i * 40ms`) rather than via `:nth-child`,
+   since `.hub-tile` is no longer a direct child of `.hub-radial-wrap` (see `.hub-tile-slot`
+   above) and isn't even the wrap's Nth CHILD by index once particles/the mascot area are counted
+   as earlier siblings — inline delay sidesteps needing the DOM order to line up with the tile
+   list's own order at all. */
+.hub-tile {
   animation: hub-tile-pop-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.hub-tile-grid .hub-tile:nth-child(1) { animation-delay: 0ms; }
-.hub-tile-grid .hub-tile:nth-child(2) { animation-delay: 40ms; }
-.hub-tile-grid .hub-tile:nth-child(3) { animation-delay: 80ms; }
-.hub-tile-grid .hub-tile:nth-child(4) { animation-delay: 120ms; }
-.hub-tile-grid .hub-tile:nth-child(5) { animation-delay: 160ms; }
-.hub-tile-grid .hub-tile:nth-child(6) { animation-delay: 200ms; }
-.hub-tile-grid .hub-tile:nth-child(7) { animation-delay: 240ms; }
-.hub-tile-grid .hub-tile:nth-child(8) { animation-delay: 280ms; }
-.hub-tile-grid .hub-tile:nth-child(9) { animation-delay: 320ms; }
-.hub-tile-grid .hub-tile:nth-child(10) { animation-delay: 360ms; }
 @keyframes hub-tile-pop-in {
   from { opacity: 0; transform: translateY(14px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hub-tile-grid .hub-tile { animation: none; }
+  .hub-tile { animation: none; }
 }
+
+/* Task 1's own "small decorative floating dots/particles in the empty space" — purely visual
+   flavor scattered at fixed positions (HubScreen.jsx's `PARTICLES`) between the mascot and the
+   ring of tiles. `pointer-events: none` + `aria-hidden` since these carry no information and
+   must never intercept a click meant for a tile underneath/near one. */
+.hub-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  animation: hub-particle-float 4.5s ease-in-out infinite;
+}
+@keyframes hub-particle-float {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-12px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-particle { animation: none; opacity: 0.7; }
+}
+
+/* Narrow-viewport fallback — a true scattered radial ring only reads as intentional at a wide
+   desktop width (see this file's own long-standing note on why a literal orbit was avoided
+   before this pass; the correction here is that the reference image's OWN composition really is
+   radial, so this pass builds it for real, but a ring still can't be forced to work below some
+   width without every tile overlapping). `.hub-radial-wrap` itself becomes a plain CSS grid;
+   `.hub-mascot-area` is pulled out of flow-position and given `grid-column: 1 / -1` so it still
+   reads as its own full-width row above the tiles, exactly like the mascot-above-grid layout this
+   replaces. `!important` on the tile overrides is required, not a shortcut — they're beating an
+   INLINE style (the per-tile `left`/`top`/`transform`), which no plain class-based rule can
+   outrank on specificity alone. */
+@media (max-width: 980px) {
+  .hub-radial-wrap {
+    height: auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding-top: 8px;
+  }
+  .hub-mascot-area {
+    position: static;
+    transform: none;
+    grid-column: 1 / -1;
+    margin: 4px 0 12px;
+    width: auto;
+  }
+  .hub-tile-slot {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: auto;
+    z-index: auto;
+  }
+  .hub-particle { display: none; }
+}
+@media (max-width: 720px) { .hub-radial-wrap { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .hub-radial-wrap { grid-template-columns: 1fr; } }
+
+/* Radial-layout pass, Task 3 (see CLAUDE.md) — the reference image's own bottom row: a decorative
+   quote card, the "Ask MyPath AI anything" input, and a real Quick Actions panel, side by side.
+   Plain document flow (not fixed/absolute page corners like the reference's own mockup) so it
+   scrolls naturally with a tall tile ring and reflows cleanly on a narrow viewport, instead of
+   fighting fixed positioning across this app's own already-tested variable viewport range. */
+.hub-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 18px;
+  align-items: stretch;
+  margin: 12px 0 8px;
+}
+@media (max-width: 900px) { .hub-bottom-row { grid-template-columns: 1fr; } }
+
+.hub-quote-card {
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 18px;
+  box-shadow: var(--hub-shadow);
+  padding: 20px 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hub-quote-mark { color: var(--hub-accent); font-family: 'Fraunces', serif; font-size: 26px; line-height: 1; margin: 0 0 4px; }
+.hub-quote-text { font-family: 'Fraunces', serif; font-size: 15px; color: var(--hub-ink); margin: 0 0 8px; line-height: 1.4; }
+.hub-quote-author { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: var(--hub-ink-soft); margin: 0; }
+
+/* Task 3's "Ask MyPath AI anything" — explicitly a UI mockup only, per this app's own hard "no
+   AI/LLM calls anywhere" constraint (see CLAUDE.md): there is no model behind this input at all,
+   submitting only ever reveals a plain, honest "Coming soon" message (HubScreen.jsx). The literal
+   copy/branding is kept as the reference specifies, since displaying that label is not itself an
+   AI call — only wiring one up would be. */
+.hub-ask-ai {
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 999px;
+  box-shadow: var(--hub-shadow);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 20px;
+}
+.hub-ask-ai input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  color: var(--hub-ink);
+}
+.hub-ask-ai-submit {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hub-accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.hub-ask-ai-wrap { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.hub-ask-ai-note {
+  margin: 0;
+  padding: 0 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--hub-accent);
+  text-align: center;
+}
+
+.hub-quick-actions {
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 18px;
+  box-shadow: var(--hub-shadow);
+  padding: 14px 18px;
+  text-align: left;
+}
+.hub-quick-actions-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--hub-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.hub-quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--hub-ink);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+.hub-quick-action-btn:hover { background: var(--hub-bg); }
+.hub-quick-action-btn svg { color: var(--hub-accent); flex-shrink: 0; }
 
 .task-form-field { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
 .task-form-field .label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); }

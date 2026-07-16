@@ -2213,6 +2213,229 @@ full reasoning, carried over from before this redesign).
   teal/gold palette unchanged); a narrow (375px) viewport collapses the tile grid to one column
   cleanly with no overlap or clipping.
 
+**Hub redesign, Take 2 — a structural correction to a genuinely radial layout, plus real Progress/
+Quick Actions/Ask-AI pieces and a new mascot "speaking" animation state.** The first hub-redesign
+pass above got the real feature list and color language right but missed the reference image's
+actual COMPOSITION — a true radial layout (mascot dead-center, tiles scattered in a loose ring at
+varying distances) rather than a flat grid stacked below the mascot. This pass is a structural
+correction on top of that same visual language, not a second redesign — the mascot's own character
+design is explicitly unchanged (kept exactly as built), and the hub-scoped color tokens/tile-card
+styling from the first pass are still the foundation.
+- **`.hub-radial-wrap`** (`HubScreen.jsx`/`global.css`) is the one container for the mascot AND
+  every tile: a fixed-height (`880px`), `position: relative` box on desktop, with each tile pinned
+  to a hand-tuned `{x%, y%}` slot (`RADIAL_POSITIONS`, 10 entries) via `position: absolute` —
+  scattered left/right of the vertical center column the mascot + its dialogue bubble occupy, so
+  nothing ever overlaps them, matching the reference's own scattered composition rather than a
+  literal grid. Positions are assigned by plain tile INDEX, not tile identity — which real tile
+  lands in which visual slot can shift a little when `hasPartnerSchool` toggles (Transcript & GPA/
+  Course Selection insert into the middle of the array), the same acceptable trade the original
+  grid's own CSS auto-flow already made. Fixed, hand-checked slots were deliberately chosen over a
+  runtime physics/collision layout — for a purely decorative composition capped at 10 items, fixed
+  slots are simpler and can't drift into overlap the way a general-purpose algorithm could.
+- **A real, confirmed CSS bug was found and fixed building this — the exact "a CSS transform
+  replaces rather than composes" landmine this codebase has already documented several times
+  elsewhere (WelcomeScreen's markers, Roadmap.jsx's node transforms, MascotIcon's own leaf sway),
+  hit again in a new spot.** The first attempt applied `transform: translate(-50%, -50%)` (to
+  center each tile on its `{x%, y%}` anchor point) directly on `.hub-tile` itself — the SAME
+  element that already had an entrance `hub-tile-pop-in` keyframe animation (`transform:
+  translateY(14px) scale(0.97) -> translateY(0) scale(1)`) and hover/press states also setting
+  `transform`. The animation's own final keyframe value silently discarded the centering translate
+  the instant it played (confirmed directly via `getBoundingClientRect()`: every tile's TOP-LEFT
+  corner, not its center, sat exactly on its raw `{x%, y%}` point) — which is what caused the
+  lowest ring of tiles to visually spill down and collide with the bottom row (quote card/Ask-AI
+  bar/Quick Actions) in the first screenshot taken during this pass. Fixed with the same "outer
+  element carries position, inner element carries animation" split already established elsewhere:
+  **`.hub-tile-slot`** is a plain, NEVER-animated wrapper doing only the `{x%, y%}` centering; the
+  real `.hub-tile` button (with all its existing hover/active/entrance animations, completely
+  unchanged) lives inside it as a plain full-width child. The tile's own `ref` (used by
+  `PointerArrow`'s `getBoundingClientRect()` measurement) stays on the inner `.hub-tile` button,
+  which is what's actually visually positioned once its wrapper is centered — no changes needed to
+  the pointer-arrow angle math itself. The container height (`880px`) and each slot's own y-range
+  (capped at 88% rather than closer to 100%) were then hand-verified via a real
+  `getBoundingClientRect()` measurement script (not just eyeballing a screenshot) to confirm the
+  lowest tile row's bottom edge sits comfortably above the bottom row's own top edge.
+- **The entrance-animation stagger delay moved from CSS `:nth-child` to an inline
+  `animationDelay`** (set per tile in `HubScreen.jsx`'s own `.map()`, using the real array index) —
+  a second, related fix: `.hub-tile` is no longer a direct child of `.hub-radial-wrap` once
+  `.hub-tile-slot` wraps it, and even before that change, `:nth-child` counted ALL of the wrap's
+  children including the 12 decorative particles and the mascot area (both earlier siblings in the
+  DOM), so the stagger delays were never actually landing on the tiles they were meant for in the
+  first place. Inline delay sidesteps needing DOM order to line up with the tile list's own order
+  at all.
+- **Task 1's decorative floating particles** (`PARTICLES`, `HubScreen.jsx` — 12 fixed `{x, y,
+  size, color}` entries, reusing the tile accent palette for cohesion) are absolutely positioned
+  `<span>`s with `pointer-events: none` and a slow float/fade keyframe, scattered in the gaps
+  between the mascot and the tile ring — purely visual, no data behind any of it, hidden entirely
+  under the narrow-viewport fallback (below).
+- **Narrow-viewport fallback**: `.hub-radial-wrap` becomes a plain CSS grid below `980px`
+  (`.hub-mascot-area` pulled out of absolute positioning and given `grid-column: 1 / -1` so it
+  still reads as its own full-width row above the tiles, exactly like the mascot-above-grid layout
+  this replaces); `.hub-tile-slot`'s absolute positioning is reset with `!important` (required,
+  not a shortcut — it's beating an INLINE `left`/`top` style, which no plain class-based rule can
+  outrank on specificity alone); particles are hidden outright. A true scattered radial ring only
+  reads as intentional at a wide desktop width — the reference image's own composition genuinely
+  is radial, so this pass builds it for real, but a ring still can't be forced to work below some
+  width without every tile overlapping, so the fallback is a deliberate, acknowledged trade, not an
+  oversight.
+- **Task 2 (colorful tiles)**: `TILE_ACCENTS` (`HubScreen.jsx`) is a 7-color vivid palette (purple/
+  yellow/teal/orange/pink/blue/green, cycled by index) reading `--tile-accent-bg`/`--tile-accent-
+  fg` custom properties — the same cycling convention the first pass already established, just
+  re-tuned toward genuinely vivid/saturated colors (each paired with whichever icon color, white or
+  dark ink for the lighter yellow, actually reads clearly on top of it) rather than the first
+  pass's softer pastels. Locked tiles are unaffected — `.hub-tile.locked .hub-tile-icon-box` still
+  overrides to muted grey regardless of a tile's own accent index, per this task's own explicit
+  "locked tiles stay muted until unlocked" instruction.
+- **Task 3's real, buildable extras**:
+  - **Top bar** (`.hub-topbar`) — logo (a `Leaf` icon, matching the reference's own leaf-themed
+    logo and this mascot's own leaf sprout, a deliberate small departure from the app-wide
+    `Compass` brand icon used everywhere else, since the hub already has its own separate visual
+    identity per the first redesign pass) + a non-functional/placeholder search field (explicitly
+    scoped as decorative, per this task's own instruction) + a purely decorative notification bell
+    (no real notifications feature exists to back a live badge count with, and a fabricated count
+    would be exactly the kind of invented number this app's data layer never allows itself
+    elsewhere — so it's icon-only, no badge) + the student's own picked avatar (`AVATAR_OPTIONS`,
+    `SignUpScreen.jsx` — now exported and imported here too, resolved by `state.avatarIcon`,
+    falling back to a plain `User` icon if none was picked). **The hub renders this top bar
+    INSTEAD OF the generic app-wide `.app-header`, not alongside it** — `App.jsx`'s existing
+    `isHub` check now also gates the generic header's own render (`{!isHub && state.screen !==
+    'welcome' && (...)}`), so there's exactly one top bar on the hub, not two stacked. The real
+    mute toggle and voice-settings gear button (previously only ever rendered inside the generic
+    header) move into this bar's own right-hand icon cluster instead of disappearing — `App.jsx`
+    now passes `onOpenVoiceSettings` as a prop to every screen (harmless/unused by every screen
+    except HubScreen, which is the only one that reads it), since `voiceSettingsOpen` itself still
+    lives in `AppShell`'s own local state and `VoiceSettingsPanel` still renders unconditionally
+    there via its usual portal — only the TRIGGER button's location changed, not the panel's own
+    mount point. The mute/settings buttons keep their exact original classes
+    (`voice-mute-toggle`/`voice-settings-toggle`) and `title` attributes so existing Playwright
+    coverage (`test-voiceover.js`, `test-voice-picker.js`) keeps working unmodified.
+  - **"Your Progress" card** (`.hub-progress-card`) — a conic-gradient percentage ring (no chart
+    library: an outer circle painted `accent` for `pct`% of its circumference via inline
+    `background: conic-gradient(...)`, with a smaller solid circle centered on top punching out
+    the donut hole the percentage text sits in) plus three real stats, computed from real data, not
+    invented:
+    - **Tasks completed** — `countPlanTasks(roadmap, state.completedNodes)` (`HubScreen.jsx`)
+      walks the FULL multi-year roadmap (`generateRoadmap(state)` with no `yearWindow`, the same
+      unfiltered whole-plan spine `AcademicPlanScreen.jsx`'s own `useMemo` pattern already calls
+      elsewhere — not just whatever single year Map 2 happens to be scoped to) and counts every
+      real completable unit: a plain spine item's own id, or — for a chain with `branchSteps` —
+      each step's own id, EXCEPT an opportunity's own anchor (which, per `Roadmap.jsx`'s own
+      Start/Continue/Completed button, has no independent `completedNodes` entry of its own; its
+      completion is only ever derived from its steps) is correctly excluded, while a started
+      PROJECT's own anchor (which, per `buildProjectChain`, literally IS its first real step,
+      individually toggled via `completedNodes` exactly like any other core item) is correctly
+      included. Zero-survey-completed shows `0/0` rather than crashing on a null `educationLevel`
+      — there's honestly no plan yet to count.
+    - **Milestones reached** — reuses `getGuidedProgress`'s own `{ doneCount, total }` (Stage 4,
+      unchanged) directly, the exact same real data the mascot's own progress-dots indicator
+      already shows — not a second, parallel completion concept.
+    - **Days active** — `state.accountCreatedAt` (`AppContext.jsx`, a plain `'YYYY-MM-DD'` string,
+      `null` by default) is set once, ever, by `SignUpScreen.jsx`'s own submit handler
+      (`state.accountCreatedAt || new Date().toISOString().slice(0, 10)` — never overwritten by a
+      defensive re-submit), and the stat is `realDaysBetween(startOfToday(), parseDateInputValue(
+      accountCreatedAt)) + 1` (inclusive of day one), clamped to a minimum of 1. A genuine, if
+      simple, real metric rather than an invented placeholder number — this app has no actual
+      visit-log to compute a richer "distinct days used" figure from, and inventing one would
+      violate this app's own standing "don't fabricate data" rule.
+    - **"View Roadmap"** is a plain `patch({ screen: 'plan' })` — the same real navigation every
+      other route to the Academic Plan already uses.
+  - **Quick Actions** (`.hub-quick-actions`) — **"Add a Task"** opens the exact same shared
+    `AddTaskModal` Roadmap.jsx's own "+ Add Task" already uses (imported directly, `makeTaskId`
+    from `utils/ids.js`), appending to the real `state.customTasks` array — no new task-creation
+    mechanism was built. **"Start Over"** calls the hub's own existing `handleReset` — the exact
+    same `window.confirm(...)` + `reset()` function the small standalone `.hub-reset-btn` link
+    already used, not a duplicated confirm/reset flow. That small link is deliberately KEPT
+    alongside this (not removed) — it's still real, pre-existing test coverage's own entry point
+    (`test-hub-reset.js`), and being small/muted/below-the-fold, it doesn't visually compete with
+    Quick Actions' own polished button.
+  - **"Ask MyPath AI anything"** (`.hub-ask-ai`) — explicitly a UI mockup only, per this app's hard
+    "no AI/LLM calls anywhere" constraint (see the top of this file): there is no model wired up
+    behind this input at all. Submitting (`submitAskAi`) only ever reveals a plain, honest "Coming
+    soon!" note (`.hub-ask-ai-note`) — no request is made, no new state fields are written beyond
+    the local `askAiSubmitted` flag. The literal reference copy/branding is kept as specified,
+    since DISPLAYING that label is not itself an AI call — only wiring one up would be, which this
+    deliberately never does.
+  - **A decorative quote card** (`.hub-quote-card`, bottom-left) is a single fixed `{ text, author
+    }` constant (`QUOTE`, `HubScreen.jsx`) — pure visual flavor, not tied to any real data, matching
+    the reference's own quote card and this app's standing "never fabricate an attributed source"
+    posture (a real quote, correctly attributed, not invented).
+  - **The three bottom-row pieces (quote / Ask-AI / Quick Actions) are laid out via a plain CSS
+    grid in normal document flow** (`.hub-bottom-row`), not fixed/absolute page corners the way the
+    reference's own mockup implied — this was a deliberate simplification so the row reflows
+    cleanly on a narrow viewport (stacking to one column below `900px`) and scrolls naturally
+    below a tall tile ring, instead of fighting fixed positioning across this app's own
+    already-tested variable viewport range.
+- **Task 4 — a distinct mascot "speaking" animation state, layered on top of the EXISTING idle/
+  pointing states without touching the character's own shapes/markup at all** (per this pass's own
+  explicit "keep the mascot design exactly as it currently is" instruction).
+  - **`MascotIcon.jsx` gained one new, purely additive prop: `speaking`.** It swaps in one extra
+    class (`.mascot-speaking` on the body's own bob group, `.mascot-eye-talking` on each eye,
+    `.mascot-chest-light-talking` on the chest light) — the same elements that already animate at
+    idle, just playing a different, livelier preset while `speaking` is true (a quicker/bouncier
+    bob, a rhythmic eye squeeze instead of an occasional blink, a faster chest pulse) via
+    `global.css`'s own new `mascot-speak-bob`/`mascot-eye-talk`/`mascot-chest-pulse-fast`
+    keyframes. Compound selectors (`.mascot-bob.mascot-speaking`) beat the plain single-class idle
+    rules regardless of declaration order, so no `!important` was needed.
+  - **`useMascotSpeech(text, muted, voiceURI)` now also RETURNS a boolean** (`isSpeaking`), driven
+    two different ways depending on whether there's real audio to sync to: when unmuted and a real
+    voice is available, `speech.js`'s own `speak()` was extended to accept `{ onStart, onEnd }`
+    callbacks wired directly to the real `SpeechSynthesisUtterance`'s `onstart`/`onend`/`onerror`
+    events — genuinely synced to the actual audio, not guessed. When muted, or a device has no
+    usable voices at all, there's no real audio to sync to, so it falls back to a new
+    `estimateSpeechDuration(text)` (`speech.js` — a plain ~2.3-words/sec estimate, clamped to a
+    sane 1200-6000ms range) driving a plain `setTimeout`, so the mascot still looks like it's
+    "saying" the line roughly as long as it takes to read, matching this task's own "and/or"
+    framing rather than going silent/frozen whenever sound happens to be off. Both `HubScreen.jsx`
+    and `MascotWidget.jsx` now pass this returned value straight into `MascotIcon`'s `speaking`
+    prop — the SAME shared hook drives the animation everywhere the mascot already speaks, not a
+    second parallel mechanism built just for the hub.
+  - **A real, confirmed bug was found and fixed building this — a genuinely new flavor of the
+    React 18 StrictMode dev-only replay bug this codebase has already hit (and fixed) more than
+    once elsewhere, but a subtler variant than the usual "double-invoke the same effect body"
+    case.** StrictMode's dev-only mount -> cleanup -> remount replay doesn't just call the SAME
+    effect body twice — it genuinely fires the SEPARATE unmount-only effect's cleanup function in
+    between (the one that calls `stopSpeaking()`/`clearTimeout` on real unmount), canceling the
+    just-scheduled estimated-duration timer entirely, before the main effect's own replay runs
+    again. Confirmed directly: seeding a fresh, muted hub load and polling `.mascot-bob`'s own
+    `class` attribute over several seconds showed `mascot-speaking` NEVER being removed, ever —
+    the estimated timer had been silently canceled by this replay before it could ever fire, and
+    the main effect's own key-based dedup (`key !== lastKeyRef.current`) — which correctly
+    recognizes "this is the same line as before" — had no way to tell that apart from "the user
+    just now toggled mute with this same line still showing" (which SHOULD stop the animation
+    immediately), since both cases present as an effect re-run with an unchanged key. Fixed with a
+    real wall-clock timestamp guard (`lastKeySetAtRef`, a plain `Date.now()` snapshot taken
+    whenever a key is newly accepted): StrictMode's replay happens synchronously, well under 50ms
+    after the original commit; a genuine later mute-toggle by an actual user happens much later.
+    Within that ~50ms replay window, if no timer is currently pending (because the unmount-only
+    effect's cleanup already canceled it), the estimated timer is simply RE-scheduled from scratch
+    — a few milliseconds of drift from the original schedule is imperceptible; past that window,
+    the same "same key, no new timer" shape is correctly treated as a real toggle and stops the
+    animation immediately instead. The unmount-only cleanup effect was also fixed to reset
+    `timeoutRef.current` back to `null` after clearing it (it previously only called
+    `clearTimeout`, leaving a stale non-null id behind that could fool any later "is a timer
+    currently pending" check into reading a canceled timer as if it were still live) — this was
+    the second half of the same root cause, not a separate bug.
+- Verified after this pass: `getBoundingClientRect()`-based geometry checks confirm all 10 tile
+  slots render with zero pairwise visual overlap and the lowest tile row sits above the bottom
+  row; unlocked tiles show multiple distinct vivid icon-box colors (no locked-grey false positive);
+  the Progress card's three stats are real and change correctly when `completedNodes` gains real
+  entries; Quick Actions' "Add a Task" genuinely appends to `state.customTasks` and "Start Over"
+  genuinely triggers the same confirm dialog `.hub-reset-btn` uses (dismissing it changes nothing);
+  "Ask MyPath AI anything" shows "Coming soon" on submit and writes no new state; the mascot's
+  `.mascot-bob` element carries `mascot-speak-bob`/`mascot-eye-talk` immediately after a new
+  dialogue line appears and reverts to the idle `mascot-bob` animation once the estimated duration
+  elapses; no fictional reference-image feature name (Messages, Community, Find a Tutor, Partner
+  Admin, Inspire Network, Upload Document, Progress Tracker, Projects & Portfolio) appears anywhere
+  in the rendered hub; the full pre-existing hub/voice/mascot Playwright suite
+  (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`, `test-hub-reset.js`,
+  `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`,
+  `test-signup.js`, the general `test.js`) all still pass — two needed a small, intentional-
+  content-change update (`test-return-to-hub.js`'s expected hub headline text, since Task 1's own
+  headline copy changed from "Where to next?" to the reference's own "What would you like to
+  accomplish today?"), the same "fix pre-existing tests after an intentional change" pattern this
+  suite has already needed before, not a regression; a narrow (375px) viewport still collapses
+  cleanly via the radial-to-grid fallback with no overlap or clipping; Survey and Academic Plan
+  Map 1 screenshots confirm zero palette leakage outside the hub, unchanged from before this pass.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

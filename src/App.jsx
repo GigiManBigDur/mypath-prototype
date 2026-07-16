@@ -74,7 +74,11 @@ function AppShell() {
 
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}`}>
-      {state.screen !== 'welcome' && (
+      {/* Radial-layout pass (see CLAUDE.md) — the hub renders its own dedicated top bar (logo,
+          search, notifications, avatar, PLUS the same real mute/voice-settings controls this
+          generic header carries) instead of this one, so the two don't stack. Every other screen
+          is unaffected. */}
+      {!isHub && state.screen !== 'welcome' && (
         <div className="app-header">
           <div className="brand">
             <Compass />
@@ -108,10 +112,10 @@ function AppShell() {
       <VoiceSettingsPanel isOpen={voiceSettingsOpen} onClose={() => setVoiceSettingsOpen(false)} />
       {needsTransition ? (
         <div className="screen-transition" key={`${screenKey}:${isPlanDetail ? 'detail' : 'overview'}`}>
-          <Screen />
+          <Screen onOpenVoiceSettings={() => setVoiceSettingsOpen(true)} />
         </div>
       ) : (
-        <Screen />
+        <Screen onOpenVoiceSettings={() => setVoiceSettingsOpen(true)} />
       )}
     </div>
   );

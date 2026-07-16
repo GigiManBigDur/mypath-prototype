@@ -1,11 +1,18 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
-  Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw,
+  Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User,
+  Volume2, VolumeX, Settings2, TrendingUp, Zap, Plus, Send,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
+import { AVATAR_OPTIONS } from './SignUpScreen';
 import MascotIcon from '../components/MascotIcon';
+import AddTaskModal from '../components/AddTaskModal';
+import { makeTaskId } from '../utils/ids';
+import { generateRoadmap } from '../utils/roadmapGenerator';
+import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dates';
+import { isSpeechAvailable } from '../utils/speech';
 import { ADMISSIONS_CONTEXT_LINES } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 
@@ -198,7 +205,8 @@ function getNextGuidedStep(state, hasPartnerSchool) {
 // here from REAL guided-sequence data rather than invented: `relevant.length` and the current
 // step's own 1-based position within it (the endpoint counts as the final, completed position, not
 // a synthetic extra step). No "AI" framing anywhere in this — it's a plain progress readout over
-// GUIDED_SEQUENCE, the same real data `getNextGuidedStep` already derives.
+// GUIDED_SEQUENCE, the same real data `getNextGuidedStep` already derives. Also reused as-is by
+// the radial-layout pass's "Your Progress" card for the real "Milestones reached" stat below.
 function getGuidedProgress(state, hasPartnerSchool) {
   const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool);
   const doneCount = relevant.filter((s) => s.isDone(state)).length;
@@ -206,21 +214,101 @@ function getGuidedProgress(state, hasPartnerSchool) {
   return { total: relevant.length, currentIndex, doneCount };
 }
 
-// Hub redesign (see CLAUDE.md) — a small fixed pastel palette cycled per tile via inline
-// `--tile-accent`/`--tile-accent-bg` custom properties, the same "data/JSX picks the value, CSS
-// just reads a custom property" convention ProjectBuilderScreen.jsx's own `--pb-accent` cycling
-// already established — not a new pattern invented for this redesign. Matches the reference
-// image's own mix of green/purple/orange/pink/blue/teal icon tiles.
+// Radial-layout pass, Task 3's "Your Progress" card (see CLAUDE.md) — "Tasks completed" is a real
+// count over the FULL multi-year Academic Plan (generateRoadmap(state) with no yearWindow returns
+// the whole unfiltered spine, the same one AcademicPlanScreen.jsx's own useMemo pattern calls),
+// not just whatever single year Map 2 happens to be scoped to. A spine item with `branchSteps`
+// (an opportunity or a started project) has its real completable units spread across those steps,
+// not the anchor itself — EXCEPT a project's own anchor IS one of its real steps (the first one,
+// individually toggled via completedNodes exactly like any other core item; see
+// roadmapGenerator.js's buildProjectChain comment), whereas an opportunity's anchor is NOT (its
+// own completion is only ever derived from its steps via Roadmap.jsx's Start/Continue/Completed
+// button, never a direct completedNodes entry) — so only a project's anchor gets counted here,
+// not an opportunity's.
+function countPlanTasks(roadmap, completedNodes) {
+  let total = 0;
+  let completed = 0;
+  const countOne = (id) => {
+    total += 1;
+    if (completedNodes[id]) completed += 1;
+  };
+  roadmap.spine.forEach((item) => {
+    if (item.hasBranch) {
+      if (item.category === 'project') countOne(item.id);
+      (item.branchSteps || []).forEach((step) => countOne(step.id));
+    } else {
+      countOne(item.id);
+    }
+  });
+  return { completed, total };
+}
+
+// Hub redesign (see CLAUDE.md) — a small fixed VIVID palette cycled per tile via inline
+// `--tile-accent-bg`/`--tile-accent-fg` custom properties, the same "data/JSX picks the value,
+// CSS just reads a custom property" convention ProjectBuilderScreen.jsx's own `--pb-accent`
+// cycling already established — not a new pattern invented for this redesign. Task 2's own named
+// color list (purple, yellow, teal, orange, pink, blue, green), each paired with whichever icon
+// color (white, or dark ink for the lighter yellow) actually reads clearly on top of it. Locked
+// tiles never read this palette at all (global.css's own `.hub-tile.locked .hub-tile-icon-box`
+// override wins) — they stay muted/grey regardless of a tile's own accent index.
 const TILE_ACCENTS = [
-  { fg: '#2F8F5B', bg: '#E5F4EB' },
-  { fg: '#7C5CFC', bg: '#EFEAFE' },
-  { fg: '#E08A2E', bg: '#FCEEDB' },
-  { fg: '#E0568C', bg: '#FCE7F0' },
-  { fg: '#3B82C4', bg: '#E4F0FA' },
-  { fg: '#1B9C8E', bg: '#E1F5F2' },
+  { bg: '#8B5CF6', fg: '#ffffff' },
+  { bg: '#F0B429', fg: '#20241C' },
+  { bg: '#14B8A6', fg: '#ffffff' },
+  { bg: '#F0923B', fg: '#ffffff' },
+  { bg: '#EC6FA0', fg: '#ffffff' },
+  { bg: '#3B82F6', fg: '#ffffff' },
+  { bg: '#22C55E', fg: '#ffffff' },
 ];
 
-export default function HubScreen() {
+// Radial-layout pass, Task 1 (see CLAUDE.md) — hand-tuned percentage slots (of `.hub-radial-wrap`'s
+// own box) forming a loose ring of up to 10 tiles around the centered mascot, scattered left/right
+// of the vertical center column the mascot + its dialogue bubble occupy so nothing ever overlaps
+// them. Assigned by plain tile INDEX (`tiles[i]` -> `RADIAL_POSITIONS[i]`), not tile identity —
+// which real tile lands in which visual slot can shift a little when `hasPartnerSchool` toggles
+// (Transcript & GPA/Course Selection insert into the middle of the array), the same acceptable
+// trade the old grid's own CSS auto-flow already made. A real physics/collision layout was
+// considered and rejected for a purely decorative composition like this one — fixed, hand-checked
+// slots are simpler and can't drift into overlap the way a runtime algorithm tuned for only 8-10
+// items could.
+const RADIAL_POSITIONS = [
+  { x: 22, y: 8 },
+  { x: 78, y: 8 },
+  { x: 8, y: 27 },
+  { x: 92, y: 27 },
+  { x: 4, y: 48 },
+  { x: 96, y: 48 },
+  { x: 10, y: 69 },
+  { x: 90, y: 69 },
+  { x: 26, y: 88 },
+  { x: 74, y: 88 },
+];
+
+// Radial-layout pass, Task 1's "small decorative floating dots/particles" — purely visual flavor,
+// fixed positions/colors/sizes (reusing TILE_ACCENTS's own vivid palette for cohesion), no data
+// behind any of it. Deliberately kept out of the center column the mascot/dialogue occupy, same
+// as the tile slots above.
+const PARTICLES = [
+  { x: 34, y: 12, size: 7, color: '#8B5CF6' },
+  { x: 66, y: 10, size: 6, color: '#F0B429' },
+  { x: 16, y: 34, size: 8, color: '#14B8A6' },
+  { x: 84, y: 32, size: 6, color: '#F0923B' },
+  { x: 30, y: 46, size: 5, color: '#EC6FA0' },
+  { x: 70, y: 44, size: 7, color: '#3B82F6' },
+  { x: 20, y: 62, size: 6, color: '#22C55E' },
+  { x: 80, y: 60, size: 8, color: '#8B5CF6' },
+  { x: 38, y: 80, size: 5, color: '#F0B429' },
+  { x: 62, y: 82, size: 6, color: '#14B8A6' },
+  { x: 46, y: 18, size: 5, color: '#F0923B' },
+  { x: 54, y: 96, size: 6, color: '#EC6FA0' },
+];
+
+// Task 3's own decorative quote card, shown purely as visual flavor — same "this app never
+// fabricates a source" posture the rest of this codebase already holds for any quoted/cited text,
+// this one's just an inspirational quote with a real, correctly-attributed author, not a stat.
+const QUOTE = { text: 'A goal without a plan is just a wish.', author: 'Antoine de Saint-Exupéry' };
+
+export default function HubScreen({ onOpenVoiceSettings }) {
   const { state, patch, reset } = useApp();
 
   const hasPartnerSchool = state.currentSchool === 'Roslyn High School' || state.currentSchool === 'UC Davis';
@@ -234,8 +322,9 @@ export default function HubScreen() {
   // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue.
   // There's no "dismiss" concept for this always-visible bubble, so it just speaks whenever
   // `nextStepIntro` changes (advancing to a new guided step) and stops on unmount (navigating
-  // away from the hub) — both handled inside the hook itself.
-  useMascotSpeech(nextStepIntro, state.voiceMuted, state.voiceURI);
+  // away from the hub) — both handled inside the hook itself. Radial-layout pass, Task 4 — the
+  // hook's own returned boolean now also drives the mascot's distinct "speaking" animation state.
+  const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted, state.voiceURI);
 
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it
@@ -254,83 +343,253 @@ export default function HubScreen() {
   // modal just for this. `reset()` (AppContext.jsx) already clears every field back to
   // DEFAULT_STATE — including `screen: 'welcome'` — and wipes localStorage, so returning to the
   // welcome screen with zero leftover state is just what calling it already does; nothing else
-  // needs to happen here.
+  // needs to happen here. Radial-layout pass — Quick Actions' own "Start Over" wires to this exact
+  // same handler, per Task 3's own instruction, rather than duplicating the confirm/reset logic.
   const handleReset = () => {
     if (window.confirm('Are you sure? This will erase all progress.')) reset();
   };
 
   const greetingName = state.displayName || state.username;
-  const progress = getGuidedProgress(state, hasPartnerSchool);
+  const guidedProgress = getGuidedProgress(state, hasPartnerSchool);
+
+  // Radial-layout pass, Task 3's "Your Progress" card — real numbers, not placeholders. Plan task
+  // counting needs a real survey (educationLevel/schoolYear) to generate a roadmap against at all;
+  // before that, there's honestly no plan yet, so this shows 0/0 rather than crashing on a null
+  // level.
+  const roadmap = useMemo(
+    () => (isSurveyComplete(state) ? generateRoadmap(state) : null),
+    [state],
+  );
+  const taskProgress = useMemo(
+    () => (roadmap ? countPlanTasks(roadmap, state.completedNodes) : { completed: 0, total: 0 }),
+    [roadmap, state.completedNodes],
+  );
+  const percentComplete = taskProgress.total > 0 ? Math.round((taskProgress.completed / taskProgress.total) * 100) : 0;
+  // "Days active" — the number of calendar days since this student's own real sign-up date
+  // (state.accountCreatedAt, set once by SignUpScreen and never overwritten), inclusive of today.
+  // A genuine, if simple, real metric rather than an invented placeholder number.
+  const daysActive = state.accountCreatedAt
+    ? Math.max(1, realDaysBetween(startOfToday(), parseDateInputValue(state.accountCreatedAt)) + 1)
+    : 1;
 
   const mascotRef = useRef(null);
   const tileRefs = useRef(new Map());
 
+  // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
+  // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
+  // to), reusing the shared AddTaskModal rather than a new form.
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const addTask = (task) => {
+    patch({ customTasks: [...(state.customTasks || []), { id: makeTaskId('custom'), ...task }] });
+    setAddTaskOpen(false);
+  };
+
+  // Radial-layout pass, Task 3 — "Ask MyPath AI anything" is a UI mockup only, per this app's hard
+  // "no AI/LLM calls anywhere" constraint (see CLAUDE.md): there's no model wired up behind it at
+  // all, submitting only ever reveals a plain, honest "Coming soon" note.
+  const [askAiValue, setAskAiValue] = useState('');
+  const [askAiSubmitted, setAskAiSubmitted] = useState(false);
+  const submitAskAi = (e) => {
+    e.preventDefault();
+    setAskAiSubmitted(true);
+  };
+
+  const avatarOption = AVATAR_OPTIONS.find((a) => a.id === state.avatarIcon);
+
   return (
     <div className="hub-screen">
-      <div className="hub-header-row">
-        {greetingName && <p className="hub-welcome-line">Welcome back, {greetingName}!</p>}
-        <h1 className="page-title hub-title">Where to next?</h1>
-        <p className="page-sub">Pick anything below — you can always come back here.</p>
-      </div>
-
-      <div className="hub-mascot-area">
-        {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
-            .hub-mascot-area (which also contains the greeting bubble stacked below). The pointer
-            arrow anchors to THIS ref, so it renders right at the mascot's own base and its angle
-            is measured from the mascot's real center, not from further down past the bubble. */}
-        <div className="hub-mascot-figure" ref={mascotRef}>
-          <MascotIcon size={150} />
-          <PointerArrow mascotRef={mascotRef} tileRefs={tileRefs} targetId={nextStep.id} tileCount={tiles.length} />
+      <div className="hub-topbar">
+        <div className="hub-topbar-logo">
+          <Leaf size={22} color="var(--hub-accent)" />
+          MyPath
         </div>
-        <div className="mascot-greeting">
-          {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing to
-              a new guided step), which is what makes .mascot-dialogue's CSS entrance animation
-              replay on every new line instead of only once ever — see global.css's own comment. */}
-          <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>
-          {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
-              (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
-          <div className="hub-progress-dots">
-            {Array.from({ length: progress.total }).map((_, i) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <span key={i} className={`hub-progress-dot${i < progress.doneCount ? ' done' : ''}${i === progress.currentIndex ? ' current' : ''}`} />
-            ))}
-            <span className="hub-progress-count">{Math.min(progress.currentIndex + 1, progress.total)}/{progress.total}</span>
+        <div className="hub-topbar-search">
+          <Search size={15} />
+          {/* Explicitly non-functional/placeholder, per this pass's own scope — no real search
+              feature exists behind this app's own content yet. */}
+          <input type="text" placeholder="Search anything..." readOnly />
+        </div>
+        <div className="hub-topbar-actions">
+          {/* Purely decorative, matching the search field's own "placeholder is fine" scope — this
+              app has no real notifications feature to back a live badge count with, and inventing
+              one would be exactly the kind of fabricated number this codebase's data layer never
+              allows itself elsewhere. */}
+          <button type="button" className="hub-icon-btn" aria-label="Notifications" title="Notifications">
+            <Bell size={16} />
+          </button>
+          {isSpeechAvailable() && (
+            <>
+              <button
+                type="button"
+                className="hub-icon-btn voice-settings-toggle"
+                onClick={onOpenVoiceSettings}
+                aria-label="Choose mascot voice"
+                title="Choose mascot voice"
+              >
+                <Settings2 size={16} />
+              </button>
+              <button
+                type="button"
+                className="hub-icon-btn voice-mute-toggle"
+                onClick={() => patch({ voiceMuted: !state.voiceMuted })}
+                aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+                aria-pressed={state.voiceMuted}
+                title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+              >
+                {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </>
+          )}
+          <div className="hub-avatar" aria-hidden="true">
+            {avatarOption ? <avatarOption.Icon size={17} /> : <User size={17} />}
           </div>
         </div>
       </div>
 
-      <div className="hub-tile-grid">
+      <div className="hub-top-section">
+        <div className="hub-header-row">
+          {greetingName && <p className="hub-welcome-line">Welcome back, {greetingName}! 👋</p>}
+          <h1 className="page-title hub-title">What would you like to accomplish today?</h1>
+          <p className="page-sub">All the tools you need for your academic journey, in one place.</p>
+        </div>
+
+        <div className="hub-progress-card">
+          <div className="hub-progress-ring" style={{ background: `conic-gradient(var(--hub-accent) ${percentComplete}%, var(--hub-card-border) 0)` }}>
+            <div className="hub-progress-ring-hole">
+              <span className="hub-progress-ring-pct">{percentComplete}%</span>
+              <span className="hub-progress-ring-label">Complete</span>
+            </div>
+          </div>
+          <div className="hub-progress-stats">
+            <p className="hub-progress-card-title"><TrendingUp size={13} /> Your Progress</p>
+            <div className="hub-progress-stat-row">Tasks completed <strong>{taskProgress.completed} / {taskProgress.total}</strong></div>
+            <div className="hub-progress-stat-row">Milestones reached <strong>{guidedProgress.doneCount} / {guidedProgress.total}</strong></div>
+            <div className="hub-progress-stat-row">Days active <strong>{daysActive}</strong></div>
+            <button type="button" className="hub-progress-view-link" onClick={() => patch({ screen: 'plan' })}>
+              View Roadmap <ArrowRight size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="hub-radial-wrap">
+        {PARTICLES.map((p, i) => (
+          <span
+            // eslint-disable-next-line react/no-array-index-key
+            key={i}
+            className="hub-particle"
+            aria-hidden="true"
+            style={{
+              left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size,
+              background: p.color, animationDelay: `${(i % 6) * 0.35}s`,
+            }}
+          />
+        ))}
+
+        <div className="hub-mascot-area">
+          {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
+              .hub-mascot-area (which also contains the greeting bubble stacked below). The pointer
+              arrow anchors to THIS ref, so it renders right at the mascot's own base and its angle
+              is measured from the mascot's real center, not from further down past the bubble. */}
+          <div className="hub-mascot-figure" ref={mascotRef}>
+            <MascotIcon size={150} speaking={isSpeaking} />
+            <PointerArrow mascotRef={mascotRef} tileRefs={tileRefs} targetId={nextStep.id} tileCount={tiles.length} />
+          </div>
+          <div className="mascot-greeting">
+            {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
+                to a new guided step), which is what makes .mascot-dialogue's CSS entrance
+                animation replay on every new line instead of only once ever — see global.css's
+                own comment. */}
+            <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>
+            {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
+                (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
+            <div className="hub-progress-dots">
+              {Array.from({ length: guidedProgress.total }).map((_, i) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
+              ))}
+              <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
+            </div>
+          </div>
+        </div>
+
         {tiles.map((tile, i) => {
           const unlocked = tile.unlock(state, hasPartnerSchool);
           const isPointingTarget = tile.id === nextStep.id;
           const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
+          const pos = RADIAL_POSITIONS[i % RADIAL_POSITIONS.length];
           return (
-            <button
-              type="button"
-              key={tile.id}
-              ref={(el) => {
-                if (el) tileRefs.current.set(tile.id, el);
-                else tileRefs.current.delete(tile.id);
-              }}
-              className={`hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}`}
-              disabled={!unlocked}
-              onClick={() => goTo(tile)}
-              style={{ '--tile-accent': accent.fg, '--tile-accent-bg': accent.bg }}
-            >
-              <div className="hub-tile-icon-box">
-                {unlocked
-                  ? <tile.Icon size={22} />
-                  : <Lock className="hub-tile-lock-icon" size={20} />}
-              </div>
-              <div className="hub-tile-title">{tile.title}</div>
-              <p className="hub-tile-desc">{tile.desc}</p>
-              {!unlocked && (
-                <p className="hub-tile-lock-reason">{tile.lockedReason(state, hasPartnerSchool)}</p>
-              )}
-            </button>
+            // `.hub-tile-slot` is a plain, never-animated wrapper doing only the {x%, y%}
+            // centering (translate(-50%, -50%)) — kept on a SEPARATE element from `.hub-tile`
+            // itself on purpose, since `.hub-tile`'s own entrance/hover/press animations each set
+            // `transform` too, and a CSS transform replaces (rather than composes with) another
+            // rule's transform on the SAME element — see global.css's own comment on this exact
+            // bug for the full story.
+            <div key={tile.id} className="hub-tile-slot" style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
+              <button
+                type="button"
+                ref={(el) => {
+                  if (el) tileRefs.current.set(tile.id, el);
+                  else tileRefs.current.delete(tile.id);
+                }}
+                className={`hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}`}
+                disabled={!unlocked}
+                onClick={() => goTo(tile)}
+                style={{
+                  '--tile-accent-bg': accent.bg, '--tile-accent-fg': accent.fg,
+                  animationDelay: `${i * 40}ms`,
+                }}
+              >
+                <div className="hub-tile-icon-box">
+                  {unlocked
+                    ? <tile.Icon size={22} />
+                    : <Lock className="hub-tile-lock-icon" size={20} />}
+                </div>
+                <div className="hub-tile-title">{tile.title}</div>
+                <p className="hub-tile-desc">{tile.desc}</p>
+                {!unlocked && (
+                  <p className="hub-tile-lock-reason">{tile.lockedReason(state, hasPartnerSchool)}</p>
+                )}
+              </button>
+            </div>
           );
         })}
       </div>
+
+      <div className="hub-bottom-row">
+        <div className="hub-quote-card">
+          <p className="hub-quote-mark">&ldquo;</p>
+          <p className="hub-quote-text">{QUOTE.text}</p>
+          <p className="hub-quote-author">— {QUOTE.author}</p>
+        </div>
+
+        <div className="hub-ask-ai-wrap">
+          <form className="hub-ask-ai" onSubmit={submitAskAi}>
+            <input
+              type="text"
+              placeholder="Ask MyPath AI anything"
+              value={askAiValue}
+              onChange={(e) => { setAskAiValue(e.target.value); setAskAiSubmitted(false); }}
+            />
+            <button type="submit" className="hub-ask-ai-submit" aria-label="Ask">
+              <Send size={15} />
+            </button>
+          </form>
+          {askAiSubmitted && <p className="hub-ask-ai-note">Coming soon!</p>}
+        </div>
+
+        <div className="hub-quick-actions">
+          <p className="hub-quick-actions-title"><Zap size={13} /> Quick Actions</p>
+          <button type="button" className="hub-quick-action-btn" onClick={() => setAddTaskOpen(true)}>
+            <Plus size={16} /> Add a Task
+          </button>
+          <button type="button" className="hub-quick-action-btn" onClick={handleReset}>
+            <RotateCcw size={16} /> Start Over
+          </button>
+        </div>
+      </div>
+
+      <AddTaskModal isOpen={addTaskOpen} onCancel={() => setAddTaskOpen(false)} onSubmit={addTask} />
 
       <button type="button" className="hub-reset-btn" onClick={handleReset}>
         <RotateCcw size={12} /> Reset

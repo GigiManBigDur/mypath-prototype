@@ -97,17 +97,42 @@ const SPEECH_PITCH = 1.05;
 // no-op — no error, no attempted `speak()` call, the caller's own text UI is completely
 // unaffected either way. `preferredURI` (optional) is a specific voice's `voiceURI` to use
 // instead of the auto-pick heuristic — see `pickVoice()`'s own comment.
-export function speak(text, preferredURI) {
-  if (!isSpeechAvailable() || !text) return;
+//
+// Radial-layout pass (see CLAUDE.md) — `onStart`/`onEnd` are optional callbacks wired straight to
+// the real utterance's own `onstart`/`onend`/`onerror` events, added so `useMascotSpeech` can
+// drive a "the mascot is actively speaking right now" boolean off REAL audio timing when audio is
+// actually playing (rather than a guessed duration) — see `estimateSpeechDuration` below for the
+// fallback used when it isn't. Returns `true` only if a real utterance was actually queued, so the
+// caller knows whether to fall back to the estimated-duration timer instead.
+export function speak(text, preferredURI, { onStart, onEnd } = {}) {
+  if (!isSpeechAvailable() || !text) return false;
   refreshVoices();
-  if (cachedVoices.length === 0) return;
+  if (cachedVoices.length === 0) return false;
   window.speechSynthesis.cancel();
   const utterance = new window.SpeechSynthesisUtterance(text);
   const voice = pickVoice(preferredURI);
   if (voice) utterance.voice = voice;
   utterance.rate = SPEECH_RATE;
   utterance.pitch = SPEECH_PITCH;
+  if (onStart) utterance.onstart = onStart;
+  if (onEnd) {
+    utterance.onend = onEnd;
+    utterance.onerror = onEnd;
+  }
   window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+// Radial-layout pass (see CLAUDE.md) — Task 4's mascot "speaking" animation needs SOME notion of
+// "how long is this line" even when there's no real audio to time it against (muted, or a device
+// with no usable voices at all) — a plain, honest estimate (~2.3 words/sec, roughly in line with
+// SPEECH_RATE's slightly-slower-than-default pace) rather than a fixed duration, so a one-word
+// line and a long paragraph don't animate for the same length of time. Clamped to a sane range so
+// neither extreme looks broken (a blink-and-you-miss-it flash, or an animation that outlasts the
+// dialogue bubble itself).
+export function estimateSpeechDuration(text) {
+  const words = (text || '').trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(6000, Math.max(1200, Math.round((words / 2.3) * 1000)));
 }
 
 // Stops whatever's currently speaking (or queued) immediately — used both when a mascot line is

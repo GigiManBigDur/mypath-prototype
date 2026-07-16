@@ -169,6 +169,14 @@ const DEFAULT_STATE = {
   // `getVoices()` re-fetch anyway (speech.js re-resolves this URI against the CURRENT voice list
   // every time it's used, so a voice that's no longer available on a different device/browser
   // safely falls back to the heuristic instead of silently failing).
+  accountCreatedAt: null, // Hub redesign, radial-layout pass (see CLAUDE.md) — set once, by
+  // SignUpScreen's own submit handler, to a plain 'YYYY-MM-DD' string the first time a student
+  // ever completes sign-up (never overwritten afterward, so a defensive re-submit can't reset
+  // it). This is what the hub's "Your Progress" card's real "Days active" stat is computed from
+  // (today minus this date, inclusive) — a genuine, if simple, real metric rather than an
+  // invented placeholder number, matching this codebase's standing "don't fabricate data" rule.
+  // `null` means never signed up yet, which can't actually happen by the time the hub is ever
+  // reached (SignUpScreen's own canContinue gate is the only door into the hub).
 };
 
 function loadInitialState() {

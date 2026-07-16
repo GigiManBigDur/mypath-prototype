@@ -43,6 +43,9 @@ export default function SignUpScreen() {
       username: username.trim(),
       displayName: displayName.trim(),
       avatarIcon,
+      // Set once, ever — a defensive re-submit (state restored mid-flow) must not reset the
+      // hub's own "Days active" stat back to day 1. See AppContext.jsx's own comment.
+      accountCreatedAt: state.accountCreatedAt || new Date().toISOString().slice(0, 10),
       screen: 'hub',
     });
   };
