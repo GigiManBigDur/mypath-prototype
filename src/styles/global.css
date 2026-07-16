@@ -10,6 +10,36 @@
   --teal: #2E6E5E;
   --rust: #A6491F;
   --stone: #6E7F87;
+
+  /* "bloom" palette (see CLAUDE.md — hub redesign, now extended screen-by-screen starting with
+     Welcome/Sign-Up) — a lighter, more colorful alternative to the parchment/teal/gold/rust set
+     above, defined once here at :root specifically so every screen this gets applied to pulls
+     from ONE shared source instead of drifting, the same "define once, reuse everywhere"
+     precedent the original palette above already set. Originally scoped to
+     `.app-shell.app-shell-hub` alone (this is the exact same set of values, just promoted up
+     once a second screen needed them) — `.app-shell-hub`'s own `--hub-*` custom properties now
+     alias these instead of redefining them, so none of the hub's own CSS (which reads `--hub-*`
+     extensively) needed to change. Every OTHER not-yet-repainted screen is unaffected either way,
+     since these tokens are inert until something actually reads them. */
+  --bloom-bg: #F4F4F1;
+  --bloom-card: #FFFFFF;
+  --bloom-card-border: #EAEAE5;
+  --bloom-ink: #1E211C;
+  --bloom-ink-soft: #6E7268;
+  --bloom-shadow: 0 12px 28px -16px rgba(20, 24, 18, 0.16);
+  --bloom-shadow-hover: 0 18px 36px -16px rgba(20, 24, 18, 0.22);
+  --bloom-accent: #2F8F5B;
+  /* The 7-color vivid accent set (first used for the hub's own colorful tile icon boxes,
+     TILE_ACCENTS in HubScreen.jsx) — shared here too so a future repainted screen with its own
+     multiple-distinct-items UI (like Sign-Up's avatar picker below) can reuse the identical
+     colors rather than inventing a slightly different set. */
+  --bloom-purple: #8B5CF6;
+  --bloom-yellow: #F0B429;
+  --bloom-teal: #14B8A6;
+  --bloom-orange: #F0923B;
+  --bloom-pink: #EC6FA0;
+  --bloom-blue: #3B82F6;
+  --bloom-green: #22C55E;
 }
 
 * { box-sizing: border-box; }
@@ -172,21 +202,23 @@ body {
 
 /* Hub redesign (see CLAUDE.md) — the hub gets its own full-bleed shell, mirroring
    `.app-shell-plan`'s own precedent immediately above, plus a fresh, self-contained color
-   palette (light neutral background, white cards, a small closed set of pastel tile-accent
+   palette (light neutral background, white cards, a small closed set of vivid tile-accent
    colors) matching the reference design's own look. Deliberately scoped to `.app-shell-hub`
-   (added by App.jsx only when `state.screen === 'hub'`) so NONE of this — including the color
-   tokens below — can leak onto any other screen, per this redesign's own explicit "hub only"
-   color scope; every other screen keeps reading the app's existing parchment/teal/gold/rust
-   tokens completely untouched. */
+   (added by App.jsx only when `state.screen === 'hub'`) so NONE of the layout overrides below can
+   leak onto any other screen. **The color values themselves are no longer hub-exclusive** — this
+   palette has since started spreading screen-by-screen (Welcome/Sign-Up were first, see that
+   section below); `--hub-*` here now just ALIASES the shared `--bloom-*` tokens at :root (rather
+   than redefining the same hex values a second time), so this block's own extensive `--hub-*`
+   CSS didn't need to change at all when that promotion happened. */
 .app-shell.app-shell-hub {
-  --hub-bg: #F4F4F1;
-  --hub-card: #FFFFFF;
-  --hub-card-border: #EAEAE5;
-  --hub-ink: #1E211C;
-  --hub-ink-soft: #6E7268;
-  --hub-shadow: 0 12px 28px -16px rgba(20, 24, 18, 0.16);
-  --hub-shadow-hover: 0 18px 36px -16px rgba(20, 24, 18, 0.22);
-  --hub-accent: #2F8F5B;
+  --hub-bg: var(--bloom-bg);
+  --hub-card: var(--bloom-card);
+  --hub-card-border: var(--bloom-card-border);
+  --hub-ink: var(--bloom-ink);
+  --hub-ink-soft: var(--bloom-ink-soft);
+  --hub-shadow: var(--bloom-shadow);
+  --hub-shadow-hover: var(--bloom-shadow-hover);
+  --hub-accent: var(--bloom-accent);
   max-width: none;
   width: 100%;
   margin: 0;
@@ -195,6 +227,51 @@ body {
   background: var(--hub-bg);
 }
 .app-shell.app-shell-hub .app-header { padding: 22px 32px 0; margin-bottom: 0; }
+
+/* Palette repaint, Welcome/Sign-Up (see CLAUDE.md) — the first two screens moved onto the shared
+   `--bloom-*` tokens above. Scoped to `.app-shell-bloom` (App.jsx, added whenever screenKey is
+   'welcome' or 'signup') so nothing here leaks onto any other, still-parchment-themed screen —
+   same scoping precedent `.app-shell-hub`/`.app-shell-plan` already established. Unlike the hub,
+   this does NOT change the shell's own box model (no full-bleed, no max-width/padding changes) —
+   Welcome/Sign-Up's own layout is explicitly unchanged by this pass, only colors.
+   `body:has(.app-shell-bloom)` handles the page-level background/texture separately: `.app-shell`
+   itself doesn't span the full viewport on these two (non-full-bleed) screens, so recoloring the
+   shell's own box alone would leave the old parchment texture visible in the surrounding gutter/
+   margin area — swapping the BODY's own background at the same time is what actually makes the
+   whole page read as repainted, not just the content column. */
+body:has(.app-shell-bloom) {
+  background: var(--bloom-bg);
+  background-image: none;
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .brand { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .brand svg { color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .header-icon-btn {
+  border-color: var(--bloom-card-border);
+  background: var(--bloom-card);
+  color: var(--bloom-ink-soft);
+}
+.app-shell.app-shell-bloom .header-icon-btn:hover { color: var(--bloom-accent); border-color: var(--bloom-accent); }
+.app-shell.app-shell-bloom p.page-sub,
+.app-shell.app-shell-bloom .field-hint { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .optional-badge {
+  color: var(--bloom-ink-soft);
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .task-form-field input,
+.app-shell.app-shell-bloom .task-form-field textarea {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .task-form-field input:focus,
+.app-shell.app-shell-bloom .task-form-field textarea:focus { outline-color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .btn-primary { background: var(--bloom-accent); }
+.app-shell.app-shell-bloom .btn-ghost { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .btn-ghost:hover:not(:disabled) { color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .btn-outline { border-color: var(--bloom-ink-soft); color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .btn-outline:hover:not(:disabled) { border-color: var(--bloom-ink); background: rgba(47, 143, 91, 0.08); }
 
 /* Typography */
 h1.page-title {
@@ -467,23 +544,26 @@ button.card.passed:hover {
 }
 
 .avatar-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+/* Sign-Up screen — the only consumer of `.avatar-option`, so its colors were repainted directly
+   in place (see CLAUDE.md's palette-repaint section) rather than needing `.app-shell-bloom`
+   scoping the way genuinely shared classes below did. */
 .avatar-option {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  border: 2px solid var(--paper-line);
-  background: var(--card);
-  color: var(--avatar-color, var(--ink));
+  border: 2px solid var(--bloom-card-border);
+  background: var(--bloom-card);
+  color: var(--avatar-color, var(--bloom-ink));
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all .12s ease;
 }
-.avatar-option:hover { border-color: var(--avatar-color, var(--teal)); }
+.avatar-option:hover { border-color: var(--avatar-color, var(--bloom-accent)); }
 .avatar-option.selected {
-  background: var(--avatar-color, var(--ink));
-  border-color: var(--avatar-color, var(--ink));
+  background: var(--avatar-color, var(--bloom-ink));
+  border-color: var(--avatar-color, var(--bloom-ink));
   color: #fff;
 }
 
@@ -2217,7 +2297,7 @@ button.card.passed:hover {
 
 .welcome-trail-path {
   fill: none;
-  stroke: var(--teal);
+  stroke: var(--bloom-accent);
   stroke-width: 4;
   stroke-linecap: round;
   opacity: 0.85;
@@ -2247,8 +2327,8 @@ button.card.passed:hover {
   transform: translate(var(--mx), var(--my)) scale(0.3);
 }
 .welcome-marker-ring {
-  fill: var(--card);
-  stroke: var(--stone);
+  fill: var(--bloom-card);
+  stroke: var(--bloom-card-border);
   stroke-width: 2;
   stroke-dasharray: 3 3;
 }
@@ -2256,12 +2336,12 @@ button.card.passed:hover {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 11px;
   font-weight: 500;
-  fill: var(--ink-soft);
+  fill: var(--bloom-ink-soft);
 }
 
 .welcome-here-pulse {
   fill: none;
-  stroke: var(--gold);
+  stroke: var(--bloom-accent);
   stroke-width: 3;
   opacity: 0.55;
   animation: welcome-pulse 2.4s ease-out infinite;
@@ -2286,12 +2366,12 @@ button.card.passed:hover {
   font-weight: 600;
   font-size: clamp(36px, 7vw, 52px);
   margin: 0 0 10px;
-  color: var(--ink);
+  color: var(--bloom-ink);
 }
 .welcome-tagline {
   font-size: 15.5px;
   line-height: 1.55;
-  color: var(--ink-soft);
+  color: var(--bloom-ink-soft);
   max-width: 44ch;
   margin: 0 auto 26px;
 }
@@ -2305,7 +2385,7 @@ button.card.passed:hover {
   box-shadow: 0 12px 24px -12px rgba(30, 61, 50, 0.45);
 }
 .welcome-cta:focus-visible {
-  outline: 3px solid var(--gold);
+  outline: 3px solid var(--bloom-accent);
   outline-offset: 3px;
 }
 

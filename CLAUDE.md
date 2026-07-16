@@ -2443,6 +2443,76 @@ styling from the first pass are still the foundation.
 ported from the reference prototype (paper/trail-map palette, Fraunces/IBM Plex fonts). Match
 these tokens rather than introducing new colors when building new UI.
 
+**A second, "bloom" palette now exists alongside the original one above — a lighter, more
+colorful set (light neutral background, white cards, a green primary accent, plus a 7-color vivid
+accent set) first built for the hub redesign, now promoted to shared `:root` tokens and being
+rolled out to the rest of the app screen by screen. Welcome and Sign-Up are the first two screens
+moved onto it; every other screen still reads the original palette above, unchanged.**
+- **`--bloom-bg`/`--bloom-card`/`--bloom-card-border`/`--bloom-ink`/`--bloom-ink-soft`/
+  `--bloom-shadow`/`--bloom-shadow-hover`/`--bloom-accent`** (`:root`, `global.css`) are the exact
+  same values the hub redesign originally defined locally inside `.app-shell.app-shell-hub` — that
+  block now ALIASES its own `--hub-*` custom properties to these (`--hub-bg: var(--bloom-bg)`,
+  etc.) instead of redefining the same hex values a second time, so none of the hub's own
+  extensive `--hub-*`-reading CSS needed to change when this promotion happened. `--bloom-purple`/
+  `--bloom-yellow`/`--bloom-teal`/`--bloom-orange`/`--bloom-pink`/`--bloom-blue`/`--bloom-green`
+  are the same 7-color vivid set first built for the hub's own tile icon boxes
+  (`TILE_ACCENTS`, `HubScreen.jsx`) — that array now reads `var(--bloom-purple)` etc. directly
+  instead of repeating the hex values a second time in JS, now that a second screen (Sign-Up's own
+  avatar picker, below) reuses the identical colors.
+- **`.app-shell.app-shell-bloom`** (`App.jsx`'s `isBloomScreen` check — `screenKey === 'welcome'
+  || screenKey === 'signup'`) scopes shared-chrome color overrides (`.btn-primary`, `.btn-ghost`,
+  `.btn-outline`, `.page-sub`, `.field-hint`, `.optional-badge`, `.task-form-field` inputs, the
+  header brand/icon buttons) to just these two screens — the same scoping precedent
+  `.app-shell-hub`/`.app-shell-plan` already established, so none of this leaks onto any other,
+  still-parchment-themed screen. Added ALONGSIDE `.polish` (not instead of it, unlike the hub) —
+  neither Welcome nor Sign-Up built its own custom button/card interaction system, so they still
+  want the shared press/hover feedback `.polish` already provides everywhere else; this pass is
+  colors only, not a second interaction-design pass.
+- **`body:has(.app-shell-bloom)`** handles the page-level background/parchment-texture swap
+  separately from `.app-shell-bloom` itself — `.app-shell` doesn't span the full viewport on
+  these two (non-full-bleed) screens the way `.app-shell-hub`/`.app-shell-plan` do, so recoloring
+  just the shell's own box would leave the old parchment texture visible in the surrounding
+  gutter/margin area. This is a real, modern CSS `:has()` relational selector, not a JS side
+  effect — no `useEffect`/body-classList toggle was needed; the existing `.app-shell-bloom` class
+  (already added for the button/text scoping above) is sufficient for the body-level rule to react
+  to on its own, confirmed directly via a real rendered screenshot (not just a code read) showing
+  the correct flat `--bloom-bg` color filling the entire page, not just the centered content
+  column.
+- **Welcome (`WelcomeScreen.jsx`)** — the CTA button, trail-drawing path stroke, and the base
+  "you are here" marker (fill/stroke, both the SVG circle and its pulse ring) all switched from
+  the old `--teal`/`--gold` to `--bloom-accent`. Every `.welcome-*` CSS class was edited directly
+  in place (not `.app-shell-bloom`-scoped) since none of those classes are used by any other
+  screen — no risk of leaking. **The hero-drawing animation and its mechanics are completely
+  untouched**: the double-rAF draw-in sequence, the staggered marker reveal timers, the
+  `prefers-reduced-motion` skip-to-settled behavior (`hasPlayedIntro`/`skipIntro`), and the
+  `useMediaQuery`-driven reduced-motion CSS — verified directly, not assumed, that markers still
+  reveal progressively over time under normal motion and that the reduced-motion context still
+  renders the fully-drawn, no-pulse settled state immediately. One accepted, documented side
+  effect: this marker used to echo the real Academic Plan roadmap's OWN "You are here" marker
+  "exactly (gold filled circle...)" per this screen's own now-partially-stale prior documentation
+  — that roadmap screen hasn't been repainted yet, so the two markers now intentionally differ
+  (green here, still gold on the Academic Plan) until that screen's own turn in this same
+  screen-by-screen rollout.
+- **Sign-Up (`SignUpScreen.jsx`)** — `AVATAR_OPTIONS`' 6 icon colors moved from a mix of old
+  `--teal`/`--rust`/`--gold`/`--ink` values to 6 of the shared palette's 7 vivid accent colors
+  (purple/orange/yellow/blue/pink/teal) — green is deliberately skipped here, since it's the same
+  hue as `--bloom-accent` (already used heavily on this same screen for the Continue button and
+  focus rings), so including it would make one avatar option read as "the accent color" rather
+  than its own distinct pick. `.avatar-grid`/`.avatar-option` (Sign-Up-exclusive classes, like
+  `.welcome-*` above) were edited directly rather than `.app-shell-bloom`-scoped. **Functionality
+  is completely unchanged** — required username gating Continue, the two optional fields, avatar
+  selection state — verified directly (not just code-read) via the existing `test-signup.js`
+  Playwright suite, which passes unmodified against the recolored screen.
+- Verified after this pass: real rendered screenshots (not just computed-style checks) of both
+  screens show the new light/colorful palette; a dedicated Playwright check confirms `:root`'s
+  `--bloom-*` tokens resolve to the expected values, both screens' body background/CTA/trail/
+  avatar colors resolve to the new palette, Sign-Up's required/optional field behavior is
+  untouched (Continue disabled/enabled at the correct times, submission commits the right state),
+  and — critically — a third screen (Survey) was independently re-checked and still resolves to
+  the OLD palette's exact body background and button color, confirming zero leakage from this
+  pass's own scoping. The full pre-existing hub/voice/mascot/signup Playwright suite still passes
+  unmodified.
+
 **Global interaction polish (buttons, page transitions, staggered card reveals, selection
 feedback, card depth) is scoped under a single `.polish` class, not applied to raw shared
 classes directly — this is what keeps it from leaking onto the Academic Plan screen.**

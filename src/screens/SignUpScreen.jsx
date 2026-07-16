@@ -14,13 +14,19 @@ import { useApp } from '../context/AppContext';
 // Deliberately no StepProgress here, matching `welcome`'s own precedent — this is a pre-flow
 // screen, not one of the 9 tracked survey-through-plan steps, so it doesn't get a step indicator
 // any more than the welcome hero does.
+// Palette repaint (see CLAUDE.md) — 6 of the shared 7-color "bloom" accent palette (global.css's
+// own `:root` tokens, first established for the hub's colorful tile icons), one per avatar so
+// each option stays visually distinct exactly like it already was under the old palette. Green
+// (`--bloom-green`) is deliberately left out — it's the same hue as `--bloom-accent`, already used
+// heavily elsewhere on this screen (the Continue button, focus rings), so skipping it here avoids
+// one avatar option blending into "the accent color" rather than reading as its own distinct pick.
 export const AVATAR_OPTIONS = [
-  { id: 'compass', label: 'Compass', Icon: Compass, color: 'var(--teal)' },
-  { id: 'rocket', label: 'Rocket', Icon: Rocket, color: 'var(--rust)' },
-  { id: 'star', label: 'Star', Icon: Star, color: 'var(--gold)' },
-  { id: 'book', label: 'Book', Icon: BookOpen, color: 'var(--ink)' },
-  { id: 'palette', label: 'Palette', Icon: Palette, color: 'var(--teal)' },
-  { id: 'trophy', label: 'Trophy', Icon: Trophy, color: 'var(--gold)' },
+  { id: 'compass', label: 'Compass', Icon: Compass, color: 'var(--bloom-purple)' },
+  { id: 'rocket', label: 'Rocket', Icon: Rocket, color: 'var(--bloom-orange)' },
+  { id: 'star', label: 'Star', Icon: Star, color: 'var(--bloom-yellow)' },
+  { id: 'book', label: 'Book', Icon: BookOpen, color: 'var(--bloom-blue)' },
+  { id: 'palette', label: 'Palette', Icon: Palette, color: 'var(--bloom-pink)' },
+  { id: 'trophy', label: 'Trophy', Icon: Trophy, color: 'var(--bloom-teal)' },
 ];
 
 export default function SignUpScreen() {

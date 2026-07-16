@@ -144,7 +144,7 @@ export default function WelcomeScreen() {
 
           <g transform={`translate(${basePoint.x}, ${basePoint.y})`}>
             {!reducedMotion && <circle className="welcome-here-pulse" r="18" />}
-            <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
+            <circle r="18" fill="var(--bloom-accent)" stroke="var(--bloom-accent)" strokeWidth="3" />
             <Compass x="-8" y="-8" size={16} color="#fff" />
           </g>
         </svg>

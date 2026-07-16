@@ -251,14 +251,18 @@ function countPlanTasks(roadmap, completedNodes) {
 // color (white, or dark ink for the lighter yellow) actually reads clearly on top of it. Locked
 // tiles never read this palette at all (global.css's own `.hub-tile.locked .hub-tile-icon-box`
 // override wins) — they stay muted/grey regardless of a tile's own accent index.
+//
+// Palette repaint (see CLAUDE.md) — these reference the shared `--bloom-*` tokens (global.css's
+// own `:root` block) rather than repeating the same hex values a second time here, now that a
+// second screen (Sign-Up's own avatar picker) reuses the identical 6 of these 7 colors.
 const TILE_ACCENTS = [
-  { bg: '#8B5CF6', fg: '#ffffff' },
-  { bg: '#F0B429', fg: '#20241C' },
-  { bg: '#14B8A6', fg: '#ffffff' },
-  { bg: '#F0923B', fg: '#ffffff' },
-  { bg: '#EC6FA0', fg: '#ffffff' },
-  { bg: '#3B82F6', fg: '#ffffff' },
-  { bg: '#22C55E', fg: '#ffffff' },
+  { bg: 'var(--bloom-purple)', fg: '#ffffff' },
+  { bg: 'var(--bloom-yellow)', fg: '#20241C' },
+  { bg: 'var(--bloom-teal)', fg: '#ffffff' },
+  { bg: 'var(--bloom-orange)', fg: '#ffffff' },
+  { bg: 'var(--bloom-pink)', fg: '#ffffff' },
+  { bg: 'var(--bloom-blue)', fg: '#ffffff' },
+  { bg: 'var(--bloom-green)', fg: '#ffffff' },
 ];
 
 // Radial-layout pass, Task 1 (see CLAUDE.md) — hand-tuned percentage slots (of `.hub-radial-wrap`'s

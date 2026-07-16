@@ -63,6 +63,15 @@ function AppShell() {
   // hub's own tile/card hover-press treatment is redesigned from scratch below, not the shared
   // one every other `.card`-based screen uses — applying both would double up or fight each other.
   const isHub = screenKey === 'hub';
+  // Palette repaint (see CLAUDE.md) — Welcome and Sign-Up are the first two screens moved onto
+  // the "bloom" palette (the colorful set first established for the hub redesign), ahead of a
+  // broader screen-by-screen repaint. `.app-shell-bloom` scopes the shared-chrome color overrides
+  // (`.btn-primary`, `.page-sub`, `.field-hint`, etc. — global.css) so nothing leaks onto any
+  // other still-parchment-themed screen, same scoping precedent `.app-shell-hub`/`.app-shell-plan`
+  // already established. Added ALONGSIDE `.polish` (not instead of it, unlike the hub) — neither
+  // screen built its own custom button/card interaction system the way the hub did, so they still
+  // want the shared press/hover feedback `.polish` already provides everywhere else.
+  const isBloomScreen = screenKey === 'welcome' || screenKey === 'signup';
 
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — prime the browser's voice list once, as
   // early as possible in the app's lifetime, so it's very likely already populated by the time
@@ -73,7 +82,7 @@ function AppShell() {
   }, []);
 
   return (
-    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}`}>
+    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>
       {/* Radial-layout pass (see CLAUDE.md) — the hub renders its own dedicated top bar (logo,
           search, notifications, avatar, PLUS the same real mute/voice-settings controls this
           generic header carries) instead of this one, so the two don't stack. Every other screen
