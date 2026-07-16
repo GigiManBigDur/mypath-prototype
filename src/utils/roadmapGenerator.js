@@ -691,6 +691,13 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
   const anchorId = opp.id;
   const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
 
+  // Palette repaint, Academic Plan batch (see CLAUDE.md) — `track` is a purely additive, display-
+  // only field (same convention `projectLabel`/`courseList` already established here), carrying
+  // the exact same `opp._track` Batch 1's color mapping already resolves for Survey/Discovery/
+  // Course Selection/Opportunity Finder cards. Set on the anchor AND every step (not just the
+  // anchor) so a chain's entire branch — connector line, every step's ring, the deadline step
+  // too — reads as one consistent interest-colored chain, not just its starting point. Doesn't
+  // touch date/position fields at all, so roadmapLayout.js's layout math is completely unaffected.
   return {
     id: anchorId,
     title: opp.name,
@@ -701,7 +708,8 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
     due: formatDate(startDate),
     desc: opp.description,
     resources: [],
-    steps,
+    track: opp._track || null,
+    steps: steps.map((step) => ({ ...step, track: opp._track || null })),
   };
 }
 
@@ -734,6 +742,9 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
 
   const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
 
+  // Same `track` field as buildFirstYearChain above, for the same reason — an escalation-year
+  // chain is still the same real opportunity/interest area, just a later year, so it keeps the
+  // identical track color throughout its own (shorter) branch too.
   return {
     id: anchorId,
     title: `${opp.name} (Year ${yearIndex + 1})`,
@@ -744,7 +755,8 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
     due: formatDate(startDate),
     desc: `Your year ${yearIndex + 1} milestone for ${opp.name}: ${milestone.toLowerCase()}. ${opp.howToApply}.`,
     resources: [],
-    steps,
+    track: opp._track || null,
+    steps: steps.map((step) => ({ ...step, track: opp._track || null })),
   };
 }
 

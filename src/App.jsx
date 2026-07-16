@@ -67,18 +67,24 @@ function AppShell() {
   // "bloom" palette (the colorful set first established for the hub redesign); Survey and
   // Discovery (Careers of Interest / Related College Majors / Recommended Programs — all one
   // `discovery` screenKey) were the second; Transcript & GPA and Course Selection were the third;
-  // Opportunity Finder and Project Builder are the fourth. `.app-shell-bloom` scopes the
-  // shared-chrome color overrides (`.btn-primary`, `.card`, `.tag`, `.pill`, `.rms-badge`, etc. —
-  // global.css) so nothing leaks onto any other, still-parchment-themed screen (Program Summary is
-  // the only one left unpainted now), same scoping precedent `.app-shell-hub`/`.app-shell-plan`
-  // already established. Added ALONGSIDE `.polish` (not instead of it, unlike the hub) — none of
-  // these screens built their own custom button/card interaction system the way the hub did, so
-  // they still want the shared press/hover feedback (and the staggered card-reveal entrance, and
-  // the selection-pulse+checkmark) `.polish` already provides everywhere else.
+  // Opportunity Finder and Project Builder were the fourth; the Academic Plan's Map 1 (Year
+  // Overview) is the fifth. `.app-shell-bloom` scopes the shared-chrome color overrides
+  // (`.btn-primary`, `.card`, `.tag`, `.pill`, `.rms-badge`, etc. — global.css) so nothing leaks
+  // onto any other, still-parchment-themed screen (Program Summary is the only one left unpainted
+  // now), same scoping precedent `.app-shell-hub`/`.app-shell-plan` already established. Added
+  // ALONGSIDE `.polish` (not instead of it, unlike the hub) — none of these screens built their
+  // own custom button/card interaction system the way the hub did, so they still want the shared
+  // press/hover feedback (and the staggered card-reveal entrance, and the selection-pulse+
+  // checkmark) `.polish` already provides everywhere else. Map 1 only, NOT Map 2 — Map 2
+  // (the full per-year roadmap, Roadmap.jsx) is the separate `.app-shell-plan` full-bleed system
+  // and was recolored directly in its own exclusive classes instead (see CLAUDE.md's own
+  // Academic Plan repaint section for why `.app-shell-bloom` scoping doesn't apply there at all).
+  const isMap1 = screenKey === 'plan' && state.planYearIndex === null;
   const isBloomScreen = screenKey === 'welcome' || screenKey === 'signup'
     || screenKey === 'survey' || screenKey === 'discovery'
     || screenKey === 'transcript' || screenKey === 'courseSelection'
-    || screenKey === 'opportunities' || screenKey === 'projectBuilder';
+    || screenKey === 'opportunities' || screenKey === 'projectBuilder'
+    || isMap1;
 
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — prime the browser's voice list once, as
   // early as possible in the app's lifetime, so it's very likely already populated by the time

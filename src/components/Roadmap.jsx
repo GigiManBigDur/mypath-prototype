@@ -13,6 +13,7 @@ import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useModalExit } from '../hooks/useModalExit';
+import { getTrackColor } from './TrackVisuals';
 
 // input[type=date] wants a plain YYYY-MM-DD string in LOCAL time — toISOString() would shift by
 // the timezone offset and silently show the wrong day, so build the string from local getters.
@@ -23,39 +24,58 @@ function toDateInputValue(date) {
   return `${y}-${m}-${d}`;
 }
 
+// Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
+// "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
+// (roadmapLayout.js is untouched by this pass, full stop). Ring STYLE (solid/hollow/dotted) and
+// which coreType maps to which style are completely unchanged — only which color fills each ring
+// changed. The exact same relationships the old hex palette had are preserved 1:1 onto new bloom
+// tokens (entries that shared a color before still share one now): today/major (old gold) ->
+// bloom-yellow; milestone + every course-selection core type (old teal) -> bloom-teal; final +
+// the branch deadline step (old rust) -> bloom-orange; procedure/opportunity-fallback/branch-step-
+// fallback/custom/PROJECT (old stone/ink-soft) -> bloom-ink-soft. Project deliberately keeps
+// sharing the generic fallback color rather than getting its own pick from the 7-color vivid
+// set — every one of those 7 colors is already claimed by a real interest track (getTrackColor
+// cycles through all 7), so picking any of them for "Project" would risk it colliding with a real
+// opportunity chain that happens to share that same track color on the same roadmap (e.g. the
+// Business track and a naive purple pick for Project both resolving to the same hue). See
+// `configFor()` below for how a REAL opportunity's track color (Task 2) overrides these fallbacks
+// when one is known.
 const CORE_TYPE_CONFIG = {
-  today: { label: 'You are here', color: '#C98A2B', Icon: Compass },
-  procedure: { label: 'Step', color: '#6E7F87', Icon: Circle },
-  milestone: { label: 'Milestone', color: '#2E6E5E', Icon: MapPin },
-  major: { label: 'Major Goal', color: '#C98A2B', Icon: Star },
-  final: { label: 'Final Goal', color: '#A6491F', Icon: Flag },
+  today: { label: 'You are here', color: 'var(--bloom-yellow)', Icon: Compass },
+  procedure: { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Circle },
+  milestone: { label: 'Milestone', color: 'var(--bloom-teal)', Icon: MapPin },
+  major: { label: 'Major Goal', color: 'var(--bloom-yellow)', Icon: Star },
+  final: { label: 'Final Goal', color: 'var(--bloom-orange)', Icon: Flag },
   // Course Selection Stage 4 — both required/core (solid ring, same as everything else in this
   // config), no new legend category. The "(Est.)" in the label is deliberate and load-bearing:
   // it's the one place this date's estimated nature is visible without opening the modal (see
   // ESTIMATED_COURSE_REQUEST_WINDOW's own comment in courses.js for why no real deadline exists).
-  'course-request': { label: 'Course Request (Est.)', color: '#2E6E5E', Icon: BookOpen },
-  'course-checkpoint': { label: 'Course Checkpoint (Est.)', color: '#2E6E5E', Icon: GraduationCap },
+  'course-request': { label: 'Course Request (Est.)', color: 'var(--bloom-teal)', Icon: BookOpen },
+  'course-checkpoint': { label: 'Course Checkpoint (Est.)', color: 'var(--bloom-teal)', Icon: GraduationCap },
   // UC Davis Course Selection Stage 4 (see CLAUDE.md) — the quarter-system analog of the two
   // Roslyn types above. Distinct labels ("Enroll"/"Quarter Checkpoint" vs. "Course Request"/
   // "Course Checkpoint") since the semantics genuinely differ (per-quarter enrollment vs.
   // Roslyn's per-year request), but the same "(Est.)" honesty marker and icon language.
-  'ucdavis-enrollment': { label: 'Enroll (Est.)', color: '#2E6E5E', Icon: BookOpen },
-  'ucdavis-checkpoint': { label: 'Quarter Checkpoint (Est.)', color: '#2E6E5E', Icon: GraduationCap },
+  'ucdavis-enrollment': { label: 'Enroll (Est.)', color: 'var(--bloom-teal)', Icon: BookOpen },
+  'ucdavis-checkpoint': { label: 'Quarter Checkpoint (Est.)', color: 'var(--bloom-teal)', Icon: GraduationCap },
 };
-const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: '#6E7F87', Icon: ListChecks };
-const BRANCH_STEP_CONFIG = { label: 'Step', color: '#6E7F87', Icon: Circle };
-const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: '#A6491F', Icon: Flag };
-// A student-added task, not part of the built-in plan — reuses --ink-soft (already in the design
-// tokens) rather than introducing a new color, but gets its own icon and a dotted ring (in the
-// JSX below) so it's visually distinct from both the solid required ring and the dashed
+// Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
+// a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.
+const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: 'var(--bloom-ink-soft)', Icon: ListChecks };
+const BRANCH_STEP_CONFIG = { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Circle };
+const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: 'var(--bloom-orange)', Icon: Flag };
+// A student-added task, not part of the built-in plan — reuses bloom-ink-soft (already a shared
+// design token) rather than introducing a new color, but gets its own icon and a dotted ring (in
+// the JSX below) so it's visually distinct from both the solid required ring and the dashed
 // opportunity ring at a glance.
-const CUSTOM_CONFIG = { label: 'Custom task', color: '#4B5D54', Icon: Pencil };
-// A started Project Builder project. Deliberately reuses the same ring styling as an opportunity
+const CUSTOM_CONFIG = { label: 'Custom task', color: 'var(--bloom-ink-soft)', Icon: Pencil };
+// A started Project Builder project. Deliberately reuses the same ring STYLE as an opportunity
 // chain (see the ring-drawing JSX below — 'project' isn't special-cased there, so it falls into
 // the same hollow-dashed branch) per the growing-chain spec's explicit instruction to reuse
-// opportunity chain/sub-branch rendering; only the icon/label/color and the projectLabel subtitle
-// (below) differentiate it.
-const PROJECT_CONFIG = { label: 'Project', color: '#6E7F87', Icon: Rocket };
+// opportunity chain/sub-branch rendering; only the icon (Rocket) and the projectLabel subtitle
+// (below) differentiate it visually — same collision-avoidance reasoning as the header comment
+// above for why it doesn't get its own pick from the 7-color vivid set.
+const PROJECT_CONFIG = { label: 'Project', color: 'var(--bloom-ink-soft)', Icon: Rocket };
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
@@ -98,13 +118,27 @@ function segLength(x1, y1, x2, y2) {
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// Task 2 — color-code opportunity chains by interest area, meaningfully not just decoratively:
+// reuses the EXACT same track->color mapping Batch 1 already established for Survey/Discovery/
+// Course Selection/Opportunity Finder cards (getTrackColor, TrackVisuals.jsx), via `node.track` —
+// a purely additive field roadmapGenerator.js now sets on an opportunity's anchor AND every one
+// of its steps (see buildFirstYearChain/buildEscalationChain), carrying the opportunity's own
+// `_track` (opportunities.js). This overrides ONLY the resolved `color`, on top of whichever base
+// cfg the node would otherwise get — so a DECA/FBLA (Business) branch's anchor, every prep step,
+// and its final deadline step all resolve to the identical Business color, while the label/Icon
+// each already had (Opportunity vs. Step vs. Deadline/start) stays exactly as before. A chain with
+// no real track (the generic/unmapped fallback list) simply has no `track` field and falls
+// through to the plain fallback colors above, same "don't force a fit" posture this codebase's
+// data layer already holds everywhere else.
 function configFor(node) {
-  if (node.category === 'core' || node.type === 'today') return CORE_TYPE_CONFIG[node.coreType || node.type];
-  if (node.category === 'custom') return CUSTOM_CONFIG;
-  if (node.category === 'project') return PROJECT_CONFIG;
-  if (node.isLast) return BRANCH_DEADLINE_CONFIG;
-  if (node.category === 'opportunity') return OPPORTUNITY_CONFIG;
-  return BRANCH_STEP_CONFIG;
+  let cfg;
+  if (node.category === 'core' || node.type === 'today') cfg = CORE_TYPE_CONFIG[node.coreType || node.type];
+  else if (node.category === 'custom') cfg = CUSTOM_CONFIG;
+  else if (node.category === 'project') cfg = PROJECT_CONFIG;
+  else if (node.isLast) cfg = BRANCH_DEADLINE_CONFIG;
+  else if (node.category === 'opportunity') cfg = OPPORTUNITY_CONFIG;
+  else cfg = BRANCH_STEP_CONFIG;
+  return node.track ? { ...cfg, color: getTrackColor(node.track) } : cfg;
 }
 
 function line(x1, y1, x2, y2) {
@@ -506,7 +540,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                   animationDelay: '0ms',
                 } : undefined}
                 d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}
-                stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
+                stroke="var(--bloom-accent)" strokeWidth="3" fill="none" opacity="0.5"
               />
             )}
             {roadmap.spine.slice(0, -1).map((n, i) => {
@@ -517,7 +551,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                   key={`sp-${n.id}`}
                   className={entranceEnabled ? 'roadmap-draw-line' : undefined}
                   style={entranceEnabled ? { '--seg-length': segLength(n.x, n.y, next.x, next.y), animationDelay: `${delay}ms` } : undefined}
-                  d={line(n.x, n.y, next.x, next.y)} stroke="var(--teal)" strokeWidth="3" fill="none" opacity="0.5"
+                  d={line(n.x, n.y, next.x, next.y)} stroke="var(--bloom-accent)" strokeWidth="3" fill="none" opacity="0.5"
                 />
               );
             })}
@@ -530,12 +564,17 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               const anchorIndex = roadmap.spine.indexOf(n);
               const anchorDelay = entranceDelay(anchorIndex, entranceEnabled);
               const stepDelay = (k) => anchorDelay + (k + 1) * ENTRANCE_STEP_MS;
+              // Task 2 — the connecting line itself reads the SAME resolved color as the anchor's
+              // own ring (configFor(n).color — track-colored for a real opportunity, bloom-purple
+              // for a project, the generic fallback otherwise), so a whole chain (line + every
+              // node in it) reads as one consistent interest-colored unit, not just its dots.
+              const branchColor = configFor(n).color;
               return (
                 <g key={`branch-${n.id}`}>
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke="var(--stone)" strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
+                    d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
                   />
                   {n.branchSteps.slice(0, -1).map((s, i) => {
                     const next = n.branchSteps[i + 1];
@@ -544,7 +583,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                         key={`bs-${s.id}`}
                         className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                         style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
-                        d={line(s.x, s.y, next.x, next.y)} stroke="var(--stone)" strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
+                        d={line(s.x, s.y, next.x, next.y)} stroke={branchColor} strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
                       />
                     );
                   })}
@@ -651,7 +690,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                 {/* Same fixed, always-present hit target as every other node — see comments above. */}
                 <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
                 <g className="node-pop">
-                  <circle r="18" fill="var(--gold)" stroke="var(--gold)" strokeWidth="3" />
+                  <circle r="18" fill="var(--bloom-yellow)" stroke="var(--bloom-yellow)" strokeWidth="3" />
                   <Compass x="-8" y="-8" size={16} color="#fff" />
                 </g>
                 <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
@@ -764,10 +803,15 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
           <div className="roadmap-panel-divider" />
 
           <div className="legend">
-            <span className="legend-item"><span className="dot" style={{ background: 'var(--teal)' }} /> Required — solid ring</span>
-            <span className="legend-item"><span className="dot" style={{ background: 'var(--stone)', border: '2px solid var(--stone)' }} /> Optional — hollow ring</span>
-            <span className="legend-item"><span className="dot" style={{ background: 'var(--ink-soft)', border: '2px dotted var(--ink-soft)' }} /> Custom — dotted ring</span>
-            <span className="legend-item"><span className="dot" style={{ background: 'var(--gold)' }} /> You are here</span>
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-accent)' }} /> Required — solid ring</span>
+            {/* "colored by interest area" clarifies Task 2's real, meaningful per-chain coloring
+                (see configFor's own track override) — this one swatch is just a representative
+                fallback color, same "legend shows one representative dot, not every real hue"
+                precedent the old palette's own Required/Optional swatches already set (a Required
+                node's actual ring color already varied by coreType before this batch too). */}
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-teal)', border: '2px solid var(--bloom-teal)' }} /> Optional — hollow ring, colored by interest area</span>
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-ink-soft)', border: '2px dotted var(--bloom-ink-soft)' }} /> Custom — dotted ring</span>
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-yellow)' }} /> You are here</span>
           </div>
         </div>
       </div>
@@ -778,7 +822,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             <button className="modal-close" onClick={() => setSelected(null)}><X size={18} /></button>
             <div
               className="modal-eyebrow"
-              style={{ color: modalNode.type === 'today' ? 'var(--gold)' : configFor(modalNode).color }}
+              style={{ color: modalNode.type === 'today' ? 'var(--bloom-yellow)' : configFor(modalNode).color }}
             >
               {modalNode.type === 'today' ? 'Today'
                 : modalNode.category === 'project' ? 'Project'
@@ -833,7 +877,10 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
 
             {selectedIsAnchorOnly && (
               <>
-                <div className="step-chain-progress">
+                {/* Task 2 — reuses the exact same resolved chain color the ring/connector line
+                    already use (configFor(modalNode).color), so this progress line visually ties
+                    back to its own interest-colored branch instead of a flat, unrelated color. */}
+                <div className="step-chain-progress" style={{ color: configFor(modalNode).color }}>
                   {anchorDone} / {anchorTotal} steps complete — see the branch on the map for each step.
                 </div>
                 <button

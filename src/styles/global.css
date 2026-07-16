@@ -991,10 +991,10 @@ button.card.passed:hover {
 .rm-title { font-family:'Fraunces', serif; font-weight:600; font-size: clamp(22px, 3.4vw, 30px); margin:0; }
 .rm-sub { color: var(--ink-soft); font-size:14px; margin: 4px 0 0; }
 .progress-box { text-align:right; }
-.progress-num { font-family:'IBM Plex Mono', monospace; font-size:22px; color: var(--teal); }
+.progress-num { font-family:'IBM Plex Mono', monospace; font-size:22px; color: var(--bloom-accent); }
 .progress-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color: var(--ink-soft); }
 .bar { width:100%; height:6px; background: var(--paper-line); border-radius:3px; overflow:hidden; margin: 14px 0 24px; }
-.bar-fill { height:100%; background: var(--teal); transition: width .45s cubic-bezier(0.4,0,0.2,1); }
+.bar-fill { height:100%; background: var(--bloom-accent); transition: width .45s cubic-bezier(0.4,0,0.2,1); }
 
 .legend { display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color: var(--ink-soft); margin-bottom: 18px; }
 .legend-item { display:flex; align-items:center; gap:6px; }
@@ -1914,14 +1914,14 @@ button.card.passed:hover {
 .roadmap-callout.callout-exit { animation: callout-out 200ms ease both; pointer-events: none; }
 .roadmap-callout-tl { left: 20px; }
 .roadmap-callout-tr { right: 20px; animation-delay: 1050ms; }
-.roadmap-callout-icon { color: var(--teal); flex-shrink: 0; margin-top: 1px; }
+.roadmap-callout-icon { color: var(--bloom-accent); flex-shrink: 0; margin-top: 1px; }
 .roadmap-callout-text strong { display: block; color: var(--ink); font-family: 'Fraunces', serif; font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
 .roadmap-callout-close {
   position: absolute; top: 6px; right: 6px; background: none; border: none; cursor: pointer;
   color: var(--ink-soft); padding: 3px; display: flex;
 }
 .roadmap-callout-close:hover { color: var(--ink); }
-.roadmap-callout-arrow { position: absolute; top: 100%; width: 44px; height: 44px; color: var(--teal); opacity: 0.55; pointer-events: none; }
+.roadmap-callout-arrow { position: absolute; top: 100%; width: 44px; height: 44px; color: var(--bloom-accent); opacity: 0.55; pointer-events: none; }
 .roadmap-callout-arrow-tl { left: 6px; }
 .roadmap-callout-arrow-tr { right: 6px; }
 
@@ -1982,7 +1982,7 @@ button.card.passed:hover {
 .roadmap-panel-info { flex: 1 1 320px; min-width: 220px; }
 .roadmap-panel-eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .roadmap-panel-icon-badge {
-  width: 22px; height: 22px; border-radius: 50%; background: var(--paper); color: var(--teal);
+  width: 22px; height: 22px; border-radius: 50%; background: var(--paper); color: var(--bloom-accent);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .roadmap-panel-side { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; flex-shrink: 0; }
@@ -2032,7 +2032,14 @@ button.card.passed:hover {
 .remove-btn { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:4px; border:1px solid var(--paper-line); background:none; color: var(--rust); font-family:'IBM Plex Sans'; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; }
 .remove-btn:hover { background: rgba(166,73,31,0.08); border-color: var(--rust); }
 .complete-btn { width:100%; padding:12px; border-radius:4px; border:none; cursor:pointer; font-family:'IBM Plex Sans'; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; }
-.complete-btn.todo { background: var(--teal); color:#fff; }
+/* .complete-btn/.step-chain-progress/.win-banner are exclusive to Roadmap.jsx (Map 2) — no other
+   screen uses them, so recoloring the base rule directly is safe (same "exclusive class, edit
+   directly" precedent Welcome/Sign-Up's own `.welcome-*` repaint already established, rather than
+   scoping under a class Map 2 never carries — see CLAUDE.md). `.remove-btn`/`.modal-edit-date`
+   ARE shared with TranscriptScreen's own detail rows, so those two get a `.roadmap-fullscreen-
+   root`-scoped override below instead of a direct edit here, to avoid recoloring an
+   already-shipped, already-tested screen this batch doesn't own. */
+.complete-btn.todo { background: var(--bloom-accent); color:#fff; }
 .complete-btn.done { background: #E3E7DC; color: var(--ink-soft); }
 .complete-btn:disabled { background: var(--paper-line); color: var(--ink-soft); cursor: not-allowed; opacity: 0.75; }
 
@@ -2045,11 +2052,23 @@ button.card.passed:hover {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--teal);
+  color: var(--bloom-teal);
   margin-top: 10px;
 }
 
-.win-banner { margin-top:22px; background: var(--card); border:1px solid var(--paper-line); border-left:4px solid var(--rust); border-radius:4px; padding:18px 20px; font-size:14px; }
+.win-banner { margin-top:22px; background: var(--card); border:1px solid var(--paper-line); border-left:4px solid var(--bloom-accent); border-radius:4px; padding:18px 20px; font-size:14px; }
+
+/* Palette repaint, Academic Plan batch (see CLAUDE.md) — `.remove-btn`/`.modal-edit-date` ARE
+   shared with TranscriptScreen's own transcript-entry rows (already bloom-repainted in an earlier
+   batch), so recoloring their base rule directly would leak into that screen too. Scoped under
+   `.roadmap-fullscreen-root` instead — Roadmap.jsx's own outer wrapper, which no other screen ever
+   renders — the same "scope it so it can't leak" discipline every other batch has followed, just
+   using this component's own wrapper class instead of `.app-shell-bloom` (Map 2 never carries
+   that class at all — see App.jsx's `isPlanDetail` branch). */
+.roadmap-fullscreen-root .modal-edit-date .label { color: var(--bloom-yellow); }
+.roadmap-fullscreen-root .modal-edit-date input[type="date"]:focus { outline-color: var(--bloom-accent); }
+.roadmap-fullscreen-root .remove-btn { color: var(--bloom-orange); }
+.roadmap-fullscreen-root .remove-btn:hover { background: rgba(240, 146, 59, 0.1); border-color: var(--bloom-orange); }
 
 /* ==========================================================================
    Academic Plan visual polish — style layer ONLY, additive on top of the
@@ -2106,7 +2125,10 @@ button.card.passed:hover {
    translate(x,y) position — see Roadmap.jsx's comment on .node-pop. */
 .node-badge:hover .node-pop {
   transform: scale(1.08);
-  filter: drop-shadow(0 0 4px rgba(46, 110, 94, 0.45));
+  /* rgba(47, 143, 91) is --bloom-accent (#2F8F5B) with an explicit alpha — same literal-rgba
+     approach the old --teal-based glow it replaces already used, so a translucent glow can be
+     expressed without a second, alpha-only color token. */
+  filter: drop-shadow(0 0 4px rgba(47, 143, 91, 0.45));
 }
 
 /* Task 3 — a quick pulse right as a node is pressed, before its detail panel
@@ -3239,3 +3261,28 @@ button.card.passed:hover {
     animation: none;
   }
 }
+
+/* ==========================================================================
+   Palette repaint, Academic Plan batch (see CLAUDE.md) — Task 4's own "repaint
+   the surrounding chrome... and Map 1's year-overview screen." Map 1
+   (YearOverview.jsx) is a normal, non-full-bleed screen, so it's added to
+   isBloomScreen (App.jsx) and its own exclusive `.year-overview-*` classes are
+   scoped under `.app-shell-bloom` here, same convention this whole repaint
+   series already uses. Map 2 (Roadmap.jsx) is the SEPARATE `.app-shell-plan`
+   full-bleed system and never carries `.app-shell-bloom` at all — its own
+   colors were recolored directly in its exclusive classes/inline SVG
+   attributes instead (see the rules further up this file, and Roadmap.jsx
+   itself) — this section is Map 1 only.
+   ========================================================================== */
+.app-shell.app-shell-bloom .year-overview-path { stroke: var(--bloom-accent); }
+.app-shell.app-shell-bloom .year-overview-marker:hover .year-overview-ring {
+  filter: drop-shadow(0 0 4px rgba(47, 143, 91, 0.45));
+}
+.app-shell.app-shell-bloom .year-overview-ring { stroke: var(--bloom-accent); }
+.app-shell.app-shell-bloom .year-overview-marker.current .year-overview-ring {
+  fill: var(--bloom-yellow);
+  stroke: var(--bloom-yellow);
+}
+.app-shell.app-shell-bloom .year-overview-pulse { stroke: var(--bloom-yellow); }
+.app-shell.app-shell-bloom .year-overview-label { fill: var(--bloom-ink); }
+.app-shell.app-shell-bloom .year-overview-current-tag { fill: var(--bloom-yellow); }

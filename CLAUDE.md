@@ -2871,6 +2871,154 @@ unaffected.
   now), the same "update a pre-existing test after an intentional, expected change" pattern this
   codebase's own test suite has needed before, not a regression in the app itself.
 
+**Palette repaint, Academic Plan batch — the fifth in this series, and the only one that touches
+Roadmap.jsx (Map 2)/YearOverview.jsx (Map 1) directly rather than a screen scoped under
+`.app-shell-bloom`.** This pass is a strict style-layer overlay, same boundary the Academic Plan's
+earlier animation/visual-polish pass already established: `roadmapLayout.js` (the date-to-y
+mapping, `PIXELS_PER_DAY`/`MIN_SPINE_GAP`, the branch-slope/collision math) was not opened at all
+during this pass, and `npm run verify:spacing`'s 18/18 checks were re-confirmed passing both
+before and after every change here, byte-for-byte identical to the pre-batch baseline — the one
+thing this batch is NOT allowed to move, and didn't.
+- **Map 2 (`Roadmap.jsx`) never carries `.app-shell-bloom`** — it only ever gets `.app-shell-plan`
+  (App.jsx's `isPlanDetail` branch), a separate full-bleed system that predates this whole repaint
+  series. So unlike every other batch, this one can't lean on the shared `.app-shell.app-shell-
+  bloom X` scoping convention for Map 2's own classes at all — instead, every class Roadmap.jsx
+  owns exclusively (`.bar-fill`, `.progress-num`, `.roadmap-callout-icon`/`-arrow`, `.roadmap-
+  panel-icon-badge`, `.complete-btn.todo`, `.step-chain-progress`, `.win-banner`, `.node-badge:
+  hover .node-pop`'s glow) was recolored by editing its BASE rule directly — safe specifically
+  because grep confirmed none of these classes are used by any other screen, the same "exclusive
+  class, edit in place" precedent the very first Welcome/Sign-Up batch already established (as
+  opposed to the newer "scope everything under `.app-shell-bloom` regardless" habit later batches
+  drifted toward, which isn't even an option here since Map 2 never carries that class). Two
+  classes — `.remove-btn` and `.modal-edit-date` — turned out to be genuinely SHARED with
+  TranscriptScreen's own transcript-entry rows (already bloom-repainted in an earlier batch), so
+  recoloring their base rule would have leaked into that already-shipped screen; those two instead
+  got a `.roadmap-fullscreen-root`-scoped override (Roadmap.jsx's own outer wrapper div, which no
+  other screen ever renders) — the same "scope it so it provably can't leak" discipline every
+  other batch already follows, just anchored to this component's own wrapper class instead of
+  `.app-shell-bloom` since that class was never an option here.
+- **Map 1 (`YearOverview.jsx`) is the opposite case — a normal, non-full-bleed screen** (unlike
+  Map 2), so it WAS added to `isBloomScreen` (`App.jsx`, a new `isMap1 = screenKey === 'plan' &&
+  state.planYearIndex === null` alongside the existing screenKey list) — giving it the exact same
+  `.app-shell-bloom` treatment (background/ink/brand/header icons/`.btn-ghost`/`.btn-outline`/
+  `p.page-sub`, all already-existing generic overrides from earlier batches) every other repainted
+  screen already gets, for free. Its own exclusive `.year-overview-*` classes got a
+  `.app-shell.app-shell-bloom .year-overview-*` scoped override block (appended at the very end of
+  `global.css`, matching this whole series' "append last so same-specificity ties resolve by
+  source order" convention) — consistent with the NEWER scoping habit (Project Builder's `.pb-*`,
+  Course Selection's `.course-*`), even though these classes are technically exclusive enough to
+  have been edited directly too; scoping them keeps every batch's own overrides organized under
+  one clearly-labeled section rather than mixing conventions arbitrarily.
+- **Task 1 (ring/node colors) preserves every existing color RELATIONSHIP 1:1, just remapped onto
+  bloom tokens — it does not collapse the sub-type variety into one flat "Required" color.**
+  `CORE_TYPE_CONFIG`'s per-coreType colors (today/major/final/milestone/procedure/the 4
+  course-selection types) already varied under the OLD palette (gold/teal/rust/stone) despite the
+  legend showing one representative swatch for "Required" — that was already true before this
+  batch, not something this pass introduced. The exact old hex-to-role mapping carries over:
+  today+major (old `#C98A2B` gold) -> `var(--bloom-yellow)`; milestone + every course-request/
+  checkpoint/ucdavis-enrollment/checkpoint type (old `#2E6E5E` teal) -> `var(--bloom-teal)`; final
+  + the branch-deadline step (old `#A6491F` rust) -> `var(--bloom-orange)`; procedure/the generic
+  opportunity-fallback/branch-step-fallback/custom/project (old `#6E7F87` stone or the custom
+  task's own near-identical `#4B5D54`) -> `var(--bloom-ink-soft)`. The 4 legend swatches (Required/
+  Optional/Custom/You are here) were recolored the same way: `var(--bloom-accent)` (green)/
+  `var(--bloom-teal)`/`var(--bloom-ink-soft)`/`var(--bloom-yellow)` respectively — same "one
+  representative dot, not every real per-type hue" precedent the legend already had. The spine's
+  own solid connector line (today through every required core item) moved from `var(--teal)` to
+  `var(--bloom-accent)`, matching the Required legend swatch's own new color, same relationship as
+  before.
+- **Task 2 — opportunity chains are now colored MEANINGFULLY by interest track, not just
+  decoratively, reusing Batch 1's exact color mapping (no second color system invented).**
+  `roadmapGenerator.js`'s `buildFirstYearChain`/`buildEscalationChain` now set a purely additive
+  `track: opp._track || null` field on an opportunity's anchor AND on every one of its steps
+  (`opp._track` is the SAME field `opportunities.js`'s `getOpportunityPool`/`getSchoolOpportunities`
+  already tag opportunities with, added in the immediately-prior Opportunity Finder/Project Builder
+  batch — this pass just reads a field that already existed rather than inventing a new one).
+  Setting `track` on every step (not just the anchor) is what lets a DECA/FBLA (Business) chain's
+  entire branch — every prep step's ring, the final deadline step, AND the diagonal connector line
+  itself — resolve to the identical Business color, not just its starting point. `Roadmap.jsx`'s
+  `configFor(node)` was restructured from a plain lookup-table return into a function that computes
+  the base cfg first (unchanged label/Icon logic) and then, only if `node.track` is set, overrides
+  `color` via `getTrackColor(node.track)` (`TrackVisuals.jsx`, unmodified, the exact same helper
+  Survey/Discovery/Course Selection/Opportunity Finder already call) — confirmed directly via
+  Playwright: a DECA (Business) chain's anchor ring, every prep step, and its own connector line all
+  resolve to `var(--bloom-purple)`, while a Science Olympiad (STEM) chain on the SAME roadmap
+  resolves to a genuinely different `var(--bloom-yellow)`, and the two never collide. A generic/
+  unmapped opportunity (no real track — e.g. the "Law" fallback list) simply has no `track` field
+  and falls through to the plain `var(--bloom-ink-soft)` fallback, same "don't force a fit" posture
+  this codebase's data layer already holds everywhere else. This is a purely additive data field —
+  it adds zero new logic to date/position computation, and `roadmapLayout.js`'s own spread
+  operators (`{ ...step, x, y }` in `layoutBranch`, `{ ...item, x: 0, y, ... }` at the top level)
+  already preserve any extra field a caller sets, confirmed directly by reading that file rather
+  than assumed.
+- **A real, deliberate color-collision fix made DURING this batch, not shipped and found later**:
+  the first draft gave `PROJECT_CONFIG` (a started Project Builder chain's own color) its own
+  distinct `var(--bloom-purple)`, reasoning that it deserved a visually distinct identity from a
+  generic untracked opportunity. This was wrong the moment it was checked against `getTrackColor`'s
+  own cycling logic: `TRACK_COLOR_TOKENS` cycles through all 7 bloom colors by track position, so
+  EVERY one of the 7 vivid colors is already claimed by some real interest track (business ->
+  purple, stem -> yellow, healthcare -> teal, creative -> orange, academic -> pink, sports -> blue,
+  culinary -> green, with the remaining 5 tracks wrapping back around) — meaning any single vivid
+  color picked for "Project" would necessarily collide with whichever real track happens to share
+  that same hue (business's own purple, in the exact case this pass first tried). Confirmed directly
+  via screenshot: a roadmap with both a DECA chain and a started project rendered both chains in the
+  literal same purple before this was caught. Fixed by giving `PROJECT_CONFIG` the plain
+  `var(--bloom-ink-soft)` fallback instead (the same neutral color the OLD palette's `PROJECT_CONFIG`
+  already shared with `OPPORTUNITY_CONFIG`'s own fallback, by original design, not by accident) —
+  a started project is never tied to a real interest track in the first place, so a neutral,
+  non-competing color is the more honest choice, not a downgrade.
+- **Task 3 (existing animations, recolored not redesigned)**: the mark-complete ring fill/checkmark
+  transition (`fill`/`fillOpacity` on `circle.ring`, `.node-icon-pop`'s swap-in) needed no changes
+  at all — it already reads `cfg.color` dynamically, so it automatically picks up every color
+  change from Task 1/2 with zero touched code. The node hover glow
+  (`.node-badge:hover .node-pop`'s `drop-shadow`) moved from the old teal-based `rgba(46, 110, 94,
+  0.45)` to the new green-based `rgba(47, 143, 91, 0.45)` (the literal rgba equivalent of
+  `--bloom-accent`, matching the exact same "literal rgba for an alpha-blended glow" approach the
+  old rule already used). The entrance spine-drawing animation (`roadmap-draw-line`'s stroke-
+  dashoffset reveal, `roadmap-fade-line`'s opacity fade for branches) is completely mechanically
+  unchanged — only the `stroke` color feeding into those same animations changed (per Task 1/2
+  above), not the keyframes or timing themselves. The modal's step-chain-progress text
+  (`selectedIsAnchorOnly`'s "`X / Y` steps complete" line) now reads `configFor(modalNode).color`
+  inline instead of a fixed CSS color, so it visually ties back to its own chain's real resolved
+  color (track-colored for a real opportunity) rather than a flat, unrelated hue — the exact
+  Business-purple example above shows this text in the same purple as the DECA chain's own ring.
+- **Task 4 (chrome repaint)**: the bottom panel's progress ring/number (`.progress-num`), progress
+  bar fill (`.bar-fill`), and panel icon badge (`.roadmap-panel-icon-badge`) all moved to
+  `var(--bloom-accent)`; the first-visit callout icons/arrows (`.roadmap-callout-icon`/`-arrow`)
+  did too; "Start Over" (`.btn-outline`) and "Back" (`.btn-ghost`) read their colors from the
+  SAME generic `.app-shell-bloom` button overrides already shared by every other repainted screen
+  (see Map 1's own bullet above for why Map 2 itself couldn't use that same mechanism and needed
+  direct edits instead — Map 2's `.roadmap-panel-actions` buttons are still plain `.btn-ghost`/
+  `.btn-outline`/`.btn-primary`, which DO already have bloom overrides from earlier batches, so
+  those needed no Map-2-specific work at all, only the Map-2-exclusive classes listed above did).
+  The zoom control buttons (`.zoom-btn`) were deliberately left on their existing neutral card/ink
+  styling — they're a plain icon-button chrome piece with no strong "theme color" association in
+  either palette, so recoloring them wasn't part of this task's real scope. Map 1's own trail/
+  ring/pulse/label colors (`.year-overview-path`/`-ring`/`-pulse`/`-current-tag`/`-label`, plus the
+  inline `MapPin` icon color in `YearOverview.jsx`) all moved to their Task-1-equivalent bloom
+  tokens (`--bloom-accent` for the trail/ring, `--bloom-yellow` for the current-year marker/pulse/
+  tag, `--bloom-ink` for label text) — the exact same relationships Map 2's own "You are here"
+  marker and required-spine coloring already establish, so the two maps read as visually
+  consistent with each other, not two independently-colored systems.
+- Verified after this pass: `npm run verify:spacing` passes 18/18 both before and immediately
+  after every code change in this batch (not just once at the end) — the hard, non-negotiable
+  gate for this pass, since a regression here is exactly the historical bug class this whole
+  component has broken from before when a style change got mixed with a logic change. A dedicated
+  13-check Playwright suite confirms: Map 1's body background/trail/current-marker resolve to the
+  new bloom tokens and clicking a year marker still navigates into Map 2; a Business-track (DECA)
+  chain and a STEM-track (Science Olympiad) chain on the same roadmap resolve to genuinely
+  different, track-correct colors, and DECA's own anchor ring matches its connector line's color;
+  the legend still shows all 4 categories with the new colors, now clarifying "Optional... colored
+  by interest area"; zoom-in still changes the canvas's real inline transform, a core node is
+  still clickable, and marking it complete still writes to `state.completedNodes`. The full
+  pre-existing regression suite — `test.js`, every `test-hub*.js`, `test-signup.js`,
+  `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`,
+  every `test-bloom-repaint.js`/`test-discovery-repaint.js`/`test-transcript-courseselection-
+  repaint.js`/`test-opportunity-project-repaint.js`, `test-stage4.js`, `test-roslyn-
+  consolidation.js`, `test-transcript-skip-unlock.js`, `test-ucdavis-transcript-skip-unlock.js`,
+  and the full UC Davis suite (including `test-ucdavis-density.js`, the dedicated dense-roadmap
+  cross-node-overlap check) — all still pass unmodified, confirming zero regressions to zoom/pan/
+  drag, node editing, multi-year Map 1/Map 2 navigation, or label/connector collision-avoidance.
+
 **Global interaction polish (buttons, page transitions, staggered card reveals, selection
 feedback, card depth) is scoped under a single `.polish` class, not applied to raw shared
 classes directly — this is what keeps it from leaking onto the Academic Plan screen.**

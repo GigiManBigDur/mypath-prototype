@@ -144,7 +144,7 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
               <circle className="year-overview-ring" r="20" pointerEvents="all" />
               {p.isCurrent
                 ? <Compass x="-9" y="-9" size={18} color="#fff" />
-                : <MapPin x="-8" y="-8" size={16} color="var(--teal)" />}
+                : <MapPin x="-8" y="-8" size={16} color="var(--bloom-accent)" />}
               <text
                 className="year-overview-label"
                 x={i % 2 === 1 && i !== 0 ? -30 : 30}
