@@ -231,21 +231,45 @@ unlock sequence itself, in order:
    it over time, not something only reachable once every later step is separately finished.
 6. **Transcript & GPA** (partner-school only) — `state.selectedProgramKeys.length > 0`, the same
    gate as step 5.
-7. **Course Selection** (partner-school only) — `state.gpa !== ''`. Reuses the exact same
-   "blank means not entered yet, non-blank means done-or-skipped" signal every other GPA-aware
-   consumer in this app already treats this field as (see `TranscriptScreen`'s own Continue/Skip
-   behavior, both of which write a real value here) — not a new completion concept invented for
-   this stage.
-8. **Opportunity Finder** — `hasPartnerSchool ? state.gpa !== '' : state.selectedProgramKeys.length
-   > 0`. Partner-school users follow the real screen-flow order (`transcript` → `courseSelection`
-   → `opportunities`), so this unlocks at the exact same point Course Selection itself does, not a
-   step later — Course Selection has no hard completion gate of its own in the real flow either
-   (its own Continue always advances regardless of whether any courses were actually picked).
-   Non-partner-school users have no Transcript & GPA/Course Selection step to wait on at all, so
-   they fall back to the same "at least one program selected" gate most other tiles use.
+7. **Course Selection** (partner-school only) — `state.transcriptCompleted`. Originally
+   `state.gpa !== ''` (reusing the same "blank means not entered yet" signal every other
+   GPA-aware consumer in this app treats this field as) — see the dedicated bug-fix note right
+   after this list for why that turned out to be wrong and was replaced with a purpose-built flag.
+8. **Opportunity Finder** — `hasPartnerSchool ? state.transcriptCompleted :
+   state.selectedProgramKeys.length > 0`. Partner-school users follow the real screen-flow order
+   (`transcript` → `courseSelection` → `opportunities`), so this unlocks at the exact same point
+   Course Selection itself does, not a step later — Course Selection has no hard completion gate
+   of its own in the real flow either (its own Continue always advances regardless of whether any
+   courses were actually picked). Non-partner-school users have no Transcript & GPA/Course
+   Selection step to wait on at all, so they fall back to the same "at least one program selected"
+   gate most other tiles use.
 9. **Project Builder** — `state.selectedProgramKeys.length > 0`, same reasoning as step 5/6 — it's
    optional/skippable content by its own design (see `ProjectBuilderScreen`'s own "Skip for now"
    control), so it doesn't need a stricter gate than the other program-gated tiles.
+
+**Real, confirmed bug fix: `state.gpa !== ''` was never a reliable "Transcript & GPA done or
+skipped" signal — it broke specifically for a genuine incoming freshman with zero prior
+courses.** `TranscriptScreen`'s "Skip — I haven't taken any courses yet" button (shown whenever
+`transcript` is empty) calls the exact same `advance()` function Continue does — and for a truly
+empty transcript, `calculate4ScaleGpa([])` has nothing to average and returns `null`, so
+`advance()` wrote `gpa: ''` right back out. That's byte-for-byte indistinguishable from "never
+visited this screen at all," so a student who did the RIGHT thing (explicitly skipping, per Task
+2's own "fully supported path, not a workaround") saw Course Selection stay locked afterward,
+same as before they'd touched Transcript & GPA at all — confirmed directly via Playwright before
+being fixed, not just inferred from reading the code. **`state.transcriptCompleted`** (a plain
+boolean, `AppContext.jsx` `DEFAULT_STATE`) is a dedicated completion flag that fixes this without
+touching `state.gpa`'s own semantics at all: `TranscriptScreen`'s `advance()` (both the Roslyn
+`TranscriptScreen` and `UCDavisTranscriptScreen` variants, and only their non-checkpoint branch —
+Course Selection Stage 4's per-year/per-quarter checkpoint completion is tracked separately via
+`courseCheckpoints[stageName].part1Done`/`ucdavisQuarterCheckpoints[...].part1Done` and was never
+part of this bug) now sets `transcriptCompleted: true` alongside `gpa` on every real submission,
+Continue or Skip alike, regardless of whether the transcript has any entries. `gpa` itself keeps
+meaning exactly what it always has everywhere else it's read (`ProgramsStep`'s curated program
+list, `reachMatchSafetyTag`'s Reach/Match/Safety badges) — blank still honestly means "don't
+guess," this flag is never consulted by anything GPA-VALUE-related, only by the hub's own "is this
+step done" checks (Course Selection's/Opportunity Finder's `unlock`, and `GUIDED_SEQUENCE`'s own
+`'transcript'` step `isDone` below — all three read the same old `state.gpa !== ''` before this
+fix and all three needed the same replacement).
 
 `isSurveyComplete(state)` is exported from `SurveyScreen.jsx` (not reimplemented in `HubScreen.jsx`
 as a second copy) and is the EXACT formula `SurveyScreen`'s own `canContinue` already gated on
@@ -2599,3 +2623,13 @@ download). Cover at minimum:
   flickering the full intro for one frame before disappearing (the snapshot-hook flicker bug) —
   isolated per-key checks alone won't catch this, it needs the text read immediately after mount,
   not after an arbitrary wait.
+- Transcript & GPA Skip/unlock (real, confirmed bug — see Stage 3's own bug-fix note above): seed
+  a fresh incoming-freshman-shaped state (High School, partner school selected, empty
+  `transcript`) and confirm Course Selection AND Opportunity Finder are both LOCKED on the hub
+  beforehand. Click "Skip — I haven't taken any courses yet" on Transcript & GPA and confirm
+  `state.gpa` stays `''` (honestly blank — no courses to average) while `state.transcriptCompleted`
+  becomes `true`, and that Course Selection/Opportunity Finder both unlock on the hub immediately
+  afterward. Separately confirm a REAL, filled-out transcript (at least one entry, Continue instead
+  of Skip) still produces a non-blank `gpa` AND sets `transcriptCompleted`, and still unlocks both
+  tiles exactly as before — this fix must not change that path. Repeat for the UC Davis variant
+  (`UCDavisTranscriptScreen`'s own Skip button and `ucdavisTranscript`).

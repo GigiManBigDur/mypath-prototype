@@ -47,6 +47,24 @@ const DEFAULT_STATE = {
   // '3.7'), the exact same format/field the old input produced, so ProgramsStep/roadmapGenerator
   // need zero changes. Blank ('') means no transcript entered yet, same "don't guess" fallback
   // those consumers already handle.
+  // Real, confirmed bug fix (Dashboard/Guide hub) — `state.gpa !== ''` used to double as the
+  // hub's own "Transcript & GPA is done or was explicitly skipped" unlock signal for Course
+  // Selection/Opportunity Finder/the mascot's pointing sequence. That broke for a genuine
+  // incoming freshman with zero prior courses: TranscriptScreen's "Skip — I haven't taken any
+  // courses yet" button calls the exact same `advance()` Continue does, which derives `gpa` from
+  // `calculate4ScaleGpa(transcript)` — an empty transcript averages to `null`, so `advance()`
+  // wrote `gpa: ''` right back out, indistinguishable from "never visited this screen at all," so
+  // the hub stayed locked even after a real, deliberate skip. `transcriptCompleted` is a
+  // dedicated boolean tracking ONLY "has the onboarding Transcript & GPA screen been submitted
+  // (Continue or Skip, either one)" — completely decoupled from the actual numeric GPA value, so
+  // `gpa` itself stays honestly blank for a true zero-course transcript, preserving the "don't
+  // guess" contract every other GPA-aware consumer (ProgramsStep's curated list,
+  // `reachMatchSafetyTag`'s Reach/Match/Safety badges) already depends on — this flag is never
+  // read by anything GPA-value-related, only by the hub's own "is this step done" checks.
+  // Written by TranscriptScreen's own `advance()` (both the Roslyn and UC Davis variants,
+  // non-checkpoint branch only — Course Selection Stage 4's per-year/per-quarter checkpoints are
+  // a separate, later mechanism with their own `part1Done` tracking and don't touch this field).
+  transcriptCompleted: false,
   transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
   // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.

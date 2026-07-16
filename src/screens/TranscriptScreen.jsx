@@ -121,12 +121,21 @@ export default function TranscriptScreen() {
   // transcript (even an empty one) produces. Skip is just a separate, more prominent affordance
   // for an incoming freshman with genuinely nothing to enter yet (Task 2's "fully supported path,
   // not a workaround"), not a functionally different action from Continue with zero entries.
+  // Non-checkpoint advancing also sets `transcriptCompleted: true` (AppContext.jsx) — a real,
+  // confirmed bug fix: an empty transcript's own `gpa` is honestly blank (`calculate4ScaleGpa`
+  // has nothing to average), which used to be the ONLY signal the hub read for "is Transcript &
+  // GPA done or skipped," so a genuine incoming-freshman skip left the hub thinking this screen
+  // had never been visited at all. `transcriptCompleted` is a dedicated completion flag,
+  // decoupled from the actual GPA value, so `gpa` itself keeps meaning exactly what it always
+  // has everywhere else (blank = don't guess) — see its own DEFAULT_STATE comment.
   //
   // In checkpoint mode, advancing also flips this checkpoint's own part1Done flag and returns to
   // the roadmap instead of continuing the onboarding flow — the refreshed GPA is written to the
   // exact same state.gpa field either way, so every existing GPA-aware consumer (ProgramsStep's
   // curated program list, reachMatchSafetyTag's Reach/Match/Safety badges) picks it up
-  // automatically, with zero changes needed anywhere else.
+  // automatically, with zero changes needed anywhere else. Checkpoint mode deliberately does NOT
+  // touch `transcriptCompleted` — that flag tracks only the one-time onboarding submission, not
+  // a later per-year/per-quarter revisit.
   const advance = () => {
     const newGpa = gpa4Scale != null ? String(gpa4Scale) : '';
     if (checkpoint) {
@@ -142,7 +151,7 @@ export default function TranscriptScreen() {
       });
       return;
     }
-    patch({ gpa: newGpa, screen: 'hub' });
+    patch({ gpa: newGpa, transcriptCompleted: true, screen: 'hub' });
   };
 
   const goBack = () => {
@@ -389,7 +398,7 @@ function UCDavisTranscriptScreen({ state, patch }) {
       });
       return;
     }
-    patch({ gpa: newGpa, screen: 'hub' });
+    patch({ gpa: newGpa, transcriptCompleted: true, screen: 'hub' });
   };
 
   const goBack = () => {

@@ -15,10 +15,14 @@ import { ADMISSIONS_CONTEXT_LINES } from '../data/mascotDialogue';
 // disabled and shows why, instead of just quietly doing nothing when clicked. `unlock` and
 // `lockedReason` are both `(state, hasPartnerSchool) => value` for a uniform shape even though
 // most tiles ignore `hasPartnerSchool` — only Opportunity Finder's condition actually depends on
-// it. `state.gpa !== ''` is reused as "Transcript & GPA is done or was explicitly skipped" —
-// TranscriptScreen's Continue AND Skip both write a real (non-blank) value there (see CLAUDE.md's
-// Course Selection Stage 2 section), so this is the same signal every other GPA-aware consumer in
-// this app already treats as "don't guess, blank means not entered yet," not a new concept.
+// it. `state.transcriptCompleted` is "Transcript & GPA is done or was explicitly skipped" — set
+// by TranscriptScreen's own `advance()` (Continue AND Skip both call it) the moment either one is
+// submitted. This used to be `state.gpa !== ''` instead, which broke for a genuine incoming
+// freshman with zero prior courses: Skip calls the same `advance()` Continue does, and an empty
+// transcript's own GPA is honestly blank (nothing to average), so `gpa !== ''` stayed false even
+// after a real, deliberate skip — the hub read that as "never visited," not "done." The dedicated
+// flag fixes this without touching `state.gpa`'s own "don't guess" semantics, which every other
+// GPA-aware consumer in this app (ProgramsStep, reachMatchSafetyTag) still depends on unchanged.
 const TILES = [
   {
     id: 'survey', screen: 'survey', Icon: ClipboardList,
@@ -83,7 +87,7 @@ const TILES = [
     title: 'Course Selection',
     desc: "Pick next year's courses from your school's real catalog.",
     requiresPartnerSchool: true,
-    unlock: (state) => state.gpa !== '',
+    unlock: (state) => state.transcriptCompleted,
     lockedReason: () => 'Complete or skip Transcript & GPA first',
   },
   {
@@ -96,7 +100,7 @@ const TILES = [
     id: 'opportunities', screen: 'opportunities', Icon: Search,
     title: 'Opportunity Finder',
     desc: 'Find real competitions, clubs, and programs worth pursuing.',
-    unlock: (state, hasPartnerSchool) => (hasPartnerSchool ? state.gpa !== '' : state.selectedProgramKeys.length > 0),
+    unlock: (state, hasPartnerSchool) => (hasPartnerSchool ? state.transcriptCompleted : state.selectedProgramKeys.length > 0),
     lockedReason: (state, hasPartnerSchool) => (hasPartnerSchool ? 'Complete or skip Transcript & GPA first' : 'Select at least one program first'),
   },
   {
@@ -149,7 +153,7 @@ const GUIDED_SEQUENCE = [
   },
   {
     id: 'transcript', requiresPartnerSchool: true,
-    isDone: (state) => state.gpa !== '',
+    isDone: (state) => state.transcriptCompleted,
     intro: "Let's log your grades and calculate your GPA.",
   },
   {
