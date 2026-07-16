@@ -2513,6 +2513,123 @@ moved onto it; every other screen still reads the original palette above, unchan
   pass's own scoping. The full pre-existing hub/voice/mascot/signup Playwright suite still passes
   unmodified.
 
+**Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
+Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
+plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
+bouncy tag-selection animation, and a shared track-badge/track-icon system for career/major cards.**
+`App.jsx`'s `isBloomScreen` now also covers `screenKey === 'survey' || screenKey === 'discovery'`
+(all 3 Discovery sub-steps share one screenKey) — same `.app-shell-bloom` scoping precedent as
+Welcome/Sign-Up, so Opportunity Finder/Course Selection/Project Builder/Program Summary (not yet
+repainted) stay completely unaffected. Because several of this batch's own overrides need to win a
+same-specificity tie against the pre-existing "Global interaction polish" section's own rules on
+the identical selectors (`.tag.selected`'s `animation`, `.card.selected::after`'s `background`),
+this batch's entire CSS block is deliberately placed at the very END of `global.css` — CSS
+resolves an exact specificity tie by SOURCE ORDER, so appending last is what lets these rules win
+without needing `!important` anywhere; `.polish`'s own `prefers-reduced-motion` block (which
+already disables `.tag.selected`/`.card.selected` animations via `!important`) transitively covers
+this batch's own new keyframes too, for free, since they're set on the exact same selectors.
+- **Task 1, Survey — category icon chips.** `interests.js`'s `CATEGORIES` array gained an `icon`
+  field per category (a lucide-react icon NAME string — `'Dumbbell'`, `'GraduationCap'`, etc. —
+  matching this codebase's standing "data holds icon NAMES, the screen owns the name->component
+  map" convention already established by `ProjectBuilderScreen`'s `CATEGORY_ICONS`/Sign-Up's
+  `AVATAR_OPTIONS`). `SurveyScreen.jsx` owns the actual `CATEGORY_ICON_MAP` lookup plus
+  `CATEGORY_COLORS`, a cycling array of the same 7-color "bloom" accent palette the hub's own
+  `TILE_ACCENTS`/Sign-Up's avatar colors already use (9 categories against 7 colors means the last
+  2 categories deliberately repeat an earlier color — same "cycle, don't invent extra colors"
+  precedent `TILE_ACCENTS` already set for the hub's own 10 tiles). Both the category header
+  (`.tag-category-icon`, a small colored icon box next to the label) and every individual tag chip
+  inside it (`.tag-icon`, the same icon at a smaller size) read the category's own accent via an
+  inline `--tag-accent` custom property set once per category — the same "data/JSX picks the
+  value, CSS just reads a custom property" convention this codebase already uses everywhere else
+  a small fixed palette gets cycled.
+- **Task 1's own "satisfying selection animation — a quick pop/bounce and color-fill, not just a
+  static border change"**: `.app-shell-bloom .tag.selected` gets a NEW, bouncier keyframe
+  (`bloom-tag-pop`, an overshoot-and-settle scale via `cubic-bezier(0.34, 1.56, 0.64, 1)`) layered
+  on top of the color-fill (background/border-color transitioning to the category's own
+  `--tag-accent`, which `.tag`'s own pre-existing `transition: all .12s ease` already animates
+  smoothly) — both fire together the instant `.selected` is added, with zero extra JS state:
+  adding a class with an associated CSS animation is what starts it, and toggling the tag back off
+  and on again naturally replays it, since the element stops matching `.tag.selected` in between.
+  This REPLACES (doesn't merely supplement) the plain `.polish .tag.selected { animation:
+  select-pulse 260ms ease; }` pulse for these two screens specifically — that generic, milder pulse
+  still applies everywhere else `.tag` is used (Opportunity Finder's track filter, etc.).
+- **Task 1, repainted grade/school pills**: `.pill`/`.pill-group` (shared with several
+  not-yet-repainted screens' own pill pickers) and `SchoolSearchField`'s own `.school-search-input`
+  got straightforward `.app-shell-bloom`-scoped color overrides — no new visual richness needed
+  here beyond matching the palette, since a plain pill selector doesn't have the same "wall of
+  text" problem the category tags/career cards do.
+- **Task 2 — the shared `TrackBadge`/`TrackIcon` components** (`src/components/TrackVisuals.jsx`,
+  new file) replace the plain-text `.career-group-label` with a colored pill (icon + track name,
+  `TrackBadge`) for CareersStep's own group headers and MajorsStep's Browse-mode grouped headers,
+  plus a small colored icon box (`TrackIcon`) on every individual career/major card so a dense grid
+  of text-heavy cards reads as visually distinct by subject area at a glance — directly satisfying
+  Task 2's own "add small illustrative icons... e.g., a distinct icon per career type or subject
+  area" example. `interests.js` gained a parallel `TRACK_ICON_NAMES` map (one icon name per
+  OPPORTUNITY_TRACKS entry, same "data holds names" convention as the category icons above);
+  `TrackVisuals.jsx` owns the name->component lookup and cycles the identical 7-color palette by
+  each track's own position in `TRACK_LABELS`' key order, so a track always resolves to the same
+  color everywhere it's shown, not per-call-site-arbitrary. Deliberately a NEW component/class
+  pair, not a restyle of `.career-group-label` in place — that class is also used by
+  CourseSelectionScreen's own program-recommendation sections (grouped by major/program-type, not
+  track, and not part of this repaint batch), so changing its default rendering would have leaked
+  into a screen this batch never touched.
+- **MajorsStep's Recommended (flat, ungrouped) mode gets a TrackIcon too, not just Browse mode** —
+  a real, deliberate extension, not an oversight. A `major` object (`majors.js`) carries no `track`
+  field of its own, so without extra plumbing, only Browse mode (which already groups by track via
+  `getMajorGroups`) could show one. `DiscoveryScreen.jsx` now derives `majorTrackMap` (a plain `{
+  majorId: track }` lookup) once from its own pre-existing `allMajorGroups`, reusing the EXACT
+  "first track that references it" resolution `getMajorGroups` already applies for Browse mode —
+  not a second, possibly-drifting copy of that logic — and passes it to `MajorsStep` as a new prop,
+  read only when a group's own `track` isn't already known directly (grouped mode still uses
+  `group.track`, unchanged).
+- **ProgramsStep is deliberately NOT given per-card track icons** — it's grouped by MAJOR (Browse)
+  or fully merged/ungrouped (Recommended), neither of which maps cleanly to one subject-area track
+  the way a career or major already does; forcing a track icon here would mean guessing, which
+  this codebase's own standing "don't guess" rule already forbids elsewhere. Its cards still get
+  the full palette repaint (background/border/shadow/hover) and its own group-by-major header
+  (Browse mode) is recolored to the accent green, just without an icon.
+- **A real, confirmed UX bug was found and fixed while building the per-card TrackIcon/hover
+  system**: the first pass gave every unselected card's HOVER border the same fixed
+  `--bloom-accent` green `.card.selected` already used for its own border — confirmed directly via
+  screenshot that a hovered-but-unselected card and a genuinely selected one looked nearly
+  identical in a still frame (both green-bordered, differing only in the small corner checkmark).
+  Fixed by also setting `--track-accent` (the same value `TrackIcon` already computes via
+  `getTrackColor()`) on the outer `.card` button itself in CareersStep/MajorsStep, and changing the
+  hover rule to `border-color: var(--track-accent, var(--bloom-accent))` — an unselected card's
+  hover now shows its OWN subject-area color (e.g. blue for a Sports card, purple for Business),
+  while `.card.selected` keeps a fixed, universal green border + checkmark badge as the single
+  unambiguous "this is picked" signal, distinct from the now-per-track hover highlight. Falls back
+  to the plain accent for ProgramsStep's cards, which have no per-card track color to read.
+- **Task 2's own explicit "keep Reach/Match/Safety and GPA benchmarks functioning exactly as they
+  currently do — visual pass only, no logic changes" — verified, not just asserted.**
+  `reachMatchSafetyTag`/`gpaBenchmarkText`/`selectProgramsForGpa` (`programs.js`) were not touched
+  at all; only the 3 RMS badges' colors moved to the palette (`rms-safety`→green, `rms-match`→
+  yellow with a corrected dark-ink text color since the old fixed white text was illegible against
+  the new, lighter yellow, `rms-reach`→orange). A dedicated Playwright check confirms real
+  Reach/Match/Safety text still renders from the unmodified scoring function, the "Typical GPA"
+  benchmark line still renders, and selecting a program still writes the correct
+  `${institution}::${program}` key to `state.selectedProgramKeys`.
+- **Task 2's "hover-lift... enhance"** reuses the already-defined `--bloom-shadow-hover` token (the
+  same deliberately-deep shadow the hub's own tiles use) for a card's hover state, and
+  `--bloom-shadow` for its resting elevation — both replace the old flat, ink-tinted shadow values,
+  landing as a genuine depth increase without inventing a new shadow value from scratch.
+  `.polish`'s own card rounding/resting-shadow-existence, press-scale feedback, staggered
+  entrance (`.polish .grid > *:nth-child(N)`), and selection-pulse+checkmark mechanics are all
+  completely untouched — Survey/Discovery already received `.polish` before this batch (unchanged
+  from `isBloomScreen`'s own addition), so all of that "already exists, keep it" per Task 2's own
+  instruction with zero extra code.
+- Verified after this pass: a dedicated Playwright suite (14 checks) confirms all 9 survey
+  category icon boxes render with more than one distinct color, selecting a tag both fills it with
+  color AND plays a real, measurable scale animation that settles back to neutral (and is fully
+  disabled under `prefers-reduced-motion`), multiple track badges/per-card track icons render on
+  Careers of Interest, a hovered-but-unselected card's border is confirmed to differ from a
+  selected card's border color, Programs' real Reach/Match/Safety badges and GPA benchmark text
+  still render correctly and selecting a program still writes the real state key, and — critically
+  — Opportunity Finder (not part of this batch) still resolves to the exact old parchment
+  background/button color, confirming zero leakage. The full pre-existing regression suite
+  (`test.js`, every `test-hub*.js`, `test-signup.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`) still passes unmodified.
+
 **Global interaction polish (buttons, page transitions, staggered card reveals, selection
 feedback, card depth) is scoped under a single `.polish` class, not applied to raw shared
 classes directly — this is what keeps it from leaking onto the Academic Plan screen.**

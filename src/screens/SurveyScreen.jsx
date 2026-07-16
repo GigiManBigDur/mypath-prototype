@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  ArrowLeft, ChevronDown, ChevronUp, Dumbbell, GraduationCap, Palette, Cpu, Users, Briefcase,
+  Heart, Film, Sparkles,
+} from 'lucide-react';
 import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 import StepProgress from '../components/StepProgress';
@@ -8,6 +11,19 @@ import { SCHOOLS, COLLEGE_SCHOOLS } from '../data/schools';
 import MascotWidget from '../components/MascotWidget';
 import { useMarkMascotSeen } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
+
+// Palette repaint, Discovery batch (see CLAUDE.md) — the name->component map for each category's
+// own `icon` string (interests.js), matching this codebase's standing "data holds icon NAMES, the
+// screen owns the map" convention. `CATEGORY_COLORS` cycles the same shared 7-color "bloom" accent
+// palette the hub/Sign-Up already use, by each category's own position in the CATEGORIES array —
+// there are 9 categories and 7 colors, so the last 2 deliberately repeat an earlier color (same
+// "cycle, don't invent extra colors" precedent HubScreen's own TILE_ACCENTS already established
+// for 10 tiles against the same 7-color set).
+const CATEGORY_ICON_MAP = { Dumbbell, GraduationCap, Palette, Cpu, Users, Briefcase, Heart, Film, Sparkles };
+const CATEGORY_COLORS = [
+  'var(--bloom-purple)', 'var(--bloom-yellow)', 'var(--bloom-teal)', 'var(--bloom-orange)',
+  'var(--bloom-pink)', 'var(--bloom-blue)', 'var(--bloom-green)',
+];
 
 const LEVELS = [
   { id: 'highschool', label: 'High School' },
@@ -168,20 +184,25 @@ export default function SurveyScreen() {
         <p className="field-hint">Pick as many as you'd like, across any categories below.</p>
         <div className="selection-count">{state.interestTags.length} selected</div>
 
-        {CATEGORIES.map((cat) => {
+        {CATEGORIES.map((cat, i) => {
           const isOpen = openCategory === cat.id;
           const selectedInCat = cat.tags.filter((t) => state.interestTags.includes(t.name)).length;
+          const CatIcon = CATEGORY_ICON_MAP[cat.icon];
+          const accent = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
           return (
-            <div className="tag-category" key={cat.id}>
+            <div className="tag-category" key={cat.id} style={{ '--tag-accent': accent }}>
               <button
                 type="button"
                 className="tag-category-header"
                 onClick={() => setOpenCategory(isOpen ? null : cat.id)}
               >
-                <span>{cat.label}</span>
+                <span className="tag-category-title">
+                  <span className="tag-category-icon"><CatIcon size={16} /></span>
+                  {cat.label}
+                </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {selectedInCat > 0 && <span className="tag-category-count">{selectedInCat} selected</span>}
-                  {isOpen ? <ChevronUp size={18} color="#4B5D54" /> : <ChevronDown size={18} color="#4B5D54" />}
+                  {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </span>
               </button>
               {isOpen && (
@@ -195,6 +216,7 @@ export default function SurveyScreen() {
                         className={`tag${selected ? ' selected' : ''}`}
                         onClick={() => toggleTag(t.name)}
                       >
+                        <CatIcon size={14} className="tag-icon" />
                         {t.name}
                       </button>
                     );

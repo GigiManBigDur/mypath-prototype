@@ -2649,3 +2649,166 @@ button.card.passed:hover {
     animation: none !important;
   }
 }
+
+/* ==========================================================================
+   Palette repaint, Discovery batch (see CLAUDE.md) — Survey + Discovery
+   (Careers of Interest / Related College Majors / Recommended Programs)
+   moved onto the shared "bloom" tokens (:root, near the top of this file),
+   extending the same rollout Welcome/Sign-Up already started. Scoped to
+   `.app-shell-bloom` (App.jsx's `isBloomScreen` now also covers `survey` and
+   `discovery`) so nothing here leaks onto any other, still-parchment-themed
+   screen — `.card`/`.tag`/`.pill`/`.rms-badge` etc. are all heavily shared
+   with screens NOT yet part of this repaint (Opportunity Finder, Course
+   Selection, Project Builder, Program Summary).
+
+   Deliberately placed at the very END of this file, after the "Global
+   interaction polish" section above — several rules here override an
+   ANIMATION/color `.polish` already sets on the exact same selectors
+   (`.tag.selected`, `.card.selected::after`), and two rules of equal
+   specificity resolve by source order, not just specificity; putting this
+   block last is what lets it win that tie without needing `!important`
+   anywhere. The `prefers-reduced-motion` block above already disables EVERY
+   `.tag.selected`/`.card.selected` animation via `!important`, so the new,
+   bouncier keyframes below are automatically covered by that same rule with
+   no extra reduced-motion handling needed here.
+   ========================================================================== */
+
+.app-shell.app-shell-bloom .tag-category {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .tag-category-header { color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .tag-category-count { color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .tag-category-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* `--tag-accent` is set inline per category (SurveyScreen.jsx, cycling the shared 7-color
+   palette) — the same "data/JSX picks the value, CSS just reads a custom property" convention
+   the hub's own `--tile-accent-bg` cycling already established. */
+.app-shell.app-shell-bloom .tag-category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tag-accent, var(--bloom-accent)) 16%, var(--bloom-card));
+  color: var(--tag-accent, var(--bloom-accent));
+  flex-shrink: 0;
+}
+
+.app-shell.app-shell-bloom .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink-soft);
+}
+.app-shell.app-shell-bloom .tag-icon { color: var(--tag-accent, var(--bloom-accent)); }
+.app-shell.app-shell-bloom .tag:hover { border-color: var(--tag-accent, var(--bloom-accent)); color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .tag.selected {
+  background: var(--tag-accent, var(--bloom-accent));
+  border-color: var(--tag-accent, var(--bloom-accent));
+  color: #fff;
+}
+.app-shell.app-shell-bloom .tag.selected .tag-icon { color: #fff; }
+/* Task 1's own "satisfying selection animation — a quick pop/bounce and color-fill, not just a
+   static border change": a bouncier, longer overshoot than the generic `.polish .tag.selected`
+   pulse it replaces (that one still applies everywhere else `.tag` is used — Opportunity
+   Finder's track filter, etc.). Background/border-color above already transition smoothly via
+   `.tag`'s own pre-existing `transition: all .12s ease` — this only adds the extra scale bounce
+   on TOP of that color-fill, both firing together the instant `.selected` is added. */
+.app-shell.app-shell-bloom .tag.selected { animation: bloom-tag-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes bloom-tag-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+
+.app-shell.app-shell-bloom .pill {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .pill.selected { background: var(--bloom-accent); border-color: var(--bloom-accent); color: #fff; }
+.app-shell.app-shell-bloom .school-search-input {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .selection-count { color: var(--bloom-ink-soft); }
+
+/* Careers/Majors/Programs cards — Task 2. `.polish .card` already supplies rounding + a resting
+   shadow (kept as-is); this layer only recolors and, per Task 2's own "hover-lift... enhance"
+   instruction, swaps the hover shadow for the deliberately deeper `--bloom-shadow-hover` token
+   the hub's own tiles already use, rather than the old flat rust-tinted shadow. */
+.app-shell.app-shell-bloom .card {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  box-shadow: var(--bloom-shadow);
+}
+/* Reads `--track-accent` when the card itself set one (CareersStep/MajorsStep, via
+   getTrackColor()) so an unselected card's hover border shows its OWN subject-area color instead
+   of the same fixed green `.card.selected` uses below — confirmed directly via screenshot that
+   sharing one color between "hovered" and "selected" read as ambiguous in a still frame. Falls
+   back to the plain bloom accent for cards with no track context at all (ProgramsStep, grouped
+   by major not track). */
+.app-shell.app-shell-bloom button.card:hover {
+  border-color: var(--track-accent, var(--bloom-accent));
+  box-shadow: var(--bloom-shadow-hover);
+}
+.app-shell.app-shell-bloom .card.selected {
+  border-color: var(--bloom-accent);
+  box-shadow: var(--bloom-shadow-hover), 0 0 0 2px var(--bloom-accent) inset;
+}
+.app-shell.app-shell-bloom .card.selected::after { background: var(--bloom-accent); }
+.app-shell.app-shell-bloom .card-desc { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .card-meta { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .card-meta strong { color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .card-meta .label { color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .career-group-label { color: var(--bloom-accent); border-bottom-color: var(--bloom-card-border); }
+
+/* Reach/Match/Safety badges (Programs) — Task 2's own explicit "keep... functioning exactly as
+   they currently do — visual pass only, no logic changes": `reachMatchSafetyTag`'s own thresholds
+   and return values (programs.js) are completely untouched by this repaint; only the 3 badges'
+   colors move to the new palette. `rms-match` also needs its own text color override (was a fixed
+   white, illegible on the new palette's lighter yellow). */
+.app-shell.app-shell-bloom .rms-badge.rms-safety { background: var(--bloom-green); }
+.app-shell.app-shell-bloom .rms-badge.rms-match { background: var(--bloom-yellow); color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .rms-badge.rms-reach { background: var(--bloom-orange); }
+.app-shell.app-shell-bloom .rms-caveat { color: var(--bloom-ink-soft); }
+
+/* The colored track-badge/track-icon pair (src/components/TrackVisuals.jsx) — CareersStep always,
+   MajorsStep in both its grouped (Browse) and flat (Recommended, via majorTrackMap) modes.
+   Deliberately its own small set of classes, not an override of `.career-group-label` (which
+   OTHER, not-yet-repainted screens still render as plain text) — see TrackVisuals.jsx's own
+   comment for why a new component was used instead of restyling that shared class in place. */
+.app-shell.app-shell-bloom .track-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 700;
+  padding: 6px 14px 6px 10px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+  background: var(--track-accent);
+  color: #fff;
+}
+.app-shell.app-shell-bloom .track-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  background: color-mix(in srgb, var(--track-accent) 16%, var(--bloom-card));
+  color: var(--track-accent);
+}

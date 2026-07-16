@@ -91,6 +91,14 @@ export default function DiscoveryScreen() {
   const allCareerGroups = getCareerGroups(BUILT_TRACKS, level);
   const allMajorGroups = getMajorGroups(BUILT_TRACKS, level);
   const allMajorIds = [...new Set(allMajorGroups.flatMap((g) => g.majors.map((m) => m.id)))];
+  // Palette repaint, Discovery batch (see CLAUDE.md) — a plain `{ majorId: track }` lookup so
+  // MajorsStep's own Recommended (flat, ungrouped) mode can ALSO show a real, correctly-colored
+  // TrackIcon per card, not just Browse mode (which already groups by track). Reuses the exact
+  // "first track that references it" resolution `getMajorGroups` already applies — not a second,
+  // possibly-drifting copy of that logic.
+  const majorTrackMap = Object.fromEntries(
+    allMajorGroups.flatMap((g) => g.majors.map((m) => [m.id, g.track])),
+  );
   const selectedCareers = careers.filter((c) => state.selectedCareerIds.includes(c.id));
   const majorIds = [...new Set(selectedCareers.flatMap((c) => c.relevantMajors))];
 
@@ -174,6 +182,7 @@ export default function DiscoveryScreen() {
           <MajorsStep
             majorIds={majorsView === 'recommended' ? majorIds : undefined}
             majorGroups={majorsView === 'browse' ? allMajorGroups : undefined}
+            majorTrackMap={majorTrackMap}
             selectedMajorIds={state.selectedMajorIds}
             onToggle={toggleMajor}
           />

@@ -41,15 +41,21 @@ export const TRACK_LABELS = {
   lifestyle: 'Lifestyle & Hobbies',
 };
 
+// Palette repaint, Discovery batch (see CLAUDE.md) — a lucide-react icon NAME per category, not a
+// component reference, matching this codebase's standing "data holds icon NAMES, the screen owns
+// the name->component map" convention (ProjectBuilderScreen's own CATEGORY_ICONS, SignUpScreen's
+// AVATAR_OPTIONS). SurveyScreen.jsx owns the actual name->component lookup.
 export const CATEGORIES = [
   {
     id: 'sports',
     label: 'Sports',
+    icon: 'Dumbbell',
     tags: tag(['Soccer', 'Basketball', 'Tennis', 'Swimming', 'Track & Field', 'Football'], 'sports'),
   },
   {
     id: 'academic',
     label: 'Academic',
+    icon: 'GraduationCap',
     tags: [
       ...tag(['Mathematics'], 'stem'),
       ...tag(['Philosophy', 'History', 'Literature', 'Psychology', 'Political Science'], 'academic'),
@@ -58,21 +64,25 @@ export const CATEGORIES = [
   {
     id: 'creative',
     label: 'Creative',
+    icon: 'Palette',
     tags: tag(['Visual Arts', 'Music', 'Writing', 'Theater', 'Film Production', 'Photography'], 'creative'),
   },
   {
     id: 'tech',
     label: 'Technology & Digital',
+    icon: 'Cpu',
     tags: tag(['3D Modeling', 'App Development', 'Robotics', 'Game Design', 'Cybersecurity', 'Data & AI'], 'stem'),
   },
   {
     id: 'community',
     label: 'Community & Leadership',
+    icon: 'Users',
     tags: tag(['Activism', 'Volunteering', 'Mentoring', 'Student Government', 'Nonprofit Work'], 'community'),
   },
   {
     id: 'career',
     label: 'Career & Professional',
+    icon: 'Briefcase',
     tags: [
       ...tag(['Business', 'Finance', 'Entrepreneurship', 'Marketing'], 'business'),
       ...tag(['Healthcare'], 'healthcare'),
@@ -82,6 +92,7 @@ export const CATEGORIES = [
   {
     id: 'lifestyle',
     label: 'Lifestyle & Hobbies',
+    icon: 'Heart',
     tags: [
       ...tag(['Gardening', 'Travel'], 'outdoors'),
       ...tag(['Cooking'], 'culinary'),
@@ -91,14 +102,40 @@ export const CATEGORIES = [
   {
     id: 'media',
     label: 'Media & Entertainment',
+    icon: 'Film',
     tags: tag(['Film', 'Anime', 'Podcasts', 'Gaming', 'Music Industry'], 'media'),
   },
   {
     id: 'personal',
     label: 'Personal Development',
+    icon: 'Sparkles',
     tags: tag(['Journaling', 'Mindfulness', 'Productivity', 'Public Speaking', 'Goal Setting'], 'personal'),
   },
 ];
+
+// Palette repaint, Discovery batch (see CLAUDE.md) — one lucide-react icon name per TRACK (not
+// per survey category above — tracks and categories are different concepts here, see this file's
+// own top-of-file note on `academic` alone routing to two different tracks), used by the shared
+// `TrackBadge`/`TrackIcon` components (`src/components/TrackVisuals.jsx`) so CareersStep/
+// MajorsStep's own group headers and individual cards get a distinct, recognizable icon per
+// subject area instead of a flat wall of text. Covers every OPPORTUNITY_TRACKS entry (BUILT_TRACKS
+// + 'lifestyle') for the same reason `TRACK_LABELS` already does — Browse mode can reach any of
+// them. Colors are assigned separately, by cycling the shared 7-color "bloom" accent palette in
+// this same object's own key order — see TrackVisuals.jsx.
+export const TRACK_ICON_NAMES = {
+  business: 'Briefcase',
+  stem: 'Cpu',
+  healthcare: 'Stethoscope',
+  creative: 'Palette',
+  academic: 'GraduationCap',
+  sports: 'Dumbbell',
+  culinary: 'ChefHat',
+  community: 'Users',
+  media: 'Film',
+  personal: 'Sparkles',
+  outdoors: 'Mountain',
+  lifestyle: 'Heart',
+};
 
 function tag(names, track) {
   return names.map((name) => ({ name, track }));
