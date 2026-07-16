@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
-import { Compass, Volume2, VolumeX } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Compass, Volume2, VolumeX, Settings2 } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { isSpeechAvailable, primeVoices } from './utils/speech';
+import VoiceSettingsPanel from './components/VoiceSettingsPanel';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
@@ -42,6 +43,11 @@ const TRANSITION_SCREENS = new Set([
 
 function AppShell() {
   const { state, patch } = useApp();
+  // "Show Available Voice Options" feature (see CLAUDE.md) — local, unpersisted UI state (the
+  // panel itself is always closed on a fresh load, matching every other transient overlay in
+  // this app; the STUDENT'S ACTUAL PICK, state.voiceURI, is what's persisted, not whether this
+  // panel happens to be open).
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const screenKey = SCREENS[state.screen] ? state.screen : 'hub';
   const Screen = SCREENS[screenKey];
   // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
@@ -69,19 +75,31 @@ function AppShell() {
             MyPath — prototype
           </div>
           {isSpeechAvailable() && (
-            <button
-              type="button"
-              className="voice-mute-toggle"
-              onClick={() => patch({ voiceMuted: !state.voiceMuted })}
-              aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-              aria-pressed={state.voiceMuted}
-              title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-            >
-              {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
+            <div className="header-actions">
+              <button
+                type="button"
+                className="header-icon-btn voice-settings-toggle"
+                onClick={() => setVoiceSettingsOpen(true)}
+                aria-label="Choose mascot voice"
+                title="Choose mascot voice"
+              >
+                <Settings2 size={16} />
+              </button>
+              <button
+                type="button"
+                className="header-icon-btn voice-mute-toggle"
+                onClick={() => patch({ voiceMuted: !state.voiceMuted })}
+                aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+                aria-pressed={state.voiceMuted}
+                title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+              >
+                {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
           )}
         </div>
       )}
+      <VoiceSettingsPanel isOpen={voiceSettingsOpen} onClose={() => setVoiceSettingsOpen(false)} />
       {needsTransition ? (
         <div className="screen-transition" key={`${screenKey}:${isPlanDetail ? 'detail' : 'overview'}`}>
           <Screen />

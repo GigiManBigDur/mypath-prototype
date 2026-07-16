@@ -160,6 +160,15 @@ const DEFAULT_STATE = {
   // which is a reasonable bonus for a deliberate mute choice, not something worth engineering
   // around. "Start Over" resetting it back to on along with everything else is fine — that's a
   // fresh run of the app, same as every other DEFAULT_STATE field.
+  voiceURI: null, // "Show Available Voice Options" (see CLAUDE.md) — the `voiceURI` of a specific
+  // browser voice the student explicitly picked after previewing options in the voice settings
+  // panel (App.jsx's own trigger next to the mute toggle), or `null` if they haven't picked one
+  // yet (in which case speech.js's own auto-pick heuristic decides). A voice's `voiceURI` is the
+  // one part of a `SpeechSynthesisVoice` worth persisting — the objects themselves aren't
+  // meaningful to serialize, and aren't guaranteed to be the same instances across a later
+  // `getVoices()` re-fetch anyway (speech.js re-resolves this URI against the CURRENT voice list
+  // every time it's used, so a voice that's no longer available on a different device/browser
+  // safely falls back to the heuristic instead of silently failing).
 };
 
 function loadInitialState() {

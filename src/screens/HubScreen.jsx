@@ -209,7 +209,7 @@ export default function HubScreen() {
   // There's no "dismiss" concept for this always-visible bubble, so it just speaks whenever
   // `nextStepIntro` changes (advancing to a new guided step) and stops on unmount (navigating
   // away from the hub) — both handled inside the hook itself.
-  useMascotSpeech(nextStepIntro, state.voiceMuted);
+  useMascotSpeech(nextStepIntro, state.voiceMuted, state.voiceURI);
 
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it

@@ -49,7 +49,7 @@ export default function MascotWidget({ text }) {
   // stops the speech immediately" work for free: from useMascotSpeech's own perspective, a
   // dismiss is just an ordinary "the current line went away" change, handled by the exact same
   // effect that also stops audio when a screen navigates away or the line is genuinely replaced.
-  useMascotSpeech(!dismissed ? text : null, state.voiceMuted);
+  useMascotSpeech(!dismissed ? text : null, state.voiceMuted, state.voiceURI);
 
   if (!text || dismissed) return null;
 

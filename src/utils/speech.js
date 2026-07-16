@@ -36,20 +36,43 @@ export function primeVoices() {
   }
 }
 
+// "Show Available Voice Options" feature (see CLAUDE.md) — the real voice list this device/
+// browser actually offers, exposed so a settings panel can list every option with a preview
+// button, rather than the app silently guessing on the student's behalf. Always a fresh read
+// (via `refreshVoices()`), not a stale snapshot from whenever this was first called.
+export function getAvailableVoices() {
+  refreshVoices();
+  return cachedVoices;
+}
+
 // No API exposes "which voice sounds warm/friendly" — this is a plain name-substring wishlist of
 // voices commonly available on major platforms (macOS/iOS Safari, Chrome, Windows Edge) that
 // tend to read as more natural than a device's absolute-first default, checked in order; the
 // first one actually present on this device/browser wins. Falls through to "first English voice,
 // then just the first voice available" if none of these are present — matching Task 1's own
-// "choose one that sounds relatively natural if there's a choice, defaulting to whatever's first"
-// instruction.
+// original "choose one that sounds relatively natural if there's a choice, defaulting to
+// whatever's first" instruction. Only ever consulted now when `preferredURI` (below) doesn't
+// resolve to a real voice — i.e. the student hasn't explicitly picked one yet, or picked one that
+// stopped being available (a device/voice-pack change) — since an explicit human pick should
+// always win over this heuristic guess.
 const PREFERRED_VOICE_NAME_HINTS = [
   'Samantha', 'Google US English', 'Microsoft Zira', 'Karen', 'Moira', 'Google UK English Female',
 ];
 
-function pickVoice() {
+// `preferredURI` is `state.voiceURI` (AppContext.jsx) — a voice's own stable `voiceURI`, the one
+// thing about a `SpeechSynthesisVoice` worth persisting (the objects themselves aren't meaningful
+// to serialize/store, and aren't guaranteed to be the same object instances across a
+// `getVoices()` re-fetch anyway). Resolved fresh against the CURRENT voice list every call,
+// rather than cached, so a voice that's no longer available (uninstalled, or a genuinely
+// different device) safely falls through to the auto-pick heuristic instead of silently doing
+// nothing.
+function pickVoice(preferredURI) {
   refreshVoices();
   if (cachedVoices.length === 0) return null;
+  if (preferredURI) {
+    const preferred = cachedVoices.find((v) => v.voiceURI === preferredURI);
+    if (preferred) return preferred;
+  }
   for (const hint of PREFERRED_VOICE_NAME_HINTS) {
     const match = cachedVoices.find((v) => v.name.includes(hint));
     if (match) return match;
@@ -66,18 +89,21 @@ const SPEECH_PITCH = 1.05;
 
 // Speaks `text` aloud, replacing whatever was speaking before (a mascot line changing — the
 // student advancing to a new screen/sub-step, or the survey's own staggered sequence moving on
-// — should always interrupt the previous line, never queue behind it). A real, confirmed
-// "fail silently" case (Task 3): if speech isn't available at all, OR the voice list is still
-// empty even after `primeVoices()` had a chance to populate it (a device/browser with genuinely
-// no usable voices), this is a deliberate no-op — no error, no attempted `speak()` call, the
-// caller's own text UI is completely unaffected either way.
-export function speak(text) {
+// — should always interrupt the previous line, never queue behind it; the same is true of a
+// voice-settings preview interrupting a mascot line, or vice versa — there's still only ever one
+// utterance meaningfully "in flight"). A real, confirmed "fail silently" case (Task 3): if speech
+// isn't available at all, OR the voice list is still empty even after `primeVoices()` had a
+// chance to populate it (a device/browser with genuinely no usable voices), this is a deliberate
+// no-op — no error, no attempted `speak()` call, the caller's own text UI is completely
+// unaffected either way. `preferredURI` (optional) is a specific voice's `voiceURI` to use
+// instead of the auto-pick heuristic — see `pickVoice()`'s own comment.
+export function speak(text, preferredURI) {
   if (!isSpeechAvailable() || !text) return;
   refreshVoices();
   if (cachedVoices.length === 0) return;
   window.speechSynthesis.cancel();
   const utterance = new window.SpeechSynthesisUtterance(text);
-  const voice = pickVoice();
+  const voice = pickVoice(preferredURI);
   if (voice) utterance.voice = voice;
   utterance.rate = SPEECH_RATE;
   utterance.pitch = SPEECH_PITCH;

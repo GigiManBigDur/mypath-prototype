@@ -689,6 +689,55 @@ Deliberately styled smaller/dimmer than even `.btn-ghost`'s already-quiet defaul
 (`.hub-reset-btn`, 11px, 55% opacity until hover) and placed below the entire tile grid, set apart
 from the hub's own real actions rather than looking like one more option in that row.
 
+**"Show Available Voice Options" — Stage 6's voiceover used to always auto-pick a voice
+(`speech.js`'s own name-substring wishlist); a small, explicitly temporary settings panel now
+lets the student see every real voice the browser offers, preview each with an actual mascot
+line, and pick one that replaces the auto-pick everywhere the mascot speaks.**
+- **`speech.js` gained `getAvailableVoices()`** (a fresh `refreshVoices()` + return of the live
+  list, not a stale snapshot) and both `pickVoice()`/`speak()` now accept an optional
+  `preferredURI` — a specific voice's own `voiceURI`, checked FIRST before falling through to the
+  existing wishlist heuristic. `state.voiceURI` (`AppContext.jsx`, `null` by default) is the one
+  thing about a picked `SpeechSynthesisVoice` worth persisting — the objects themselves aren't
+  meaningful to serialize and aren't guaranteed to be the same instances across a later
+  `getVoices()` re-fetch, so this is resolved fresh against the CURRENT voice list on every
+  `speak()` call rather than cached; a voice that's no longer available (uninstalled, or genuinely
+  a different device) safely falls through to the heuristic instead of silently failing.
+- **`useMascotSpeech(text, muted, voiceURI)`** gained the third param, threaded straight into
+  `speak()`. Its own `lastSpokenRef` now tracks `{ text, voiceURI }` together, not just `text` —
+  deliberately, so that picking a DIFFERENT voice while the same dialogue line is still on screen
+  counts as a real, speak-worthy change too: the current line re-speaks immediately in the newly
+  picked voice, rather than only taking effect the next time the text happens to change on its
+  own. Both callers (`MascotWidget.jsx`, `HubScreen.jsx`) now pass `state.voiceURI` alongside
+  `state.voiceMuted`, the same "read shared state directly via `useApp()`, don't thread a new prop
+  through every Stage-5 screen" approach `voiceMuted` itself already established.
+- **`VoiceSettingsPanel.jsx`** is a new, deliberately small/temporary modal — reuses this
+  codebase's existing modal language wholesale (`.overlay`/`.modal`/`.modal-close`/
+  `.modal-eyebrow`/`.modal-title`, `useModalExit` for the fade in/out, `createPortal(...,
+  document.body)`) rather than inventing new UI for what's explicitly a testing tool, not a
+  permanent feature. Lists every voice from `getAvailableVoices()` (re-read fresh each time the
+  panel opens, not once on module load, so it reflects whatever's actually loaded by then) as a
+  row with a round "preview" button (`speak(SAMPLE_TEXT, voice.voiceURI)`, where `SAMPLE_TEXT` is
+  `getMascotLine('survey-intro')` — a real mascot line, not placeholder text) and a "pick" button
+  (`patch({ voiceURI: voice.voiceURI })`) side by side, plus a "Default (auto-picked)" row at the
+  top (`patch({ voiceURI: null })`) to explicitly clear a pick and fall back to the heuristic
+  again. The currently-selected row gets a checkmark and highlighted border either way. An empty
+  voice list shows its own honest message rather than a blank list — the same "don't guess, don't
+  silently show nothing" posture `speech.js`'s own zero-voices fallback already established.
+- **Trigger**: a small gear icon (`Settings2`, `lucide-react`) in `App.jsx`'s persistent header,
+  right next to the existing mute toggle — both wrapped in a new `.header-actions` flex row so
+  `.app-header`'s own `justify-content: space-between` still treats them as one unit at the
+  right-hand end. **A real, confirmed naming collision surfaced and was fixed while building
+  this**: both buttons initially shared the literal class `.voice-mute-toggle` for their identical
+  round-icon styling, which broke a PRE-EXISTING Playwright test's own `.voice-mute-toggle`
+  locator (confirmed directly — it silently resolved to 2 elements and Playwright clicked
+  whichever came first in the DOM, the new settings button, not the real mute toggle, causing
+  several of that test's own assertions to fail even though the mute toggle itself worked fine
+  when clicked directly). Fixed by extracting the shared look into `.header-icon-btn` (applied to
+  both) while giving each button back its own distinct, uniquely-selectable class
+  (`.voice-mute-toggle` / `.voice-settings-toggle`) — the lesson being that reusing an
+  already-meaningful class name purely for its styling, on a second unrelated element, can quietly
+  break something that was relying on that class being unique.
+
 **`ProgramSummaryScreen.jsx` aggregates every program the student selected across Discovery into
 one Reach/Match/Safety-grouped list — deliberately a pure display layer, not a new scoring
 system.** Every program's tag comes from calling the exact same `reachMatchSafetyTag(state.gpa,
@@ -2737,3 +2786,17 @@ download). Cover at minimum:
   completely unaffected. Separately, patch `getVoices()` alone to return `[]` (leaving `speak`/
   `cancel` real) and confirm zero `speak()` calls are attempted while dialogue text still renders
   normally.
+- "Show Available Voice Options": open the voice settings panel (the gear icon, distinct from the
+  mute toggle right next to it — re-verify these are two independently-clickable elements, not the
+  same regression the naming-collision bug above already caused once) and confirm the list shows
+  more than one real voice with real names, not a single placeholder entry. Click a preview button
+  and confirm (via the same `speechSynthesis.speak`/`.cancel` monkey-patch instrumentation the
+  Stage 6 tests use) that it fires a real `speak()` call using that exact row's own voice and the
+  real mascot sample line, not placeholder text. Pick a voice and confirm `state.voiceURI` is set,
+  exactly one row shows as selected, and — a real, non-obvious behavior worth checking
+  specifically — the currently-displayed mascot line re-speaks immediately in the new voice rather
+  than waiting for the next natural dialogue change. Reload onto a DIFFERENT screen entirely (e.g.
+  Survey) with that same `voiceURI` already in state and confirm its own in-flow mascot dialogue
+  speaks using that exact voice too — the pick has to be honored app-wide, not just from within
+  the panel that set it. Confirm picking "Default (auto-picked)" clears `state.voiceURI` back to
+  `null`.
