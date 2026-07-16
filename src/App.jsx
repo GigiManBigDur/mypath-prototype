@@ -63,20 +63,21 @@ function AppShell() {
   // hub's own tile/card hover-press treatment is redesigned from scratch below, not the shared
   // one every other `.card`-based screen uses — applying both would double up or fight each other.
   const isHub = screenKey === 'hub';
-  // Palette repaint (see CLAUDE.md) — Welcome and Sign-Up were the first two screens moved onto
-  // the "bloom" palette (the colorful set first established for the hub redesign); Survey and
+  // Palette repaint (see CLAUDE.md) — Welcome and Sign-Up were the first batch moved onto the
+  // "bloom" palette (the colorful set first established for the hub redesign); Survey and
   // Discovery (Careers of Interest / Related College Majors / Recommended Programs — all one
-  // `discovery` screenKey) are the second batch. `.app-shell-bloom` scopes the shared-chrome color
-  // overrides (`.btn-primary`, `.card`, `.tag`, `.pill`, `.rms-badge`, etc. — global.css) so
-  // nothing leaks onto any other, still-parchment-themed screen (Opportunity Finder, Course
-  // Selection, Project Builder, Program Summary — none of those are repainted yet), same scoping
-  // precedent `.app-shell-hub`/`.app-shell-plan` already established. Added ALONGSIDE `.polish`
-  // (not instead of it, unlike the hub) — none of these screens built their own custom button/
-  // card interaction system the way the hub did, so they still want the shared press/hover
-  // feedback (and the staggered card-reveal entrance, and the selection-pulse+checkmark) `.polish`
-  // already provides everywhere else.
+  // `discovery` screenKey) were the second; Transcript & GPA and Course Selection are the third.
+  // `.app-shell-bloom` scopes the shared-chrome color overrides (`.btn-primary`, `.card`, `.tag`,
+  // `.pill`, `.rms-badge`, etc. — global.css) so nothing leaks onto any other, still-parchment-
+  // themed screen (Opportunity Finder, Project Builder, Program Summary — none of those are
+  // repainted yet), same scoping precedent `.app-shell-hub`/`.app-shell-plan` already established.
+  // Added ALONGSIDE `.polish` (not instead of it, unlike the hub) — none of these screens built
+  // their own custom button/card interaction system the way the hub did, so they still want the
+  // shared press/hover feedback (and the staggered card-reveal entrance, and the selection-pulse+
+  // checkmark) `.polish` already provides everywhere else.
   const isBloomScreen = screenKey === 'welcome' || screenKey === 'signup'
-    || screenKey === 'survey' || screenKey === 'discovery';
+    || screenKey === 'survey' || screenKey === 'discovery'
+    || screenKey === 'transcript' || screenKey === 'courseSelection';
 
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — prime the browser's voice list once, as
   // early as possible in the app's lifetime, so it's very likely already populated by the time

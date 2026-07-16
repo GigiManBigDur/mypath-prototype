@@ -2630,6 +2630,123 @@ this batch's own new keyframes too, for free, since they're set on the exact sam
   (`test.js`, every `test-hub*.js`, `test-signup.js`, `test-return-to-hub.js`,
   `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`) still passes unmodified.
 
+**Palette repaint, Transcript/Course Selection batch — Transcript & GPA and Course Selection
+(both Roslyn and UC Davis variants) move onto the shared "bloom" tokens, reusing Batch 1's own
+subject/track colors rather than inventing a second color mapping, plus a GPA count-up animation,
+a real report-card visual treatment, per-course track icons, and real credit-progress bars.**
+`App.jsx`'s `isBloomScreen` now also covers `screenKey === 'transcript' || screenKey ===
+'courseSelection'` — same `.app-shell-bloom` scoping precedent as the two batches before it, so
+Opportunity Finder/Project Builder/Program Summary (still not repainted) stay unaffected.
+- **`src/data/courseTrackMap.js`** (new file) is the one place Roslyn's 11 real course departments
+  (courses.js) and UC Davis's 6 real subject areas (`UCDAVIS_AREAS`, ucdavisCourses.js) map onto a
+  TRACK — and therefore onto the exact color `getTrackColor` (TrackVisuals.jsx, Batch 1) already
+  resolves for that track, satisfying this batch's own explicit "reuse the same colors established
+  in Batch 1's survey interest tags" instruction directly (e.g. `Math` courses get the identical
+  color the `Mathematics` interest tag already has, since both route through the `stem` track).
+  `DEPARTMENT_TRACK_MAP`/`UCDAVIS_AREA_TRACK_MAP` and their `getDepartmentColor`/
+  `getUCDavisAreaColor` helpers are the only new mapping — no new colors were invented. **Special
+  Education is deliberately left OUT of `DEPARTMENT_TRACK_MAP`** (its IEP-driven courses aren't
+  tied to any one subject/interest area) — `getDepartmentColor` returns `null` for it, and every
+  consumer falls back to a neutral, uncolored treatment via CSS's own `var(--course-accent,
+  ...)` default, rather than forcing an invented mapping onto data that doesn't honestly support
+  one, the same "don't guess" posture this app's data layer already holds everywhere else.
+- **`src/hooks/useCountUp.js`** (new file) is Task 1's own "a satisfying animation when the GPA
+  numbers calculate/update — a count-up effect... rather than an instant static update," shared by
+  a new `GpaBox` component (`TranscriptScreen.jsx`) used by all 4 GPA summary boxes (Roslyn's 3,
+  UC Davis's 1). Purely a display wrapper — the real GPA value (`calculateUnweightedGpa`/
+  `calculateWeightedGpa`/`calculate4ScaleGpa`/`calculateUCDavisGpa`, none of which this pass
+  touches) is passed straight in; the hook only decides what number to show on any given animation
+  frame while transitioning toward it, easing from the PREVIOUSLY shown value to the new one
+  (ease-out cubic, ~700ms). The very first value a student ever sees (an empty transcript's own
+  "—" turning into a real number for the first time) intentionally does NOT animate — there's no
+  meaningful "count up from nothing." A real, deliberate correctness fix during development: the
+  hook tracks whatever's CURRENTLY on screen (a ref updated every animation frame), not just the
+  value an animation started FROM — without this, two GPA-changing edits made in quick succession
+  (before the first count-up finished) would visibly jump back to the first edit's own start point
+  before counting up again, instead of smoothly continuing from wherever the display actually sat
+  at that moment. Verified directly (not just read): adding a second transcript course while the
+  page stays mounted shows the GPA value pass through multiple distinct intermediate numbers
+  before settling, confirmed via repeated `textContent` sampling over the animation's own real
+  duration.
+- **The transcript table itself gets the "actual transcript/report-card metaphor" Task 1 asked
+  for** — a real card frame (background/border/radius/shadow, the same `--bloom-shadow` token
+  every other repainted card already uses) instead of a bare `<table>` floating on the page
+  background, plus a colored left-edge stripe per row (`--course-accent`, set inline per entry via
+  `getDepartmentColor`/`getUCDavisAreaColor`) and a per-row entrance animation
+  (`transcript-row-reveal`) that plays only once, the moment a row is genuinely NEW (a fresh
+  transcript entry gets a new `key`/DOM node; existing rows aren't remounted when a sibling is
+  added or removed, so they never replay it) — satisfying "a nice reveal animation as each course
+  is added" with zero extra JS state, the same "new key = new DOM node = animation naturally
+  replays only for genuinely new items" pattern this whole repaint series already established
+  elsewhere (the hub's own tile pop-in, Course Selection's own section reveal below).
+- **Course cards (both `CourseCard`/Roslyn and `UCDavisCourseCard`) gained a small colored
+  `TrackIcon`** (Batch 1's own shared component, TrackVisuals.jsx — reused directly, not
+  duplicated) atop each card, resolved through the same department/area->track mapping the
+  transcript table uses, satisfying Task 2's "color-code course cards by subject/department" with
+  the identical visual language Discovery's own career/major cards already established. The course
+  detail modal's own eyebrow line (previously a hardcoded `var(--teal)`, an inline style that no
+  CSS class override could ever beat) was updated to read the SAME resolved track color directly,
+  so opening a course's modal shows its eyebrow in the exact color its card icon already used.
+- **Task 2's own "a credit-progress bar per subject area... where that makes sense"** replaces
+  ONLY the "Subject Minimums" policy card's plain bullet list (`SUBJECT_CREDIT_REQUIREMENTS`,
+  CourseSelectionScreen.jsx) — the one POLICY_SECTIONS entry that's actually a measurable progress
+  toward a real number, unlike the other 6 cards' plain facts (graduation requirements, diploma
+  types, etc., all left untouched as plain lists). `creditsEarnedFor()` sums real
+  `course.credit` values (courses.js) across `state.transcript` for whichever department(s) map to
+  each subject bucket — genuinely new, additive derived data, not a change to any existing
+  GPA/prerequisite function. PE and Health are deliberately combined into one "PE/Health" bucket
+  (2 + 0.5 = 2.5 credits) since both are graded under the exact same real `course.department`
+  value in courses.js — splitting them would mean fabricating a distinction the catalog data
+  doesn't actually support. Electives (3.5 credits) and the Advanced-Regents-specific variations
+  are left as a plain text note below the bars, not forced into a bar of their own, since
+  "elective" isn't tied to any one department and there's no honest way to measure progress
+  toward it from a transcript entry's own department field. The bar itself is a plain CSS
+  track+fill div, no chart library — matching this app's existing "simple CSS shapes over
+  dependencies" posture (the hub's own conic-gradient progress ring, etc.).
+- **Task 2's "smooth expand/reveal animation... when they appear" for Program-Specific Course
+  Recommendations and School-Specific Requirements** — a NEW `program-rec-group` class (alongside
+  the existing shared `career-group`) is what this animation hooks into, deliberately NOT a
+  bloom-scoped restyle of bare `.career-group` itself, since that class is also shared with
+  Discovery's own career/major/program groups (Batch 1), which already have their own different
+  entrance treatment (the `.polish`-driven staggered CARD reveal, not a group-wrapper-level one)
+  and shouldn't gain a second, redundant animation here. `.school-req-card` needed no new class,
+  since it's already exclusive to this one section. Both plays once per section, the moment it's
+  actually mounted — a newly-eligible program type or a newly-selected school+program key gets a
+  fresh key/DOM node; an already-shown one isn't remounted when a sibling is added, so it never
+  replays this.
+- **Task 2's own explicit "no functional changes" — verified, not just asserted.**
+  `checkPrerequisite` (utils/prerequisites.js), `getSelectedProgramTypes`/`getProgramTypeCourses`
+  (programRecommendations.js), and `getSchoolRequirement` (schoolRequirements.js) were not touched
+  at all. The pre-existing Course Selection Stage 4 Playwright suite (`test-stage4.js` — real
+  prerequisite locking/unlocking through a genuine checkpoint Part 1 → Part 2 flow,
+  `test-roslyn-consolidation.js` — the one-task-per-cycle consolidation behavior) was re-run
+  against the repainted screen and passes unmodified, confirming the checkpoint mechanism,
+  prerequisite gating, and course-request consolidation all still work exactly as before. A
+  dedicated new check also confirms the real, previously-verified Cornell Communication
+  School-Specific Requirement still renders its exact real text (citing "Introductory Biology")
+  inside the newly-animated card, and that a credit-progress bar reflects a REAL transcript entry's
+  credit value, not a static/fake number.
+- **A real, confirmed pre-existing test-suite bug was found and fixed while regression-testing
+  this batch, unrelated to this pass's own changes**: `test-transcript-skip-unlock.js`,
+  `test-ucdavis-transcript-skip-unlock.js`, and part of `test-ucdavis.js` still referenced the hub
+  tile's own OLD `.card-title` selector from before the hub's radial-layout pass renamed it to
+  `.hub-tile-title` (see that pass's own CLAUDE.md section) — these three files were missed during
+  that earlier rename's own test-suite cleanup. Fixed the same way that pass already fixed several
+  other test files, leaving every OTHER, correctly-scoped `.card-title` reference in these same
+  files untouched (Discovery/Opportunity Finder cards still legitimately use that class — only hub
+  tiles were ever renamed).
+- Verified after this pass: a dedicated Playwright suite (12 checks) confirms a Math transcript
+  row's own accent color is byte-for-byte the same `--bloom-yellow` token the Survey's
+  "Mathematics" tag/stem track already resolves to (not just visually similar), a Business row
+  shows a genuinely different color, the transcript table has a real card frame, the GPA count-up
+  passes through multiple distinct intermediate values before settling, a Math course card's own
+  `TrackIcon` uses that identical yellow too, real transcript-derived credit-progress numbers are
+  honest (0 for a subject with no courses taken, the real credit total for one that has), the
+  Program-Specific section's reveal animation is real, and the verified School-Specific
+  requirement's actual text is unchanged. The full pre-existing regression suite — including the
+  UC Davis Course Selection Stage 2/3/4 suites and the general `test.js`/`test-hub*.js`/
+  `test-signup.js` suites — still passes.
+
 **Global interaction polish (buttons, page transitions, staggered card reveals, selection
 feedback, card depth) is scoped under a single `.polish` class, not applied to raw shared
 classes directly — this is what keeps it from leaking onto the Academic Plan screen.**

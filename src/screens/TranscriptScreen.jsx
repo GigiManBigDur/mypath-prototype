@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { getCourseById } from '../data/courses';
-import { getCourseById as getUCDavisCourseById, searchUCDavisCourses } from '../data/ucdavisCourses';
+import { getCourseById as getUCDavisCourseById, searchUCDavisCourses, getAreaForSubjectCode } from '../data/ucdavisCourses';
 import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
+import { getDepartmentColor, getUCDavisAreaColor } from '../data/courseTrackMap';
 import { useApp } from '../context/AppContext';
 import { makeTaskId } from '../utils/ids';
 import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from '../utils/gpa';
@@ -12,6 +13,23 @@ import CourseSearchField from '../components/CourseSearchField';
 import MascotWidget from '../components/MascotWidget';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
+import { useCountUp } from '../hooks/useCountUp';
+
+// Palette repaint, Transcript/Course Selection batch (see CLAUDE.md) — Task 1's own "count-up
+// effect... rather than an instant static update" for the GPA summary boxes, shared by both the
+// Roslyn (3 boxes) and UC Davis (1 box) variants below. Purely a display wrapper around
+// `useCountUp` — the REAL value (already computed by calculateUnweightedGpa/calculateWeightedGpa/
+// calculate4ScaleGpa/calculateUCDavisGpa, none of which this pass touches) is what's passed in;
+// this only decides how the transition to a new value is shown, never recomputes anything.
+function GpaBox({ value, label }) {
+  const displayed = useCountUp(value);
+  return (
+    <div className="gpa-summary-box">
+      <div className="gpa-summary-value">{displayed != null ? displayed.toFixed(2) : '—'}</div>
+      <div className="gpa-summary-label">{label}</div>
+    </div>
+  );
+}
 
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
@@ -256,8 +274,15 @@ export default function TranscriptScreen() {
             <tbody>
               {transcript.map((entry) => {
                 const course = getCourseById(entry.courseId);
+                // Task 1's own "color-code each entered course by subject/department, using the
+                // same colors established in Batch 1" — reuses the identical track color a
+                // student would already see for the matching Survey interest tag/Discovery card
+                // (getDepartmentColor, courseTrackMap.js), not a separately-invented mapping.
+                // `null` for Special Education (no honest track fit) falls back to a plain,
+                // uncolored row via CSS's own `var(--course-accent, ...)` default.
+                const accent = course ? getDepartmentColor(course.department) : null;
                 return (
-                  <tr key={entry.id}>
+                  <tr key={entry.id} style={accent ? { '--course-accent': accent } : undefined}>
                     <td>{course ? course.name : entry.courseId}</td>
                     <td>{entry.gradeEarned}</td>
                     <td>{entry.yearTaken === 8 ? '8th' : `${entry.yearTaken}th`}</td>
@@ -274,18 +299,9 @@ export default function TranscriptScreen() {
           </table>
 
           <div className="gpa-summary">
-            <div className="gpa-summary-box">
-              <div className="gpa-summary-value">{unweightedGpa != null ? unweightedGpa.toFixed(2) : '—'}</div>
-              <div className="gpa-summary-label">Unweighted GPA</div>
-            </div>
-            <div className="gpa-summary-box">
-              <div className="gpa-summary-value">{weightedGpa != null ? weightedGpa.toFixed(2) : '—'}</div>
-              <div className="gpa-summary-label">Weighted GPA</div>
-            </div>
-            <div className="gpa-summary-box">
-              <div className="gpa-summary-value">{gpa4Scale != null ? gpa4Scale.toFixed(2) : '—'}</div>
-              <div className="gpa-summary-label">4.0-Scale Equivalent</div>
-            </div>
+            <GpaBox value={unweightedGpa} label="Unweighted GPA" />
+            <GpaBox value={weightedGpa} label="Weighted GPA" />
+            <GpaBox value={gpa4Scale} label="4.0-Scale Equivalent" />
           </div>
           <p className="field-hint" style={{ marginTop: -12, marginBottom: 18 }}>
             The 4.0-scale equivalent (converted from your unweighted GPA) is what's used for program
@@ -563,8 +579,12 @@ function UCDavisTranscriptScreen({ state, patch }) {
             <tbody>
               {ucdavisTranscript.map((entry) => {
                 const course = getUCDavisCourseById(entry.courseId);
+                // Same "reuse Batch 1's colors" treatment as the Roslyn table above, resolved via
+                // UC Davis's own 6 subject areas instead of Roslyn's 11 departments.
+                const area = course ? getAreaForSubjectCode(course.subjectCode) : null;
+                const accent = area ? getUCDavisAreaColor(area.id) : null;
                 return (
-                  <tr key={entry.id}>
+                  <tr key={entry.id} style={accent ? { '--course-accent': accent } : undefined}>
                     <td>{course ? `${course.code} — ${course.name}` : entry.courseId}</td>
                     <td>{entry.letterGrade}</td>
                     <td>{entry.quarter} · {entry.classYear}</td>
@@ -580,10 +600,7 @@ function UCDavisTranscriptScreen({ state, patch }) {
           </table>
 
           <div className="gpa-summary">
-            <div className="gpa-summary-box">
-              <div className="gpa-summary-value">{gpa != null ? gpa.toFixed(2) : '—'}</div>
-              <div className="gpa-summary-label">GPA (4.0 scale)</div>
-            </div>
+            <GpaBox value={gpa} label="GPA (4.0 scale)" />
           </div>
           <p className="field-hint" style={{ marginTop: -12, marginBottom: 18 }}>
             P/NP courses are excluded from this GPA, same as UC Davis's own policy. This number is

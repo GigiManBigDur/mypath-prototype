@@ -32,6 +32,8 @@ import { useModalExit } from '../hooks/useModalExit';
 import MascotWidget from '../components/MascotWidget';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
+import { TrackIcon } from '../components/TrackVisuals';
+import { DEPARTMENT_TRACK_MAP, UCDAVIS_AREA_TRACK_MAP, getDepartmentColor, getUCDavisAreaColor } from '../data/courseTrackMap';
 
 // A preview needs to end at a sentence or word boundary, never mid-word — the bug this fixes
 // was a card showing "The program is..." because the STORED description itself used to be
@@ -126,6 +128,40 @@ const POLICY_SECTIONS = [
   },
 ];
 
+// Palette repaint, Transcript/Course Selection batch (see CLAUDE.md) — Task 2's own "a credit-
+// progress bar per subject area... where that makes sense," replacing the "Subject Minimums"
+// policy card's plain bullet list specifically (the one line item in POLICY_SECTIONS that's
+// actually a measurable progress toward a real number, unlike the other 6 cards' plain facts).
+// `departments` maps each subject bucket to the real `course.department` value(s) (courses.js)
+// whose credits count toward it — PE and Health are combined into one "PE/Health" bucket (2 + 0.5
+// credits) since both are graded under the SAME real department ('Physical Education & Health'),
+// not two separately trackable ones; splitting them would mean fabricating a distinction the
+// catalog data doesn't actually support. Electives (3.5 credits) and the Advanced-Regents-specific
+// variations are deliberately left as a plain text note below the bars, not forced into a bar of
+// their own — "elective" isn't tied to any one department, so there's no honest way to measure
+// progress toward it from a transcript entry's own department field.
+const SUBJECT_CREDIT_REQUIREMENTS = [
+  { label: 'English', required: 4, departments: ['English'] },
+  { label: 'Social Studies', required: 4, departments: ['Social Studies'] },
+  { label: 'Math', required: 3, departments: ['Math'] },
+  { label: 'Science', required: 3, departments: ['Science'] },
+  { label: 'World Languages', required: 1, departments: ['World Languages'] },
+  { label: 'Art/Music', required: 1, departments: ['Art', 'Music & Theater'] },
+  { label: 'PE/Health', required: 2.5, departments: ['Physical Education & Health'] },
+];
+
+// Real transcript data in, real number out — sums `course.credit` (courses.js) for every
+// transcript entry whose course falls in one of this subject's departments. `credit: null`
+// (the 9 Special Education courses with no fixed credit value) counts as 0, the same "don't
+// guess" treatment this app already gives that field everywhere else it's read.
+function creditsEarnedFor(departments, transcript) {
+  return transcript.reduce((sum, entry) => {
+    const course = getCourseById(entry.courseId);
+    if (!course || !departments.includes(course.department)) return sum;
+    return sum + (course.credit || 0);
+  }, 0);
+}
+
 // Shared card JSX for every place a course grid renders (main recommended/browse grid, and each
 // program-type group below) — same "extract once, render identically everywhere" precedent
 // ProgramCard already set for Discovery's Programs step (see CLAUDE.md). `ineligibleReason` is
@@ -135,6 +171,13 @@ const POLICY_SECTIONS = [
 // this screen's filters already use.
 function CourseCard({ course, selected, onOpenDetail, onToggle, ineligibleReason }) {
   const locked = !!ineligibleReason && !selected;
+  // Task 2's own "color-code course cards by subject/department, using the same established
+  // colors" — reuses the exact same TrackIcon component/track colors Discovery's own career/
+  // major cards already use (Batch 1), resolved through DEPARTMENT_TRACK_MAP rather than a new,
+  // separately-invented mapping. `null` for Special Education (no honest track fit) simply
+  // renders no icon, same "don't force a mapping that isn't real" posture the rest of this app's
+  // own data layer already takes.
+  const track = DEPARTMENT_TRACK_MAP[course.department];
   return (
     <div
       className={`card course-card${selected ? ' selected' : ''}${locked ? ' ineligible' : ''}`}
@@ -145,6 +188,7 @@ function CourseCard({ course, selected, onOpenDetail, onToggle, ineligibleReason
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(course); }
       }}
     >
+      {track && <TrackIcon track={track} />}
       <button
         type="button"
         className={`course-select-btn${selected ? ' selected' : ''}`}
@@ -387,19 +431,55 @@ export default function CourseSelectionScreen() {
           <div className="field-label">Roslyn High School academic policies</div>
           <p className="field-hint">A quick-reference summary — not the full course catalog handbook.</p>
           <div className="policy-grid">
-            {POLICY_SECTIONS.map((section) => (
-              <div className="policy-card" key={section.title}>
-                <div className="policy-card-header">
-                  <section.icon size={18} />
-                  <span>{section.title}</span>
+            {POLICY_SECTIONS.map((section) => {
+              // Task 2's own credit-progress bars replace ONLY this one card's plain bullet list
+              // — the one line item in POLICY_SECTIONS that's actually a measurable progress
+              // toward a real number (see SUBJECT_CREDIT_REQUIREMENTS's own comment for why the
+              // other 6 cards stay as plain fact lists).
+              if (section.title === 'Subject Minimums') {
+                return (
+                  <div className="policy-card" key={section.title}>
+                    <div className="policy-card-header">
+                      <section.icon size={18} />
+                      <span>{section.title}</span>
+                    </div>
+                    <div className="credit-progress-list">
+                      {SUBJECT_CREDIT_REQUIREMENTS.map((s) => {
+                        const earned = creditsEarnedFor(s.departments, state.transcript || []);
+                        const pct = Math.min(100, (earned / s.required) * 100);
+                        return (
+                          <div className="credit-progress-row" key={s.label}>
+                            <div className="credit-progress-labels">
+                              <span>{s.label}</span>
+                              <span>{earned} / {s.required} credits</span>
+                            </div>
+                            <div className="credit-progress-track">
+                              <div className="credit-progress-fill" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="policy-credit-note">
+                      Plus 3.5 elective credits (1.5 for Advanced Regents), not tied to one subject.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="policy-card" key={section.title}>
+                  <div className="policy-card-header">
+                    <section.icon size={18} />
+                    <span>{section.title}</span>
+                  </div>
+                  <ul className="policy-card-list">
+                    {section.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="policy-card-list">
-                  {section.items.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -549,7 +629,13 @@ export default function CourseSelectionScreen() {
             const typeCourses = getProgramTypeCourses(type, getCourseById);
             const note = PROGRAM_TYPE_NOTES[type];
             return (
-              <div className="career-group" key={type}>
+              // `program-rec-group` (alongside the shared `career-group`) is what Task 2's own
+              // "smooth expand/reveal animation... when they appear" hooks into — a DEDICATED
+              // class, not a bloom-scoped restyle of bare `.career-group` itself, since that
+              // class is also shared with Discovery's own career/major/program groups (Batch 1),
+              // which already have their own, different entrance treatment and shouldn't gain a
+              // second, redundant one here.
+              <div className="career-group program-rec-group" key={type}>
                 <div className="career-group-label">
                   Commonly recommended for {PROGRAM_TYPE_LABELS[type]} programs
                 </div>
@@ -635,7 +721,7 @@ export default function CourseSelectionScreen() {
             <button className="modal-close" onClick={() => setSelectedCourseDetail(null)}>
               <X size={18} />
             </button>
-            <div className="modal-eyebrow" style={{ color: 'var(--teal)' }}>{modalCourse.department}</div>
+            <div className="modal-eyebrow" style={{ color: getDepartmentColor(modalCourse.department) || 'var(--bloom-accent)' }}>{modalCourse.department}</div>
             <h2 className="modal-title">{modalCourse.name}</h2>
             {(modalCourse.weightCategory !== 'standard' || modalCourse.isPassFail) && (
               <div className="course-badges">
@@ -741,6 +827,10 @@ function UCDavisCourseCard({ course, selected, onOpenDetail, onToggle }) {
   const honors = isHonorsCourse(course);
   const lab = isLabCourse(course);
   const standing = getTypicalClassStanding(course);
+  // Same "reuse Batch 1's colors" treatment CourseCard (Roslyn) above uses, resolved through UC
+  // Davis's own 6 subject areas (getAreaForSubjectCode) instead of Roslyn's 11 departments.
+  const area = getAreaForSubjectCode(course.subjectCode);
+  const track = area ? UCDAVIS_AREA_TRACK_MAP[area.id] : null;
   return (
     <div
       className={`card course-card${selected ? ' selected' : ''}`}
@@ -751,6 +841,7 @@ function UCDavisCourseCard({ course, selected, onOpenDetail, onToggle }) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(course); }
       }}
     >
+      {track && <TrackIcon track={track} />}
       <button
         type="button"
         className={`course-select-btn${selected ? ' selected' : ''}`}
@@ -899,6 +990,8 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   const lastDetailRef = useRef(null);
   if (selectedCourseDetail) lastDetailRef.current = selectedCourseDetail;
   const modalCourse = selectedCourseDetail || lastDetailRef.current;
+  const modalArea = modalCourse ? getAreaForSubjectCode(modalCourse.subjectCode) : null;
+  const modalAccent = (modalArea && getUCDavisAreaColor(modalArea.id)) || 'var(--bloom-accent)';
 
   return (
     <div>
@@ -1096,7 +1189,7 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
             <button className="modal-close" onClick={() => setSelectedCourseDetail(null)}>
               <X size={18} />
             </button>
-            <div className="modal-eyebrow" style={{ color: 'var(--teal)' }}>{modalCourse.code} · {modalCourse.department}</div>
+            <div className="modal-eyebrow" style={{ color: modalAccent }}>{modalCourse.code} · {modalCourse.department}</div>
             <h2 className="modal-title">{modalCourse.name}</h2>
             {(isHonorsCourse(modalCourse) || isLabCourse(modalCourse)) && (
               <div className="course-badges">
