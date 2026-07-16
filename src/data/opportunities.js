@@ -6730,6 +6730,16 @@ export const GENERIC_OPPORTUNITIES = {
 
 // Merged, de-duplicated opportunity list for the given built tracks + education level.
 // Falls back to the generic list when no built track is selected.
+//
+// Palette repaint, Opportunity Finder/Project Builder batch (see CLAUDE.md) — every returned
+// opportunity is tagged with `_track`, the track it was actually found under (first-track-wins
+// for anything shared across multiple tracks' arrays, the same precedent getMajorGroups/
+// getCareerGroups already establish for a multi-track item elsewhere in this app). This is a
+// purely additive, DISPLAY-only field — OpportunityFinderScreen.jsx's own card coloring is the
+// only reader of it; every existing consumer (roadmapGenerator.js's findOpportunity lookup, etc.)
+// only ever reads the original named fields and is unaffected by one extra key being present.
+// GENERIC_OPPORTUNITIES entries (the `tracks.length === 0` branch) get no `_track` at all — there
+// is no real track to honestly tag them with — and fall back to neutral, uncolored card styling.
 export function getOpportunityPool(tracks, level) {
   if (!tracks.length) return GENERIC_OPPORTUNITIES[level] || [];
   const seen = new Set();
@@ -6738,7 +6748,7 @@ export function getOpportunityPool(tracks, level) {
     for (const o of OPPORTUNITIES[t]?.[level] || []) {
       if (!seen.has(o.id)) {
         seen.add(o.id);
-        merged.push(o);
+        merged.push({ ...o, _track: t });
       }
     }
   }
@@ -6777,17 +6787,20 @@ export function getSchoolOpportunities(schoolName, level) {
   if (!schoolName) return [];
   const seen = new Set();
   const results = [];
-  const collect = (list) => {
+  // Same `_track` display-only tagging getOpportunityPool above uses — a generic-bucket club
+  // (the 4 unmapped Roslyn affinity clubs, etc.) gets no track tag, same "don't force a fit" call
+  // already documented for those entries elsewhere in this file.
+  const collect = (list, track) => {
     for (const o of list || []) {
       if (o.schoolVerified && o.schoolName === schoolName && !seen.has(o.id)) {
         seen.add(o.id);
-        results.push(o);
+        results.push(track ? { ...o, _track: track } : o);
       }
     }
   };
   for (const track of Object.keys(OPPORTUNITIES)) {
-    collect(OPPORTUNITIES[track]?.[level]);
+    collect(OPPORTUNITIES[track]?.[level], track);
   }
-  collect(GENERIC_OPPORTUNITIES[level]);
+  collect(GENERIC_OPPORTUNITIES[level], null);
   return results;
 }

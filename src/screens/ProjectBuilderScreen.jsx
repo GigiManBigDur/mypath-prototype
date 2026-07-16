@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette,
-  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart,
+  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart, Circle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PROJECT_CATEGORIES, findCategory, findProjectType } from '../data/projects';
@@ -14,10 +14,29 @@ import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen
 import { getMascotLine } from '../data/mascotDialogue';
 
 const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
-// Cycles through the app's existing accent tokens rather than introducing new colors — 6
-// categories over 4 tokens means two repeats, which is fine since the icon (always distinct)
-// carries the real identity, not the color.
-const CATEGORY_COLORS = ['var(--gold)', 'var(--teal)', 'var(--rust)', 'var(--stone)', 'var(--teal)', 'var(--gold)'];
+// Palette repaint, Opportunity Finder/Project Builder batch (see CLAUDE.md) — Task 2's own
+// "give each of the 6 project categories a distinct color" requirement. Plain index-cycling
+// through 6 of the 7 "bloom" accent tokens (the same set TrackVisuals.jsx cycles through for
+// interest tracks), NOT a track-based lookup — these categories don't correspond 1:1 to
+// interest tracks, and mapping them through getTrackColor() would risk real collisions (verified
+// while planning this: at least 2 of the 6 would land on the same color if naively mapped via
+// their "closest" conceptual track). `--bloom-green` is deliberately left out here — that's the
+// one color already reserved app-wide as the universal "selected/verified" signal (Opportunity
+// Finder's own selected-card border, the hub's unlock accent), so keeping it out of the
+// per-category identity set avoids a category's own resting color ever being confused with that
+// meaning. 6 categories over 6 remaining tokens means every one is genuinely distinct.
+const CATEGORY_COLORS = [
+  'var(--bloom-purple)', 'var(--bloom-yellow)', 'var(--bloom-teal)',
+  'var(--bloom-orange)', 'var(--bloom-pink)', 'var(--bloom-blue)',
+];
+// Shared by every view (category grid, a category's own detail page, a project type's detail
+// page) so the SAME category always shows the SAME color everywhere it appears, rather than the
+// category grid alone knowing about `CATEGORY_COLORS` and every other view falling back to a
+// single hardcoded teal the way this screen did before this batch.
+function getCategoryColor(categoryId) {
+  const i = PROJECT_CATEGORIES.findIndex((c) => c.id === categoryId);
+  return CATEGORY_COLORS[(i < 0 ? 0 : i) % CATEGORY_COLORS.length];
+}
 
 // How close (in days) a chosen project start date has to land to an existing roadmap commitment
 // before we surface a heads-up. Soft only — never blocks confirming the start date.
@@ -131,6 +150,7 @@ export default function ProjectBuilderScreen() {
           category={category}
           projectType={projectType}
           startedProject={startedProject}
+          completedNodes={state.completedNodes}
           showStartPicker={showStartPicker}
           startDate={startDate}
           conflict={conflict}
@@ -155,9 +175,9 @@ function CategoriesView({ onOpenCategory }) {
       </p>
 
       <div className="pb-category-grid">
-        {PROJECT_CATEGORIES.map((cat, i) => {
+        {PROJECT_CATEGORIES.map((cat) => {
           const Icon = CATEGORY_ICONS[cat.icon];
-          const color = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
+          const color = getCategoryColor(cat.id);
           return (
             <button
               type="button"
@@ -177,11 +197,23 @@ function CategoriesView({ onOpenCategory }) {
   );
 }
 
+// Task 2's own "simple avatar-style icons for the illustrative usernames" — a plain colored
+// initial-circle, cycled through the same 6-color category set (not a real avatar image; this
+// is still explicitly mocked/illustrative content, see the header comment in data/projects.js).
+// Cycled by the post's OWN index within its category's array (passed in), not the category's
+// own color, so the two posts in one category still read as two distinct "people" rather than
+// both wearing the category's single accent color.
+const AVATAR_COLORS = [
+  'var(--bloom-blue)', 'var(--bloom-pink)', 'var(--bloom-teal)',
+  'var(--bloom-orange)', 'var(--bloom-purple)', 'var(--bloom-yellow)',
+];
+
 function CategoryView({ category, onOpenProjectType, startedProjects }) {
   const Icon = CATEGORY_ICONS[category.icon];
+  const color = getCategoryColor(category.id);
   return (
     <>
-      <div className="pb-icon-badge pb-icon-badge-lg" style={{ '--pb-accent': 'var(--teal)' }}>
+      <div className="pb-icon-badge pb-icon-badge-lg" style={{ '--pb-accent': color }}>
         <Icon size={30} />
       </div>
       <h1 className="page-title">{category.label}</h1>
@@ -200,10 +232,12 @@ function CategoryView({ category, onOpenProjectType, startedProjects }) {
             A preview of what a Community feature could look like — not real, not submittable yet.
           </p>
           <div className="pb-community-grid">
-            {category.communityExamples.map((post) => (
+            {category.communityExamples.map((post, i) => (
               <div className="pb-community-card" key={post.name}>
                 <div className="pb-community-header">
-                  <div className="pb-community-avatar">{post.handle.replace('@', '').charAt(0).toUpperCase()}</div>
+                  <div className="pb-community-avatar" style={{ '--avatar-accent': AVATAR_COLORS[i % AVATAR_COLORS.length] }}>
+                    {post.handle.replace('@', '').charAt(0).toUpperCase()}
+                  </div>
                   <div>
                     <div className="pb-community-handle">{post.handle}</div>
                     <div className="pb-community-grade">{post.grade}</div>
@@ -212,7 +246,7 @@ function CategoryView({ category, onOpenProjectType, startedProjects }) {
                 <div className="pb-community-name">{post.name}</div>
                 <p className="pb-community-blurb">{post.blurb}</p>
                 <div className="pb-community-footer">
-                  <Heart size={13} /> {post.likes}
+                  <span className="pb-like-pill"><Heart size={12} /> {post.likes}</span>
                 </div>
               </div>
             ))}
@@ -243,13 +277,14 @@ function CategoryView({ category, onOpenProjectType, startedProjects }) {
 }
 
 function ProjectTypeView({
-  category, projectType, startedProject, showStartPicker, startDate, conflict,
+  category, projectType, startedProject, completedNodes, showStartPicker, startDate, conflict,
   onStartClick, onCancelStart, onChangeStartDate, onConfirmStart, onGoToPlan,
 }) {
   const Icon = CATEGORY_ICONS[category.icon];
+  const color = getCategoryColor(category.id);
   return (
     <>
-      <div className="pb-category-chip">
+      <div className="pb-category-chip" style={{ '--pb-accent': color }}>
         <Icon size={14} /> {category.label}
       </div>
       <h1 className="page-title">{projectType.name}</h1>
@@ -313,17 +348,49 @@ function ProjectTypeView({
               <CheckCircle2 size={18} /> Project complete! Great work.
             </div>
           ) : (
-            <>
-              <div className="pb-started-headline">
-                <CheckCircle2 size={18} /> Started — on your Academic Plan
-              </div>
-              <p className="field-hint" style={{ margin: '8px 0 0' }}>
-                Current step: <strong>{startedProject.steps[startedProject.steps.length - 1].title}</strong>
-                {' '}(due {formatDate(parseDateInputValue(startedProject.steps[startedProject.steps.length - 1].date))}).
-                Mark it complete on your Academic Plan to reveal the next step — this project has
-                no fixed end date, so it only grows one step at a time.
-              </p>
-            </>
+            <div className="pb-started-headline">
+              <CheckCircle2 size={18} /> Started — on your Academic Plan
+            </div>
+          )}
+
+          {/* Task 2's own "satisfying transition animation each time a new step is revealed" —
+              the actual reveal MECHANIC (Roadmap.jsx's toggleDone, out of this repaint's scope
+              per CLAUDE.md) is completely untouched; this is a purely visual, read-only timeline
+              of the SAME `startedProject.steps`/`state.completedNodes` data that mechanic already
+              writes. Every step gets its own `<li key={step.id}>`, so a step that's genuinely new
+              (added by that mechanic since the last render) mounts as a new DOM node and its
+              `pb-timeline-step-in` entrance animation plays automatically — the same "new key =
+              new node = the CSS animation just replays" pattern this codebase already uses for
+              every other reveal (hub tiles, transcript rows, Program-Specific sections) — no extra
+              JS state needed to detect "which step is new." */}
+          <ol className="pb-timeline">
+            {startedProject.steps.map((step, i) => {
+              const done = !!completedNodes?.[step.id];
+              const isCurrent = !done && i === startedProject.steps.length - 1;
+              return (
+                <li
+                  key={step.id}
+                  className={`pb-timeline-step${done ? ' done' : ''}${isCurrent ? ' current' : ''}`}
+                >
+                  <span className="pb-timeline-marker">
+                    {done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+                  </span>
+                  <div className="pb-timeline-body">
+                    <div className="pb-timeline-title">{step.title}</div>
+                    <div className="pb-timeline-date">
+                      {done ? 'Completed' : 'Due'} {formatDate(parseDateInputValue(step.date))}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+
+          {startedProject.status !== 'completed' && (
+            <p className="field-hint" style={{ margin: '10px 0 0' }}>
+              Mark the current step complete on your Academic Plan to reveal what's next — this
+              project has no fixed end date, so it only grows one step at a time.
+            </p>
           )}
 
           <div className="task-form-actions" style={{ justifyContent: 'flex-start', marginTop: 14 }}>

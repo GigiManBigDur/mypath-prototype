@@ -7,6 +7,7 @@ import { anchorDate, formatDate, startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
 import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
+import { TrackIcon, getTrackColor } from '../components/TrackVisuals';
 
 export default function OpportunityFinderScreen() {
   const { state, patch } = useApp();
@@ -153,19 +154,28 @@ export default function OpportunityFinderScreen() {
           const selected = state.selectedOpportunityIds.includes(opp.id);
           const deadline = anchorDate(opp.date, today);
           const passed = deadline < today;
+          // Task 1's own "color-code opportunity cards by interest/type, using the established
+          // color mapping" — `_track` (opportunities.js, tagged at merge/collect time) resolves
+          // to the exact same color Survey/Discovery/Course Selection already use for that same
+          // track. Opportunities with no real track (the generic fallback list, or an unmapped
+          // "My School" affinity club) simply render no icon and fall back to a neutral card,
+          // same "don't force a fit" posture this codebase's data layer already holds elsewhere.
+          const track = opp._track;
           return (
             <button
               type="button"
               key={opp.id}
-              className={`card${selected ? ' selected' : ''}${passed ? ' passed' : ''}`}
+              className={`card${selected ? ' selected' : ''}${passed ? ' passed' : ''}${opp.schoolVerified ? ' school-verified' : ''}`}
               disabled={passed}
               onClick={() => toggleOpportunity(opp.id)}
+              style={track ? { '--track-accent': getTrackColor(track) } : undefined}
             >
               {opp.schoolVerified && (
                 <div className="school-verified-badge">
                   <BadgeCheck size={12} /> Verified — {opp.schoolName}
                 </div>
               )}
+              {track && <TrackIcon track={track} />}
               <div className="card-title">{opp.name}</div>
               <p className="card-desc" style={{ fontStyle: 'italic', marginBottom: 8 }}>{opp.type}</p>
               <p className="card-desc">{opp.description}</p>

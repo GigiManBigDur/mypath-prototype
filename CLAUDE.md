@@ -2747,6 +2747,130 @@ Opportunity Finder/Project Builder/Program Summary (still not repainted) stay un
   UC Davis Course Selection Stage 2/3/4 suites and the general `test.js`/`test-hub*.js`/
   `test-signup.js` suites — still passes.
 
+**Palette repaint, Opportunity Finder/Project Builder batch — the fourth in this series.
+Opportunity Finder and Project Builder move onto the shared "bloom" tokens, reusing Batch 1's own
+per-track colors for opportunity cards, a distinct verified-badge treatment for My School, a real
+step-by-step timeline for a started Project Builder project, and nicer (still non-functional)
+Community Project Examples cards.** `App.jsx`'s `isBloomScreen` now also covers `screenKey ===
+'opportunities' || screenKey === 'projectBuilder'` — same `.app-shell-bloom` scoping precedent as
+the three batches before it, so Program Summary (the only screen left unpainted now) stays
+unaffected.
+- **`opportunities.js`'s `getOpportunityPool`/`getSchoolOpportunities` now tag every resolved
+  opportunity with `_track`** — the track it was actually found under (first-track-wins for
+  anything shared across multiple tracks' arrays, same convention `getMajorGroups` already uses)
+  — a purely additive, display-only field added at the point of RESOLUTION rather than editing any
+  of the ~6793 lines of real opportunity data itself. `OpportunityFinderScreen.jsx` reads
+  `opp._track` to render a small `TrackIcon` (TrackVisuals.jsx, Batch 1 — reused directly, not
+  duplicated) and set `--track-accent` inline, satisfying Task 1's own "color-code opportunity
+  cards by interest/type, using the established color mapping" with the exact same per-track color
+  Survey/Discovery/Course Selection already resolve for that track — confirmed directly: a
+  Sports-track opportunity's `--track-accent` is byte-for-byte the same `--bloom-blue` token the
+  Survey's "Basketball" tag/sports track already resolves to. Opportunities with no real track
+  (the generic fallback list, or an unmapped My School affinity club) simply render no icon and
+  fall back to a neutral card — same "don't force a fit" posture this codebase's data layer
+  already holds everywhere else.
+- **Task 1's own "give the My School tab a distinct visual treatment... so real, verified
+  content feels special/trustworthy" is two changes, not one**: the existing `.school-verified-
+  badge` (previously plain colored text) is now a solid filled pill (white text on
+  `--bloom-accent`, with a `BadgeCheck` icon), and every verified card additionally gets a 4px
+  `--bloom-accent` left border — reusing the exact same "green edge = independently verified"
+  visual language this app already established elsewhere (a selected card's own checkmark, a
+  verified School-Specific Requirement's own left border in Course Selection) rather than
+  inventing a third way to signal "verified."
+- **Task 1's own "satisfying selection animation... a pop/checkmark animation" needed no new
+  code at all** — `.polish`'s pre-existing `select-pulse`/`check-pop` animations (a brief scale
+  pulse plus a checkmark badge that pops in via `cubic-bezier` overshoot) already apply to any
+  `.card.selected`, Opportunity Finder's cards included; this batch's own bloom override
+  (`.card.selected::after { background: var(--bloom-accent); }`) already existed from an earlier
+  batch and just recolors that same checkmark to the new palette. Verified directly via
+  screenshot, not assumed.
+- **A real, confirmed CSS specificity bug was found and fixed while building this — and it
+  turned out to be a LATENT bug already present since Batch 1/2, not something newly introduced
+  here.** Hovering an already-SELECTED card (e.g. right after clicking it, since the pointer is
+  still resting on it) showed the card's own track-color border instead of the universal
+  selected-green, because `button.card:hover { border-color: var(--track-accent, ...); }` (element
+  + class + pseudo-class specificity) is MORE specific than `.card.selected { border-color:
+  var(--bloom-accent); }` (two classes) and so won the simultaneous hover+selected state — caught
+  via screenshot, not code review: a just-clicked Sports opportunity card rendered with a visibly
+  blue border instead of green, checkmark badge notwithstanding. Traced to the ROOT cause — the
+  general `.app-shell.app-shell-bloom button.card:hover` rule from the Discovery/Course-Selection
+  batches, which had never carried a `:not(.selected)` exclusion — and fixed there directly
+  (`button.card:hover:not(.selected):not(.passed)`), rather than only patching Opportunity
+  Finder's own downstream call site, so the fix closes the bug for every `.card`-based screen at
+  once (Discovery's career/major cards included, which had silently carried this exact bug the
+  whole time without it ever being caught, since no earlier batch's own testing checked hover and
+  selected simultaneously). The identical latent issue in Course Selection's own `.course-
+  card:hover` rule was fixed the same way — that rule is now removed entirely as a redundant
+  duplicate, since `.course-card` also carries the plain `.card` class and the shared root-level
+  fix already covers it.
+- **Task 1's own "keep the disabled state clearly distinguishable (greyed out, not colorful)"**
+  — `.card.passed` (and `button.card.passed:hover`) always forces the neutral `--bloom-card-
+  border` and drops any box-shadow/transform, regardless of its own `--track-accent` — a passed
+  card's border never reads a track color, at rest or on hover, so "can't select this" still
+  reads unambiguously even with per-track coloring now in play elsewhere on the same grid.
+- **Task 2's own "give each of the 6 project categories a distinct color and icon"** —
+  `ProjectBuilderScreen.jsx`'s `CATEGORY_COLORS` is now 6 of the 7 bloom accent tokens (purple,
+  yellow, teal, orange, pink, blue), plain index-cycled via a new shared `getCategoryColor(id)`
+  helper so the SAME category shows the SAME color everywhere it appears (the category grid, that
+  category's own detail page's icon badge, and a project type's own detail page chip — the latter
+  two previously both hardcoded a flat `var(--teal)` regardless of which category was open).
+  `--bloom-green` is deliberately excluded from this set — that's the one color already reserved
+  app-wide as the universal "selected/verified" signal, so keeping it out of the per-category
+  identity avoids a category's own resting color ever being confused with that meaning. Icons
+  themselves (`CATEGORY_ICONS`) were already 6 genuinely distinct lucide icons before this batch —
+  no changes needed there.
+- **Task 2's own "satisfying transition animation each time a new step is revealed" is a
+  purely visual, read-only addition — the actual reveal MECHANIC (`Roadmap.jsx`'s `toggleDone`,
+  explicitly out of this repaint's scope per this file's own standing rule) was not touched at
+  all.** The old single-line "Current step: X (due Y)" text is replaced with a real `<ol
+  className="pb-timeline">` rendering EVERY entry in `startedProject.steps` (not just the current
+  one), reading the exact same `state.completedNodes[step.id]` that mechanic already writes to
+  decide each step's `done`/`current` class — no new completion concept, no new state field.
+  Every step renders as its own `<li key={step.id}>`, so a step that's genuinely NEW (appended by
+  that mechanic since the last render) mounts as a new DOM node and its `pb-timeline-step-in`
+  entrance animation plays automatically — the same "new key = new node = the CSS entrance
+  animation just replays" pattern this whole repaint series already uses everywhere else (hub tile
+  pop-in, transcript row reveal, Program-Specific section reveal) — zero extra JS state needed to
+  detect "which step is new." The completed-step icon swap (`Circle` -> `CheckCircle2`) gets its
+  own pop-in for the same reason Roadmap.jsx's own node-icon-pop already documents: swapping to a
+  different icon COMPONENT means React unmounts/remounts a genuinely new SVG element at that
+  position, so the pop plays the instant a step is actually marked done, with no extra state
+  either. The current (only incomplete) step additionally gets a slow, continuous pulse
+  (`prefers-reduced-motion`-safe) and its due date rendered in the category's accent-adjacent
+  orange, so it reads as "this is what's next" at a glance rather than requiring the reader to
+  scan for the one step without a checkmark.
+- **Task 2's own "simple avatar-style icons... a nicer like-count display" for Community
+  Project Examples — still explicitly non-functional, per this file's own standing "no real
+  submission/comment/like system" constraint.** The plain grey-circle initial avatar is now a
+  colored circle (`--avatar-accent`, a small fixed `AVATAR_COLORS` set cycled by the post's own
+  index within its category — deliberately NOT the category's own single accent color, so the two
+  posts in one category still read as two distinct "people" rather than both wearing one color).
+  The like count moved from bare `<Heart/> N` text into a small filled `.pb-like-pill` — still a
+  plain, non-clickable `<span>`, not a button, and `likes` is still the exact same fixed display
+  number from `data/projects.js`, never a real counter. Verified directly: every community card is
+  still a plain `<div>` (not a button), the like pill has no click handler, and nothing about the
+  submission-flow-doesn't-exist contract changed.
+- Verified after this pass: a dedicated Playwright suite (20 checks) confirms a Sports-track
+  opportunity card's `--track-accent` is the same `--bloom-blue` token Survey/Discovery already
+  use, a just-clicked (still-hovered) card's border resolves to the universal bloom-accent green
+  (not its track color — the hover/selected bug fix), a passed/disabled card's border stays the
+  neutral card-border color even on hover, every My School card carries the verified badge/left
+  border, opportunity selection add/remove still writes real ids to `state.selectedOpportunityIds`
+  unchanged, all 6 Project Builder category colors are genuinely distinct AND consistently reused
+  across the category grid/category detail/project-type detail, Community Example cards remain
+  plain non-interactive divs with a non-clickable like pill, and a started project's timeline
+  renders exactly one node per real step with the correct done/current classes and never more than
+  one incomplete step at a time. The full pre-existing regression suite — `test.js`, every
+  `test-hub*.js`, `test-signup.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
+  `test-voiceover.js`, `test-voice-picker.js`, `test-bloom-repaint.js`, `test-discovery-repaint.js`,
+  `test-transcript-courseselection-repaint.js`, `test-stage4.js`, `test-roslyn-consolidation.js`,
+  `test-transcript-skip-unlock.js`, `test-ucdavis-transcript-skip-unlock.js`, and the full UC Davis
+  suite — still passes; three of those files (`test-bloom-repaint.js`, `test-discovery-repaint.js`,
+  `test-transcript-courseselection-repaint.js`) had their own stale "Opportunity Finder is not yet
+  repainted" assertion retargeted to Program Summary (the screen that assertion actually describes
+  now), the same "update a pre-existing test after an intentional, expected change" pattern this
+  codebase's own test suite has needed before, not a regression in the app itself.
+
 **Global interaction polish (buttons, page transitions, staggered card reveals, selection
 feedback, card depth) is scoped under a single `.polish` class, not applied to raw shared
 classes directly — this is what keeps it from leaking onto the Academic Plan screen.**

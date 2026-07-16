@@ -2270,7 +2270,14 @@ button.card.passed:hover {
 .pb-community-grade { font-size:11px; color: var(--ink-soft); }
 .pb-community-name { font-family:'Fraunces', serif; font-size:15px; font-weight:600; margin-bottom:4px; }
 .pb-community-blurb { font-size:13px; line-height:1.5; color: var(--ink-soft); margin:0 0 10px; }
-.pb-community-footer { display:flex; align-items:center; gap:5px; font-size:12.5px; color: var(--rust); font-weight:600; }
+.pb-community-footer { display:flex; align-items:center; }
+/* Task 2's own "a nicer like-count display" — a filled pill instead of a bare icon+number, still
+   just as clearly non-interactive (a plain `<span>`, not a button — see the header comment above
+   this section). */
+.pb-like-pill {
+  display:inline-flex; align-items:center; gap:4px; font-size:12.5px; font-weight:700;
+  padding: 4px 10px; border-radius:999px; background: rgba(216,77,91,0.12); color: var(--rust);
+}
 
 /* Welcome screen — the app's entry hero. Reuses every existing token (palette/fonts/background
    texture already come from :root and body); the only new thing here is the animated trail. */
@@ -2755,8 +2762,16 @@ button.card.passed:hover {
    of the same fixed green `.card.selected` uses below — confirmed directly via screenshot that
    sharing one color between "hovered" and "selected" read as ambiguous in a still frame. Falls
    back to the plain bloom accent for cards with no track context at all (ProgramsStep, grouped
-   by major not track). */
-.app-shell.app-shell-bloom button.card:hover {
+   by major not track).
+   `:not(.selected)` is a real, confirmed fix, added later (Opportunity Finder batch) after this
+   exact rule turned out to be the ROOT cause of a related bug surfacing there: hovering an
+   ALREADY-selected card (the pointer still resting on it right after a click) showed the track
+   color instead of the universal selected-green, since this bare `button.card:hover` rule (no
+   exclusion) kept matching and, being declared before the later, more specific attempts to fix
+   it elsewhere, won the cascade regardless. This rule is shared by every screen using plain
+   `.card` (Discovery's career/major cards included), so fixing it here — the actual source —
+   rather than only patching downstream call sites is what closes the bug everywhere at once. */
+.app-shell.app-shell-bloom button.card:hover:not(.selected):not(.passed) {
   border-color: var(--track-accent, var(--bloom-accent));
   box-shadow: var(--bloom-shadow-hover);
 }
@@ -2954,10 +2969,11 @@ button.card.passed:hover {
 .app-shell.app-shell-bloom .course-badge-honors { background: var(--bloom-blue); }
 .app-shell.app-shell-bloom .course-badge-passfail { background: var(--bloom-ink-soft); }
 
-.app-shell.app-shell-bloom .course-card:hover {
-  border-color: var(--track-accent, var(--bloom-accent));
-  box-shadow: var(--bloom-shadow-hover);
-}
+/* `.course-card` also carries the plain `.card` class, so the shared `button.card:hover:not(
+   .selected):not(.passed)` rule above already covers its hover-vs-selected border color — no
+   separate rule needed here (a dedicated one used to exist at this exact spot before the ROOT
+   cause was traced and fixed on that shared rule instead; see its own comment for the full story
+   of the bug this closes). */
 .app-shell.app-shell-bloom .course-select-btn {
   background: var(--bloom-bg);
   border-color: var(--bloom-card-border);
@@ -2993,4 +3009,233 @@ button.card.passed:hover {
 @media (prefers-reduced-motion: reduce) {
   .app-shell.app-shell-bloom .program-rec-group,
   .app-shell.app-shell-bloom .school-req-card { animation: none; }
+}
+
+/* ==========================================================================
+   Palette repaint, Opportunity Finder/Project Builder batch (see CLAUDE.md) —
+   same `.app-shell-bloom` scope, same "append last" placement (this batch's
+   own hover/selected overrides need to win the same kind of same-specificity
+   source-order tie against `.polish`'s existing rules the earlier batches'
+   own comments already explain).
+   ========================================================================== */
+
+/* Task 1's own "color-code opportunity cards by interest/type" — TrackIcon + `--track-accent`
+   read the exact SAME per-track colors Survey/Discovery/Course Selection already established
+   (opp._track, tagged in opportunities.js's getOpportunityPool/getSchoolOpportunities). Hover
+   reads the card's own track color, matching the same "hover shows subject color, selected shows
+   one universal green" distinction Course Selection's own cards already established — this is
+   just the shared `button.card:hover:not(.selected):not(.passed)` rule (near the top of this
+   file's bloom section) doing its job here too, no separate rule needed; see its own comment
+   for the full story of the hover/selected bug it closes. */
+/* Task 1's own explicit "keep the disabled state clearly distinguishable (greyed out, not
+   colorful)" — a passed/disabled card's border NEVER reads the track color, on hover or at rest,
+   regardless of its own `--track-accent`; only opacity (already existing) does the "disabled"
+   signaling, exactly like the pre-bloom palette already did. */
+.app-shell.app-shell-bloom .card.passed,
+.app-shell.app-shell-bloom button.card.passed:hover {
+  border-color: var(--bloom-card-border);
+  box-shadow: none;
+  transform: none;
+}
+.app-shell.app-shell-bloom .card.passed .card-meta strong { color: var(--rust); }
+
+/* Task 1's own "give the My School tab a distinct visual treatment... so real, verified content
+   feels special/trustworthy" — a solid, filled badge (not just colored text) plus a colored left
+   accent border on the card itself, both using the same universal accent green real verification
+   already implies elsewhere in this app (the checkmark on a selected card, a verified
+   School-Specific Requirement's own left border in Course Selection) — reusing that established
+   "green edge = independently verified" visual language rather than inventing a new one. */
+.app-shell.app-shell-bloom .school-verified-badge {
+  display: inline-flex;
+  color: #fff;
+  background: var(--bloom-accent);
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+.app-shell.app-shell-bloom .card.school-verified {
+  border-left: 4px solid var(--bloom-accent);
+}
+/* .card-desc/.card-meta/.card-meta strong/.card-meta .label are already bloom-scoped from the
+   Transcript/Course Selection batch above (identical shared classes) — no need to redeclare. */
+
+/* Task 2 — Project Builder repaint. `--pb-accent` is set per-instance in JSX
+   (ProjectBuilderScreen.jsx's own CATEGORY_COLORS/getCategoryColor — 6 distinct bloom tokens,
+   one per category, reused consistently across the category grid, a category's own detail page,
+   and a project type's detail page), the same "data/JSX picks the value, CSS just reads a custom
+   property" convention the hub's own tile accents already established. */
+.app-shell.app-shell-bloom .pb-skip { color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .pb-skip:hover:not(:disabled) { color: var(--bloom-ink); }
+
+.app-shell.app-shell-bloom .pb-category-card {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .pb-category-card:hover {
+  border-color: var(--pb-accent);
+  box-shadow: var(--bloom-shadow-hover);
+}
+.app-shell.app-shell-bloom .pb-icon-badge {
+  background: var(--bloom-bg);
+  color: var(--pb-accent);
+}
+.app-shell.app-shell-bloom .pb-category-label,
+.app-shell.app-shell-bloom .pb-projecttype-name,
+.app-shell.app-shell-bloom .pb-community-name {
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .pb-category-desc,
+.app-shell.app-shell-bloom .pb-projecttype-teaser,
+.app-shell.app-shell-bloom .pb-example-caveat,
+.app-shell.app-shell-bloom .pb-community-blurb,
+.app-shell.app-shell-bloom .pb-community-grade {
+  color: var(--bloom-ink-soft);
+}
+
+.app-shell.app-shell-bloom .pb-example-box {
+  background: var(--bloom-card);
+  border-color: var(--bloom-yellow);
+}
+.app-shell.app-shell-bloom .pb-example-eyebrow { color: var(--bloom-yellow); }
+.app-shell.app-shell-bloom .pb-example-text { color: var(--bloom-ink); }
+
+.app-shell.app-shell-bloom .pb-projecttype-card {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .pb-projecttype-card:hover {
+  border-color: var(--bloom-accent);
+  box-shadow: var(--bloom-shadow-hover);
+}
+.app-shell.app-shell-bloom .pb-started-tag { color: var(--bloom-accent); }
+
+.app-shell.app-shell-bloom .pb-category-chip { color: var(--pb-accent); }
+.app-shell.app-shell-bloom .pb-stat { color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .pb-stat-label { color: var(--bloom-orange); }
+.app-shell.app-shell-bloom .pb-steps-list,
+.app-shell.app-shell-bloom .pb-resources-list { color: var(--bloom-ink); }
+
+.app-shell.app-shell-bloom .pb-start-panel {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .pb-conflict-warning {
+  background: rgba(230, 166, 52, 0.14);
+  border-color: var(--bloom-yellow);
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .pb-started-banner {
+  background: var(--bloom-card);
+  border-color: var(--bloom-accent);
+}
+.app-shell.app-shell-bloom .pb-started-headline { color: var(--bloom-accent); }
+
+/* Community Project Examples — Task 2's own "simple avatar-style icons... a nicer like-count
+   display", still clearly non-functional (see the header comment above .pb-community-section in
+   the base rules). `--avatar-accent` is set per-post in JSX (ProjectBuilderScreen.jsx's own
+   AVATAR_COLORS, cycled by the post's own index so two posts in one category read as two
+   distinct "people"). */
+.app-shell.app-shell-bloom .pb-community-card {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .pb-community-avatar {
+  background: var(--avatar-accent, var(--bloom-blue));
+  color: #fff;
+}
+.app-shell.app-shell-bloom .pb-community-handle { color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .pb-like-pill { background: rgba(216, 77, 91, 0.14); }
+
+/* Task 2's own "satisfying transition animation each time a new step is revealed" — a purely
+   visual, read-only timeline of the started project's own `steps` array (see
+   ProjectBuilderScreen.jsx's own comment on this JSX block for why the actual reveal MECHANIC,
+   Roadmap.jsx's toggleDone, needed zero changes). Every step renders as its own `<li key=
+   {step.id}>`, so a genuinely NEW step (appended since the last render) mounts as a new DOM node
+   and `pb-timeline-step-in` plays automatically — the same "new key = new node = the entrance
+   animation just replays" pattern already used everywhere else in this app (hub tile pop-in,
+   transcript row reveal, Program-Specific section reveal) — no extra JS state needed to detect
+   "which step is new." */
+.app-shell.app-shell-bloom .pb-timeline {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-shell.app-shell-bloom .pb-timeline-step {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  padding-bottom: 18px;
+  animation: pb-timeline-step-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.app-shell.app-shell-bloom .pb-timeline-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 20px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .pb-timeline-step.done:not(:last-child)::before { background: var(--bloom-accent); }
+.app-shell.app-shell-bloom .pb-timeline-marker {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--bloom-ink-soft);
+}
+.app-shell.app-shell-bloom .pb-timeline-step.done .pb-timeline-marker { color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .pb-timeline-step.current .pb-timeline-marker { color: var(--bloom-orange); }
+/* Icon swap (Circle <-> CheckCircle2) mounts a genuinely new SVG element at this position, the
+   same "different component = React mounts/unmounts, not just re-renders" mechanism Roadmap.jsx's
+   own node-icon-pop already relies on for its ring's completed-state icon swap — so this pop
+   plays automatically the instant a step is actually marked done, with no extra state. */
+.app-shell.app-shell-bloom .pb-timeline-marker svg {
+  animation: pb-marker-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.app-shell.app-shell-bloom .pb-timeline-step.current .pb-timeline-marker svg {
+  animation: pb-marker-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    pb-current-pulse 1.8s ease-in-out infinite 320ms;
+}
+.app-shell.app-shell-bloom .pb-timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bloom-ink);
+  line-height: 1.4;
+}
+.app-shell.app-shell-bloom .pb-timeline-step.done .pb-timeline-title {
+  color: var(--bloom-ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .pb-timeline-date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--bloom-ink-soft);
+  margin-top: 2px;
+}
+.app-shell.app-shell-bloom .pb-timeline-step.current .pb-timeline-date { color: var(--bloom-orange); font-weight: 600; }
+
+@keyframes pb-timeline-step-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pb-marker-pop {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes pb-current-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 4px var(--bloom-orange)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.app-shell-bloom .pb-timeline-step,
+  .app-shell.app-shell-bloom .pb-timeline-marker svg {
+    animation: none;
+  }
 }
