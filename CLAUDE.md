@@ -600,6 +600,82 @@ bouncing back to `'hub'` if reached with a mismatched `educationLevel`/`currentS
 restored mid-flow after either changed) — but there's no more Continue/Back chain connecting them
 to any OTHER specific screen.
 
+**Dashboard/Guide feature, Stage 6 (final stage): free, browser-native voiceover via the Web
+Speech API (`SpeechSynthesis`), reading every mascot dialogue line aloud alongside the text.**
+Deliberately the cheap version — no external TTS service, no API cost — to test whether voice
+adds anything at all before ever considering a paid, more natural-sounding one; browser voices
+vary a lot by device/OS and can sound synthetic, which is an accepted, expected limitation of this
+stage, not a bug to chase.
+- **`src/utils/speech.js`** is a plain module (not a hook) wrapping `window.speechSynthesis` —
+  there's only ever one screen (and therefore at most one mascot dialogue source) mounted at a
+  time in this app, so a shared module-level `speak(text)`/`stopSpeaking()` pair is simpler than
+  routing every call through React state. `isSpeechAvailable()` checks for both
+  `window.speechSynthesis` and `window.SpeechSynthesisUtterance` existing before anything else
+  touches either. `primeVoices()` is called once, early, from `App.jsx`'s own `AppShell` mount
+  effect — voice lists load ASYNCHRONOUSLY on many browsers (confirmed: Chrome in particular
+  reports an empty list on the very first `getVoices()` call and only populates it once its own
+  `voiceschanged` event fires), so priming well before the first real mascot line needs to speak
+  (which requires navigating past Welcome/Sign Up first, giving the browser a real head start)
+  means `speak()` itself can stay a plain synchronous call rather than needing its own async
+  retry/wait logic.
+- **Voice selection**: no API exposes "which voice sounds warm/friendly," so `pickVoice()` checks
+  a small, hand-picked wishlist of voice-name substrings commonly available on major platforms
+  (macOS/iOS Safari, Chrome, Windows Edge — e.g. `'Samantha'`, `'Google US English'`,
+  `'Microsoft Zira'`) in order, using the first one actually present on this device; falls back to
+  the first English voice, then just the first voice available, matching the task's own "choose
+  one that sounds relatively natural if there's a choice, defaulting to whatever's first."
+  `SPEECH_RATE`/`SPEECH_PITCH` (0.95/1.05 — hand-picked judgment calls, not derived from anything
+  measured) are slightly off the browser's flat 1.0 defaults in the direction of sounding less
+  rushed/less monotone, without pretending to guarantee "warm" on every device.
+- **`src/hooks/useMascotSpeech.js`** (`useMascotSpeech(text, muted)`) is the shared "speak the
+  current line, stop when it's no longer current" behavior, used by BOTH `MascotWidget` (Stage
+  5's in-flow dialogue) and `HubScreen.jsx`'s own pointing dialogue (Stage 4) — one hook, not two
+  separate implementations. A `lastSpokenRef` guards against re-speaking the exact same line on a
+  render that didn't meaningfully change it (e.g. unmuting with the same `text` still on screen)
+  — speech only ever starts on a genuinely NEW line. Effect cleanup on unmount also stops
+  speech — navigating to a different screen mid-utterance cuts the audio off rather than letting
+  it keep playing over the new screen.
+- **"Dismissed before finishing, stop immediately" (a real explicit requirement) works for free,
+  with no special-casing inside the hook itself**: `MascotWidget` passes `!dismissed ? text :
+  null` into `useMascotSpeech`, not the raw `text` prop — from the hook's own perspective, a
+  dismiss is just an ordinary "the current line went away" change, handled by the exact same
+  effect branch that also fires when a screen unmounts or the line is genuinely replaced by a new
+  one. `MascotWidget` reads `state.voiceMuted` directly via `useApp()` (added to `DEFAULT_STATE`,
+  `AppContext.jsx`) rather than needing every one of its many call sites across every Stage-5
+  screen updated to thread a new prop through.
+- **The mute toggle is ONE control, not one per widget** — a speaker icon (`Volume2`/`VolumeX`
+  from `lucide-react`) added to `App.jsx`'s own persistent header, which already renders on every
+  screen except `welcome` and stays mounted across screen navigation (only the inner `<Screen />`
+  swaps) — so a plain `state.voiceMuted` toggle here already satisfies "persisted... so the user
+  doesn't have to re-mute it every screen" without needing a dedicated session-only store; it
+  happens to also survive a reload the same way every other real AppContext-tracked preference
+  does, a reasonable bonus for a deliberate mute choice, not something engineered around.
+  `App.jsx`'s existing `.brand` div is now wrapped in a new `.app-header` flex row
+  (`justify-content: space-between`) so the toggle sits at the opposite end without changing
+  `.brand`'s own look — this required moving one existing CSS override
+  (`.app-shell.app-shell-plan .brand { margin: 0; padding: ...; flex-shrink: 0; }`, needed because
+  the full-bleed Plan layout's own flex column used to treat `.brand` as its direct child) to
+  target `.app-header` instead, since that's the new direct flex child there.
+- **Task 3 (missing voices, fail silently) is handled at two levels, not just inside `speak()`
+  itself**: `speak()` re-checks the live voice list immediately before ever calling
+  `speechSynthesis.speak()` and is a no-op if it's still empty (a device/browser with genuinely no
+  usable voices) — no error, no attempted native call, text UI completely unaffected either way.
+  Separately, the mute toggle itself only renders at all when `isSpeechAvailable()` is true, so a
+  device with no Speech API support at all never shows a control that would otherwise do nothing
+  audible either way ("no error shown to the user" extended to "no dead control shown," a
+  judgment call in the same spirit).
+- **Verified directly via Playwright, not just code review** — headless Chromium in this
+  environment turned out to have real voices available (`getVoices()` returned 191 entries), so
+  testing used real voice objects and a real native `SpeechSynthesisUtterance` throughout rather
+  than a synthetic stand-in; `window.speechSynthesis` itself can't be wholesale replaced (a
+  non-configurable `Window` property, confirmed directly), but its own `speak`/`cancel` methods
+  ARE directly writable in place, which is what test instrumentation monkey-patches to record
+  calls without needing real audio hardware. The zero-voices and speech-entirely-unavailable
+  cases were confirmed separately by monkey-patching `getVoices()` to return `[]` and by `delete
+  window.speechSynthesis` respectively (both directly confirmed viable operations on this
+  property, unlike wholesale reassignment) — both leave the visible dialogue text and the rest of
+  the app fully functional, with zero `speak()` calls attempted.
+
 **`ProgramSummaryScreen.jsx` aggregates every program the student selected across Discovery into
 one Reach/Match/Safety-grouped list — deliberately a pure display layer, not a new scoring
 system.** Every program's tag comes from calling the exact same `reachMatchSafetyTag(state.gpa,
@@ -2633,3 +2709,18 @@ download). Cover at minimum:
   of Skip) still produces a non-blank `gpa` AND sets `transcriptCompleted`, and still unlocks both
   tiles exactly as before — this fix must not change that path. Repeat for the UC Davis variant
   (`UCDavisTranscriptScreen`'s own Skip button and `ucdavisTranscript`).
+- Dashboard/Guide Stage 6 (voiceover): monkey-patch `window.speechSynthesis.speak`/`.cancel` in
+  place (don't try to reassign `window.speechSynthesis` wholesale — confirmed non-configurable)
+  to record calls, then confirm both the hub's own pointing dialogue and a Stage-5 in-flow
+  `MascotWidget` line each trigger exactly one `speak()` call whose text matches what's actually
+  visible, with a real picked voice and a rate/pitch off the flat 1.0 default. Dismiss a
+  `MascotWidget` line mid-speech and confirm `cancel()` fires immediately. Click the header's
+  mute toggle and confirm `state.voiceMuted` flips, no further `speak()` calls happen while muted,
+  and the muted state survives navigating to a different screen (the toggle itself stays mounted
+  across navigation, so this should be automatic — a genuine regression here would mean something
+  broke that assumption). Confirm the toggle is entirely absent when `window.speechSynthesis`/
+  `window.SpeechSynthesisUtterance` don't exist at all (`delete` both, a real page reload with
+  that init script applied) and that the rest of the app — dialogue text, navigation — is
+  completely unaffected. Separately, patch `getVoices()` alone to return `[]` (leaving `speak`/
+  `cancel` real) and confirm zero `speak()` calls are attempted while dialogue text still renders
+  normally.

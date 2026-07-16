@@ -1,5 +1,7 @@
-import { Compass } from 'lucide-react';
+import { useEffect } from 'react';
+import { Compass, Volume2, VolumeX } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
+import { isSpeechAvailable, primeVoices } from './utils/speech';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
@@ -39,7 +41,7 @@ const TRANSITION_SCREENS = new Set([
 ]);
 
 function AppShell() {
-  const { state } = useApp();
+  const { state, patch } = useApp();
   const screenKey = SCREENS[state.screen] ? state.screen : 'hub';
   const Screen = SCREENS[screenKey];
   // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
@@ -50,12 +52,34 @@ function AppShell() {
   const isPlanDetail = screenKey === 'plan' && state.planYearIndex !== null;
   const needsTransition = TRANSITION_SCREENS.has(screenKey) || (screenKey === 'plan' && !isPlanDetail);
 
+  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — prime the browser's voice list once, as
+  // early as possible in the app's lifetime, so it's very likely already populated by the time
+  // the first real mascot line needs to speak (which requires navigating past Welcome/Sign Up
+  // first) — see speech.js's own comment for why this matters on Chrome specifically.
+  useEffect(() => {
+    primeVoices();
+  }, []);
+
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : ' polish'}`}>
       {state.screen !== 'welcome' && (
-        <div className="brand">
-          <Compass />
-          MyPath — prototype
+        <div className="app-header">
+          <div className="brand">
+            <Compass />
+            MyPath — prototype
+          </div>
+          {isSpeechAvailable() && (
+            <button
+              type="button"
+              className="voice-mute-toggle"
+              onClick={() => patch({ voiceMuted: !state.voiceMuted })}
+              aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+              aria-pressed={state.voiceMuted}
+              title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+            >
+              {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          )}
         </div>
       )}
       {needsTransition ? (

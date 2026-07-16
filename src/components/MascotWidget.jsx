@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import MascotIcon from './MascotIcon';
+import { useApp } from '../context/AppContext';
+import { useMascotSpeech } from '../hooks/useMascotSpeech';
 
 // Dashboard/Guide feature, Stage 5 — the in-flow mascot widget, appearing on every real screen
 // after the hub (not the hub itself, which already has its own larger mascot + pointer + greeting
@@ -32,6 +34,7 @@ import MascotIcon from './MascotIcon';
 // pill underneath — caught directly via Playwright, not assumed. The portal escapes that ancestor
 // entirely, the same fix that already worked for the modal.
 export default function MascotWidget({ text }) {
+  const { state } = useApp();
   const [dismissed, setDismissed] = useState(false);
 
   // A NEW piece of dialogue (the `text` prop changing — including from null to a real line, or
@@ -40,6 +43,13 @@ export default function MascotWidget({ text }) {
   useEffect(() => {
     setDismissed(false);
   }, [text]);
+
+  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — speaks `text` aloud alongside it appearing.
+  // Passing `null` once dismissed (rather than the raw `text` prop) is what makes "dismissing
+  // stops the speech immediately" work for free: from useMascotSpeech's own perspective, a
+  // dismiss is just an ordinary "the current line went away" change, handled by the exact same
+  // effect that also stops audio when a screen navigates away or the line is genuinely replaced.
+  useMascotSpeech(!dismissed ? text : null, state.voiceMuted);
 
   if (!text || dismissed) return null;
 

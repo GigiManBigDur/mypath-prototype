@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
 import MascotIcon from '../components/MascotIcon';
 import { ADMISSIONS_CONTEXT_LINES } from '../data/mascotDialogue';
+import { useMascotSpeech } from '../hooks/useMascotSpeech';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -203,6 +204,12 @@ export default function HubScreen() {
   // `state` (see GUIDED_SEQUENCE above) since its condensed admissions-context blurb varies by
   // education level — resolved once here rather than inline in the JSX below.
   const nextStepIntro = typeof nextStep.intro === 'function' ? nextStep.intro(state) : nextStep.intro;
+  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own pointing dialogue speaks
+  // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue.
+  // There's no "dismiss" concept for this always-visible bubble, so it just speaks whenever
+  // `nextStepIntro` changes (advancing to a new guided step) and stops on unmount (navigating
+  // away from the hub) — both handled inside the hook itself.
+  useMascotSpeech(nextStepIntro, state.voiceMuted);
 
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it

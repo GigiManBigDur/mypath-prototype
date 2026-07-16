@@ -36,6 +36,17 @@ body {
   padding: 32px 20px 80px;
 }
 
+/* Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — .app-header wraps .brand plus the new
+   voice-mute toggle in one flex row, space-between, so .brand keeps its exact original look/
+   position (left-aligned) while the toggle sits at the opposite end. The row's own
+   margin-bottom replaces .brand's former one, so vertical spacing below the header is unchanged
+   regardless of which of the two elements happens to be tallest. */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
 .brand {
   display: flex;
   align-items: center;
@@ -45,9 +56,25 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  margin-bottom: 28px;
 }
 .brand svg { width: 16px; height: 16px; color: var(--teal); }
+
+.voice-mute-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--paper-line);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.voice-mute-toggle:hover { color: var(--teal); border-color: var(--teal); }
+.voice-mute-toggle:active { transform: scale(0.92); }
 
 /* Academic Plan layout restructure — the Plan screen alone becomes a full-viewport flex column
    (brand bar, then the roadmap filling everything else) instead of the normal centered/padded/
@@ -63,7 +90,11 @@ body {
   flex-direction: column;
   overflow: hidden;
 }
-.app-shell.app-shell-plan .brand {
+/* Was `.app-shell.app-shell-plan .brand` before .brand got wrapped in .app-header (Stage 6) —
+   .app-header is now the direct flex child of .app-shell-plan's own flex column, so this
+   positioning override moved here with it; .brand's own margin is already 0 by default now that
+   .app-header carries the margin-bottom instead, so nothing further is needed on .brand itself. */
+.app-shell.app-shell-plan .app-header {
   margin: 0;
   padding: 14px 20px 0;
   flex-shrink: 0;

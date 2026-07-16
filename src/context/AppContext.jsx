@@ -150,6 +150,16 @@ const DEFAULT_STATE = {
   // current year, matching STAGE_PLAN's ordering) = viewing Map 2 (Roadmap.jsx) scoped to that
   // one year. Persisted like every other navigation field so a returning user resumes on
   // whichever year they were looking at, not bounced back to the overview.
+  voiceMuted: false, // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the mascot's spoken
+  // voiceover (Web Speech API) defaults ON, since this stage exists specifically to test whether
+  // voice is worth keeping at all. A single toggle in App.jsx's persistent header controls this
+  // for the whole app, not a per-screen setting — stored here (rather than a module-level "session
+  // only" flag, the pattern this app already uses for pure entrance-animation flags like
+  // `hasPlayedRoadmapEntrance`) so it survives across screen navigation the same simple way every
+  // other real user preference in this app already does; it also happens to survive a reload,
+  // which is a reasonable bonus for a deliberate mute choice, not something worth engineering
+  // around. "Start Over" resetting it back to on along with everything else is fine — that's a
+  // fresh run of the app, same as every other DEFAULT_STATE field.
 };
 
 function loadInitialState() {
