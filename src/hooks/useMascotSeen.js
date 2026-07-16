@@ -60,9 +60,9 @@ function useMascotSeenSnapshot(key) {
 }
 
 // Convenience wrapper for the common "one intro key, no revisit text defined, just go quiet
-// afterward" shape (pure info screens like Admissions Overview) — resolves the text AND marks it
-// seen in one call, so a screen with nothing more nuanced to decide doesn't need to hand-roll the
-// same three-line `!seenKeys.includes(key) ? ... : null` check itself. Screens with real
+// afterward" shape (pure info/summary screens like ProgramSummaryScreen) — resolves the text AND
+// marks it seen in one call, so a screen with nothing more nuanced to decide doesn't need to
+// hand-roll the same three-line `!seenKeys.includes(key) ? ... : null` check itself. Screens with real
 // progression logic (SurveyScreen's field sequence, Discovery's sub-steps, ...) still compute
 // their own key and call `useMarkMascotSeen` directly instead, since THEIR "is this still
 // relevant" question depends on more than just "have they seen it."

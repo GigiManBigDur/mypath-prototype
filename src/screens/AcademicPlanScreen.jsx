@@ -15,7 +15,8 @@ import YearOverview from '../components/YearOverview';
 //     plan's last year (unbounded). generateRoadmap()/filterItemsToYear() do the actual
 //     date-range filtering — see roadmapGenerator.js.
 // `onBack` means something different depending on which sub-view is active: from Map 1 it goes
-// back out to Project Builder (unchanged); from Map 2 it goes back to Map 1 (the new "return to
+// back out to the hub (the single, consistent return point for every screen — see the "Return to
+// Hub" routing restructure in CLAUDE.md); from Map 2 it goes back to Map 1 (the "return to
 // years" control), not all the way out of the Plan screen.
 export default function AcademicPlanScreen() {
   const { state, patch, reset } = useApp();
@@ -37,7 +38,7 @@ export default function AcademicPlanScreen() {
       <YearOverview
         years={years}
         onSelectYear={(stageIndex) => patch({ planYearIndex: stageIndex })}
-        onBack={() => patch({ screen: 'projectBuilder' })}
+        onBack={() => patch({ screen: 'hub' })}
         onReset={reset}
       />
     );

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { getBuiltTracks } from '../data/interests';
 import { getCourseById } from '../data/courses';
 import { getCourseById as getUCDavisCourseById, searchUCDavisCourses } from '../data/ucdavisCourses';
 import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
@@ -21,12 +20,9 @@ const QUARTER_OPTIONS = ['Fall', 'Winter', 'Spring', 'Summer'];
 
 // Course Selection Stage 2 — real transcript entry, replacing both the Stage 1 placeholder here
 // AND (functionally) the original Survey GPA text box: state.gpa is now calculated from this
-// screen's entries instead of self-reported. Back mirrors the same built-track skip
-// AdmissionsOverviewScreen/DiscoveryScreen already use (see architecture note in CLAUDE.md) —
-// unchanged from the Stage 1 placeholder.
+// screen's entries instead of self-reported.
 export default function TranscriptScreen() {
   const { state, patch } = useApp();
-  const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
   const isHighSchool = state.educationLevel === 'highschool';
   // UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — an Undergraduate/Transfer
   // student who selected UC Davis as their current school also gets this screen, same flow
@@ -47,17 +43,17 @@ export default function TranscriptScreen() {
 
   // Defensive: this screen only applies to High School or a UC-Davis-selecting Undergraduate/
   // Transfer student — routing already never sends anyone else here, but if state ever ends up
-  // here anyway (e.g. restored mid-flow after educationLevel/currentSchool changed), bounce
-  // forward instead of rendering a screen that shouldn't apply to them, same pattern
-  // DiscoveryScreen's own defensive bounce uses.
+  // here anyway (e.g. restored mid-flow after educationLevel/currentSchool changed), bounce back
+  // to the hub, the single consistent return point for every screen (see the "Return to Hub"
+  // routing restructure in CLAUDE.md), same pattern DiscoveryScreen's own defensive bounce uses.
   useEffect(() => {
-    if (!hasCourseFlow) patch({ screen: 'programSummary' });
+    if (!hasCourseFlow) patch({ screen: 'hub' });
   }, [hasCourseFlow]);
 
   if (!hasCourseFlow) return null;
 
   if (!isHighSchool) {
-    return <UCDavisTranscriptScreen state={state} patch={patch} hasBuiltTrack={hasBuiltTrack} />;
+    return <UCDavisTranscriptScreen state={state} patch={patch} />;
   }
 
   // The "add a course" form is a few fields staged locally before becoming one real
@@ -146,7 +142,7 @@ export default function TranscriptScreen() {
       });
       return;
     }
-    patch({ gpa: newGpa, screen: 'courseSelection' });
+    patch({ gpa: newGpa, screen: 'hub' });
   };
 
   const goBack = () => {
@@ -154,7 +150,7 @@ export default function TranscriptScreen() {
       patch({ activeCourseCheckpoint: null, screen: 'plan' });
       return;
     }
-    patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' });
+    patch({ screen: 'hub' });
   };
 
   return (
@@ -164,7 +160,7 @@ export default function TranscriptScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={4} total={9} />}
+      {!checkpoint && <StepProgress step={3} total={8} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint
@@ -307,7 +303,7 @@ export default function TranscriptScreen() {
 // letter grade instead of a 0-100 number, class year + quarter instead of a single grade level —
 // since forcing Roslyn's shape onto a genuinely different grading system would be a worse fit
 // than building this screen's own small form.
-function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
+function UCDavisTranscriptScreen({ state, patch }) {
   const [pendingCourse, setPendingCourse] = useState(null);
   const [letterGrade, setLetterGrade] = useState('');
   const [classYear, setClassYear] = useState(null);
@@ -393,7 +389,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
       });
       return;
     }
-    patch({ gpa: newGpa, screen: 'courseSelection' });
+    patch({ gpa: newGpa, screen: 'hub' });
   };
 
   const goBack = () => {
@@ -401,7 +397,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
       patch({ activeUCDavisCheckpoint: null, screen: 'plan' });
       return;
     }
-    patch({ screen: hasBuiltTrack ? 'discovery' : 'admissions' });
+    patch({ screen: 'hub' });
   };
 
   return (
@@ -411,7 +407,7 @@ function UCDavisTranscriptScreen({ state, patch, hasBuiltTrack }) {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={4} total={9} />}
+      {!checkpoint && <StepProgress step={3} total={8} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'UC Davis Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint

@@ -6,6 +6,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
 import MascotIcon from '../components/MascotIcon';
+import { ADMISSIONS_CONTEXT_LINES } from '../data/mascotDialogue';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -127,7 +128,14 @@ const GUIDED_SEQUENCE = [
   {
     id: 'careers', requiresPartnerSchool: false,
     isDone: (state) => state.selectedCareerIds.length > 0,
-    intro: 'Pick a few careers that catch your eye.',
+    // "Return to Hub" routing restructure (see CLAUDE.md) — Admissions Overview was retired as
+    // its own standalone screen; this is the ONE dialogue entry in this whole sequence that's a
+    // function of `state` rather than a plain string, since the condensed admissions-context
+    // blurb it opens with varies by `state.educationLevel` (see ADMISSIONS_CONTEXT_LINES,
+    // mascotDialogue.js). Falls back to the High School line for the (unreachable in practice,
+    // since Survey requires picking a level to ever reach here) case of a missing/unrecognized
+    // level, rather than rendering nothing.
+    intro: (state) => `Quick context: ${ADMISSIONS_CONTEXT_LINES[state.educationLevel] || ADMISSIONS_CONTEXT_LINES.highschool} Now, let's figure out what excites you.`,
   },
   {
     id: 'majors', requiresPartnerSchool: false,
@@ -187,13 +195,17 @@ export default function HubScreen() {
   const hasPartnerSchool = state.currentSchool === 'Roslyn High School' || state.currentSchool === 'UC Davis';
   const tiles = TILES.filter((t) => !t.requiresPartnerSchool || hasPartnerSchool);
   const nextStep = getNextGuidedStep(state, hasPartnerSchool);
+  // Every other step's `intro` is a plain string; the 'careers' step's own is a function of
+  // `state` (see GUIDED_SEQUENCE above) since its condensed admissions-context blurb varies by
+  // education level — resolved once here rather than inline in the JSX below.
+  const nextStepIntro = typeof nextStep.intro === 'function' ? nextStep.intro(state) : nextStep.intro;
 
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it
     // once (as its initial subStep) and clears it right back to null on mount, the same
     // read-once-then-clear shape `activeCourseCheckpoint`/`activeUCDavisCheckpoint` already use
-    // elsewhere in this app, so a later NORMAL entry into Discovery (via the real admissions
-    // flow) is never left starting on a stale sub-step from an old hub click.
+    // elsewhere in this app, so a LATER hub click into Discovery is never left starting on a
+    // stale sub-step from an earlier visit.
     patch({ screen: tile.screen, ...(tile.discoveryEntryStep ? { discoveryEntryStep: tile.discoveryEntryStep } : {}) });
   };
 
@@ -216,7 +228,7 @@ export default function HubScreen() {
         {(greetingName || nextStep) && (
           <div className="mascot-greeting">
             {greetingName && <p>Welcome, {greetingName}!</p>}
-            <p className="mascot-dialogue">{nextStep.intro}</p>
+            <p className="mascot-dialogue">{nextStepIntro}</p>
           </div>
         )}
       </div>

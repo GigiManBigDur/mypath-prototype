@@ -1,5 +1,5 @@
 // Shared "Step X of Y" indicator — replaces the plain eyebrow text previously duplicated across
-// Survey/Admissions/Discovery/OpportunityFinder/ProjectBuilder with an animated dot track (reusing
+// Survey/Discovery/OpportunityFinder/ProjectBuilder with an animated dot track (reusing
 // the same .step-track/.step-dot language DiscoveryScreen already used for its careers/majors/
 // programs sub-steps) plus the existing .eyebrow text underneath, so no information is lost.
 // AcademicPlanScreen is intentionally NOT switched to this component — it's out of scope for this

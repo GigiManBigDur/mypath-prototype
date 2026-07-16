@@ -99,10 +99,11 @@ is secondary and manual only.
 
 **Screen flow is a single-page state machine, not a router.** `App.jsx` reads
 `state.screen` from `AppContext` and renders the matching component from a `SCREENS` map
-(`welcome → signup → survey → admissions → discovery → transcript → courseSelection →
-programSummary → opportunities → projectBuilder → plan`). Screens advance by calling
-`patch({ screen: 'next' })` — there's no URL
-routing, back/forward is handled by explicit "Back" buttons that patch `screen` backwards.
+(`welcome → signup → hub → survey → discovery → transcript → courseSelection →
+programSummary → opportunities → projectBuilder → plan`). There's no URL routing. **Every screen
+after the hub returns to `hub` on both Continue/Done and Back** (the Return-to-Hub routing
+restructure, see its own section further below) — `hub` is the sole return point for the whole
+post-signup flow, not a fixed forward/backward chain between screens.
 `welcome` is `DEFAULT_STATE.screen` (`AppContext.jsx`), but only ever shown to a genuinely fresh
 visitor — `loadInitialState()` spreads any stored state *over* the default, so a returning user
 whose saved `screen` is anything else (e.g. `'plan'`) resumes exactly where they left off, never
@@ -165,9 +166,8 @@ optional voiceover remain later, not-yet-built stages of this same feature; orde
   `DiscoveryScreen`'s `useState(() => state.discoveryEntryStep || 'careers')` lazy initializer,
   then immediately cleared back to `null` in a mount-only `useEffect` — the same
   read-once-then-clear shape `activeCourseCheckpoint`/`activeUCDavisCheckpoint` already use
-  elsewhere in this app, so a later NORMAL entry into Discovery (via the real admissions flow)
-  always starts fresh at `'careers'` rather than replaying a stale hub click from earlier in the
-  session. This needed no changes to Discovery's own sub-step logic (`canAdvance`/`handleNext`/
+  elsewhere in this app, so a LATER hub click into Discovery always starts at the sub-step that
+  click actually targeted, never replaying a stale entry step left over from an earlier visit. This needed no changes to Discovery's own sub-step logic (`canAdvance`/`handleNext`/
   the majors-depend-on-selected-careers data dependency) — a hub click landing directly on
   Majors/Programs before Careers/Majors have real selections yet simply shows whatever empty state
   those sub-steps already render for zero selections, which is fine and expected given this
@@ -358,8 +358,8 @@ glow/pointer/greeting at all.
     plain `useEffect` keyed on `key`, mirroring this codebase's existing one-shot read/clear
     patterns (`discoveryEntryStep`, `activeCourseCheckpoint`).
   - `useMascotIntroOnce(key)` — the common "one intro line, no revisit text, go quiet after" shape
-    (pure info screens like Admissions Overview, or a screen where the summary already shown
-    covers what a revisit would say).
+    (a screen where the summary already shown covers what a revisit would say, e.g.
+    ProgramSummaryScreen).
   - `useMascotIntroThenRevisit(introKey, revisitKey)` — the other common shape: a real intro once,
     then a short, freely-repeatable revisit line on every later visit. `revisitKey` is optional;
     omitting it reproduces `useMascotIntroOnce`'s own quiet-after behavior for a caller that only
@@ -480,57 +480,101 @@ glow/pointer/greeting at all.
   writes, though the actual test race above turned out to live in the test harness, not this
   effect.
 
-**`programSummary` (the Reach/Match/Safety Summary — see its own section below) sits right before
-`opportunities` for EVERY education level**, which is what the High-School-only skip below
-actually resolves *to* now, not `opportunities` directly.
+**"Return to Hub" routing restructure, plus folding Admissions Overview into the hub's own
+dialogue.** Two related changes, done together: every screen's Continue/Done and Back now return
+to the hub instead of chaining to a fixed next/previous screen, and Admissions Overview was
+retired as a standalone screen/tile, its content folded into a few condensed sentences the mascot
+delivers as part of its hub dialogue right before pointing at Careers of Interest.
+- **Every screen after the hub now targets `screen: 'hub'` on Continue/Done, and (with one
+  exception) on Back too** — `SurveyScreen`, all 3 of `DiscoveryScreen`'s sub-steps (careers/
+  majors/programs, both directions — see below), `TranscriptScreen`/`CourseSelectionScreen` (both
+  the Roslyn and UC Davis variants, non-checkpoint mode only — checkpoint mode is a separate
+  mechanism entered from the Roadmap itself, not from a hub tile, and correctly keeps returning to
+  `'plan'`, untouched by this restructure), `ProgramSummaryScreen`, `OpportunityFinderScreen`, and
+  `ProjectBuilderScreen`'s own "Skip for now"/top-level Back. **The one deliberate exception**:
+  `ProjectBuilderScreen`'s "Go to my Academic Plan" button (shown once a project is started) still
+  targets `'plan'` directly — it's an explicit, textual "show me my plan" navigation choice the
+  user is making, not a generic screen-completion action, so it doesn't fit the Continue/Done
+  pattern this restructure targets.
+- **Discovery's 3 sub-steps (careers/majors/programs) each independently return to the hub now,
+  rather than chaining internally to the next sub-step within the same mounted `DiscoveryScreen`
+  instance** — matching how the hub's own `TILES` already treat "Careers of Interest," "Related
+  College Majors," and "Recommended Programs" as 3 separate destinations (`HubScreen.jsx`), not
+  stages of one wizard. `DiscoveryScreen.jsx`'s old `handleNext`/`goBackSubStep` pair (which
+  advanced/retreated `subStep` via `setSubStep`) was replaced with a single `handleNext = () =>
+  patch({ screen: 'hub' })` and an equivalent inline Back handler; `subStep` itself is now
+  `useState`'d without a setter (`const [subStep] = useState(...)`), fixed for the lifetime of a
+  mount and set only by whichever hub tile's own `discoveryEntryStep` launched this visit — a
+  student picking up "Related College Majors" next does so by clicking that tile (now unlocked)
+  from the hub, landing back on `DiscoveryScreen` via the same `discoveryEntryStep` mechanism
+  Stage 2 already established, not by an internal Continue advancing them there. The `.step-track`
+  dot visualization (careers/majors/programs) is still rendered — it's still a reasonable
+  at-a-glance "which of the 3 am I on" indicator — but is now purely cosmetic, no longer tied to
+  any forward/backward navigation.
+- **Every defensive/fallback bounce (a screen reached with mismatched state — e.g. Discovery
+  reached with zero built tracks, Transcript/Course Selection reached by a non-partner-school
+  student) now also targets `'hub'`**, replacing the old `afterDiscovery`/`hasCourseFlow`-derived
+  fallback targets — hub is the one single, consistent return point for every abnormal case too,
+  not just the normal completion path.
+- **`StepProgress`'s numbering was renumbered down by one and its `total` dropped from `9` to
+  `8`** across every screen that uses it (Survey stays step 1; Discovery 3→2; Transcript 4→3;
+  Course Selection 5→4; Program Summary 6→5; Opportunity Finder 7→6; Project Builder 8→7),
+  and `YearOverview.jsx`'s own plain "Step 9 of 9" eyebrow text became "Step 8 of 8" — a
+  mechanical consequence of Admissions Overview (the old step 2) being deleted, closing the gap
+  it left behind rather than leaving a numbering hole.
+- **`AdmissionsOverviewScreen.jsx` and `src/data/admissionsText.js` were deleted outright** (not
+  left as unused dead code) — removed from `App.jsx`'s `SCREENS` map and `TRANSITION_SCREENS` set,
+  and `'admissions-intro'` removed from `mascotDialogue.js`'s `MASCOT_LINES` (Stage 5's own
+  in-page dialogue instruction for that screen no longer applies, since the screen itself is
+  gone). Admissions Overview was never actually a hub tile to begin with (Survey's own Continue
+  used to chain straight into it before this restructure) — so no tile needed removing on the hub
+  side, only the screen and its routing references.
+- **Its content now lives in `ADMISSIONS_CONTEXT_LINES`** (`src/data/mascotDialogue.js`) — one
+  condensed 1-2 sentence blurb per education level (highschool/undergraduate/transfer), a distilled
+  version of what the old `ADMISSIONS_TEXT` page said for that level, not a lookup by the usual
+  `-intro`/`-revisit` key pair every other `MASCOT_LINES` entry uses, since this is always shown
+  exactly once (the survey-complete → careers-unlocked hub dialogue moment only ever happens once
+  per student) as part of a LARGER composed line, not stood alone. `HubScreen.jsx`'s own
+  `GUIDED_SEQUENCE` — the ordered list the mascot's hub dialogue already walks through (Stage 4) —
+  has its `'careers'` entry's `intro` field as a **function of `state`** rather than a plain
+  string, the only entry in the whole sequence that varies this way: `intro: (state) =>
+  \`Quick context: ${ADMISSIONS_CONTEXT_LINES[state.educationLevel] || ADMISSIONS_CONTEXT_LINES
+  .highschool} Now, let's figure out what excites you.\``. `HubScreen`'s own render resolves this
+  generically (`typeof nextStep.intro === 'function' ? nextStep.intro(state) : nextStep.intro`)
+  so every OTHER step's dialogue (still plain strings) is unaffected by the branch.
+- **A real, pre-existing test-harness race was found and fixed while regression-testing this
+  restructure** — not a bug in the app, but a fragility in how several Playwright test files
+  navigate between seeded states. Multiple test files (`test-ucdavis-stage1.js`,
+  `test-rms-summary.js`) had helper functions that called `seedAndGoto` (goto → overwrite
+  localStorage → reload) more than once per page for the first time once this restructure meant
+  reaching a downstream screen required a real hub round-trip instead of one continuous Continue
+  chain — this surfaced the exact same race `test-hub.js`'s own `seedAndGoto` already had fixed
+  (see its own entry above): a live app instance's own in-flight effects racing the test's fresh
+  seed. Fixed the same way in each file — a brief settle delay after the initial `goto()`.
+  Multiple pre-existing test files that drove screen-to-screen navigation by clicking through a
+  fixed Continue chain (`test.js`, `test-rms-summary.js`, `test-myschool.js`, `test-ucdavis.js`,
+  `test-ucdavis-stage1.js`, `test-ucdavis-stage2.js`, `test-ucdavis-stage3.js`,
+  `test-ucdavis-grade-fix.js`, `test-stage5-mascot.js`) were updated to either assert the new
+  `'hub'` target directly or navigate via a real hub tile click / direct re-seed instead of a
+  Continue chain that no longer exists — these were updates to match an intentional behavior
+  change, not regressions found in the app itself.
 
-**`transcript`/`courseSelection` (Course Selection Stages 2-3) are High-School-only screens —
-Undergraduate/Transfer never see them**, since those levels have no partner college yet and the
-whole feature (school selector, transcript entry, course catalog browsing) only makes sense for a
-Roslyn High School student. This is a second, independent skip layer on top of the `discovery`
-skip below, and both are computed the same way at every routing decision point: a shared
-`const afterX = state.educationLevel === 'highschool' ? 'transcript' : 'programSummary'`-style
-variable, never an inlined ternary repeated per callsite (this codebase's established pattern for
-multi-site conditional routing — see the `getBuiltTracks`-driven skip below for the precedent).
-Concretely:
-- `SurveyScreen`'s school-selector field block, and the `!!state.currentSchool` clause in
-  `canContinue`, are both wrapped in `isHighSchool` — Undergraduate/Transfer see neither the field
-  nor the requirement.
-- `AdmissionsOverviewScreen`'s Continue button goes to `discovery` if a built track was selected,
-  else `afterDiscoverySkip` (`'transcript'` for High School, `'programSummary'` otherwise).
-- `DiscoveryScreen`'s defensive zero-built-track bounce, and its own final-substep Continue
-  button, both target the same computed `afterDiscovery` (`'transcript'` for High School, else
-  `'programSummary'`) — this is a per-file-recomputed variable, not shared code, since each screen
-  reads `state.educationLevel` itself.
-- `TranscriptScreen` and `CourseSelectionScreen` each carry their own defensive `useEffect` that
-  bounces straight to `'programSummary'` if `state.educationLevel !== 'highschool'` (mirroring
-  `DiscoveryScreen`'s own zero-built-track defensive bounce) — belt-and-suspenders in case state is
-  ever restored mid-flow after `educationLevel` changed, since routing alone already never sends a
-  non-High-School student to either screen. `CourseSelectionScreen`'s own real (non-checkpoint)
-  Continue button also targets `'programSummary'`, same as every other path into it.
-- `ProgramSummaryScreen`'s own Back button computes `backTarget`: `'courseSelection'` for High
-  School (always — Course Selection is never itself conditionally skipped for them, so it's always
-  the real previous screen), or the exact pre-Course-Selection discovery-skip mirror
-  (`hasBuiltTrack ? 'discovery' : 'admissions'`) for Undergraduate/Transfer, who never see the
-  Transcript/Course-Selection stretch at all — this is the exact logic `OpportunityFinderScreen`'s
-  own Back button used to carry before `programSummary` was inserted in front of it;
-  `OpportunityFinderScreen`'s Back button is now unconditionally `'programSummary'` for every
-  level, since that's always the real previous screen now regardless of education level or
-  Discovery-skip status.
-
-**The `discovery` screen is separately, conditionally skipped** (orthogonal to the High-School
-gating above — this skip is about *interests*, not *education level*, and applies to every
-level): `AdmissionsOverviewScreen`'s Continue button routes to `afterDiscoverySkip` instead of
-`discovery` when the user has no built-track interest selected, and `DiscoveryScreen`'s Back
-button routes to `admissions` in that same case. `DiscoveryScreen` also has a defensive `useEffect`
-that bounces to `afterDiscovery` if it's ever reached with zero built tracks (e.g. state restored
-from `localStorage` after interests changed). `ProjectBuilderScreen` (see below) sits between
-`opportunities` and `plan` — unlike `discovery` it's never skipped by routing logic, since it's
-fully optional in place via its own persistent "Skip for now" control rather than being bypassed
-based on user data. `StepProgress`'s `total` is `9` everywhere now (was `8`) to match
-`programSummary` joining the flow — see each screen's own `step={N}` for its position
-(Undergraduate/Transfer students simply pass through steps 4-5 without seeing them rendered,
-same as they already silently skip step 3's `discovery` substeps when it's skipped).
+**Every screen now returns to the hub on completion — there is no screen-to-screen chaining
+anywhere in the flow.** This replaced a much more elaborate multi-layered skip/chain system that
+used to exist here (Admissions Overview → Discovery-or-skip → Transcript-or-skip → Course
+Selection → Program Summary → Opportunities → Project Builder → Plan, with each screen computing
+where to send its own Continue/Back next based on `educationLevel`/`currentSchool`/
+`hasBuiltTrack`) — see the "Return to Hub" routing restructure section just above for the full
+rationale and mechanics. **Which screens actually exist/are reachable for a given student is now
+controlled entirely by hub tile visibility/unlock** (Dashboard/Guide Stage 3, `HubScreen.jsx`'s
+own `TILES` — `requiresPartnerSchool` hides Transcript & GPA/Course Selection entirely for a
+non-partner-school Undergraduate/Transfer student; `unlock` gates every other tile), not by
+routing logic scattered across each screen's own Continue/Back handlers the way it used to be.
+`transcript`/`courseSelection` are still effectively High-School-(or UC-Davis-)-only in the sense
+that their hub tiles are hidden otherwise, and each still carries its own defensive `useEffect`
+bouncing back to `'hub'` if reached with a mismatched `educationLevel`/`currentSchool` (state
+restored mid-flow after either changed) — but there's no more Continue/Back chain connecting them
+to any OTHER specific screen.
 
 **`ProgramSummaryScreen.jsx` aggregates every program the student selected across Discovery into
 one Reach/Match/Safety-grouped list — deliberately a pure display layer, not a new scoring
@@ -1928,8 +1972,9 @@ screen's own buttons. All of `src/styles/global.css`'s "Global interaction polis
 the selection pulse + checkmark badge on a selected `.card`, and the staggered card-reveal
 animation) lives under that `.polish` prefix; don't add a new polish rule directly to a bare
 shared class, or it'll silently apply to the Plan screen too. **Page transitions are a separate,
-narrower scope**: `TRANSITION_SCREENS` in `App.jsx` (`survey`, `admissions`, `discovery`,
-`opportunities`, `projectBuilder`) wraps just those screens in a `.screen-transition` div keyed
+narrower scope**: `TRANSITION_SCREENS` in `App.jsx` (`signup`, `hub`, `survey`, `discovery`,
+`transcript`, `courseSelection`, `programSummary`, `opportunities`, `projectBuilder`) wraps just
+those screens in a `.screen-transition` div keyed
 by `screenKey`, so changing `state.screen` remounts the wrapper and replays its fade+upward-slide
 `screen-enter` keyframe — this is enter-only (no exit-stage animation, no router), which is fine
 since screens fully unmount/remount on every navigation anyway. `welcome` is deliberately excluded
@@ -1940,7 +1985,7 @@ delays applied to the existing shared grid/list container classes (`.grid`, `.ta
 `.pb-category-grid`, `.pb-projecttype-grid`, `.pb-community-grid`, `.step-track`) via one `:is()`
 selector group, so any future screen that reuses one of those containers gets the stagger for
 free. **`src/components/StepProgress.jsx`** replaces the old plain `<div className="eyebrow">Step
-N of 6</div>` text on Survey/Admissions/Discovery/OpportunityFinder/ProjectBuilder with an
+N of 6</div>` text on Survey/Discovery/OpportunityFinder/ProjectBuilder with an
 animated dot track (reusing the exact `.step-track`/`.step-dot` classes DiscoveryScreen already
 had for its own careers/majors/programs sub-steps) plus that same eyebrow text underneath, via a
 `{step, total, label}` prop API — `AcademicPlanScreen.jsx`'s own "Step 6 of 6" is deliberately
@@ -2155,12 +2200,16 @@ Undergraduate/Transfer — mirrors Roslyn's own Stage 1, but with one deliberate
 - **Downstream routing widens the same `isHighSchool` check used throughout the app to
   `isHighSchool || isCollegeAtUCDavis`** (`isCollegeAtUCDavis = isCollege && state.currentSchool
   === 'UC Davis'`), recomputed independently in each file per this codebase's established
-  per-file-recomputed-variable convention (see the High-School-skip note earlier in this section)
-  — `AdmissionsOverviewScreen`'s `afterDiscoverySkip`, `DiscoveryScreen`'s `afterDiscovery`, and
-  `ProgramSummaryScreen`'s `backTarget` all now route a UC-Davis-selecting college student through
-  `transcript`/`courseSelection` exactly like a High School student, while every other
-  Undergraduate/Transfer student (no school, or a currently-unsupported one) is routed completely
-  unaffected, exactly as before this feature.
+  per-file-recomputed-variable convention (see the High-School-skip note earlier in this section).
+  At the time this was written, several screens computed their own routing targets from this
+  check directly (`AdmissionsOverviewScreen`'s `afterDiscoverySkip`, `DiscoveryScreen`'s
+  `afterDiscovery`, `ProgramSummaryScreen`'s `backTarget`) so a UC-Davis-selecting college student
+  was routed through `transcript`/`courseSelection` exactly like a High School student. The
+  Return-to-Hub routing restructure (see its own section earlier in this document) later removed
+  all of those per-screen routing computations entirely — every screen's Continue/Back goes to `'hub'`
+  unconditionally now — but `isCollegeAtUCDavis` itself, and the `hasCourseFlow` gate it feeds
+  (below), are unaffected: they still correctly decide WHICH screens exist/render real content for
+  this student, just no longer double as a routing target too.
 - **`TranscriptScreen`/`CourseSelectionScreen` each gained a `hasCourseFlow = isHighSchool ||
   isCollegeAtUCDavis` gate** (replacing their old bare `isHighSchool` gate) plus a content branch:
   `isHighSchool` still renders the real, full Roslyn content unchanged; a UC-Davis-selecting

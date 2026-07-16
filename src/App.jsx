@@ -4,7 +4,6 @@ import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
 import SurveyScreen from './screens/SurveyScreen';
-import AdmissionsOverviewScreen from './screens/AdmissionsOverviewScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
 import TranscriptScreen from './screens/TranscriptScreen';
 import CourseSelectionScreen from './screens/CourseSelectionScreen';
@@ -18,7 +17,6 @@ const SCREENS = {
   signup: SignUpScreen,
   hub: HubScreen,
   survey: SurveyScreen,
-  admissions: AdmissionsOverviewScreen,
   discovery: DiscoveryScreen,
   transcript: TranscriptScreen,
   courseSelection: CourseSelectionScreen,
@@ -37,7 +35,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'hub', 'survey', 'admissions', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder',
+  'signup', 'hub', 'survey', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder',
 ]);
 
 function AppShell() {

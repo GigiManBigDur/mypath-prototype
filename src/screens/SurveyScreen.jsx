@@ -156,7 +156,7 @@ export default function SurveyScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={1} total={9} />
+      <StepProgress step={1} total={8} />
       <h1 className="page-title">Let's build your plan.</h1>
       <p className="page-sub">
         Answer a few quick questions and we'll put together a personalized roadmap — no
@@ -276,7 +276,7 @@ export default function SurveyScreen() {
           type="button"
           className="btn btn-primary"
           disabled={!canContinue}
-          onClick={() => patch({ screen: 'admissions' })}
+          onClick={() => patch({ screen: 'hub' })}
         >
           Continue
         </button>

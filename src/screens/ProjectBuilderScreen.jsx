@@ -41,14 +41,16 @@ export default function ProjectBuilderScreen() {
     return list;
   }, [roadmap]);
 
-  const skip = () => patch({ screen: 'plan' });
+  // Return-to-Hub routing restructure (see CLAUDE.md) — both exits (Skip and Back-from-the-
+  // top-level category grid) return to the hub now, not the old chain's next/previous screen.
+  const skip = () => patch({ screen: 'hub' });
 
   const openCategory = (id) => { setCategoryId(id); setProjectTypeId(null); setView('category'); };
   const openProjectType = (id) => { setProjectTypeId(id); setShowStartPicker(false); setStartDate(''); setView('projectType'); };
   const goBack = () => {
     if (view === 'projectType') { setShowStartPicker(false); setView('category'); return; }
     if (view === 'category') { setCategoryId(null); setView('categories'); return; }
-    patch({ screen: 'opportunities' });
+    patch({ screen: 'hub' });
   };
 
   const category = categoryId ? findCategory(categoryId) : null;
@@ -112,7 +114,7 @@ export default function ProjectBuilderScreen() {
         </button>
       </div>
 
-      <StepProgress step={8} total={9} />
+      <StepProgress step={7} total={8} />
 
       {view === 'categories' && <CategoriesView onOpenCategory={openCategory} />}
 

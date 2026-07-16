@@ -14,9 +14,10 @@ import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 const SUB_STEPS = ['careers', 'majors', 'programs'];
 
 // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — unlike Survey's single continuous page,
-// each of Discovery's 3 sub-steps only ever changes via an explicit user action (handleNext/
-// goBackSubStep calling setSubStep), never automatically from a dependent field settling — so
-// there's no cascade risk here the way Survey's field-sequence effect had to guard against.
+// each of Discovery's 3 sub-steps only ever changes via an explicit user action (a hub tile
+// click setting `discoveryEntryStep`, read once below), never automatically from a dependent
+// field settling — so there's no cascade risk here the way Survey's field-sequence effect had to
+// guard against.
 const DISCOVERY_MASCOT_KEYS = {
   careers: { intro: 'discovery-careers-intro', revisit: 'discovery-careers-revisit' },
   majors: { intro: 'discovery-majors-intro', revisit: 'discovery-majors-revisit' },
@@ -43,9 +44,11 @@ export default function DiscoveryScreen() {
   // Dashboard/Guide hub (Stage 2, see CLAUDE.md) can land here on a specific sub-step (its own
   // Careers/Majors/Programs tiles) via `state.discoveryEntryStep` — read once as the initial
   // value (the lazy initializer only runs on mount), then immediately cleared back to null below
-  // so a later NORMAL entry into Discovery via the real admissions flow always starts fresh at
-  // 'careers' rather than replaying a stale hub click.
-  const [subStep, setSubStep] = useState(() => state.discoveryEntryStep || 'careers');
+  // so a LATER hub click into Discovery is never left starting on a stale sub-step from an
+  // earlier visit.
+  // No longer paired with a setter — sub-step no longer advances internally (see handleNext
+  // below), so this is fixed for the lifetime of this mount, set only from the hub's own click.
+  const [subStep] = useState(() => state.discoveryEntryStep || 'careers');
 
   useEffect(() => {
     if (state.discoveryEntryStep) patch({ discoveryEntryStep: null });
@@ -61,23 +64,15 @@ export default function DiscoveryScreen() {
   const [programsView, setProgramsView] = useState('recommended');
 
   const tracks = getBuiltTracks(state.interestTags);
-  // Course Selection (Transcript & GPA -> Course Selection) applies to High School, and — as of
-  // the UC Davis partner-school addition — to an Undergraduate/Transfer student who selected UC
-  // Davis as their current school. See AdmissionsOverviewScreen's identical check. Everyone else
-  // goes straight to the Reach/Match/Safety Summary, which sits right before Opportunities for
-  // every level.
-  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
-    && state.currentSchool === 'UC Davis';
-  const afterDiscovery = (state.educationLevel === 'highschool' || isCollegeAtUCDavis) ? 'transcript' : 'programSummary';
 
-  // Defensive: this screen should only be reached when at least one selected
-  // interest maps to a built track — Admissions/Transcript route around it
-  // otherwise. If state ever ends up here with none (e.g. restored mid-flow
-  // after interests changed), bounce forward to whichever screen is actually
-  // next instead of rendering empty steps.
+  // Defensive: this screen should only be reached when at least one selected interest maps to a
+  // built track. If state ever ends up here with none (e.g. restored mid-flow after interests
+  // changed, or a stale hub click), bounce back to the hub — the single, consistent return point
+  // for every screen now (see the "Return to Hub" routing restructure in CLAUDE.md) — instead of
+  // rendering empty steps or silently forwarding into a DIFFERENT downstream screen.
   useEffect(() => {
-    if (tracks.length === 0) patch({ screen: afterDiscovery });
-  }, [tracks.length, afterDiscovery]);
+    if (tracks.length === 0) patch({ screen: 'hub' });
+  }, [tracks.length]);
 
   const mascotKeys = DISCOVERY_MASCOT_KEYS[subStep];
   const mascotText = useMascotIntroThenRevisit(mascotKeys.intro, mascotKeys.revisit);
@@ -98,15 +93,6 @@ export default function DiscoveryScreen() {
   const allMajorIds = [...new Set(allMajorGroups.flatMap((g) => g.majors.map((m) => m.id)))];
   const selectedCareers = careers.filter((c) => state.selectedCareerIds.includes(c.id));
   const majorIds = [...new Set(selectedCareers.flatMap((c) => c.relevantMajors))];
-
-  const goBackSubStep = () => {
-    const idx = SUB_STEPS.indexOf(subStep);
-    if (idx === 0) {
-      patch({ screen: 'admissions' });
-    } else {
-      setSubStep(SUB_STEPS[idx - 1]);
-    }
-  };
 
   const toggleCareer = (id) => {
     const has = state.selectedCareerIds.includes(id);
@@ -145,20 +131,21 @@ export default function DiscoveryScreen() {
     (subStep === 'majors' && state.selectedMajorIds.length > 0) ||
     (subStep === 'programs' && state.selectedProgramKeys.length > 0);
 
-  const handleNext = () => {
-    const idx = SUB_STEPS.indexOf(subStep);
-    if (idx < SUB_STEPS.length - 1) {
-      setSubStep(SUB_STEPS[idx + 1]);
-    } else {
-      patch({ screen: afterDiscovery });
-    }
-  };
+  // Return-to-Hub routing restructure (see CLAUDE.md) — Careers/Majors/Programs are 3 separate
+  // hub tiles/destinations (see HubScreen.jsx's own TILES), so completing ANY of them returns to
+  // the hub rather than silently advancing to the next sub-step within this same mounted screen.
+  // A student picking up "Related College Majors" next does so by clicking that tile (now
+  // unlocked), landing back here via `discoveryEntryStep`, exactly like every other hub-launched
+  // screen. This replaced the old handleNext/goBackSubStep pair that stepped subStep forward/
+  // backward internally — with Continue no longer chaining forward, keeping only backward
+  // internal chaining on Back would have been asymmetric and confusing.
+  const handleNext = () => patch({ screen: 'hub' });
 
   return (
     <div>
       <MascotWidget text={mascotText} />
-      <BackBar onBack={goBackSubStep} />
-      <StepProgress step={3} total={9} label={SUB_STEP_COPY[subStep].title} />
+      <BackBar onBack={() => patch({ screen: 'hub' })} />
+      <StepProgress step={2} total={8} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">{SUB_STEP_COPY[subStep].sub}</p>
 
@@ -208,7 +195,7 @@ export default function DiscoveryScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" disabled={!canAdvance} onClick={handleNext}>
-          {subStep === 'programs' ? (afterDiscovery === 'transcript' ? 'Continue to Transcript' : 'Continue to Program Summary') : 'Continue'}
+          Continue
         </button>
       </div>
     </div>

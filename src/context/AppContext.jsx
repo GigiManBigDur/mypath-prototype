@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 const STORAGE_KEY = 'mypath-prototype-state';
 
 const DEFAULT_STATE = {
-  // welcome | signup | hub | survey | admissions | discovery | transcript | courseSelection |
+  // welcome | signup | hub | survey | discovery | transcript | courseSelection |
   // programSummary | opportunities | projectBuilder | plan
   screen: 'welcome',
   // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — entered on SignUpScreen, which sits
@@ -23,9 +23,9 @@ const DEFAULT_STATE = {
   // screen knows which of its 3 sub-steps to open on instead of always restarting at 'careers'.
   // DiscoveryScreen reads it once (as its initial subStep) and immediately clears it back to null
   // on mount — the same read-once-then-clear shape `activeCourseCheckpoint`/
-  // `activeUCDavisCheckpoint` already use elsewhere in this file — so a later NORMAL entry into
-  // Discovery (via the real admissions flow) is never left starting on a stale sub-step from an
-  // old hub click. null means "start at careers," the screen's own original default.
+  // `activeUCDavisCheckpoint` already use elsewhere in this file — so a LATER hub click into
+  // Discovery is never left starting on a stale sub-step from an earlier visit. null means "start
+  // at careers," the screen's own original default.
   discoveryEntryStep: null,
   // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — every mascot dialogue "intro" key
   // (src/data/mascotDialogue.js) that has ever been shown to this user, permanently. Each screen

@@ -21,8 +21,6 @@ export const MASCOT_LINES = {
   'survey-school': 'Do you go to Roslyn High School or UC Davis? If so, I can pull in your real courses and requirements!',
   'survey-revisit': 'Want to update anything here? Your plan will adjust automatically.',
 
-  'admissions-intro': "Here's a quick rundown of how admissions actually works for where you're headed — no fluff, just what you need to know.",
-
   'discovery-careers-intro': 'Based on what excites you, here are a few careers worth exploring. Pick any that resonate — you can always come back and adjust later.',
   'discovery-careers-revisit': 'Still exploring? Pick as many careers as genuinely interest you.',
 
@@ -64,3 +62,17 @@ export const MASCOT_LINES = {
 export function getMascotLine(key) {
   return key ? (MASCOT_LINES[key] ?? null) : null;
 }
+
+// "Return to Hub" routing restructure (see CLAUDE.md) — Admissions Overview no longer exists as
+// its own standalone screen; this condensed, education-level-varying blurb replaces it, folded
+// into the hub's own "pointing at Careers of Interest" dialogue (HubScreen.jsx's
+// GUIDED_SEQUENCE) right after the survey is completed, instead of a full page of its own. Each
+// line is a condensed 1-2 sentence version of what the old ADMISSIONS_TEXT page said for that
+// education level — not a lookup by a `-intro`/`-revisit` key pair like MASCOT_LINES above,
+// since this is always shown exactly once (the survey-complete -> careers-unlocked transition
+// only ever happens once) as part of a LARGER composed line, not stood alone.
+export const ADMISSIONS_CONTEXT_LINES = {
+  highschool: "first-year college admissions weighs your grades and course rigor alongside essays, activities, and recommendations — not just one number — and most students apply to a mix of Reach, Match, and Safety schools.",
+  undergraduate: "grad and professional admissions is more specialized — you're applying straight into one program, usually with a Statement of Purpose, letters of recommendation, and sometimes test scores, so fit matters more than a broad list.",
+  transfer: "transfer admissions leans heavily on your college coursework and GPA so far, plus which of your credits will actually transfer toward your intended major.",
+};

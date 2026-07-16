@@ -225,7 +225,7 @@ export default function CourseSelectionScreen() {
   // button that gets here, but state could in principle be reached directly (e.g. browser back),
   // so this bounces the same way rather than trusting the caller.
   useEffect(() => {
-    if (!hasCourseFlow) { patch({ screen: 'programSummary' }); return; }
+    if (!hasCourseFlow) { patch({ screen: 'hub' }); return; }
     if (checkpoint && !checkpointProgress?.part1Done) patch({ activeCourseCheckpoint: null, screen: 'plan' });
   }, [hasCourseFlow, checkpoint, checkpointProgress?.part1Done]);
 
@@ -359,12 +359,12 @@ export default function CourseSelectionScreen() {
       <button
         type="button"
         className="btn btn-ghost"
-        onClick={() => (checkpoint ? patch({ activeCourseCheckpoint: null, screen: 'plan' }) : patch({ screen: 'transcript' }))}
+        onClick={() => (checkpoint ? patch({ activeCourseCheckpoint: null, screen: 'plan' }) : patch({ screen: 'hub' }))}
       >
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={5} total={9} />}
+      {!checkpoint && <StepProgress step={4} total={8} />}
       <h1 className="page-title">{checkpoint ? `Select Your Courses for ${targetStageLabel}` : 'Course Selection'}</h1>
       <p className="page-sub">
         {checkpoint
@@ -720,7 +720,7 @@ export default function CourseSelectionScreen() {
               });
               return;
             }
-            patch({ screen: 'programSummary' });
+            patch({ screen: 'hub' });
           }}
         >
           {checkpoint ? 'Save & Return to Plan' : 'Continue'}
@@ -906,12 +906,12 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
       <button
         type="button"
         className="btn btn-ghost"
-        onClick={() => (checkpoint ? patch({ activeUCDavisCheckpoint: null, screen: 'plan' }) : patch({ screen: 'transcript' }))}
+        onClick={() => (checkpoint ? patch({ activeUCDavisCheckpoint: null, screen: 'plan' }) : patch({ screen: 'hub' }))}
       >
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={5} total={9} />}
+      {!checkpoint && <StepProgress step={4} total={8} />}
       <h1 className="page-title">
         {checkpoint ? `Select Your ${QUARTER_LABELS[checkpoint.quarter]} Quarter Courses` : 'Course Selection'}
       </h1>
@@ -1165,7 +1165,7 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
               });
               return;
             }
-            patch({ screen: 'programSummary' });
+            patch({ screen: 'hub' });
           }}
         >
           {checkpoint ? 'Save & Return to Plan' : 'Continue'}

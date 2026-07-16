@@ -1,6 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getBuiltTracks } from '../data/interests';
 import { getMergedPrograms, reachMatchSafetyTag, gpaBenchmarkText } from '../data/programs';
 import { MAJORS } from '../data/majors';
 import StepProgress from '../components/StepProgress';
@@ -59,17 +58,6 @@ function SummaryProgramCard({ p, tag }) {
 
 export default function ProgramSummaryScreen() {
   const { state, patch } = useApp();
-  const isHighSchool = state.educationLevel === 'highschool';
-  const hasBuiltTrack = getBuiltTracks(state.interestTags).length > 0;
-  // UC Davis partner-school addition, Stage 1 (see CLAUDE.md) — an Undergraduate/Transfer
-  // student who selected UC Davis as their current school also goes through Course Selection, so
-  // their real previous screen is 'courseSelection' too, same as High School.
-  const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
-    && state.currentSchool === 'UC Davis';
-  // Same backTarget logic OpportunityFinderScreen's own Back button used before this screen was
-  // inserted in front of it — moved here since this is now always the real previous screen for
-  // Opportunity Finder, regardless of level.
-  const backTarget = (isHighSchool || isCollegeAtUCDavis) ? 'courseSelection' : (hasBuiltTrack ? 'discovery' : 'admissions');
 
   const mergedPrograms = getMergedPrograms(state.selectedMajorIds, state.educationLevel);
   const selectedPrograms = mergedPrograms.filter((p) => state.selectedProgramKeys.includes(p.key));
@@ -84,8 +72,8 @@ export default function ProgramSummaryScreen() {
 
   // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — no revisit line was written for this
   // screen (nothing new to say on a later visit that the summary itself doesn't already show), so
-  // this stays a plain intro-once-then-quiet, same as Admissions Overview. Which of the two real
-  // intro variants applies depends on whether any programs are currently selected — same
+  // this stays a plain intro-once-then-quiet. Which of the two real intro variants applies
+  // depends on whether any programs are currently selected — same
   // mutually-exclusive-by-current-state pattern TranscriptScreen's own intro/empty split uses.
   const mascotIntroKey = selectedPrograms.length === 0 ? 'programSummary-empty' : 'programSummary-intro';
   const mascotText = useMascotIntroOnce(mascotIntroKey);
@@ -93,11 +81,11 @@ export default function ProgramSummaryScreen() {
   return (
     <div>
       <MascotWidget text={mascotText} />
-      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: backTarget })}>
+      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={6} total={9} />
+      <StepProgress step={5} total={8} />
       <h1 className="page-title">Your Reach, Match &amp; Safety List</h1>
       <p className="page-sub">
         Every program you selected in Discovery, grouped by how your current GPA compares to its
@@ -141,7 +129,7 @@ export default function ProgramSummaryScreen() {
       )}
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'opportunities' })}>
+        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'hub' })}>
           Continue
         </button>
       </div>

@@ -69,12 +69,12 @@ export default function OpportunityFinderScreen() {
       <button
         type="button"
         className="btn btn-ghost"
-        onClick={() => patch({ screen: 'programSummary' })}
+        onClick={() => patch({ screen: 'hub' })}
       >
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={7} total={9} />
+      <StepProgress step={6} total={8} />
       <h1 className="page-title">Opportunity Finder</h1>
       <p className="page-sub">
         Real programs and competitions worth pursuing alongside your coursework. Select any that
@@ -191,7 +191,7 @@ export default function OpportunityFinderScreen() {
       </div>
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'projectBuilder' })}>
+        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'hub' })}>
           Continue
         </button>
       </div>
