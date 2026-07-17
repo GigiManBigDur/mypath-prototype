@@ -4414,6 +4414,53 @@ through June) has even started — a plausible-sounding but entirely wrong date 
   pre-existing code, so it's a real but separate gap, not something this date fix touched or
   caused; left unfixed as out of scope for this task.
 
+**Follow-up bug fix: the pass immediately above was incomplete — it verified each club's own
+TEMPLATE month/day value (e.g. "September"), but never checked what that template actually
+RESOLVES to once run through this app's real "today"-anchored date math, which is the value a
+student actually sees.** Root cause, confirmed directly: `anchorDate()` (`utils/dates.js`) doesn't
+preserve a template date's own calendar month at all — it computes `offset = "days after Aug 15"`
+for the template value, then returns `today + offset`, where `today` is whatever real day the
+student happens to open the app. A "September 2" template is only 18 days after Aug 15, so on any
+day the app is opened where "today" is itself already within ~18 days of Aug 15 (i.e., anywhere
+from roughly mid-July through early September), the ANCHORED result lands back in August or
+earlier — regardless of the template saying "September." Verified precisely: with the real date
+this pass was built on (July 17, 2026), every one of the previous pass's smaller-offset picks
+(anything template-dated roughly "September" or earlier) anchored to real dates between Aug 3 and
+Aug 31, 2026 — 20 of the 51 real Roslyn `schoolVerified` entries, including several of the SAME
+`rhs-*` clubs that pass already touched plus the 5 pre-existing "enriched" ones that pass never
+checked at all (`deca`, `key-interact-club`, `school-media-club`, `science-olympiad`,
+`speech-debate-nsda`) — confirming the fix's own claim of correctness was based on an incomplete
+check (template month only), not the actual displayed result.
+- **The fix re-derives all 51 real Roslyn `schoolVerified` entries' template dates by working
+  backward from the desired REAL result**, not forward from an assumed template-month meaning:
+  for each club, a target real calendar date was chosen (Sept 3, 2026 through Apr 13, 2027, the
+  same "spread out, thematically varied" character the previous pass already established — early
+  September sign-ups first, honor-society inductions later in fall, a handful with a real seasonal
+  hook), then the exact `{ month, day }` template value that RE-ANCHORS to that target — given
+  today's real date — was computed and verified through the actual, unmodified `anchorDate()`
+  function itself (not a reimplementation of its math), confirming zero mismatches before writing
+  anything to the data file. This is why the resulting stored template values now read as
+  "October," "November," etc. for clubs the previous pass had labeled "September" — the STORED
+  template value was never the point; what matters is what it resolves to, and that's now been
+  verified directly rather than assumed. All 51 entries (not just the 44 `rhs-*` ones — the 7
+  pre-existing enriched clubs are equally part of "the full list of Roslyn 'My School' clubs" and
+  5 of them were equally broken) were covered this time, closing the exact gap the follow-up
+  report named.
+- Verified two ways: (1) the same Vite-module-loader technique as the first pass, but this time
+  calling the REAL `anchorDate()`/`startOfToday()` functions directly (not just reading the raw
+  template `month` field) — confirms zero entries land in June, July, or August, all 51 resolved
+  dates are mutually distinct, and every one falls between Sept 3, 2026 and Apr 13, 2027; (2) a
+  dedicated Playwright scan of the ACTUAL rendered "My School" tab UI (not a data-layer check) —
+  navigated to Opportunity Finder as a real Roslyn student, switched to My School, and read every
+  one of the 51 real card's own displayed date text (`OpportunityFinderScreen.jsx`'s own
+  `anchorDate(opp.date, today)` + `formatDate()` call, the exact code path a real student sees) —
+  confirming zero cards read "Aug," "Jun," or "Jul," and all 51 displayed dates are distinct. The
+  full pre-existing regression suite (`test-myschool.js`, `test-opportunity-project-repaint.js`,
+  `test-ucdavis-density.js`, `test-hub.js`, the general `test.js`) still passes, and the same
+  pre-existing, unrelated `test-ucdavis-myschool.js` failure from the prior pass (confirmed via
+  `git stash` to predate both Roslyn-date passes entirely) is still the only failure anywhere in
+  the suite.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
