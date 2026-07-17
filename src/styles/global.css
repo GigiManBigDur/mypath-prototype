@@ -1497,7 +1497,15 @@ button.card.passed:hover {
   width: 100%;
   max-width: 1300px;
   margin: 0 auto;
-  height: 880px;
+  /* Bug fix (see .hub-tile's own comment on `min-height`): once every tile reserves a consistent
+     194px, the ORIGINAL 880px height (tuned back when tile height varied by lock state) is no
+     longer tall enough to keep every RADIAL_POSITIONS slot from overlapping its same-column
+     neighbor — confirmed by computing every slot pair's real bounding box at 194px: 880px produces
+     8 overlapping pairs, and the first height with zero overlaps (any of the 10 slots, any pair)
+     is 1022px. 1080px keeps a real ~58px safety margin above that exact threshold, the same
+     "don't cut it razor-thin" posture this app's own collision math elsewhere favors (see
+     roadmapLayout.js's own COLLISION_PADDING). */
+  height: 1080px;
 }
 
 .hub-tile {
@@ -1510,6 +1518,22 @@ button.card.passed:hover {
   font-family: inherit;
   cursor: pointer;
   width: 100%;
+  /* Bug fix: a locked tile's own `.hub-tile-lock-reason` line (below) makes that card taller than
+     an unlocked one — confirmed directly at this card's fixed 232px width (`.hub-tile-slot`),
+     every real lockedReason string wraps to exactly 2 lines and every locked tile measures a
+     consistent 193px, against 157px for an unlocked tile with no reason line at all. On a fresh
+     sign-up (only "Let's Build Your Plan" unlocked, everything else locked) that 36px delta hits
+     nearly every tile in the radial ring at once, and since `.hub-tile-slot` centers each tile on
+     a fixed {x%, y%} point via `translate(-50%, -50%)` with no awareness of a NEIGHBORING tile's
+     own height, several adjacent locked tiles' now-taller boxes visibly overlapped each other —
+     confirmed via screenshot (Related College Majors overlapping Academic Plan, Recommended
+     Programs overlapping Your School List). Once enough tiles unlock later (shorter, no reason
+     line), the same slots stop colliding and the layout reads as "corrected" — it was never a
+     positioning bug, only a per-card height that varied by lock state. `min-height` here reserves
+     the SAME box height regardless of lock state (locked tiles already naturally fill it; an
+     unlocked tile just carries a little empty padding at the bottom), so the radial composition's
+     real rendered geometry is now identical on the very first hub visit as on every later one. */
+  min-height: 194px;
   background: var(--hub-card);
   border: 1px solid var(--hub-card-border);
   border-radius: 18px;

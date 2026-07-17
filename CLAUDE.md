@@ -2513,6 +2513,59 @@ moved onto it; every other screen still reads the original palette above, unchan
   pass's own scoping. The full pre-existing hub/voice/mascot/signup Playwright suite still passes
   unmodified.
 
+**Bug fix: the hub's radial layout looked visibly different (overlapping cards) on a student's
+very first visit — right after sign-up, with almost every tile locked — than it did on every
+later visit.** Root cause, confirmed directly via `getBoundingClientRect()` before touching
+anything: `.hub-tile` has no fixed height — a LOCKED tile's extra `.hub-tile-lock-reason` line
+(the "SELECT AT LEAST ONE PROGRAM FIRST" text) makes it measure a real 193px tall, against 157px
+for an unlocked tile with no reason line at all, confirmed uniformly across every real
+`lockedReason` string in the app (each one wraps to exactly 2 lines at this card's fixed 232px
+width). `.hub-tile-slot` centers each tile on a fixed `{x%, y%}` point via `translate(-50%,
+-50%)` with zero awareness of a NEIGHBORING tile's own height — so on a fresh sign-up, where
+7 of 8 tiles are locked at once, several adjacent slots' now-taller boxes visibly overlapped each
+other (confirmed via screenshot: Related College Majors overlapping Academic Plan, Recommended
+Programs overlapping Your School List). Once enough tiles unlock later (shorter, no reason line),
+the same fixed slots stop colliding and the layout reads as "corrected" — this was never a
+positioning-MATH bug (`RADIAL_POSITIONS` itself, and the angle math in `PointerArrow`, are
+unmodified by this fix) or an entrance-animation timing issue, only a per-card height that varied
+by lock state while the slots assumed a constant one.
+- **The fix has two parts, both in `global.css`, neither touching `HubScreen.jsx`'s own JSX/logic
+  at all** (`RADIAL_POSITIONS`, `TILES`, `unlock`/`lockedReason`, `PointerArrow` are byte-for-byte
+  unchanged): `.hub-tile` gained `min-height: 194px` (the real, measured locked-tile height,
+  rounded up by 1px), so EVERY tile — locked or unlocked — now reserves the same box height; an
+  unlocked tile simply carries a little empty padding at the bottom where a locked tile's reason
+  line would sit, rather than shrinking to fit its shorter content. On its own this fix is
+  necessary but not sufficient — forcing every tile to the taller locked height meant
+  `RADIAL_POSITIONS`' original vertical gaps (hand-tuned back when tile height varied, and by
+  measured value only ever verified against variable/shorter heights) were no longer wide enough
+  to keep same-column NEIGHBORING slots (e.g. index 0 and index 2) from overlapping EACH OTHER —
+  confirmed by computing every one of the 10 slots' real bounding box at a uniform 194px height:
+  the original `880px` wrap height produces 8 overlapping slot pairs; the first height with
+  provably zero overlaps across every pair is `1022px`. `.hub-radial-wrap`'s `height` was raised
+  to `1080px` — a real ~58px safety margin above that exact computed threshold, not a
+  razor-thin fit, matching the same "pad the collision math, don't cut it exact" posture this
+  codebase's own `roadmapLayout.js` (`COLLISION_PADDING`) already favors elsewhere. The narrow-
+  viewport fallback (`@media (max-width: 980px)`, where `.hub-radial-wrap` becomes a plain CSS
+  grid with `height: auto`) is unaffected by either change — a CSS grid's own row height is
+  already driven by its tallest cell per row, so it never had this bug to begin with.
+- Verified with a dedicated Playwright suite: reset → view the hub fresh, repeated 3 separate
+  times, confirming ZERO tile-to-tile bounding-box overlaps and a uniform tile height (sub-pixel
+  tolerance, since real browser subpixel rounding differs by a few thousandths of a pixel between
+  otherwise-identical cards) on every attempt, not just once by chance; the after-survey hub
+  (several tiles now unlocked) still shows zero overlaps and the same uniform height; the SAME
+  radial slot (by index) renders at the identical on-screen position/height on the very first
+  visit as it does after the survey — a direct, structural confirmation of the fix's own stated
+  goal, not just "no overlaps" as a proxy for it; and, to confirm the fix didn't accidentally
+  paper over real, intentional differences, a fresh sign-up state still shows exactly 7 locked
+  tiles and the mascot's own survey-first dialogue line, both completely untouched by this pass.
+  The full pre-existing hub/voice/mascot suite (`test-hub.js`, `test-hub-locking.js`,
+  `test-hub-pointing.js`, `test-hub-radial.js` — which already asserts zero pairwise tile-slot
+  overlap and continues to pass unmodified, `test-hub-reset.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, the
+  general `test.js`) all still pass with zero regressions — this was a pure CSS sizing fix, and
+  `PointerArrow`'s own live `getBoundingClientRect()` measurement naturally picks up each tile's
+  new (taller, but now CONSISTENT) position with no code changes of its own needed.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
