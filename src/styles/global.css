@@ -244,6 +244,20 @@ body:has(.app-shell-bloom) {
   background-image: none;
   color: var(--bloom-ink);
 }
+
+/* Comprehensive Map 2 visual redesign (see CLAUDE.md) — Map 2 never carries `.app-shell-bloom`
+   (it's the separate `.app-shell-plan` full-bleed system), so it needed its own body-level rule
+   rather than inheriting this one — same reasoning `body:has(.app-shell-bloom)` above already
+   documents: `.app-shell-plan` fills the full viewport itself, but the BODY behind it is what
+   actually painted the old parchment/dotted texture that used to show straight through the
+   canvas (deliberately, per the original layout-restructure comment above `.roadmap-viewport`) —
+   swapping to a flat bloom background here is what actually gives Map 2 its own "canvas," rather
+   than just recoloring nodes floating on top of the old texture. */
+body:has(.app-shell-plan) {
+  background: var(--bloom-bg);
+  background-image: none;
+  color: var(--bloom-ink);
+}
 .app-shell.app-shell-bloom .brand { color: var(--bloom-ink-soft); }
 .app-shell.app-shell-bloom .brand svg { color: var(--bloom-accent); }
 .app-shell.app-shell-bloom .header-icon-btn {
@@ -1033,18 +1047,22 @@ button.card.passed:hover {
   letter-spacing: .06em;
 }
 
-/* Roadmap screen (ported from mypath_roadmap_prototype.jsx) */
-.rm-title { font-family:'Fraunces', serif; font-weight:600; font-size: clamp(22px, 3.4vw, 30px); margin:0; }
-.rm-sub { color: var(--ink-soft); font-size:14px; margin: 4px 0 0; }
+/* Roadmap screen (ported from mypath_roadmap_prototype.jsx). Comprehensive Map 2 redesign (see
+   CLAUDE.md) — these classes are exclusive to Roadmap.jsx (verified via grep before editing), so
+   recoloring the base rule directly onto the bloom tokens is safe, same "exclusive class, edit
+   directly" precedent this component's own earlier repaint pass already established for
+   `.complete-btn`/`.step-chain-progress`/`.win-banner`. */
+.rm-title { font-family:'Fraunces', serif; font-weight:600; font-size: clamp(22px, 3.4vw, 30px); margin:0; color: var(--bloom-ink); }
+.rm-sub { color: var(--bloom-ink-soft); font-size:14px; margin: 4px 0 0; }
 .progress-box { text-align:right; }
 .progress-num { font-family:'IBM Plex Mono', monospace; font-size:22px; color: var(--bloom-accent); }
-.progress-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color: var(--ink-soft); }
-.bar { width:100%; height:6px; background: var(--paper-line); border-radius:3px; overflow:hidden; margin: 14px 0 24px; }
+.progress-label { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color: var(--bloom-ink-soft); }
+.bar { width:100%; height:6px; background: var(--bloom-card-border); border-radius:3px; overflow:hidden; margin: 14px 0 24px; }
 .bar-fill { height:100%; background: var(--bloom-accent); transition: width .45s cubic-bezier(0.4,0,0.2,1); }
 
-.legend { display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color: var(--ink-soft); margin-bottom: 18px; }
+.legend { display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color: var(--bloom-ink-soft); margin-bottom: 18px; }
 .legend-item { display:flex; align-items:center; gap:6px; }
-.dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+.dot { width:9px; height:9px; border-radius:50%; display:inline-block; box-shadow: 0 1px 3px rgba(20,24,18,0.25); }
 
 .caveat-banner { margin-bottom: 18px; background: var(--card); border: 1px solid var(--paper-line); border-left: 4px solid var(--gold); border-radius: 4px; padding: 14px 18px; font-size: 13.5px; color: var(--ink-soft); }
 /* Course Selection's "this is only for next year" scope clarification — same .caveat-banner
@@ -1991,31 +2009,35 @@ button.card.passed:hover {
   transition: bottom 320ms cubic-bezier(0.16, 1, 0.3, 1);
   animation: zoom-controls-in 380ms cubic-bezier(0.16, 1, 0.3, 1) 260ms both;
 }
+/* Comprehensive Map 2 redesign (see CLAUDE.md) — `.zoom-btn` is exclusive to Roadmap.jsx, edited
+   directly onto the bloom tokens with a slightly deeper resting shadow (matching the rest of the
+   app's own `--bloom-shadow` depth language) rather than the old flat rust-tinted one. */
 .zoom-btn {
-  width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--paper-line);
-  background: var(--card); color: var(--ink); display: flex; align-items: center; justify-content: center;
-  cursor: pointer; box-shadow: 0 2px 6px -2px rgba(30,61,50,0.25);
-  transition: background 150ms ease, transform 100ms ease;
+  width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-card); color: var(--bloom-ink-soft); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: var(--bloom-shadow);
+  transition: background 150ms ease, transform 100ms ease, color 150ms ease, box-shadow 150ms ease;
 }
-.zoom-btn:hover { background: var(--paper); }
+.zoom-btn:hover { background: var(--bloom-bg); color: var(--bloom-accent); box-shadow: var(--bloom-shadow-hover); }
 .zoom-btn:active { transform: scale(0.93); }
 
 /* First-visit callouts (paired — dismissing either hides both, see Roadmap.jsx). Positioned in
-   the two top corners of the canvas, above everything else in the root. */
+   the two top corners of the canvas, above everything else in the root. Exclusive to Roadmap.jsx
+   — edited directly onto the bloom tokens as part of the comprehensive Map 2 redesign. */
 @keyframes callout-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes callout-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-10px); } }
 .roadmap-callout {
   position: absolute;
   top: 20px;
   max-width: 230px;
-  background: var(--card);
-  border: 1px solid var(--paper-line);
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
   border-radius: 10px;
   padding: 12px 26px 12px 14px;
-  box-shadow: 0 10px 24px -12px rgba(30,61,50,0.35);
+  box-shadow: var(--bloom-shadow-hover);
   font-size: 12.5px;
   line-height: 1.4;
-  color: var(--ink-soft);
+  color: var(--bloom-ink-soft);
   z-index: 8;
   display: flex;
   gap: 9px;
@@ -2026,12 +2048,12 @@ button.card.passed:hover {
 .roadmap-callout-tl { left: 20px; }
 .roadmap-callout-tr { right: 20px; animation-delay: 1050ms; }
 .roadmap-callout-icon { color: var(--bloom-accent); flex-shrink: 0; margin-top: 1px; }
-.roadmap-callout-text strong { display: block; color: var(--ink); font-family: 'Fraunces', serif; font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+.roadmap-callout-text strong { display: block; color: var(--bloom-ink); font-family: 'Fraunces', serif; font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
 .roadmap-callout-close {
   position: absolute; top: 6px; right: 6px; background: none; border: none; cursor: pointer;
-  color: var(--ink-soft); padding: 3px; display: flex;
+  color: var(--bloom-ink-soft); padding: 3px; display: flex;
 }
-.roadmap-callout-close:hover { color: var(--ink); }
+.roadmap-callout-close:hover { color: var(--bloom-ink); }
 .roadmap-callout-arrow { position: absolute; top: 100%; width: 44px; height: 44px; color: var(--bloom-accent); opacity: 0.55; pointer-events: none; }
 .roadmap-callout-arrow-tl { left: 6px; }
 .roadmap-callout-arrow-tr { right: 6px; }
@@ -2040,6 +2062,8 @@ button.card.passed:hover {
    why .roadmap-fullscreen-root's other children are all position:absolute too). Collapsing only
    animates .roadmap-panel-content's own box (max-height/opacity/padding); the panel itself keeps
    a fixed min-height so the toggle always has a legible strip to sit in once collapsed. */
+/* Comprehensive Map 2 redesign (see CLAUDE.md) — full repaint of the bottom panel chrome, not
+   just accent colors. Exclusive to Roadmap.jsx, edited directly onto the bloom tokens. */
 .roadmap-panel {
   position: absolute;
   left: 20px;
@@ -2047,10 +2071,10 @@ button.card.passed:hover {
   bottom: 20px;
   z-index: 7;
   min-height: 52px;
-  background: var(--card);
-  border: 1px solid var(--paper-line);
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
   border-radius: 14px;
-  box-shadow: 0 -6px 12px -8px rgba(30,61,50,0.12), 0 10px 30px -14px rgba(30,61,50,0.3);
+  box-shadow: var(--bloom-shadow-hover);
   max-width: 1000px;
   margin: 0 auto;
 }
@@ -2061,9 +2085,9 @@ button.card.passed:hover {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1px solid var(--paper-line);
-  background: var(--paper);
-  color: var(--ink-soft);
+  border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-bg);
+  color: var(--bloom-ink-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2071,7 +2095,7 @@ button.card.passed:hover {
   z-index: 2;
   transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), background 150ms ease;
 }
-.roadmap-panel-toggle:hover { background: var(--paper-line); }
+.roadmap-panel-toggle:hover { background: var(--bloom-card-border); }
 .roadmap-panel.collapsed .roadmap-panel-toggle { transform: rotate(180deg); }
 
 .roadmap-panel-content {
@@ -2093,14 +2117,14 @@ button.card.passed:hover {
 .roadmap-panel-info { flex: 1 1 320px; min-width: 220px; }
 .roadmap-panel-eyebrow-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .roadmap-panel-icon-badge {
-  width: 22px; height: 22px; border-radius: 50%; background: var(--paper); color: var(--bloom-accent);
+  width: 22px; height: 22px; border-radius: 50%; background: var(--bloom-bg); color: var(--bloom-accent);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .roadmap-panel-side { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; flex-shrink: 0; }
 .roadmap-panel-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 180px; }
 .roadmap-panel-progress .bar { width: 180px; margin: 0; }
 .roadmap-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.roadmap-panel-divider { height: 1px; background: var(--paper-line); margin: 16px 0 14px; }
+.roadmap-panel-divider { height: 1px; background: var(--bloom-card-border); margin: 16px 0 14px; }
 
 @media (max-width: 720px) {
   .roadmap-panel-top { flex-direction: column; }
@@ -2118,8 +2142,20 @@ button.card.passed:hover {
 .node-badge { cursor:pointer; }
 .node-badge circle.ring { transition: r .15s ease; }
 .node-badge:hover circle.ring { r: 22; }
-.node-label { font-family:'IBM Plex Sans'; font-size:13px; font-weight:500; fill: var(--ink); }
-.node-due { font-family:'IBM Plex Mono', monospace; font-size:10px; fill: var(--ink-soft); }
+/* Comprehensive Map 2 redesign (see CLAUDE.md) — Item 3/4/5's "genuine visual polish, not just a
+   color swap": a soft, static halo circle behind every ring (rendered as a plain sibling
+   `<circle class="node-halo">` in Roadmap.jsx, sized a few px larger than its own ring, filled
+   with the SAME resolved color at low opacity) gives every node type — required, opportunity,
+   custom alike — a consistent sense of depth/glow at rest, not just on hover. Purely decorative
+   (`pointer-events: none`), so it never changes hit-testing. */
+.node-halo { pointer-events: none; }
+.node-label { font-family:'IBM Plex Sans'; font-size:13px; font-weight:500; fill: var(--bloom-ink); }
+.node-due { font-family:'IBM Plex Mono', monospace; font-size:10px; fill: var(--bloom-ink-soft); }
+/* Item 8's own "small colored tags for type/date rather than plain grey text" — the type/label
+   portion of `.node-due` (e.g. "Milestone", "Step", "Today") is now a separate `<tspan>` reading
+   the node's own resolved color (see Roadmap.jsx), bold + a touch of letter-spacing so it reads
+   as a small tag rather than blending into the plain date text next to it. */
+.node-due-tag { font-weight: 700; letter-spacing: 0.02em; }
 .stage-label { font-family:'IBM Plex Sans'; font-size:11px; font-weight:600; fill: var(--stone); letter-spacing: 0.03em; text-transform: uppercase; }
 
 .overlay { position:fixed; inset:0; background: rgba(30,61,50,0.35); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
@@ -2151,8 +2187,8 @@ button.card.passed:hover {
    root`-scoped override below instead of a direct edit here, to avoid recoloring an
    already-shipped, already-tested screen this batch doesn't own. */
 .complete-btn.todo { background: var(--bloom-accent); color:#fff; }
-.complete-btn.done { background: #E3E7DC; color: var(--ink-soft); }
-.complete-btn:disabled { background: var(--paper-line); color: var(--ink-soft); cursor: not-allowed; opacity: 0.75; }
+.complete-btn.done { background: var(--bloom-card-border); color: var(--bloom-ink-soft); }
+.complete-btn:disabled { background: var(--bloom-card-border); color: var(--bloom-ink-soft); cursor: not-allowed; opacity: 0.75; }
 
 /* Course Selection Stage 4 — a course-checkpoint node's two-part modal action, stacked instead of
    the single full-width .complete-btn every other node gets. */
@@ -2167,7 +2203,7 @@ button.card.passed:hover {
   margin-top: 10px;
 }
 
-.win-banner { margin-top:22px; background: var(--card); border:1px solid var(--paper-line); border-left:4px solid var(--bloom-accent); border-radius:4px; padding:18px 20px; font-size:14px; }
+.win-banner { margin-top:22px; background: var(--bloom-card); border:1px solid var(--bloom-card-border); border-left:4px solid var(--bloom-accent); border-radius:4px; padding:18px 20px; font-size:14px; color: var(--bloom-ink); box-shadow: var(--bloom-shadow); }
 
 /* Palette repaint, Academic Plan batch (see CLAUDE.md) — `.remove-btn`/`.modal-edit-date` ARE
    shared with TranscriptScreen's own transcript-entry rows (already bloom-repainted in an earlier
@@ -2207,7 +2243,7 @@ button.card.passed:hover {
 }
 @keyframes roadmap-fade-line {
   from { opacity: 0; }
-  to { opacity: 0.6; }
+  to { opacity: 0.75; }
 }
 .roadmap-fade-line {
   animation: roadmap-fade-line 320ms ease-out both;
@@ -3397,3 +3433,111 @@ button.card.passed:hover {
 .app-shell.app-shell-bloom .year-overview-pulse { stroke: var(--bloom-yellow); }
 .app-shell.app-shell-bloom .year-overview-label { fill: var(--bloom-ink); }
 .app-shell.app-shell-bloom .year-overview-current-tag { fill: var(--bloom-yellow); }
+
+/* ==========================================================================
+   Comprehensive Map 2 visual redesign (see CLAUDE.md) — a follow-up to the
+   earlier Academic Plan repaint batch, which only recolored ring/connector
+   hues and left the surrounding chrome (panel, zoom controls, modal, callouts)
+   on the old parchment palette. This pass is STILL style-only, layered on top
+   of the exact same already-correct positioning/connector/zoom-pan engine —
+   roadmapLayout.js was not opened at all, and `npm run verify:spacing` was
+   re-confirmed passing (18/18) both before and after every change here.
+
+   `.overlay`/`.modal`/`.modal-*`/`.btn-*`/`.eyebrow`/`.caveat-banner` are all
+   SHARED with other screens across this app (AddTaskModal, TranscriptScreen,
+   every bloom-repainted screen's own buttons, etc.) — recoloring their base
+   rule directly would leak into those already-shipped, already-tested
+   screens. Map 2 never carries `.app-shell-bloom` (it's the separate
+   `.app-shell-plan` full-bleed system), so it can't lean on that scoping
+   convention either — every override below is scoped to
+   `.roadmap-fullscreen-root` instead, Roadmap.jsx's own outer wrapper that no
+   other screen ever renders, the exact same scoping precedent the earlier
+   batch already used for `.remove-btn`/`.modal-edit-date`.
+   ========================================================================== */
+.roadmap-fullscreen-root .overlay { background: rgba(20, 24, 18, 0.45); }
+.roadmap-fullscreen-root .modal {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  box-shadow: var(--bloom-shadow-hover);
+}
+.roadmap-fullscreen-root .modal-close { color: var(--bloom-ink-soft); }
+.roadmap-fullscreen-root .modal-close:hover { color: var(--bloom-ink); }
+.roadmap-fullscreen-root .modal-title { color: var(--bloom-ink); }
+.roadmap-fullscreen-root .modal-due { color: var(--bloom-ink-soft); }
+.roadmap-fullscreen-root .modal-desc { color: var(--bloom-ink); }
+.roadmap-fullscreen-root .modal-resources { color: var(--bloom-ink-soft); }
+.roadmap-fullscreen-root .modal-course-list { color: var(--bloom-ink); }
+.roadmap-fullscreen-root .modal-edit-row { border-bottom-color: var(--bloom-card-border); }
+.roadmap-fullscreen-root .modal-edit-date input[type="date"] {
+  color: var(--bloom-ink);
+  border-color: var(--bloom-card-border);
+  background: var(--bloom-bg);
+}
+.roadmap-fullscreen-root .checkpoint-actions .complete-btn:disabled svg { opacity: 0.7; }
+.roadmap-fullscreen-root .eyebrow { color: var(--bloom-yellow); }
+.roadmap-fullscreen-root .caveat-banner {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  border-left-color: var(--bloom-accent);
+  color: var(--bloom-ink-soft);
+}
+/* The panel's own Back/Start over/Add Task buttons — same values the
+   `.app-shell-bloom` button overrides already use elsewhere, just scoped to
+   this wrapper since Map 2 can't carry that class. */
+.roadmap-fullscreen-root .btn-primary { background: var(--bloom-accent); }
+.roadmap-fullscreen-root .btn-ghost { color: var(--bloom-ink-soft); }
+.roadmap-fullscreen-root .btn-ghost:hover:not(:disabled) { color: var(--bloom-ink); }
+.roadmap-fullscreen-root .btn-outline { border-color: var(--bloom-ink-soft); color: var(--bloom-ink); }
+.roadmap-fullscreen-root .btn-outline:hover:not(:disabled) { border-color: var(--bloom-ink); background: rgba(47, 143, 91, 0.08); }
+
+/* Item 6 — "You are here" should feel distinct/celebratory, not just another node. A continuous
+   soft pulse ring (the exact same `welcome-pulse` keyframe WelcomeScreen's own hero marker and
+   Map 1's own current-year marker already use — reused, not reinvented) sits behind Today's real
+   ring in Roadmap.jsx, at the identical (x,y) transform — purely decorative and
+   `pointer-events: none`, so it never changes hit-testing or the ring's own click target. */
+.today-pulse {
+  fill: none;
+  stroke: var(--bloom-yellow);
+  stroke-width: 2.5;
+  opacity: 0.55;
+  animation: welcome-pulse 2.4s ease-out infinite;
+}
+/* A constant (not just hover) soft glow specifically on Today's own ring — the one node this
+   redesign gives an always-on glow to, matching its "distinct and a little celebratory" role;
+   every other node's glow stays hover-only (`.node-badge:hover .node-pop`, unchanged). */
+.today-glow { filter: drop-shadow(0 0 6px rgba(240, 180, 41, 0.55)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .today-pulse { animation: none; opacity: 0; }
+}
+
+/* ==========================================================================
+   Comprehensive Map 1 visual redesign (see CLAUDE.md) — the same pass applied
+   to Map 1 (YearOverview.jsx), per the task's own explicit "apply the same
+   comprehensive treatment here as well" instruction. Map 1 already joined
+   `isBloomScreen` in the earlier Academic Plan batch, so its own accent
+   colors were already correct (path/ring/current-marker/label, all above) —
+   this adds the missing depth/prominence/background polish that batch
+   stopped short of. `.year-overview-card` is a new wrapper (YearOverview.jsx)
+   giving the diagram its own soft card background rather than floating
+   directly on the bare page, matching Map 2's own panel/modal depth
+   language. Both new classes are exclusive to YearOverview.jsx, so they're
+   defined directly rather than needing `.app-shell-bloom` scoping (that
+   screen is unconditionally bloom already).
+   ========================================================================== */
+.year-overview-card {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 18px;
+  box-shadow: var(--bloom-shadow);
+  padding: 28px 20px 34px;
+  max-width: 320px;
+  margin: 28px auto 0;
+}
+.year-overview-ring {
+  filter: drop-shadow(0 2px 5px rgba(20, 24, 18, 0.18));
+}
+.year-overview-marker.current .year-overview-ring {
+  filter: drop-shadow(0 0 8px rgba(240, 180, 41, 0.5));
+}
+.year-overview-eyebrow { color: var(--bloom-yellow); }

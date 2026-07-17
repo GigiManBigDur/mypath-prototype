@@ -4240,6 +4240,125 @@ logic and the count line's own arithmetic were not touched at all.
   `test-voice-picker.js`, every other `*-repaint.js` file, `test-ucdavis-stage1.js`, and the
   general `test.js` — still passes with zero further regressions.
 
+**Comprehensive Map 2 (and Map 1) visual redesign — a follow-up to the earlier "Palette repaint,
+Academic Plan batch" section above, which only recolored ring/connector hues and left everything
+else (canvas background, panel, zoom controls, modal, labels) on the old parchment palette. This
+pass addresses every remaining element explicitly, still under the exact same hard boundary every
+prior pass on this component has followed: style only. `roadmapLayout.js` was not opened at all,
+and `npm run verify:spacing` was re-confirmed passing 18/18 both before and after every change —
+the same non-negotiable gate this component's own repaint history has already established.**
+- **Canvas/background (item 1)** — a new `body:has(.app-shell-plan)` rule (mirroring the existing
+  `body:has(.app-shell-bloom)` pattern for every other repainted screen) swaps the page background
+  behind Map 2 from the old repeating-dot parchment texture to the flat `--bloom-bg` color. Map 2
+  never carries `.app-shell-bloom` itself (it's the separate `.app-shell-plan` full-bleed system),
+  so it needed its own body-level rule rather than inheriting the existing one — same reasoning
+  that rule's own comment already documents for why the BODY, not just the shell box, has to
+  change for the page to read as genuinely repainted.
+- **Spine line (item 2)** — a real `<linearGradient id="rm-spine-gradient">` (today's own accent
+  green fading toward teal higher up the canvas), defined with `gradientUnits="userSpaceOnUse"`
+  anchored to real canvas y-coordinates (today's y at the bottom, 0 at the top) so the gradient
+  reads as one continuous progression up the whole spine, not a separate gradient re-starting on
+  each individual segment's own bounding box. This is a pure SVG paint-server definition — it
+  changes what PAINTS a `<path>`'s already-correct `d`, never the `d`/coordinates themselves.
+  Stroke width bumped 3→4 and opacity 0.5→0.85 for better presence against the new lighter
+  background, plus `strokeLinecap="round"` for a softer line end. Map 1's own trail path (item 12)
+  gets the identical treatment via its own `#yo-path-gradient` def in YearOverview.jsx.
+- **Required/optional/custom node depth (items 3, 4, 5)** — one shared technique closes all three
+  at once: a new `<circle className="node-halo">` sibling, rendered BEFORE each real ring inside
+  `.node-pop`, a few px larger than its own ring and filled with the SAME resolved `cfg.color` at
+  low opacity (0.14–0.16). This gives every node type — solid required rings, hollow
+  track-colored opportunity rings, and dotted custom-task rings alike — a consistent sense of
+  depth/glow at rest, not just the pre-existing hover-only glow (`.node-badge:hover .node-pop`,
+  completely unchanged). Purely decorative (`pointer-events: none` via a new `.node-halo` CSS
+  rule), so it never changes hit-testing — the existing `.hit-target`/ring click-target sizing is
+  untouched. Custom tasks deliberately KEEP their existing `--bloom-ink-soft` color rather than
+  picking one of the 7 vivid "bloom" tones — the same collision-avoidance reasoning the prior
+  batch's own `PROJECT_CONFIG` comment already documents (every one of those 7 colors is already
+  claimed by a real interest track via `getTrackColor`, so a custom task sharing one could
+  visually collide with an unrelated real opportunity chain on the same roadmap) applies equally
+  here; the requested "polish" is delivered via the shared halo/depth treatment instead of a new,
+  collision-risking color.
+- **"You are here" marker (item 6)** — a continuous soft pulse ring (`.today-pulse`, reusing the
+  EXACT `welcome-pulse` keyframe WelcomeScreen's own hero marker and Map 1's own current-year
+  marker already use, not a new one) plus an always-on soft glow filter (`.today-glow`) sit at the
+  identical `(x,y)` transform as Today's real ring — the one node in this whole redesign that gets
+  an always-on glow; every other node's own glow stays hover-only, by design, so Today reads as
+  genuinely distinct rather than "one more colored dot." Both are purely decorative/
+  `pointer-events: none` additions, so Today's own click target and modal are unaffected.
+- **Connector lines (item 7)** — both the anchor-to-first-step and step-to-step dashed branch
+  connectors: stroke width 2→2.5, opacity 0.6→0.75 (the `roadmap-fade-line` keyframe's own `to`
+  value was updated to match, so the entrance-animated and already-settled resting states never
+  disagree), plus `strokeLinecap="round"`. The permanent `strokeDasharray="6 6"` pattern (how
+  optional branches read as distinct from the solid required spine) is untouched.
+- **Node labels and date text (item 8)** — `.node-label`/`.node-due` (exclusive to Roadmap.jsx,
+  confirmed via grep before editing) recolored from the old `--ink`/`--ink-soft` to
+  `--bloom-ink`/`--bloom-ink-soft` directly. "Small colored tags for type/date" is implemented via
+  a `<tspan className="node-due-tag" fill={cfg.color}>` wrapping just the type/label portion of
+  each due line (e.g. "Milestone", "Step", "Today", a project's own step label) — bold + a touch
+  of letter-spacing so it reads as a small tag distinct from the plain date text next to it,
+  without needing real text-width measurement or a background `<rect>` (which would have meant
+  introducing new geometry risk this pass's own "style only" boundary rules out). Every branch
+  step's due line now also SHOWS its own type label for the first time (previously date-only for
+  a non-project step) for consistency with the spine nodes, which already composed one.
+- **Bottom panel / zoom controls (items 9, 10)** — `.roadmap-panel`, `.roadmap-panel-toggle`,
+  `.roadmap-panel-icon-badge`, `.roadmap-panel-divider`, `.progress-label`, `.bar`, `.legend`,
+  `.rm-title`/`.rm-sub`, `.zoom-btn`, `.roadmap-callout*`, `.win-banner`, and `.complete-btn`'s
+  done/disabled states are all exclusive to Roadmap.jsx (confirmed via grep, same check performed
+  before every edit in this pass) and were recolored directly onto the bloom tokens, with real
+  `var(--bloom-shadow)`/`var(--bloom-shadow-hover)` depth replacing the old flat rust-tinted
+  shadows — not just accent-color swaps. The panel's own Back/Start Over/Add Task buttons read the
+  SHARED `.btn-primary`/`.btn-ghost`/`.btn-outline` classes (used across the whole app), which Map
+  2 can't recolor via `.app-shell-bloom` scoping the way every other repainted screen does — these
+  get a `.roadmap-fullscreen-root`-scoped override instead, reading the exact same values those
+  other screens' own bloom overrides already use, so Map 2's buttons match every other screen's
+  buttons exactly.
+- **Task detail modal (item 11)** — confirmed via grep that `.overlay`/`.modal`/`.modal-title`/
+  `.modal-desc`/`.modal-resources`/`.modal-course-list`/`.modal-due`/`.modal-close`/
+  `.modal-edit-row` are all genuinely SHARED across the whole app (AddTaskModal, every other
+  screen's own modals) — recoloring their base rule directly would leak the bloom palette onto
+  every other modal in the app, including ones that predate this whole repaint series and were
+  never in scope for it. Every one gets a `.roadmap-fullscreen-root`-scoped override instead (the
+  same scoping precedent the earlier Academic Plan batch already established for
+  `.remove-btn`/`.modal-edit-date`), so ONLY Map 2's own modal instance is affected. The overlay's
+  own dim backdrop tint moved from the old teal-based `rgba(30,61,50,0.35)` to a bloom-ink-based
+  `rgba(20,24,18,0.45)`, matching this codebase's own established "literal rgba for an alpha-
+  blended overlay" convention. `.eyebrow`/`.caveat-banner` (also shared — the former with
+  StepProgress.jsx across several other screens, the latter with the transfer-timeline caveat)
+  get the same scoped-override treatment.
+- **Map 1 (item 12)** — the SAME comprehensive pass applied to YearOverview.jsx: a new
+  `.year-overview-card` wrapper (a soft `--bloom-card` background/border/shadow behind the
+  diagram, matching Map 2's own panel/modal depth language, instead of the diagram floating
+  directly on the bare page), the gradient path treatment described above, a resting depth
+  `filter: drop-shadow(...)` on every ring (previously hover-only), a stronger glow specifically on
+  the current-year marker (matching Today's own "distinct/celebratory" treatment on Map 2), and a
+  dedicated `.year-overview-eyebrow` class for the "Step 8 of 8" text — a NEW class rather than
+  restyling the shared `.eyebrow` class in place, since that one is also read by StepProgress.jsx
+  across several other already-shipped bloom screens; scoping it this way keeps the change
+  provably contained to Map 1 only.
+- Verified with a dedicated 24-check Playwright suite covering every one of the 12 items above by
+  direct DOM/computed-style inspection (not just visual inspection) — the flat bloom body
+  background and absence of the old parchment texture, the gradient `<linearGradient>` defs
+  genuinely present and referenced by the spine/path `stroke`, node halos rendered, Today's pulse
+  ring and always-on glow filter, colored due-tags with the correct per-node color, the panel/
+  zoom-button/modal/overlay backgrounds all resolving to real bloom colors, and Map 1's own card
+  background/gradient/ring-shadow/current-marker glow — plus real screenshots taken directly from
+  the live dev server (not just computed-style assertions) confirming the redesign actually reads
+  well visually: a close-up of a dense opportunity chain shows clearly visible track-colored halos
+  and due-tags, and the task detail modal renders cleanly on the new white/bloom palette. Zoom-in
+  still changes the canvas's real inline transform, a core node is still clickable, and marking it
+  complete still writes to `state.completedNodes` — confirming zoom/pan/drag, node editing, and
+  the click-to-modal flow are all completely unaffected by this style-only pass. One pre-existing
+  test (`test-academicplan-repaint.js`) asserted the OLD flat-color trail-path behavior Map 1's own
+  path used before this pass replaced it with a gradient — updated to check for the new gradient
+  paint server instead, the same "update a pre-existing test after an intentional, expected
+  change" pattern this suite has already needed many times before, not a regression. The full
+  pre-existing regression suite (`test-hub*.js`, `test-signup.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-mascot-wand-
+  pointing.js`, `test-sequence-complete.js`, `test-projectbuilder-skip.js`, every other
+  `*-repaint.js` file, `test-stage4.js`, `test-roslyn-consolidation.js`, `test-ucdavis-density.js`,
+  `test-ucdavis-stage4.js`, the general `test.js`, and `npm run verify:spacing`) all still pass
+  with zero regressions.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

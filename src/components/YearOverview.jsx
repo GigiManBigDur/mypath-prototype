@@ -102,7 +102,11 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
         </button>
       </div>
 
-      <div className="eyebrow">Step 8 of 8</div>
+      {/* Comprehensive Map 1 redesign (see CLAUDE.md) — a dedicated class rather than restyling
+          the shared `.eyebrow` class in place, since that one is also used by StepProgress.jsx
+          across several other bloom-repainted screens; this keeps the change scoped to Map 1
+          only. */}
+      <div className="eyebrow year-overview-eyebrow">Step 8 of 8</div>
       <h1 className="page-title">Your Academic Plan</h1>
       <p className="page-sub">
         {n > 1
@@ -110,18 +114,27 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
           : 'Here’s your detailed plan for this year.'}
       </p>
 
+      {/* `.year-overview-card` gives the diagram its own soft card background/depth, matching
+          Map 2's own panel/modal language, instead of floating directly on the bare page. */}
+      <div className="year-overview-card">
       <div className="year-overview-wrap">
         <svg
           className="year-overview-svg"
           viewBox={`0 0 ${VIEW_WIDTH} ${canvasHeight}`}
           preserveAspectRatio="xMidYMid meet"
         >
+          <defs>
+            <linearGradient id="yo-path-gradient" gradientUnits="userSpaceOnUse" x1="0" y1={canvasHeight} x2="0" y2="0">
+              <stop offset="0" stopColor="var(--bloom-accent)" />
+              <stop offset="1" stopColor="var(--bloom-teal)" />
+            </linearGradient>
+          </defs>
           {pathD && (
             <path
               ref={pathRef}
               d={pathD}
               className={`year-overview-path${!skipEntrance && !drawn ? ' enter' : ''}`}
-              style={{ '--path-length': pathLength || 1000 }}
+              style={{ '--path-length': pathLength || 1000, stroke: 'url(#yo-path-gradient)' }}
             />
           )}
 
@@ -161,6 +174,7 @@ export default function YearOverview({ years, onSelectYear, onBack, onReset }) {
             </g>
           ))}
         </svg>
+      </div>
       </div>
     </div>
   );

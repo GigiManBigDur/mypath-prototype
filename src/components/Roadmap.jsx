@@ -524,6 +524,18 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
           >
             <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
+            {/* Comprehensive Map 2 redesign (see CLAUDE.md), item 2 — the spine gets a genuine
+                decorative gradient (today's own accent green fading toward teal higher up the
+                canvas) rather than one flat color, using `gradientUnits="userSpaceOnUse"` so the
+                gradient is anchored to real canvas y-coordinates (today's own y at the bottom,
+                0 at the top) instead of each individual segment's own bounding box — this is a
+                pure paint-server definition, it doesn't change any segment's `d`/x/y at all. */}
+            <defs>
+              <linearGradient id="rm-spine-gradient" gradientUnits="userSpaceOnUse" x1="0" y1={roadmap.canvasHeight} x2="0" y2="0">
+                <stop offset="0" stopColor="var(--bloom-accent)" />
+                <stop offset="1" stopColor="var(--bloom-teal)" />
+              </linearGradient>
+            </defs>
             {/* Spine connective line: today up through every spine item, in chronological order.
                 On first load only, each segment draws in via stroke-dashoffset instead of
                 appearing solid immediately — the `d`/coordinates themselves are untouched. Only
@@ -540,7 +552,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                   animationDelay: '0ms',
                 } : undefined}
                 d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}
-                stroke="var(--bloom-accent)" strokeWidth="3" fill="none" opacity="0.5"
+                stroke="url(#rm-spine-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.85"
               />
             )}
             {roadmap.spine.slice(0, -1).map((n, i) => {
@@ -551,7 +563,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                   key={`sp-${n.id}`}
                   className={entranceEnabled ? 'roadmap-draw-line' : undefined}
                   style={entranceEnabled ? { '--seg-length': segLength(n.x, n.y, next.x, next.y), animationDelay: `${delay}ms` } : undefined}
-                  d={line(n.x, n.y, next.x, next.y)} stroke="var(--bloom-accent)" strokeWidth="3" fill="none" opacity="0.5"
+                  d={line(n.x, n.y, next.x, next.y)} stroke="url(#rm-spine-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.85"
                 />
               );
             })}
@@ -574,7 +586,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
+                    d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
                   {n.branchSteps.slice(0, -1).map((s, i) => {
                     const next = n.branchSteps[i + 1];
@@ -583,7 +595,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                         key={`bs-${s.id}`}
                         className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                         style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
-                        d={line(s.x, s.y, next.x, next.y)} stroke={branchColor} strokeWidth="2" strokeDasharray="6 6" fill="none" opacity="0.6"
+                        d={line(s.x, s.y, next.x, next.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                       />
                     );
                   })}
@@ -610,6 +622,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                         whatever the ring happens to be mid-animation. */}
                     <circle className="hit-target" r="16" fill="none" pointerEvents="all" />
                     <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
+                      <circle className="node-halo" r="18.5" fill={cfg.color} opacity="0.14" />
                       <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                       {done
                         ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
@@ -617,7 +630,8 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     </g>
                     <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
                     <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
-                      {s.category === 'project' ? `${s.projectLabel} · ${formatDateWithYear(s.date)}` : formatDateWithYear(s.date)}
+                      <tspan className="node-due-tag" fill={cfg.color}>{s.category === 'project' ? s.projectLabel : cfg.label}</tspan>
+                      {' · '}{formatDateWithYear(s.date)}
                     </text>
                   </g>
                 );
@@ -651,6 +665,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
                       {n.required ? (
                         <>
+                          <circle className="node-halo" r="24" fill={cfg.color} opacity="0.16" />
                           <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />
@@ -658,6 +673,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                         </>
                       ) : n.category === 'custom' ? (
                         <>
+                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 3'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -665,6 +681,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                         </>
                       ) : (
                         <>
+                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -674,7 +691,8 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     </g>
                     <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
                     <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
-                      {n.category === 'project' ? `${n.projectLabel} · ${formatDateWithYear(n.date)}` : `${cfg.label} · ${formatDateWithYear(n.date)}${n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}`}
+                      <tspan className="node-due-tag" fill={cfg.color}>{n.category === 'project' ? n.projectLabel : cfg.label}</tspan>
+                      {' · '}{formatDateWithYear(n.date)}{n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}
                     </text>
                   </g>
                 </g>
@@ -689,12 +707,22 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               >
                 {/* Same fixed, always-present hit target as every other node — see comments above. */}
                 <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
+                {/* Item 6 — "You are here" should feel distinct/celebratory, not just another
+                    node: a continuous soft pulse ring (the same `welcome-pulse` keyframe
+                    WelcomeScreen's own hero marker and Map 1's own current-year marker already
+                    use) plus an always-on soft glow (every other node's glow is hover-only). Both
+                    purely decorative/`pointer-events: none`, at the exact same (x,y) transform —
+                    neither changes the real ring's own position or click target. */}
                 <g className="node-pop">
-                  <circle r="18" fill="var(--bloom-yellow)" stroke="var(--bloom-yellow)" strokeWidth="3" />
+                  <circle className="today-pulse" r="18" pointerEvents="none" />
+                  <circle r="18" fill="var(--bloom-yellow)" stroke="var(--bloom-yellow)" strokeWidth="3" className="today-glow" />
                   <Compass x="-8" y="-8" size={16} color="#fff" />
                 </g>
                 <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
-                <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>Today · {formatDateWithYear(roadmap.today.date)}</text>
+                <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>
+                  <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
+                  {' · '}{formatDateWithYear(roadmap.today.date)}
+                </text>
               </g>
             )}
             </svg>
