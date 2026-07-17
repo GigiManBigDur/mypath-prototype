@@ -4502,6 +4502,50 @@ screen already established.
   `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-bloom-repaint.js`,
   and the general `test.js`) all still pass with zero further regressions.
 
+**Bug fix: clicking "Start" on an opportunity chain's anchor node silently marked its FIRST real
+sub-task complete, instead of only updating the chain's own "started" status.** Root cause: the
+anchor's own status-driven action button (`Roadmap.jsx`'s `advanceChain()`) only ever had ONE
+real signal to work from — `anchorDone`, the count of branch steps already marked done via
+`completedNodes`. "Start" (shown when `anchorDone === 0`) had no way to represent "the chain has
+been started, but genuinely zero real steps are done" using that signal alone, so the original
+implementation folded the two ideas together: clicking "Start" called the exact same
+`toggleDone(next.id)` "Continue" already uses, marking the chain's real first step (e.g.
+"Register your team") complete as a side effect of what reads, to a student, as a plain "begin
+this" click — not something they'd expect to check off real progress they never did.
+- **The fix adds `state.startedOpportunityIds`** (`AppContext.jsx`, a plain array of opportunity
+  node ids) — a dedicated "has this chain been started" flag, fully independent of any step's own
+  `completedNodes` entry. `advanceChain()` now branches on `!anchorStarted && anchorDone === 0`
+  for "Start": it ONLY appends the opportunity's id to `startedOpportunityIds`, never touching
+  `completedNodes` at all. The FIRST real step only ever gets marked done by a genuine later
+  "Continue" click (or by the student opening that step directly and marking it complete
+  themselves) — exactly the "each sub-task's mark-complete action remains fully independent"
+  requirement, which was already true for every step opened directly; this fix closes the one
+  place (the anchor's own convenience button) that was quietly bypassing it.
+- **"Completed — undo" was extended to match** — since it's meant to roll the WHOLE chain back to
+  its original, untouched state (not just the step-completion count), it now also removes the
+  opportunity's id from `startedOpportunityIds` alongside resetting every step's own
+  `completedNodes` entry back to `false`. Without this, a chain undone back to 0/Y would
+  incorrectly show "Continue — mark next step complete (0/Y)" on a later visit instead of "Start"
+  again, since `anchorStarted` would still read true. `chainButtonLabel`'s own three-way branch
+  (`Start` / `Continue — X/Y` / `Completed — undo`) now reads `anchorStarted` alongside
+  `anchorDone`/`anchorTotal`, unchanged otherwise — a chain a student manually completed a step on
+  WITHOUT ever clicking "Start" first (by opening that step directly) still correctly shows
+  "Continue," not "Start," since `anchorDone > 0` already implies real progress regardless of
+  whether the dedicated flag was ever set.
+- Verified with two dedicated Playwright suites (15 checks total): the first confirms clicking
+  "Start" leaves `completedNodes` with zero `true` values, sets `startedOpportunityIds` correctly,
+  updates the button to "Continue — mark next step complete (0/Y)" without any ring on the map
+  rendering as done, and that manually opening and completing one real sub-step afterward marks
+  EXACTLY that one node complete and nothing else; the second walks the full lifecycle (Start →
+  four real "Continue" clicks → "Completed — undo") and confirms undo genuinely resets both the
+  step completion state AND the started flag, correctly returning the button to "Start" on a
+  later visit rather than "Continue (0/Y)". `npm run verify:spacing` was re-confirmed passing
+  18/18 (this is a pure state-logic change, `roadmapLayout.js` was not touched). The full
+  pre-existing regression suite (`test-academicplan-repaint.js`, `test-map2-redesign.js`,
+  `test-hub-reset.js`, `test-opportunity-project-repaint.js`, `test-hub.js`,
+  `test-ucdavis-density.js`, `test-stage4.js`, and the general `test.js`) all still pass with zero
+  regressions.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

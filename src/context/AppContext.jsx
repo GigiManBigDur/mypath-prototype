@@ -130,6 +130,15 @@ const DEFAULT_STATE = {
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`
   selectedOpportunityIds: [],
+  // Bug fix (see CLAUDE.md) — an opportunity chain's own anchor "Start" button used to fold
+  // "mark this chain as started" and "mark its first real step complete" into one click, which
+  // silently checked off a sub-task (e.g. "Register Your Team") the user never actually did.
+  // `startedOpportunityIds` (a plain array of opportunity node ids) is the dedicated "in progress"
+  // flag that lets Start/Continue/Completed — undo (Roadmap.jsx) distinguish "chain started, zero
+  // real steps done yet" from "chain never touched at all" WITHOUT reading/writing any step's own
+  // `completedNodes` entry — the two concepts are now fully independent, matching every real
+  // sub-task's own mark-complete action already being independent of every other node.
+  startedOpportunityIds: [],
   completedNodes: {},
   nodeDateOverrides: {}, // { [nodeId]: 'YYYY-MM-DD' } — user-edited due date, keyed like completedNodes
   removedNodeIds: {}, // { [nodeId]: true } — user-deleted tasks, same flat-map shape as completedNodes

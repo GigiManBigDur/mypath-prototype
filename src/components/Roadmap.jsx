@@ -457,6 +457,11 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     ? modalNode.branchSteps.filter((s) => isDone(s.id)).length
     : 0;
   const anchorTotal = selectedIsAnchorOnly ? modalNode.branchSteps.length : 0;
+  // Bug fix (see CLAUDE.md) — a dedicated "has this chain been started" flag, fully independent
+  // of any step's own completedNodes entry. Previously the only signal here was `anchorDone`
+  // itself, which meant "Start" had no way to represent "just started, zero real steps done" —
+  // it could only show that state BY actually marking a step complete, which is exactly the bug.
+  const anchorStarted = selectedIsAnchorOnly && (state.startedOpportunityIds || []).includes(modalNode.id);
 
   // Course Selection Stage 4 — a course-checkpoint node has no complete-toggle of its own either;
   // like an opportunity anchor, its "done" state is really about two separate actions (Part 2
@@ -482,20 +487,40 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
 
   // The chain-starting node has no single id of its own to toggle — its "complete" state is
   // derived from its steps. Give it a real action at every state instead of a dead-end summary:
-  // kick off the first step, advance to the next incomplete one, or undo the whole chain once
+  // mark the chain started, advance to the next incomplete step, or undo the whole chain once
   // every step is done — so it responds like every other clickable node, not a lesser one.
+  //
+  // Bug fix (see CLAUDE.md) — "Start" used to call `toggleDone(next.id)` just like "Continue"
+  // does, silently marking the FIRST real sub-task complete the instant the user clicked what
+  // reads as a plain "begin this" action, not "complete a step I never actually did." Every
+  // sub-task's own mark-complete is meant to be a fully independent, explicit action the user
+  // takes by opening THAT step's own modal — Start was quietly bypassing that. Fixed by giving
+  // "Start" its own branch that only ever writes to `startedOpportunityIds`, never
+  // `completedNodes` — the first REAL step only gets marked done later, by a genuine "Continue"
+  // click (or by the user opening that step directly), never automatically as a side effect of
+  // starting.
   const advanceChain = () => {
     if (!selectedIsAnchorOnly) return;
+    if (!anchorStarted && anchorDone === 0) {
+      patch({ startedOpportunityIds: [...(state.startedOpportunityIds || []), modalNode.id] });
+      return;
+    }
     if (anchorDone === anchorTotal) {
       const updates = {};
       modalNode.branchSteps.forEach((s) => { updates[s.id] = false; });
-      patch({ completedNodes: { ...state.completedNodes, ...updates } });
+      patch({
+        completedNodes: { ...state.completedNodes, ...updates },
+        // "Completed — undo" rolls the whole chain back to its original, never-touched state —
+        // not just the step-completion count — so a later visit correctly shows "Start" again,
+        // not "Continue (0/Y)".
+        startedOpportunityIds: (state.startedOpportunityIds || []).filter((id) => id !== modalNode.id),
+      });
       return;
     }
     const next = modalNode.branchSteps.find((s) => !isDone(s.id));
     if (next) toggleDone(next.id);
   };
-  const chainButtonLabel = anchorDone === 0
+  const chainButtonLabel = !anchorStarted && anchorDone === 0
     ? 'Start'
     : anchorDone === anchorTotal
       ? 'Completed — undo'
