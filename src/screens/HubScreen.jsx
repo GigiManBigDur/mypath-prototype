@@ -31,6 +31,24 @@ import { useMascotSpeech } from '../hooks/useMascotSpeech';
 // after a real, deliberate skip — the hub read that as "never visited," not "done." The dedicated
 // flag fixes this without touching `state.gpa`'s own "don't guess" semantics, which every other
 // GPA-aware consumer in this app (ProgramsStep, reachMatchSafetyTag) still depends on unchanged.
+// Bug fix: Transcript & GPA / Course Selection used to be filtered out of `TILES` entirely
+// (never rendered at all, not even locked) until AFTER the survey revealed whether the student
+// picked a partner school — inconsistent with every other tile on this hub, which always stays
+// visible-but-locked rather than disappearing. The real distinction that matters is whether
+// eligibility is still UNKNOWN (survey not done yet — genuinely can't say either way) vs. KNOWN
+// (survey done, and no partner school was selected — genuinely doesn't apply, so hiding really is
+// correct there). `partnerSchoolGate` wraps a tile's own real Stage 3 `unlock`/`lockedReason` pair
+// so both tiles keep their EXACT existing unlock rules once eligibility is known, while showing a
+// single shared, honest placeholder reason before it is — this is a display-only wrapper, it
+// doesn't change what "unlocked" means for either tile once the real check can run.
+const SURVEY_PENDING_REASON = 'Complete the survey to see if this applies to you';
+function partnerSchoolGate(unlockFn, lockedReasonFn) {
+  return {
+    unlock: (state, hasPartnerSchool) => isSurveyComplete(state) && unlockFn(state, hasPartnerSchool),
+    lockedReason: (state, hasPartnerSchool) => (isSurveyComplete(state) ? lockedReasonFn(state, hasPartnerSchool) : SURVEY_PENDING_REASON),
+  };
+}
+
 const TILES = [
   {
     id: 'survey', screen: 'survey', Icon: ClipboardList,
@@ -80,23 +98,30 @@ const TILES = [
     lockedReason: () => 'Select at least one program first',
   },
   {
-    // Only ever shown once a real partner school is selected (Roslyn or UC Davis) — hidden
-    // entirely otherwise, not greyed out. Filtered below, not here (this flag only controls
-    // visibility; `unlock` below is the separate lock/unlock check for once it IS shown).
+    // Always visible, from the very first hub view — before the survey, eligibility is genuinely
+    // unknown, so this stays locked with a shared placeholder reason (`partnerSchoolGate`) rather
+    // than disappearing; only once the survey reveals NO partner school was selected does it get
+    // filtered out below (the one case where hiding, not locking, is actually correct — the
+    // answer is known for certain by then). `requiresPartnerSchool` is read by that same filter,
+    // and ONLY applies post-survey — see the `tiles` filter in HubScreen() itself.
     id: 'transcript', screen: 'transcript', Icon: FileText,
     title: 'Transcript & GPA',
     desc: 'Log your grades and see your calculated GPA.',
     requiresPartnerSchool: true,
-    unlock: (state) => state.selectedProgramKeys.length > 0,
-    lockedReason: () => 'Select at least one program first',
+    ...partnerSchoolGate(
+      (state) => state.selectedProgramKeys.length > 0,
+      () => 'Select at least one program first',
+    ),
   },
   {
     id: 'courseSelection', screen: 'courseSelection', Icon: BookOpen,
     title: 'Course Selection',
     desc: "Pick next year's courses from your school's real catalog.",
     requiresPartnerSchool: true,
-    unlock: (state) => state.transcriptCompleted,
-    lockedReason: () => 'Complete or skip Transcript & GPA first',
+    ...partnerSchoolGate(
+      (state) => state.transcriptCompleted,
+      () => 'Complete or skip Transcript & GPA first',
+    ),
   },
   {
     // Partner-school users follow the real screen-flow order (transcript -> courseSelection ->
@@ -316,7 +341,11 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   const { state, patch, reset } = useApp();
 
   const hasPartnerSchool = state.currentSchool === 'Roslyn High School' || state.currentSchool === 'UC Davis';
-  const tiles = TILES.filter((t) => !t.requiresPartnerSchool || hasPartnerSchool);
+  // Bug fix — `requiresPartnerSchool` now only ever hides a tile once eligibility is actually
+  // KNOWN (survey complete) and turned out to be "no partner school." Before the survey, it's
+  // simply unknown, so the tile stays visible-but-locked instead of disappearing — see
+  // `partnerSchoolGate` above for the matching `unlock`/`lockedReason` half of this fix.
+  const tiles = TILES.filter((t) => !t.requiresPartnerSchool || !isSurveyComplete(state) || hasPartnerSchool);
   const nextStep = getNextGuidedStep(state, hasPartnerSchool);
   // Every other step's `intro` is a plain string; the 'careers' step's own is a function of
   // `state` (see GUIDED_SEQUENCE above) since its condensed admissions-context blurb varies by

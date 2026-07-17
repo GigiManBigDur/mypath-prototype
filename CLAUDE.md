@@ -2608,6 +2608,59 @@ never a real fix, just an untested one.
   from the fix just above, which incidentally also re-confirms the hub layout reads cleanly
   without this card present) still passes with zero regressions.
 
+**Bug fix: Transcript & GPA / Course Selection used to be FILTERED OUT of `TILES` entirely (never
+rendered at all, not even locked) until after the survey revealed whether the student picked a
+partner school — inconsistent with every other tile on this hub, which always stays
+visible-but-locked rather than disappearing outright.** The real distinction that actually
+matters is whether eligibility is still UNKNOWN (survey not done yet — genuinely can't say either
+way) vs. KNOWN (survey done, and it turned out no partner school was selected — genuinely doesn't
+apply, so hiding really is the correct call there). The old code conflated these two very
+different situations into one boolean (`hasPartnerSchool`, which reads `false` in BOTH cases,
+since `state.currentSchool` starts as `''` and only ever gets set once the survey's school field
+is actually submitted) — so a brand-new user saw these two tiles vanish, not lock, from the very
+first hub visit.
+- **The fix, `partnerSchoolGate(unlockFn, lockedReasonFn)`** (`HubScreen.jsx`), wraps a tile's own
+  REAL Stage 3 `unlock`/`lockedReason` pair with one extra check: `isSurveyComplete(state) &&
+  unlockFn(...)` for unlock, and `isSurveyComplete(state) ? lockedReasonFn(...) :
+  SURVEY_PENDING_REASON` for the reason shown — `SURVEY_PENDING_REASON` being the one new shared
+  string ("Complete the survey to see if this applies to you"), reused by both tiles rather than
+  writing it twice. This is a display-only wrapper: once the survey IS complete, both tiles fall
+  straight through to their exact original, already-shipped `unlock`/`lockedReason` functions —
+  Transcript & GPA still requires `selectedProgramKeys.length > 0`, Course Selection still
+  requires `state.transcriptCompleted` — completely unmodified, so the real Stage 3 unlock
+  SEQUENCE for a partner-school student is byte-for-byte the same as it always was. The `tiles`
+  filter itself (`TILES.filter(...)`) changed from `!t.requiresPartnerSchool || hasPartnerSchool`
+  to `!t.requiresPartnerSchool || !isSurveyComplete(state) || hasPartnerSchool` — a tile now only
+  ever disappears once the survey is complete AND it's confirmed no partner school applies; before
+  that (survey incomplete, meaning genuinely unknown either way), the tile stays in the array and
+  simply renders locked via the `partnerSchoolGate`-wrapped functions above. `GUIDED_SEQUENCE` (the
+  SEPARATE list the mascot actively points at/walks through, Stage 4) was deliberately left
+  completely untouched — it already excludes these two steps for a non-partner-school student via
+  its own, unrelated `hasPartnerSchool` filter, and that's still correct: the mascot shouldn't
+  actively point at either step until it's known they apply, regardless of how the TILE itself
+  renders in the meantime.
+- **This adds up to 2 more tiles (10 total, up from 8) rendering pre-survey than before this
+  fix — the exact same tile-count/height/overlap math the immediately-preceding "first visit
+  looked wrong" bug fix already solved generally (not just for whatever 8-tile count happened to
+  exist at the time)**: confirmed directly via the same bounding-box overlap check that fix's own
+  regression test already uses, now re-run against the full 10-tile pre-survey set — zero
+  overlaps, same as the already-fixed 8/10-tile cases.
+- Verified with a dedicated Playwright suite (14 checks) plus updates to 3 pre-existing tests that
+  asserted the OLD "hidden entirely" behavior (`test-hub.js`, `test-hub-locking.js`, and this
+  session's own `test-hub-firstvisit-layout.js` — each updated to assert the new, intentional
+  behavior, the same "fix a pre-existing test after an intentional, expected change" pattern this
+  codebase's suite has needed many times before, not a regression in the app itself): before the
+  survey, both tiles are present, locked, and show the shared placeholder reason, with zero
+  tile-overlap regressions; once the survey is done WITH a partner school (Roslyn), both tiles
+  follow their exact original Stage 3 unlock sequence (Transcript & GPA unlocks on a selected
+  program, Course Selection stays locked until Transcript & GPA is actually done); once the survey
+  is done WITHOUT a partner school (only reachable for Undergraduate/Transfer, since a High School
+  survey requires picking Roslyn to complete at all), both tiles correctly disappear and the tile
+  count returns to exactly 8, unchanged from before this fix. The full pre-existing hub suite
+  (`test-hub-pointing.js`, `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, the
+  general `test.js`, and this session's own `test-hub-progress-card-gate.js`) all still pass.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
