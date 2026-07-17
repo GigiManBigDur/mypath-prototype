@@ -8,16 +8,16 @@ const DEFAULT_STATE = {
   screen: 'welcome',
   // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — entered on SignUpScreen, which sits
   // between welcome and hub. `username` is the only required field there and the only one
-  // SignUpScreen's own canContinue gate depends on; '' means not yet entered. `displayName` is
-  // optional ("preferred name if different from username") — '' means unset, in which case the
-  // hub mascot's greeting (Stage 2, HubScreen.jsx) falls back to `username` instead of showing a
-  // blank name. `avatarIcon` is optional too, stored as a plain id string (one of
-  // SignUpScreen's own AVATAR_OPTIONS ids) rather than a component reference, matching this
-  // codebase's existing "data holds icon NAMES, the screen owns the name→component map"
-  // convention (see ProjectBuilderScreen's CATEGORY_ICONS) — null means skipped.
+  // SignUpScreen's own canContinue gate depends on; '' means not yet entered. `avatarIcon` is
+  // optional, stored as a plain id string (one of SignUpScreen's own AVATAR_OPTIONS ids) rather
+  // than a component reference, matching this codebase's existing "data holds icon NAMES, the
+  // screen owns the name→component map" convention (see ProjectBuilderScreen's CATEGORY_ICONS) —
+  // null means skipped. `country` (see CLAUDE.md's own "Sign-Up: Country field" note) replaced
+  // the original optional "preferred display name" field — plain data collection ahead of a
+  // future Global Admission Intelligence feature, no logic reads this yet; '' means unset.
   username: '',
-  displayName: '',
   avatarIcon: null,
+  country: '',
   // Dashboard/Guide feature, Stage 2 — a one-shot navigation signal, not a durable field. Set by
   // HubScreen.jsx's Careers/Majors/Programs tiles right before navigating to `discovery`, so that
   // screen knows which of its 3 sub-steps to open on instead of always restarting at 'careers'.

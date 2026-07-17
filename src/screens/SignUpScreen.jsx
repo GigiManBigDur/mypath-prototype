@@ -5,15 +5,27 @@ import { useApp } from '../context/AppContext';
 // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — the first of a multi-stage build (sign-up ->
 // hub -> order enforcement -> guided pointing -> in-flow dialogue -> optional voiceover). This
 // screen only handles sign-up: collecting a username (required) plus two clearly-optional fields
-// (a preferred display name, an avatar icon), then handing off to the hub (Stage 2, HubScreen.jsx)
-// — the survey itself is now just one of the hub's own tiles, not the direct next screen. Later
-// stages (order enforcement, guided pointing, in-flow dialogue, voiceover) are deliberately out of
-// scope here — this stage's only job was making sure `state.username`/`displayName`/`avatarIcon`
-// exist by the time the hub needed them, which Stage 2 now does (see HubScreen.jsx's greeting).
+// (a country, an avatar icon), then handing off to the hub (Stage 2, HubScreen.jsx) — the survey
+// itself is now just one of the hub's own tiles, not the direct next screen. Later stages (order
+// enforcement, guided pointing, in-flow dialogue, voiceover) are deliberately out of scope here —
+// this stage's only job was making sure `state.username`/`country`/`avatarIcon` exist by the time
+// the hub needed them, which Stage 2 now does (see HubScreen.jsx's greeting).
+//
+// Sign-Up: Country field (see CLAUDE.md) — replaced the original optional "Preferred display
+// name" field with a "What country are you from?" field, ahead of a future (not-yet-built) Global
+// Admission Intelligence feature — plain data collection only, no logic reads `state.country`
+// anywhere yet. The old displayName field is gone entirely (not just hidden) — nothing else in
+// this app read it besides the hub's own greeting fallback, which now reads `state.username`
+// directly (see HubScreen.jsx). `COUNTRY_OPTIONS` is the starting set the product plan itself
+// named for country-specific admissions pathways — a small, fixed list, so a `.pill-group` single-
+// select (same toggle-to-select/toggle-to-deselect shape the avatar picker right below it already
+// uses) fits better than a free-text input or a giant every-country dropdown this prototype has no
+// real use for yet.
 //
 // Deliberately no StepProgress here, matching `welcome`'s own precedent — this is a pre-flow
 // screen, not one of the 9 tracked survey-through-plan steps, so it doesn't get a step indicator
 // any more than the welcome hero does.
+const COUNTRY_OPTIONS = ['United States', 'United Kingdom', 'Canada', 'India', 'China', 'Australia'];
 // Palette repaint (see CLAUDE.md) — 6 of the shared 7-color "bloom" accent palette (global.css's
 // own `:root` tokens, first established for the hub's colorful tile icons), one per avatar so
 // each option stays visually distinct exactly like it already was under the old palette. Green
@@ -37,7 +49,7 @@ export default function SignUpScreen() {
   // existing state so navigating Back to `welcome` and returning doesn't lose an already-confirmed
   // sign-up (e.g. a returning user whose state was restored mid-flow).
   const [username, setUsername] = useState(state.username);
-  const [displayName, setDisplayName] = useState(state.displayName);
+  const [country, setCountry] = useState(state.country);
   const [avatarIcon, setAvatarIcon] = useState(state.avatarIcon);
 
   const canContinue = username.trim().length > 0;
@@ -47,7 +59,7 @@ export default function SignUpScreen() {
     if (!canContinue) return;
     patch({
       username: username.trim(),
-      displayName: displayName.trim(),
+      country,
       avatarIcon,
       // Set once, ever — a defensive re-submit (state restored mid-flow) must not reset the
       // hub's own "Days active" stat back to day 1. See AppContext.jsx's own comment.
@@ -85,19 +97,23 @@ export default function SignUpScreen() {
 
         <div className="field-block">
           <div className="field-label">
-            Preferred display name <span className="optional-badge">Optional</span>
+            What country are you from? <span className="optional-badge">Optional</span>
           </div>
           <p className="field-hint">
-            If you'd rather be greeted by a different name than your username, add it here.
+            Helps us tailor country-specific admissions info down the line — nothing happens with
+            it yet.
           </p>
-          <div className="task-form-field">
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="e.g. Alex"
-              maxLength={30}
-            />
+          <div className="pill-group">
+            {COUNTRY_OPTIONS.map((c) => (
+              <button
+                type="button"
+                key={c}
+                className={`pill${country === c ? ' selected' : ''}`}
+                onClick={() => setCountry(country === c ? '' : c)}
+              >
+                {c}
+              </button>
+            ))}
           </div>
         </div>
 

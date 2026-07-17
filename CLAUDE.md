@@ -4461,6 +4461,47 @@ check (template month only), not the actual displayed result.
   `git stash` to predate both Roslyn-date passes entirely) is still the only failure anywhere in
   the suite.
 
+**Sign-Up: Country field replaces the optional "Preferred display name" field.** Ahead of a
+future (not-yet-built) Global Admission Intelligence feature, `SignUpScreen.jsx`'s second optional
+field is now "What country are you from?" instead of a free-text preferred name — plain data
+collection only, no logic anywhere reads `state.country` yet, matching this app's own standing
+"no AI/LLM calls, no functionality beyond what's actually built" constraint for speculative
+future-feature groundwork. `COUNTRY_OPTIONS` (`SignUpScreen.jsx`) is a fixed 6-country list —
+United States, United Kingdom, Canada, India, China, Australia — the exact set the original
+product plan named for country-specific admissions pathways, rendered as a `.pill-group` single-
+select (click to pick, click the already-picked one again to clear it back to unset) rather than a
+free-text input or an exhaustive every-country dropdown this prototype has no real use for yet —
+the same toggle-to-select/toggle-to-deselect shape the avatar picker right below it on this same
+screen already established.
+- **The old `displayName` field is gone entirely, not just hidden or renamed** —
+  `state.displayName` no longer exists anywhere in `DEFAULT_STATE` (`AppContext.jsx`), replaced by
+  `state.country` (`''` means unset, same "blank means not entered yet" convention `username`/the
+  old `displayName` already used). The ONLY other place in the whole app that ever read
+  `displayName` was the hub's own greeting fallback (`HubScreen.jsx`'s `greetingName = state.displayName
+  || state.username`) — confirmed via grep before removing anything, not assumed — so that line
+  now reads `state.username` directly. `username` is guaranteed non-blank by the time a student can
+  ever reach the hub (`SignUpScreen`'s own `canContinue` gate, unchanged), so there's no new
+  "nothing to show" case this simplification introduces.
+- Verified with a dedicated 12-check Playwright suite: "Preferred display name" no longer appears
+  anywhere on the page; the new country question and its own visible "Optional" badge both render;
+  all 6 expected countries render as pills and nothing else; Continue stays enabled with just a
+  username (the field is genuinely still skippable, same as before); skipping leaves
+  `state.country === ''` and confirms `'displayName' in state` is now false (not just
+  blank — genuinely absent); picking a country visibly selects it and is stored correctly
+  alongside `username`/`avatarIcon` on submit; and the hub's own greeting still shows the real
+  username correctly regardless of which country (if any) was picked, confirming the field carries
+  zero display/greeting logic of its own, exactly as scoped. Two pre-existing tests that asserted
+  the OLD displayName-preferred-over-username greeting behavior (`test-hub.js`'s own Test 9,
+  `test-signup.js`'s own optional-fields and full-submission checks) were updated to match this
+  intentional, expected change — the same "update a pre-existing test after an intentional change"
+  pattern this suite has already needed many times before, not a regression. Confirmed (via grep
+  across the full scratch test suite) that no OTHER pre-existing test file has a real behavioral
+  assertion on `displayName` beyond an inert, now-harmless unused seed-object key, which the app
+  simply ignores. The full pre-existing regression suite (`test-hub-locking.js`,
+  `test-hub-pointing.js`, `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-bloom-repaint.js`,
+  and the general `test.js`) all still pass with zero further regressions.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

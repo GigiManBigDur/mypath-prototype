@@ -428,7 +428,12 @@ export default function HubScreen({ onOpenVoiceSettings }) {
     if (window.confirm('Are you sure? This will erase all progress.')) reset();
   };
 
-  const greetingName = state.displayName || state.username;
+  // Sign-Up: Country field (see CLAUDE.md) — the optional "preferred display name" field this
+  // greeting used to prefer over `username` was removed (replaced by `state.country`, plain data
+  // collection with no logic of its own yet), so the greeting now just reads `username` directly
+  // — it's guaranteed non-blank by the time a user can ever reach the hub (SignUpScreen's own
+  // `canContinue` gate), so there's no "not set yet" case to handle here either way.
+  const greetingName = state.username;
   const guidedProgress = getGuidedProgress(state, hasPartnerSchool);
 
   // Bug fix: "Your Progress" (and its "View Roadmap" link) used to render unconditionally, right
