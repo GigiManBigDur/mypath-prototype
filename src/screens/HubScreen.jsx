@@ -468,15 +468,21 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   // right side, aiming every target on a given side at the same fixed angle regardless of exactly
   // where it actually sat — see the hook's own comment below).
   //
-  // Bug fix (see CLAUDE.md) — once `sequenceComplete`, there is no real "next thing to do" for the
-  // mascot to aim at, so the target id passed in is `null` instead of `nextStep.id` (which, in
-  // this state, is only ever ENDPOINT_STEP's own borrowed 'plan' id — not a real tile the guided
-  // sequence should ever point at, per GUIDED_SEQUENCE's own "Academic Plan... deliberately
-  // excluded... the mascot never force-points at it" rule above). `usePointAngle` already returns
-  // `null` for a `null`/unresolvable target, which is what puts the mascot back into its neutral,
-  // centered idle pose with no pointing gesture — see `isPointingTarget` below for the matching
-  // tile-glow half of this same fix.
-  const pointAngle = usePointAngle(mascotRef, tileRefs, sequenceComplete ? null : nextStep.id, tiles.length);
+  // Adjustment (see CLAUDE.md) — the end-of-sequence fix originally suppressed pointing entirely
+  // once `sequenceComplete`, but the one-time completion message deserves ONE paired pointing
+  // gesture at Academic Plan (`ENDPOINT_STEP.id`, 'plan') — the natural last thing to direct the
+  // student toward — not silence forever. `guidedStepAlreadySeen` (already the exact signal that
+  // gates whether the completion TEXT itself is still the fresh, first-time line or has already
+  // been shown) does double duty here: while it's still `false` (this is genuinely the first
+  // visit where the sequence just completed), `pointingTargetId` stays `nextStep.id` — which is
+  // 'plan' in this state, same as ENDPOINT_STEP's own id — so the mascot points at Academic Plan
+  // for exactly that one visit, alongside the completion line. The moment that line has been
+  // shown once (`guidedStepAlreadySeen` flips true on the next fresh mount), `pointingTargetId`
+  // becomes `null` — back to the neutral idle pose with no active target, matching "a single,
+  // one-time gesture only." Every non-complete state is completely unaffected: `nextStep.id` is
+  // used exactly as before.
+  const pointingTargetId = (sequenceComplete && guidedStepAlreadySeen) ? null : nextStep.id;
+  const pointAngle = usePointAngle(mascotRef, tileRefs, pointingTargetId, tiles.length);
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
   // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
@@ -597,14 +603,13 @@ export default function HubScreen({ onOpenVoiceSettings }) {
               (below) measures against THIS ref, so it's computed from the mascot's real center, not
               from further down past the bubble. */}
           <div className="hub-mascot-figure" ref={mascotRef}>
-            {/* Bug fix (see CLAUDE.md) — `pointing` used to be exactly `isSpeaking`, which stayed
-                true even for the one-time completion line once `sequenceComplete`, raising the
-                arm/wand toward a target that no longer means anything. Gating it on
-                `!sequenceComplete` too keeps the mascot's mouth/body still animating while it
-                delivers that one-time line (the SEPARATE `speaking` prop, untouched), just without
-                the pointing gesture — matching "the mascot returns to a neutral idle state with no
-                active pointing target" once the primary sequence is finished. */}
-            <MascotIcon size={150} speaking={isSpeaking} pointing={!sequenceComplete && isSpeaking} pointAngle={pointAngle} />
+            {/* Adjustment (see CLAUDE.md) — `pointing` reads `pointingTargetId` (above) rather
+                than a plain `!sequenceComplete` gate now, so the ONE visit where the completion
+                line is genuinely new still gets a real paired pointing gesture at Academic Plan;
+                every visit after that (once `pointingTargetId` is `null`) keeps the mascot's
+                mouth/body animating (the SEPARATE `speaking` prop, untouched) without raising the
+                arm/wand toward a target that no longer means anything. */}
+            <MascotIcon size={150} speaking={isSpeaking} pointing={pointingTargetId !== null && isSpeaking} pointAngle={pointAngle} />
           </div>
           <div className="mascot-greeting">
             {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
@@ -628,11 +633,12 @@ export default function HubScreen({ onOpenVoiceSettings }) {
 
         {tiles.map((tile, i) => {
           const unlocked = tile.unlock(state, hasPartnerSchool);
-          // Bug fix (see CLAUDE.md) — without `!sequenceComplete`, the Academic Plan tile (id
-          // 'plan') would pick up the pulsing glow forever once the sequence finished, since
-          // ENDPOINT_STEP happens to reuse that same id — even though GUIDED_SEQUENCE itself
-          // deliberately never includes 'plan' as a real step to point at.
-          const isPointingTarget = !sequenceComplete && tile.id === nextStep.id;
+          // Adjustment (see CLAUDE.md) — reads `pointingTargetId` (above) instead of a plain
+          // `!sequenceComplete` gate, so the Academic Plan tile correctly glows for the one visit
+          // where the completion line is genuinely new (pairing the tile-glow with that one-time
+          // pointing gesture), then stops glowing on every visit after — never a persistent,
+          // ongoing highlight.
+          const isPointingTarget = tile.id === pointingTargetId;
           const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
           const pos = RADIAL_POSITIONS[i % RADIAL_POSITIONS.length];
           return (

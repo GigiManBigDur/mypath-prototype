@@ -4119,14 +4119,54 @@ state.
   Builder is genuinely the pending step (real dialogue text, real tile glow); clicking "Skip for
   now" sets `projectBuilderSkipped: true` without fabricating a `startedProjects` entry; the very
   next hub visit shows the one-time completion acknowledgment (not the Project Builder intro
-  again, not the generic "keep going" line) with zero tile glow anywhere; and a later revisit
-  shows neither message and still no pointing — confirming this correctly feeds the exact
-  end-of-sequence mechanism the prior fix built, not a separate one. The full pre-existing hub/
-  mascot/voice suite (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`,
-  `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
-  `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`,
+  again, not the generic "keep going" line); and a later revisit shows neither message — confirming
+  this correctly feeds the exact end-of-sequence mechanism the prior fix built, not a separate one.
+  (This suite's own "zero tile glow anywhere" check on the first completion visit was written
+  before the pointing adjustment immediately below restored a one-time gesture there — see that
+  entry for the updated, current expectation; the check itself was revised along with it.) The
+  full pre-existing hub/mascot/voice suite (`test-hub.js`, `test-hub-locking.js`,
+  `test-hub-pointing.js`, `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`,
   `test-mascot-wand-pointing.js`, and `test-sequence-complete.js`) all still pass with zero
   regressions.
+
+**Adjustment: the end-of-sequence fix's own "no pointing at all once complete" turned out to be
+one step too far — the one-time completion message deserves a paired, one-time pointing gesture
+at Academic Plan (the natural last thing to direct the student toward), not total silence from
+the mascot's body.** This is a refinement of the exact same mechanism the end-of-sequence fix
+built, not a new one: `guidedStepAlreadySeen` already distinguished "this is genuinely the first
+visit where the completion line is new" from "it's already been shown" (that's what gated whether
+the completion TEXT itself played in full or fell silent) — this adjustment reuses that same
+boolean to also gate pointing, instead of a blanket `!sequenceComplete` that suppressed it for
+every completion-state visit, including the very first one.
+- **One new derived value, `pointingTargetId`** (`HubScreen.jsx`) —
+  `(sequenceComplete && guidedStepAlreadySeen) ? null : nextStep.id`. While the sequence isn't
+  complete, this is just `nextStep.id`, unchanged from before. Once complete, it stays
+  `nextStep.id` (which is `ENDPOINT_STEP.id`, `'plan'`) for exactly the one visit where
+  `guidedStepAlreadySeen` is still `false` — the same visit the completion line itself plays in
+  full — then becomes `null` the moment that's been seen, matching "a single, one-time gesture
+  only." All three consumers that used to branch on `sequenceComplete` directly now read this one
+  value instead: `usePointAngle`'s own target-id argument, `isPointingTarget` (the per-tile glow —
+  now simply `tile.id === pointingTargetId`, no separate `!sequenceComplete` check needed since a
+  `null` target can never equal a real tile id), and `MascotIcon`'s `pointing` prop (`pointingTargetId
+  !== null && isSpeaking`, replacing the plain `!sequenceComplete && isSpeaking` from before — the
+  mascot's mouth/body animation itself, the separate `speaking` prop, is untouched either way).
+- Verified with a dedicated 11-check Playwright suite: the first completion visit shows the
+  one-time message AND a real pointing pose AND the Academic Plan tile's own glow (confirmed as
+  the ONLY glowing tile, not a side effect of some other check going stale); a second visit shows
+  neither the message nor the pointing pose nor any tile glow; a third visit is unchanged; and an
+  unfinished sequence still points normally at whatever the real next step is. Two pre-existing
+  tests from the end-of-sequence fix itself (`test-hub-pointing.js`'s own Test 4, and this
+  session's own `test-sequence-complete.js`/`test-projectbuilder-skip.js`) had asserted the
+  now-superseded "no pointing at all once complete" behavior on the FIRST completion visit
+  specifically — each was updated to expect the one-time Academic Plan glow there instead, while
+  keeping their own "no pointing on a LATER revisit" assertions completely unchanged (that part of
+  the original fix was correct and still holds) — the same "update a pre-existing test after an
+  intentional, expected change" pattern this suite has already needed several times before, not a
+  regression. The full pre-existing hub/mascot/voice suite (`test-hub.js`, `test-hub-locking.js`,
+  `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
+  `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`, and
+  `test-mascot-wand-pointing.js`) all still pass with zero further regressions.
 
 **Palette repaint, Program Summary batch — the sixth and final screen in this rollout, closing
 out the "bloom" palette migration entirely.** `App.jsx`'s `isBloomScreen` now also covers
