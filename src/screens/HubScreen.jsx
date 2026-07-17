@@ -254,13 +254,13 @@ function getGuidedProgress(state, hasPartnerSchool) {
 // count over the FULL multi-year Academic Plan (generateRoadmap(state) with no yearWindow returns
 // the whole unfiltered spine, the same one AcademicPlanScreen.jsx's own useMemo pattern calls),
 // not just whatever single year Map 2 happens to be scoped to. A spine item with `branchSteps`
-// (an opportunity or a started project) has its real completable units spread across those steps,
-// not the anchor itself — EXCEPT a project's own anchor IS one of its real steps (the first one,
-// individually toggled via completedNodes exactly like any other core item; see
-// roadmapGenerator.js's buildProjectChain comment), whereas an opportunity's anchor is NOT (its
-// own completion is only ever derived from its steps via Roadmap.jsx's Start/Continue/Completed
-// button, never a direct completedNodes entry) — so only a project's anchor gets counted here,
-// not an opportunity's.
+// (an opportunity or a started project) has its real completable units spread across those steps
+// PLUS the item's own anchor — since the "Remove Anchor Node, Promote First Step to the Spine"
+// restructure (see CLAUDE.md), an opportunity's own anchor IS one of its real steps (the first
+// one, individually toggled via completedNodes exactly like any other core item; see
+// roadmapGenerator.js's buildFirstYearChain/buildEscalationChain comments), the same way a
+// project's own anchor already was (buildProjectChain). Both are counted here uniformly — there's
+// no more "derived, no real completedNodes entry" anchor of any kind left to exclude.
 function countPlanTasks(roadmap, completedNodes) {
   let total = 0;
   let completed = 0;
@@ -269,12 +269,8 @@ function countPlanTasks(roadmap, completedNodes) {
     if (completedNodes[id]) completed += 1;
   };
   roadmap.spine.forEach((item) => {
-    if (item.hasBranch) {
-      if (item.category === 'project') countOne(item.id);
-      (item.branchSteps || []).forEach((step) => countOne(step.id));
-    } else {
-      countOne(item.id);
-    }
+    countOne(item.id);
+    if (item.hasBranch) (item.branchSteps || []).forEach((step) => countOne(step.id));
   });
   return { completed, total };
 }

@@ -167,11 +167,11 @@ export function generateRoadmap(state, yearWindow = null) {
 // A task belongs to whichever year its own real date falls in — no special-casing, including for
 // Project Builder milestones or multi-step opportunity chains. Most items are single-step
 // (`steps: null`) and either wholly belong to this year or don't. A multi-step chain's own anchor
-// point (`item.date`/`item.title`/etc — for an opportunity this is a distinct summary dated at its
-// first step; for a project, per buildProjectChain above, it literally IS the first step) and
-// each of its `steps` are filtered independently by their own dates, since a chain can, in
-// principle, straddle a year boundary (e.g. an opportunity's last prep weeks landing just before
-// a year-stage rolls over):
+// point (`item.date`/`item.title`/etc — for both an opportunity and a project, per
+// buildFirstYearChain/buildEscalationChain/buildProjectChain above, this literally IS the chain's
+// own first step, not a separate summary node) and each of its `steps` are filtered independently
+// by their own dates, since a chain can, in principle, straddle a year boundary (e.g. an
+// opportunity's last prep weeks landing just before a year-stage rolls over):
 //   - If the anchor's own date survives, the chain keeps its original anchor and just drops
 //     whichever steps fell outside this year (recomputing `isLast` on what's left).
 //   - If the anchor doesn't survive but later steps do, the earliest surviving step is promoted
@@ -600,12 +600,17 @@ function progressionTitle(opp, yearIndex) {
   return ladder[Math.min(yearIndex - 1, ladder.length - 1)] || opp.prepSteps[opp.prepSteps.length - 1];
 }
 
-// Each selected opportunity becomes one optional spine item for its FIRST year, anchored at the
-// date of its EARLIEST step (its "starting point" — e.g. "Register for DECA") rather than its
-// deadline, carrying its full ordered step chain as data — completely unmodified from before
-// multi-year progression existed. Prep steps are spread across the `prepWeeks` window before the
-// deadline (clamped to start after today) — the LAST prep step IS the deadline/event itself (e.g.
-// "Compete at Regionals") rather than a separate trailing node, since that step already
+// Each selected opportunity becomes one optional spine item for its FIRST year. Restructure (see
+// CLAUDE.md — "Remove Anchor Node, Promote First Step to the Spine"): there is no separate
+// summary/anchor node anymore — the chain's own first prep step (e.g. "Register for DECA")
+// literally IS the spine item, mirroring buildProjectChain's own "first entry doubles as the
+// spine node" shape exactly. It's fully independently clickable/mark-completable via the plain
+// toggleDone() path, with no derived "chain-level" completion state to keep in sync — that
+// derived-state ambiguity (a summary node with no real id of its own to complete) was the actual
+// root cause of a real, previously-shipped bug where a "Start" button ended up wired to silently
+// complete the first sub-task instead. Prep steps are spread across the `prepWeeks` window before
+// the deadline (clamped to start after today) — the LAST prep step IS the deadline/event itself
+// (e.g. "Compete at Regionals") rather than a separate trailing node, since that step already
 // represents the opportunity's actual terminal action.
 //
 // For `recurring` opportunities (club/competition activities — see PROGRESSION_LADDERS in
@@ -621,15 +626,17 @@ function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartD
     const opp = findOpportunity(id, tracks, level);
     if (!opp) return;
 
-    if (!removed[opp.id]) {
-      const item = buildFirstYearChain(opp, planStartDate, dateOverrides, removed);
-      if (item) items.push(item);
-    }
+    // No more "is the whole opportunity removed" pre-check keyed on the raw opportunity id — see
+    // the restructure note on buildFirstYearChain below. Per-step removal (handled inside
+    // buildStepsChain's own filter) already collapses to `null`/omitted once every step is gone,
+    // the same way a fully-removed Project Builder chain already does.
+    const firstYearItem = buildFirstYearChain(opp, planStartDate, dateOverrides, removed);
+    if (firstYearItem) items.push(firstYearItem);
 
     if (opp.recurring) {
       for (let yearIndex = 1; yearIndex < yearSpan; yearIndex += 1) {
-        const item = buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed);
-        if (item) items.push(item);
+        const escalationItem = buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed);
+        if (escalationItem) items.push(escalationItem);
       }
     }
   });
@@ -668,7 +675,25 @@ function buildStepsChain(stepNames, deadlineDate, prepWeeks, planStartDate, date
   return steps.map((step, i) => ({ ...step, isLast: i === steps.length - 1 }));
 }
 
-// Builds the original full prep-chain item (year 1) for one opportunity.
+// Appends the opportunity's own name to a promoted first step's title (e.g. "Register your team"
+// -> "Register your team for Science Olympiad Club") so the connection is still clear once
+// there's no separate anchor label carrying it. Skipped when the step's own title already names
+// the opportunity (e.g. DECA's own first step is literally "Register for DECA") — appending again
+// would read as a redundant "Register for DECA for DECA" rather than adding real context.
+function titleWithOpportunityContext(stepTitle, oppName) {
+  return stepTitle.toLowerCase().includes(oppName.toLowerCase()) ? stepTitle : `${stepTitle} for ${oppName}`;
+}
+
+// Builds the original full prep-chain item (year 1) for one opportunity. No separate anchor: the
+// chain's own first step (by real, sorted date) is promoted directly onto the spine — same id,
+// same date-based positioning, same connections to the rest of the chain — exactly the way
+// buildProjectChain already promotes a project's own first step. Its title gets the opportunity's
+// own name appended (e.g. "Register your team for Science Olympiad Club") since there's no
+// separate anchor label left to carry that context; every other field (date/desc/resources)
+// comes straight from that real step, not from a synthetic wrapper. `totalSteps` is the chain's
+// ORIGINAL step count (including the promoted one) — Roadmap.jsx's "· N steps" subtitle reads
+// this instead of `branchSteps.length`, which would otherwise undercount by exactly one now that
+// the first step has moved off the branch and onto the spine.
 function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
   const deadlineDate = anchorDate(opp.date, planStartDate);
   const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
@@ -688,39 +713,43 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
   );
   if (!steps) return null;
 
-  const anchorId = opp.id;
-  const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
-
   // Palette repaint, Academic Plan batch (see CLAUDE.md) — `track` is a purely additive, display-
   // only field (same convention `projectLabel`/`courseList` already established here), carrying
   // the exact same `opp._track` Batch 1's color mapping already resolves for Survey/Discovery/
-  // Course Selection/Opportunity Finder cards. Set on the anchor AND every step (not just the
-  // anchor) so a chain's entire branch — connector line, every step's ring, the deadline step
-  // too — reads as one consistent interest-colored chain, not just its starting point. Doesn't
-  // touch date/position fields at all, so roadmapLayout.js's layout math is completely unaffected.
+  // Course Selection/Opportunity Finder cards. Set on every step (not just the promoted one) so a
+  // chain's entire branch — connector line, every step's ring, the deadline step too — reads as
+  // one consistent interest-colored chain, not just its starting point. Doesn't touch date/
+  // position fields at all, so roadmapLayout.js's layout math is completely unaffected.
+  const track = opp._track || null;
+  const [anchor, ...branchSteps] = steps.map((step) => ({ ...step, track }));
+
   return {
-    id: anchorId,
-    title: opp.name,
+    id: anchor.id,
+    title: titleWithOpportunityContext(anchor.title, opp.name),
     category: 'opportunity',
     required: false,
     coreType: 'opportunity',
-    date: startDate,
-    due: formatDate(startDate),
-    desc: opp.description,
-    resources: [],
-    track: opp._track || null,
-    steps: steps.map((step) => ({ ...step, track: opp._track || null })),
+    date: anchor.date,
+    due: anchor.due,
+    desc: anchor.desc,
+    resources: anchor.resources,
+    track,
+    totalSteps: steps.length,
+    steps: branchSteps.length ? branchSteps : null,
   };
 }
 
 // Builds a shorter chain for escalation year `yearIndex` (1-based among escalation years — 1
 // means "year 2 overall") of a `recurring` opportunity: `opp.progressionPrepSteps[rung]` (clamped
 // to its last rung, same pattern as PROGRESSION_LADDERS) supplies the prep-step titles, and the
-// escalated milestone from `progressionTitle()` is appended as the final step. Removing the
-// anchor id removes the whole year's chain, same as `buildFirstYearChain`.
+// escalated milestone from `progressionTitle()` is appended as the final step. Same anchor-
+// removal restructure as buildFirstYearChain above — no separate summary node, the chain's own
+// first step for this year is promoted directly onto the spine, renamed with the opportunity's
+// name (plus "(Year N)", matching the old wrapper title's own trailing year marker). `chainKey`
+// only prefixes each step's own id now — the returned item's real `id` comes from whichever step
+// actually becomes the promoted anchor, not from `chainKey` itself.
 function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed) {
-  const anchorId = `${opp.id}-y${yearIndex + 1}`;
-  if (removed[anchorId]) return null;
+  const chainKey = `${opp.id}-y${yearIndex + 1}`;
 
   const deadlineDate = anchorDate({ ...opp.date, yearOffset: yearIndex }, planStartDate);
   const milestone = progressionTitle(opp, yearIndex);
@@ -729,7 +758,7 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
 
   const steps = buildStepsChain(
     stepNames, deadlineDate, opp.prepWeeks, planStartDate, dateOverrides, removed,
-    (i) => `${anchorId}-prep-${i}`,
+    (i) => `${chainKey}-prep-${i}`,
     (stepName, i, isLastByDefault, total) => ({
       title: stepName,
       desc: isLastByDefault
@@ -740,23 +769,25 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
   );
   if (!steps) return null;
 
-  const startDate = dateOverrides[anchorId] ? parseDateInputValue(dateOverrides[anchorId]) : steps[0].date;
-
   // Same `track` field as buildFirstYearChain above, for the same reason — an escalation-year
   // chain is still the same real opportunity/interest area, just a later year, so it keeps the
   // identical track color throughout its own (shorter) branch too.
+  const track = opp._track || null;
+  const [anchor, ...branchSteps] = steps.map((step) => ({ ...step, track }));
+
   return {
-    id: anchorId,
-    title: `${opp.name} (Year ${yearIndex + 1})`,
+    id: anchor.id,
+    title: `${titleWithOpportunityContext(anchor.title, opp.name)} (Year ${yearIndex + 1})`,
     category: 'opportunity',
     required: false,
     coreType: 'opportunity',
-    date: startDate,
-    due: formatDate(startDate),
-    desc: `Your year ${yearIndex + 1} milestone for ${opp.name}: ${milestone.toLowerCase()}. ${opp.howToApply}.`,
-    resources: [],
-    track: opp._track || null,
-    steps: steps.map((step) => ({ ...step, track: opp._track || null })),
+    date: anchor.date,
+    due: anchor.due,
+    desc: anchor.desc,
+    resources: anchor.resources,
+    track,
+    totalSteps: steps.length,
+    steps: branchSteps.length ? branchSteps : null,
   };
 }
 

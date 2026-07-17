@@ -452,17 +452,6 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     : '';
   const promptProjectName = projectPrompt?.project?.projectName ?? '';
 
-  const selectedIsAnchorOnly = modalNode?.category === 'opportunity' && modalNode?.hasBranch;
-  const anchorDone = selectedIsAnchorOnly && modalNode.branchSteps
-    ? modalNode.branchSteps.filter((s) => isDone(s.id)).length
-    : 0;
-  const anchorTotal = selectedIsAnchorOnly ? modalNode.branchSteps.length : 0;
-  // Bug fix (see CLAUDE.md) — a dedicated "has this chain been started" flag, fully independent
-  // of any step's own completedNodes entry. Previously the only signal here was `anchorDone`
-  // itself, which meant "Start" had no way to represent "just started, zero real steps done" —
-  // it could only show that state BY actually marking a step complete, which is exactly the bug.
-  const anchorStarted = selectedIsAnchorOnly && (state.startedOpportunityIds || []).includes(modalNode.id);
-
   // Course Selection Stage 4 — a course-checkpoint node has no complete-toggle of its own either;
   // like an opportunity anchor, its "done" state is really about two separate actions (Part 2
   // marks completedNodes true once it finishes — see CourseSelectionScreen.jsx's checkpoint-mode
@@ -484,47 +473,6 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
     ? state.ucdavisQuarterCheckpoints?.[modalNode.checkpointStageName]?.[modalNode.checkpointQuarter]
     : null;
   const ucdavisCheckpointPart1Done = !!ucdavisCheckpointProgress?.part1Done;
-
-  // The chain-starting node has no single id of its own to toggle — its "complete" state is
-  // derived from its steps. Give it a real action at every state instead of a dead-end summary:
-  // mark the chain started, advance to the next incomplete step, or undo the whole chain once
-  // every step is done — so it responds like every other clickable node, not a lesser one.
-  //
-  // Bug fix (see CLAUDE.md) — "Start" used to call `toggleDone(next.id)` just like "Continue"
-  // does, silently marking the FIRST real sub-task complete the instant the user clicked what
-  // reads as a plain "begin this" action, not "complete a step I never actually did." Every
-  // sub-task's own mark-complete is meant to be a fully independent, explicit action the user
-  // takes by opening THAT step's own modal — Start was quietly bypassing that. Fixed by giving
-  // "Start" its own branch that only ever writes to `startedOpportunityIds`, never
-  // `completedNodes` — the first REAL step only gets marked done later, by a genuine "Continue"
-  // click (or by the user opening that step directly), never automatically as a side effect of
-  // starting.
-  const advanceChain = () => {
-    if (!selectedIsAnchorOnly) return;
-    if (!anchorStarted && anchorDone === 0) {
-      patch({ startedOpportunityIds: [...(state.startedOpportunityIds || []), modalNode.id] });
-      return;
-    }
-    if (anchorDone === anchorTotal) {
-      const updates = {};
-      modalNode.branchSteps.forEach((s) => { updates[s.id] = false; });
-      patch({
-        completedNodes: { ...state.completedNodes, ...updates },
-        // "Completed — undo" rolls the whole chain back to its original, never-touched state —
-        // not just the step-completion count — so a later visit correctly shows "Start" again,
-        // not "Continue (0/Y)".
-        startedOpportunityIds: (state.startedOpportunityIds || []).filter((id) => id !== modalNode.id),
-      });
-      return;
-    }
-    const next = modalNode.branchSteps.find((s) => !isDone(s.id));
-    if (next) toggleDone(next.id);
-  };
-  const chainButtonLabel = !anchorStarted && anchorDone === 0
-    ? 'Start'
-    : anchorDone === anchorTotal
-      ? 'Completed — undo'
-      : `Continue — mark next step complete (${anchorDone}/${anchorTotal})`;
 
   // Layout-restructure-only state: the paired first-visit callouts (below) share the exact same
   // "stay mounted through an exit animation" need as every modal, so they reuse useModalExit
@@ -717,7 +665,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                     <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
                     <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
                       <tspan className="node-due-tag" fill={cfg.color}>{n.category === 'project' ? n.projectLabel : cfg.label}</tspan>
-                      {' · '}{formatDateWithYear(n.date)}{n.hasBranch ? ` · ${n.branchSteps.length} steps` : ''}
+                      {' · '}{formatDateWithYear(n.date)}{n.hasBranch ? ` · ${n.totalSteps ?? n.branchSteps.length} steps` : ''}
                     </text>
                   </g>
                 </g>
@@ -928,24 +876,6 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               </div>
             )}
 
-            {selectedIsAnchorOnly && (
-              <>
-                {/* Task 2 — reuses the exact same resolved chain color the ring/connector line
-                    already use (configFor(modalNode).color), so this progress line visually ties
-                    back to its own interest-colored branch instead of a flat, unrelated color. */}
-                <div className="step-chain-progress" style={{ color: configFor(modalNode).color }}>
-                  {anchorDone} / {anchorTotal} steps complete — see the branch on the map for each step.
-                </div>
-                <button
-                  className={`complete-btn ${anchorDone === anchorTotal ? 'done' : 'todo'}`}
-                  onClick={advanceChain}
-                >
-                  <CheckCircle2 size={16} />
-                  {chainButtonLabel}
-                </button>
-              </>
-            )}
-
             {selectedIsCourseCheckpoint && (
               <div className="checkpoint-actions">
                 <button
@@ -998,7 +928,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               </div>
             )}
 
-            {modalNode.type !== 'today' && !selectedIsAnchorOnly && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && (
+            {modalNode.type !== 'today' && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && (
               <button
                 className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
                 onClick={() => toggleDone(modalNode.id)}

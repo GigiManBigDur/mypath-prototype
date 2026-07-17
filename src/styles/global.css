@@ -1051,7 +1051,7 @@ button.card.passed:hover {
    CLAUDE.md) — these classes are exclusive to Roadmap.jsx (verified via grep before editing), so
    recoloring the base rule directly onto the bloom tokens is safe, same "exclusive class, edit
    directly" precedent this component's own earlier repaint pass already established for
-   `.complete-btn`/`.step-chain-progress`/`.win-banner`. */
+   `.complete-btn`/`.win-banner`. */
 .rm-title { font-family:'Fraunces', serif; font-weight:600; font-size: clamp(22px, 3.4vw, 30px); margin:0; color: var(--bloom-ink); }
 .rm-sub { color: var(--bloom-ink-soft); font-size:14px; margin: 4px 0 0; }
 .progress-box { text-align:right; }
@@ -2179,7 +2179,7 @@ button.card.passed:hover {
 .remove-btn { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:4px; border:1px solid var(--paper-line); background:none; color: var(--rust); font-family:'IBM Plex Sans'; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; }
 .remove-btn:hover { background: rgba(166,73,31,0.08); border-color: var(--rust); }
 .complete-btn { width:100%; padding:12px; border-radius:4px; border:none; cursor:pointer; font-family:'IBM Plex Sans'; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; }
-/* .complete-btn/.step-chain-progress/.win-banner are exclusive to Roadmap.jsx (Map 2) — no other
+/* .complete-btn/.win-banner are exclusive to Roadmap.jsx (Map 2) — no other
    screen uses them, so recoloring the base rule directly is safe (same "exclusive class, edit
    directly" precedent Welcome/Sign-Up's own `.welcome-*` repaint already established, rather than
    scoping under a class Map 2 never carries — see CLAUDE.md). `.remove-btn`/`.modal-edit-date`
@@ -2193,15 +2193,6 @@ button.card.passed:hover {
 /* Course Selection Stage 4 — a course-checkpoint node's two-part modal action, stacked instead of
    the single full-width .complete-btn every other node gets. */
 .checkpoint-actions { display: flex; flex-direction: column; gap: 10px; }
-
-.step-chain-progress {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--bloom-teal);
-  margin-top: 10px;
-}
 
 .win-banner { margin-top:22px; background: var(--bloom-card); border:1px solid var(--bloom-card-border); border-left:4px solid var(--bloom-accent); border-radius:4px; padding:18px 20px; font-size:14px; color: var(--bloom-ink); box-shadow: var(--bloom-shadow); }
 

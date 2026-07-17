@@ -2436,6 +2436,100 @@ styling from the first pass are still the foundation.
   cleanly via the radial-to-grid fallback with no overlap or clipping; Survey and Academic Plan
   Map 1 screenshots confirm zero palette leakage outside the hub, unchanged from before this pass.
 
+**Restructure: opportunity chains have no separate anchor node — the chain's own first step is
+promoted directly onto the spine, mirroring `buildProjectChain`'s existing shape exactly.**
+Supersedes an earlier, narrower patch (the "Start" button fix, `startedOpportunityIds`) rather
+than building on top of it — that fix made "Start" write to a dedicated flag instead of
+`toggleDone()`, but the real root cause was architectural: a summary/anchor node with no genuine
+id of its own to complete was never the right interaction model in the first place, which is
+exactly why "Start" ended up wired to the first sub-task's own completion as a stopgap. This
+restructure removes the anchor concept instead of patching around it.
+- **`buildFirstYearChain`/`buildEscalationChain` (`roadmapGenerator.js`) no longer return a
+  separate wrapper object** (`id: opp.id, title: opp.name, ...`) alongside a `steps` array that
+  redundantly included step 0 a second time at the identical date (the actual, confirmed root
+  cause of the old bug's own symptom — the anchor and step 0 rendered at the SAME position with
+  the SAME date, so "Start" reaching for "the first thing to complete" naturally, if wrongly,
+  landed on that duplicate). Both functions now do exactly what `buildProjectChain` already does:
+  build the full `steps` array via `buildStepsChain` (unchanged), then `const [anchor,
+  ...branchSteps] = steps`, and return an item whose `id`/`date`/`due`/`desc`/`resources` all come
+  straight from that real first step — not a synthetic wrapper. `titleWithOpportunityContext()`
+  (shared by both) is the one new piece of logic: it appends the opportunity's own name to the
+  promoted title (e.g. "Register your team" -> "Register your team for Science Olympiad Club",
+  matching the "(Year N)" suffix pattern for escalation chains: "...for Science Olympiad Club
+  (Year 2)") since there's no separate anchor label left to carry that context — **skipped when
+  the step's own title already names the opportunity** (a real, caught issue: DECA's own first
+  prep step is literally titled "Register for DECA," so naively appending "for DECA" produced a
+  visibly redundant "Register for DECA for DECA"; the guard checks a case-insensitive substring
+  match before appending). `totalSteps: steps.length` is a new field carrying the chain's
+  ORIGINAL step count (including the promoted one) — `Roadmap.jsx`'s "· N steps" subtitle now
+  reads this instead of `branchSteps.length`, which would otherwise undercount by exactly one now
+  that the first step has moved off the branch and onto the spine (the subtitle still reads
+  "Opportunity · [date] · 4 steps" for a 4-step chain, unchanged from before this restructure,
+  per the explicit "keep the existing subtitle metadata" requirement). The return object uses
+  explicit field-by-field construction, not a blind `...anchor` spread — deliberately, so a
+  single-step chain's own `isLast: true` (set by `buildStepsChain` when a step is both first and
+  last) never leaks into the returned item and confuses `configFor()`'s branch ordering (which
+  checks `node.isLast` before `node.category === 'opportunity'`) into mislabeling it as a
+  "Deadline / start" node instead of a plain "Opportunity" one — the same explicit-field
+  precedent `buildProjectChain` already established, now confirmed load-bearing rather than
+  incidental.
+- **`buildOpportunityItems` no longer pre-checks `removed[opp.id]`/`removed[anchorId]` before
+  building a chain at all** — those checks were keyed on the OLD wrapper's own id, which no real
+  rendered node has ever had an id equal to since `opp.id` (bare, e.g. `'science-olympiad'`) never
+  becomes a spine node's actual id anymore. Removing one specific node now behaves exactly like a
+  Project chain already does: it's a per-step removal (`buildStepsChain`'s own `.filter((step) =>
+  !removed[step.id])`), and the chain only fully disappears once every one of its steps has been
+  individually removed — there's no more "remove the whole opportunity in one click via its old
+  anchor" shortcut, matching how Projects never had that shortcut either.
+- **`Roadmap.jsx`'s entire anchor-only special case is deleted, not repointed**:
+  `selectedIsAnchorOnly`/`anchorDone`/`anchorTotal`/`anchorStarted`/`advanceChain`/
+  `chainButtonLabel` and the Start/Continue/Completed-undo button JSX are all gone. The promoted
+  node now falls straight through to the exact same generic `toggleDone(modalNode.id)` "Mark
+  complete"/"Marked complete — undo" button every other single node (including a project's own
+  promoted first step) already used — there's no more derived, no-real-id "chain-level"
+  completion state to keep in sync with its own steps, since the promoted node's completion IS
+  now a real, independent `completedNodes` entry, exactly like everything else on the spine.
+  `state.startedOpportunityIds` (`AppContext.jsx`) is removed entirely from `DEFAULT_STATE` — it
+  only ever existed to back the now-deleted Start/Continue button, and per this codebase's own
+  "don't leave unused state around" convention, it's deleted rather than left as dead persisted
+  data. `.step-chain-progress` (the "X / Y steps complete" summary line's own CSS rule,
+  `global.css`) is removed the same way, since nothing renders it anymore.
+- **A real, confirmed dependent bug was found and fixed while tracing what else read the old
+  "opportunity anchors have no real completedNodes entry" assumption**: `HubScreen.jsx`'s own
+  `countPlanTasks()` (feeds the "Your Progress" card's "Tasks completed" stat) special-cased
+  opportunity anchors OUT of its count for exactly that old reason — correct under the old design,
+  silently wrong under this one, since the promoted node now DOES have a real, independently
+  completable id, the same as a project's own anchor (which `countPlanTasks` already counted
+  correctly, and still does). Left unfixed, this would have undercounted a plan's real total task
+  count by exactly one per selected opportunity chain, and marking a promoted opportunity node
+  complete would never move the stat at all. Fixed by counting every spine item's own `id`
+  unconditionally (`countOne(item.id)` before the `hasBranch` branch, not gated on `category ===
+  'project'` anymore) — opportunities and projects are now counted through the identical code
+  path, matching how their underlying data shape is now identical too.
+- Verified with a dedicated Playwright suite: no bare opportunity-name anchor node (e.g. "Science
+  Olympiad Club," "DECA") renders anywhere, for either a year-1 chain or a recurring opportunity's
+  escalation-year chain; the promoted first step renders on the spine with the opportunity's name
+  appended (and correctly does NOT duplicate the name when the step's own title already contains
+  it, confirmed against DECA specifically); its modal shows the plain generic "Mark complete"
+  button with no step-chain-progress summary; its subtitle shows the chain's real total step count
+  (4), not the reduced branch count (3); marking it complete writes to exactly one real
+  `completedNodes` entry (`${opp.id}-prep-0`) and does not affect any other step, and vice versa
+  (confirmed both directions); steps 2+ still render as their own diagonal branch nodes, unchanged;
+  zero cross-node label overlap with the new, longer promoted titles on a dense two-recurring-
+  opportunity freshman-year view; and the `countPlanTasks` fix is confirmed directly — completing
+  a promoted opportunity node moves the hub's own "Tasks completed" stat off zero. The two
+  now-obsolete test files from the earlier, superseded "Start button" patch
+  (`test-chain-start-bug.js`, `test-chain-lifecycle.js`) were deleted rather than left to fail,
+  since they tested a mechanism that no longer exists by design. `test-academicplan-repaint.js`'s
+  own DECA ring-color check (which located the node by the now-gone literal `'DECA'` label) was
+  updated to locate it by its real new title, `'Register for DECA'`, instead — the same
+  "fix a pre-existing test after an intentional, expected change" pattern this suite has already
+  needed many times before, not a regression. The full pre-existing regression suite (`test.js`,
+  `test-hub.js`, `test-hub-progress-card-gate.js`, `test-map2-redesign.js`, `test-stage4.js`,
+  `test-roslyn-consolidation.js`, `test-ucdavis-density.js`, `test-projectbuilder-skip.js`) all
+  still pass with zero regressions; `npm run verify:spacing` stayed at 18/18 both before and after
+  every edit in this pass.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
