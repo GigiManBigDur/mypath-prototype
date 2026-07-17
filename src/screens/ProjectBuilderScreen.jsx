@@ -10,7 +10,7 @@ import { parseDateInputValue, realDaysBetween, formatDate } from '../utils/dates
 import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
-import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 
 const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
@@ -117,9 +117,13 @@ export default function ProjectBuilderScreen() {
   // Snapshotted, not a live check — see useMascotSeen.js's own comment.
   const pbIntroSeen = useMascotSeenSnapshot('projectBuilder-intro');
   useMarkMascotSeen(pbIntroSeen ? null : 'projectBuilder-intro');
-  const mascotText = !pbIntroSeen
-    ? getMascotLine('projectBuilder-intro')
-    : (hasActiveProject ? getMascotLine('projectBuilder-revisit') : null);
+  // Bug fix (see CLAUDE.md) — the revisit line used to show every time hasActiveProject was true,
+  // including on every fresh re-entry to this screen while the same project was still in
+  // progress. useMascotRevisitOnce gives it the same "shown once, ever" treatment the intro
+  // already has, chained one step later, instead of repeating for as long as the precondition
+  // stays true.
+  const pbRevisitText = useMascotRevisitOnce(pbIntroSeen && hasActiveProject, 'projectBuilder-revisit');
+  const mascotText = !pbIntroSeen ? getMascotLine('projectBuilder-intro') : pbRevisitText;
 
   return (
     <div>

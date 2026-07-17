@@ -30,7 +30,7 @@ import { startOfToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 import MascotWidget from '../components/MascotWidget';
-import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 import { TrackIcon } from '../components/TrackVisuals';
 import { DEPARTMENT_TRACK_MAP, UCDAVIS_AREA_TRACK_MAP, getDepartmentColor, getUCDavisAreaColor } from '../data/courseTrackMap';
@@ -289,9 +289,13 @@ export default function CourseSelectionScreen() {
   // milliseconds of the mark-seen effect below actually running.
   const courseSelIntroSeen = useMascotSeenSnapshot(checkpoint ? null : 'courseSelection-intro');
   useMarkMascotSeen(!checkpoint && !courseSelIntroSeen ? 'courseSelection-intro' : null);
+  // Bug fix (see CLAUDE.md) — 'courseSelection-revisit' used to repeat on every fresh re-entry to
+  // this screen once the intro had been seen; useMascotRevisitOnce gives it the same "shown once,
+  // ever" treatment the intro already has, chained one step later.
+  const courseSelRevisitText = useMascotRevisitOnce(!checkpoint && courseSelIntroSeen, 'courseSelection-revisit');
   const mascotText = checkpoint
     ? getMascotLine('courseSelection-checkpoint')
-    : getMascotLine(courseSelIntroSeen ? 'courseSelection-revisit' : 'courseSelection-intro');
+    : (courseSelIntroSeen ? courseSelRevisitText : getMascotLine('courseSelection-intro'));
 
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const recommendedCourses = useMemo(
@@ -933,9 +937,13 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   // milliseconds of the mark-seen effect below actually running.
   const courseSelIntroSeen = useMascotSeenSnapshot(checkpoint ? null : 'courseSelection-intro');
   useMarkMascotSeen(!checkpoint && !courseSelIntroSeen ? 'courseSelection-intro' : null);
+  // Bug fix (see CLAUDE.md) — 'courseSelection-revisit' used to repeat on every fresh re-entry to
+  // this screen once the intro had been seen; useMascotRevisitOnce gives it the same "shown once,
+  // ever" treatment the intro already has, chained one step later.
+  const courseSelRevisitText = useMascotRevisitOnce(!checkpoint && courseSelIntroSeen, 'courseSelection-revisit');
   const mascotText = checkpoint
     ? getMascotLine('courseSelection-checkpoint')
-    : getMascotLine(courseSelIntroSeen ? 'courseSelection-revisit' : 'courseSelection-intro');
+    : (courseSelIntroSeen ? courseSelRevisitText : getMascotLine('courseSelection-intro'));
 
   const unitsOptions = useMemo(
     () => [...new Set(UCDAVIS_COURSES.map((course) => course.units))].sort((a, b) => parseFloat(a) - parseFloat(b)),

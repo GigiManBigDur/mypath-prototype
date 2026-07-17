@@ -72,17 +72,47 @@ export function useMascotIntroOnce(key) {
   return wasAlreadySeen ? null : getMascotLine(key);
 }
 
+// Bug fix (see CLAUDE.md, "dynamic-trigger" dialogue-repeat fix) — a "revisit" line used to be
+// genuinely free to repeat on EVERY fresh mount, forever, per this file's own original design
+// ("freely repeats on every later visit"). That turned out to be observably wrong for a
+// screen-specific revisit line (as opposed to the hub's own shared, cross-step
+// `hub-guided-revisit` acknowledgment, which is a deliberate, still-valid exception — see
+// HubScreen.jsx): this app's own Return-to-Hub routing means "changing selections on Related
+// College Majors" or "viewing multiple program cards" in practice REQUIRES leaving and
+// re-entering that screen through the hub to make each further change (Continue always routes to
+// hub) — so a revisit line that repeats on every fresh mount repeats on nearly every one of those
+// round trips, which reads as "this keeps playing" even though, mechanically, it was only ever
+// re-triggered by genuine screen re-entries, never by an in-place selection toggle within one
+// mount (confirmed directly: toggling selections without leaving the screen never re-triggers
+// anything, since the resolved key stays frozen for the mount's own lifetime — see
+// useMascotSeenSnapshot above). Fixed by giving a revisit line the exact same "shown once, ever"
+// treatment an intro line already gets, chained one step later: first-ever mount shows the intro
+// once; the NEXT fresh mount (the first time the revisit line becomes relevant) shows the revisit
+// line once; every mount after that shows nothing. `introAlreadySeen` is a plain boolean the
+// caller already knows how to compute (from its own intro key, however it derives it — a fixed
+// key via useMascotIntroThenRevisit below, or a dynamic one like TranscriptScreen's own
+// empty-vs-nonempty intro variant) — this hook only owns the REVISIT half of the dedup, so a
+// caller with a non-trivial intro condition doesn't have to duplicate this logic by hand.
+export function useMascotRevisitOnce(introAlreadySeen, revisitKey) {
+  const effectiveKey = introAlreadySeen && revisitKey ? revisitKey : null;
+  const revisitAlreadySeen = useMascotSeenSnapshot(effectiveKey);
+  useMarkMascotSeen(effectiveKey && !revisitAlreadySeen ? effectiveKey : null);
+  if (!effectiveKey || revisitAlreadySeen) return null;
+  return getMascotLine(revisitKey);
+}
+
 // Convenience wrapper for the other common shape this stage's screens share: a real intro line
-// shown once, then a short, freely-repeatable revisit line on every later visit — as opposed to
-// `useMascotIntroOnce`'s "go quiet after" for screens with nothing further to say.
-// `revisitKey` is optional; passing none reproduces `useMascotIntroOnce`'s own quiet-after
-// behavior for a caller that only sometimes has a revisit line (e.g. a per-sub-step key set where
-// only some sub-steps got one).
+// shown once, then a short revisit line shown once (see useMascotRevisitOnce above), then silence
+// — as opposed to `useMascotIntroOnce`'s "go quiet immediately after the intro" for screens with
+// nothing further to say. `revisitKey` is optional; passing none reproduces `useMascotIntroOnce`'s
+// own quiet-after behavior for a caller that only sometimes has a revisit line (e.g. a per-sub-step
+// key set where only some sub-steps got one).
 export function useMascotIntroThenRevisit(introKey, revisitKey) {
   const wasAlreadySeen = useMascotSeenSnapshot(introKey);
   useMarkMascotSeen(wasAlreadySeen ? null : introKey);
+  const revisitText = useMascotRevisitOnce(wasAlreadySeen, revisitKey);
   if (!wasAlreadySeen) return getMascotLine(introKey);
-  return revisitKey ? getMascotLine(revisitKey) : null;
+  return revisitText;
 }
 
 // Exported for screens with a real precondition beyond plain "have they seen it" (e.g.

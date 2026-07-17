@@ -11,7 +11,7 @@ import { LETTER_GRADE_OPTIONS, calculateUCDavisGpa } from '../utils/ucdavisGpa';
 import StepProgress from '../components/StepProgress';
 import CourseSearchField from '../components/CourseSearchField';
 import MascotWidget from '../components/MascotWidget';
-import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 import { useCountUp } from '../hooks/useCountUp';
 
@@ -98,9 +98,14 @@ export default function TranscriptScreen() {
   // milliseconds of ever showing.
   const transcriptIntroSeen = useMascotSeenSnapshot(checkpoint ? null : transcriptIntroKey);
   useMarkMascotSeen(!checkpoint && !transcriptIntroSeen ? transcriptIntroKey : null);
+  // Bug fix (see CLAUDE.md) — 'transcript-revisit' used to repeat on every fresh re-entry to this
+  // screen once the intro had been seen; useMascotRevisitOnce gives it the same "shown once,
+  // ever" treatment the intro already has, chained one step later, so it plays exactly once (the
+  // first real revisit) and then goes quiet, matching every other per-screen revisit line.
+  const transcriptRevisitText = useMascotRevisitOnce(!checkpoint && transcriptIntroSeen, 'transcript-revisit');
   const mascotText = checkpoint
     ? getMascotLine('courseSelection-checkpoint')
-    : getMascotLine(transcriptIntroSeen ? 'transcript-revisit' : transcriptIntroKey);
+    : (transcriptIntroSeen ? transcriptRevisitText : getMascotLine(transcriptIntroKey));
 
   // Off-by-one fix (see roadmapGenerator.js's buildCourseItems for the matching Course Selection
   // fix): the onboarding transcript's own "Year Taken" options are now limited to grades the
@@ -354,9 +359,11 @@ function UCDavisTranscriptScreen({ state, patch }) {
   const transcriptIntroKey = ucdavisTranscript.length === 0 ? 'transcript-empty' : 'transcript-intro';
   const transcriptIntroSeen = useMascotSeenSnapshot(checkpoint ? null : transcriptIntroKey);
   useMarkMascotSeen(!checkpoint && !transcriptIntroSeen ? transcriptIntroKey : null);
+  // Bug fix (see CLAUDE.md) — same "shown once, ever" fix as the Roslyn variant above.
+  const transcriptRevisitText = useMascotRevisitOnce(!checkpoint && transcriptIntroSeen, 'transcript-revisit');
   const mascotText = checkpoint
     ? getMascotLine('courseSelection-checkpoint')
-    : getMascotLine(transcriptIntroSeen ? 'transcript-revisit' : transcriptIntroKey);
+    : (transcriptIntroSeen ? transcriptRevisitText : getMascotLine(transcriptIntroKey));
 
   // Same real, analogous gap the Roslyn off-by-one fix already closed for its own transcript
   // (YEAR_OPTIONS scoped to state.schoolYear) — the UC Davis onboarding transcript's own "Class

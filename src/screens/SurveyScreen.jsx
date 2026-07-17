@@ -9,7 +9,7 @@ import StepProgress from '../components/StepProgress';
 import SchoolSearchField from '../components/SchoolSearchField';
 import { SCHOOLS, COLLEGE_SCHOOLS } from '../data/schools';
 import MascotWidget from '../components/MascotWidget';
-import { useMarkMascotSeen } from '../hooks/useMascotSeen';
+import { useMarkMascotSeen, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 
 // Palette repaint, Discovery batch (see CLAUDE.md) — the name->component map for each category's
@@ -163,10 +163,18 @@ export default function SurveyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.interestTags.length, state.educationLevel, state.schoolYear, state.currentSchool]);
   useMarkMascotSeen(mascotKey && mascotKey !== 'survey-revisit' ? mascotKey : null);
+  // Bug fix (see CLAUDE.md) — 'survey-revisit' used to repeat on every fresh re-entry to an
+  // already-complete Survey (deliberately excluded from useMarkMascotSeen above, since it was
+  // designed to repeat freely, matching the original per-screen "revisit lines repeat forever"
+  // rule). That rule is now "shown once, ever" for a screen-specific revisit line — the same fix
+  // applied to every other screen's own revisit text — so this now goes through
+  // useMascotRevisitOnce instead of being read directly off `mascotKey`.
+  const surveyRevisitText = useMascotRevisitOnce(mascotKey === 'survey-revisit', 'survey-revisit');
+  const mascotDisplayText = mascotKey === 'survey-revisit' ? surveyRevisitText : getMascotLine(mascotKey);
 
   return (
     <div>
-      <MascotWidget text={getMascotLine(mascotKey)} />
+      <MascotWidget text={mascotDisplayText} />
       <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
         <ArrowLeft size={14} /> Back
       </button>

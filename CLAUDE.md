@@ -2903,6 +2903,80 @@ universal — the intro/revisit split there already worked exactly as designed).
   `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`, and
   `test-mascot-wand-pointing.js`) all still pass with zero regressions.
 
+**Bug fix: every OTHER screen's own "-revisit" dialogue line — not just the hub's — used to
+repeat on every fresh re-entry to that screen, forever, per this file's own original Stage 5
+design ("a matching -revisit key... freely repeats on every later visit"). That design turned out
+to be observably wrong for a screen-specific revisit line, confirmed directly rather than
+assumed.** Toggling a selection (a major, a program card) WITHOUT leaving the screen never
+re-triggers anything — the resolved dialogue key stays frozen for the mount's own lifetime (see
+`useMascotSeenSnapshot`'s own anti-flicker comment) — confirmed via Playwright: clicking through
+several major/program selections in one continuous mount produced zero additional `speak()` calls
+and zero text changes. But this app's own Return-to-Hub routing means Continue always routes back
+to the hub, so "changing selections on Related College Majors multiple times" or "viewing multiple
+program cards" in practice REQUIRES leaving and re-entering that screen through the hub to make
+each further change — and a revisit line that replays on every fresh mount replays on nearly every
+one of those round trips. Confirmed directly with a real hub round-trip loop (leave to hub, come
+back to Related College Majors, four times): "More majors worth a look, based on what you've
+picked so far." rendered identically on visits 1 through 4, never going quiet.
+- **The fix gives a revisit line the exact same "shown once, ever" treatment an intro line
+  already had, chained one step later** — `useMascotRevisitOnce(introAlreadySeen, revisitKey)`
+  (`useMascotSeen.js`, new) reuses the same `useMascotSeenSnapshot`/`useMarkMascotSeen` anti-
+  flicker primitives every intro line already relies on, just applied to the revisit key instead:
+  the first-ever mount where the intro is already seen shows the revisit line once and marks it
+  seen; every mount after that shows nothing. `useMascotIntroThenRevisit` (the shared convenience
+  wrapper `DiscoveryScreen`/`OpportunityFinderScreen`/`YearOverview` already called) now calls
+  this internally, so `discovery-careers-revisit`/`discovery-majors-revisit`/
+  `discovery-programs-revisit`, `opportunities-revisit`, and `plan-revisit` all got the fix for
+  free with zero changes to those 3 screens' own code. The hand-rolled call sites (screens with a
+  real precondition beyond plain "have they seen the intro" — a dynamic intro-variant choice, or a
+  revisit gated on extra state) were each updated individually to call the same new hook alongside
+  their own existing intro logic: `TranscriptScreen.jsx`'s `transcript-revisit` (both the Roslyn
+  and UC Davis variants — the dynamic `'transcript-empty'`-vs-`'transcript-intro'` intro choice is
+  untouched, only what happens once whichever intro is already seen), `CourseSelectionScreen.jsx`'s
+  `courseSelection-revisit` (both variants), `ProjectBuilderScreen.jsx`'s `projectBuilder-revisit`
+  (gated on `pbIntroSeen && hasActiveProject` — a revisit line that only becomes eligible once a
+  project is genuinely active now shows once total for that whole precondition's lifetime, not
+  once per re-entry while it stays true), and `SurveyScreen.jsx`'s `survey-revisit` (previously
+  deliberately excluded from `useMarkMascotSeen`, on the same "revisit lines repeat forever" logic
+  this whole fix now replaces).
+- **Two deliberate, unchanged exceptions, both already validated by their own explicit design
+  rationale rather than being screen-specific "you're revisiting this exact content" lines**:
+  `HubScreen.jsx`'s own `hub-guided-revisit` (a single SHARED generic acknowledgment reused across
+  every different guided step — silencing it forever after its first use anywhere would break its
+  whole purpose as a recurring light nudge across many distinct contexts; already explicitly
+  validated to repeat freely in the prior fix's own test suite) and `courseSelection-checkpoint`
+  (tied to a genuinely NEW, recurring structural event — a fresh checkpoint each future year of
+  the plan — not "the same screen re-entered," and CLAUDE.md's own prior documentation already
+  states it's "meant to repeat every time a checkpoint is reached," deliberately never marked
+  seen). Neither was touched by this fix.
+- **A real, confirmed test-harness race — not an app regression — surfaced while regression-
+  testing this fix, the same race class already documented and fixed multiple times elsewhere in
+  this codebase (`test-hub.js`'s own `seedAndGoto`, several UC Davis test files).** `useMascotRevisitOnce`
+  introduces a genuinely NEW mount-time `patch()` call on screens that previously never marked a
+  revisit key seen at all (TranscriptScreen, CourseSelectionScreen, OpportunityFinderScreen, ...) —
+  a scratch Playwright suite (`test-stage5-mascot.js`) whose own `seed()` helper overwrote
+  `localStorage` immediately after `page.goto()` with no settle delay let the PREVIOUS page's own
+  in-flight mark-seen effect (from the still-live old mount, reading the REAL, not-yet-overwritten
+  localStorage) fire and re-persist a stale marking after the test's own fresh seed — 3 checks
+  failed until a 150ms settle delay was added to that helper, after which they passed
+  deterministically (confirmed directly: removing the delay reproduced the failure on every run;
+  adding it back fixed it on every run, ruling out flakiness). Fixed at the test-harness level
+  only, matching this codebase's own established precedent for this exact race class — not in the
+  app itself, since the app's own behavior (marking a genuinely-just-shown revisit line seen) is
+  correct.
+- Verified with a dedicated 22-check Playwright suite covering every screen with a real
+  screen-specific revisit line (Discovery's careers/majors/programs, Opportunity Finder,
+  Transcript & GPA, Course Selection, Project Builder, Survey, and Academic Plan Map 1/
+  YearOverview) via real hub round-trips (not same-mount interaction, which never repeated to
+  begin with) — each shows its real revisit line exactly once, then nothing on every later
+  re-entry — plus a dedicated regression check confirming the hub's own `hub-guided-revisit` is
+  still deliberately exempt and continues to repeat freely across multiple hub revisits, unchanged
+  from the prior fix. The prior fix's own 11-check suite and the full pre-existing hub/mascot/voice
+  suite (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`, `test-hub-radial.js`,
+  `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`,
+  `test-voice-picker.js`, `test-signup.js`, `test.js`, and `test-mascot-wand-pointing.js`) all
+  still pass with zero regressions.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
