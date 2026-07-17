@@ -3498,8 +3498,24 @@ button.card.passed:hover {
    every other node's glow stays hover-only (`.node-badge:hover .node-pop`, unchanged). */
 .today-glow { filter: drop-shadow(0 0 6px rgba(240, 180, 41, 0.55)); }
 
+/* Real-Time Tracking feature, Task 3 (see CLAUDE.md) — a small celebratory accent layered on
+   Today's own ring specifically when a real task shares today's date AND is already marked
+   complete: "You are here" stays the primary marker (unchanged icon/ring), this just adds a
+   twinkle so the moment reads as a positive one rather than a plain, static repeat of every other
+   day. Purely decorative/`pointer-events: none` (inherited from the parent .node-pop group),
+   doesn't affect hit-testing. */
+.today-sparkle-accent {
+  pointer-events: none;
+  animation: today-sparkle-twinkle 1.8s ease-in-out infinite;
+}
+@keyframes today-sparkle-twinkle {
+  0%, 100% { opacity: 0.55; transform: scale(0.9) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(12deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .today-pulse { animation: none; opacity: 0; }
+  .today-sparkle-accent { animation: none; opacity: 0.85; }
 }
 
 /* ==========================================================================
@@ -3532,3 +3548,108 @@ button.card.passed:hover {
   filter: drop-shadow(0 0 8px rgba(240, 180, 41, 0.5));
 }
 .year-overview-eyebrow { color: var(--bloom-yellow); }
+
+/* Real-Time Tracking feature, Task 2 (see CLAUDE.md) — DateOverrideControl.jsx is a testing-only
+   tool, deliberately styled to read as one: an orange/warning accent (distinct from every real
+   "You are here"/action color in this app), a flask icon, and explicit "(Testing)"/"Testing tool
+   only" copy rather than looking like a real feature. `position: fixed` (not owned by either Map
+   1 or Map 2's own layout — see the component's own header comment for why), placed top-right
+   just below App.jsx's own persistent header (brand text left, mute/settings icons right —
+   `top: 68px` clears its real rendered height, confirmed via screenshot) — deliberately NOT
+   bottom-left, where `MascotWidget` already renders its own dialogue bubble on every screen
+   including Plan (confirmed via screenshot: the two directly overlapped there), and NOT
+   bottom-right either, where Map 2's own zoom controls and full-width bottom panel both live. */
+.date-override-toggle {
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--bloom-orange);
+  background: rgba(224, 122, 43, 0.12);
+  color: var(--bloom-orange);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: var(--bloom-shadow);
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.date-override-toggle:hover { background: rgba(224, 122, 43, 0.2); }
+.date-override-toggle:active { transform: scale(0.97); }
+.date-override-toggle-active { background: rgba(224, 122, 43, 0.22); }
+
+.date-override-panel {
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  z-index: 50;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-orange);
+  border-radius: 12px;
+  box-shadow: var(--bloom-shadow-hover);
+  padding: 14px 16px 16px;
+}
+.date-override-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--bloom-orange);
+  letter-spacing: 0.02em;
+}
+.date-override-panel-header span { display: inline-flex; align-items: center; gap: 6px; }
+.date-override-panel-close {
+  background: none;
+  border: none;
+  color: var(--bloom-ink-soft);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+.date-override-panel-close:hover { color: var(--bloom-ink); }
+.date-override-panel-note {
+  margin: 8px 0 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--bloom-ink-soft);
+}
+.date-override-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bloom-ink);
+}
+.date-override-field input[type="date"] {
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--bloom-card-border);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  color: var(--bloom-ink);
+  background: var(--bloom-bg);
+}
+.date-override-reset {
+  margin-top: 10px;
+  width: 100%;
+  padding: 7px;
+  border-radius: 6px;
+  border: 1px solid var(--bloom-card-border);
+  background: none;
+  color: var(--bloom-ink-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.date-override-reset:hover { color: var(--bloom-ink); border-color: var(--bloom-ink-soft); }

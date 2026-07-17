@@ -4,6 +4,8 @@ import { generateRoadmap } from '../utils/roadmapGenerator';
 import { getYearOverview } from '../utils/yearOverview';
 import Roadmap from '../components/Roadmap';
 import YearOverview from '../components/YearOverview';
+import DateOverrideControl from '../components/DateOverrideControl';
+import useRealTimeTick from '../hooks/useRealTimeTick';
 
 // The Academic Plan is two sub-views:
 //   - Map 1 (Year Overview, `state.planYearIndex === null`): a small animated list of the years
@@ -20,7 +22,12 @@ import YearOverview from '../components/YearOverview';
 // years" control), not all the way out of the Plan screen.
 export default function AcademicPlanScreen() {
   const { state, patch, reset } = useApp();
-  const years = useMemo(() => getYearOverview(state), [state]);
+  // Real-Time Tracking feature (see CLAUDE.md) — `tick` advances once a minute purely to bust
+  // these memos' own caching as real time passes with no other state change (e.g. the tab left
+  // open across midnight); it changes nothing about the memoized values themselves, which still
+  // come entirely from `state`/`yearWindow`.
+  const tick = useRealTimeTick();
+  const years = useMemo(() => getYearOverview(state), [state, tick]);
   const yearWindow = useMemo(() => {
     if (state.planYearIndex === null) return null;
     const current = years[state.planYearIndex];
@@ -31,24 +38,27 @@ export default function AcademicPlanScreen() {
       isCurrentYear: state.planYearIndex === 0,
     };
   }, [years, state.planYearIndex]);
-  const roadmap = useMemo(() => generateRoadmap(state, yearWindow), [state, yearWindow]);
+  const roadmap = useMemo(() => generateRoadmap(state, yearWindow), [state, yearWindow, tick]);
 
-  if (state.planYearIndex === null) {
-    return (
-      <YearOverview
-        years={years}
-        onSelectYear={(stageIndex) => patch({ planYearIndex: stageIndex })}
-        onBack={() => patch({ screen: 'hub' })}
-        onReset={reset}
-      />
-    );
-  }
-
+  // DateOverrideControl is a sibling of whichever sub-view is active, not owned by either — see
+  // its own header comment for why (Map 2's very different full-bleed layout in particular).
   return (
-    <Roadmap
-      roadmap={roadmap}
-      onBack={() => patch({ planYearIndex: null })}
-      onReset={reset}
-    />
+    <>
+      {state.planYearIndex === null ? (
+        <YearOverview
+          years={years}
+          onSelectYear={(stageIndex) => patch({ planYearIndex: stageIndex })}
+          onBack={() => patch({ screen: 'hub' })}
+          onReset={reset}
+        />
+      ) : (
+        <Roadmap
+          roadmap={roadmap}
+          onBack={() => patch({ planYearIndex: null })}
+          onReset={reset}
+        />
+      )}
+      <DateOverrideControl state={state} patch={patch} />
+    </>
   );
 }

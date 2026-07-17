@@ -2530,6 +2530,129 @@ restructure removes the anchor concept instead of patching around it.
   still pass with zero regressions; `npm run verify:spacing` stayed at 18/18 both before and after
   every edit in this pass.
 
+**Real-Time Tracking feature: "You are here" resolves through one shared, overridable "today"
+value everywhere, plus a testing-only date-override tool and same-day collision handling.**
+- **`getEffectiveToday(dateOverride)` (`utils/dates.js`) is the one place the whole app resolves
+  "what day is it right now"** — real device date (`startOfToday()`) by default, or
+  `state.dateOverride` (a plain `'YYYY-MM-DD'` string, `null` by default,
+  `AppContext.jsx`'s `DEFAULT_STATE`) when a tester has set one. Every prior direct
+  `startOfToday()` call site that feeds a "today"-anchored computation was swapped to this instead:
+  `roadmapGenerator.js`'s own `planStartDate` (which every `anchorDate()` call in the whole plan
+  is relative to — an active override therefore shifts the ENTIRE today-anchored timeline, not
+  just where the marker itself is drawn), `yearOverview.js`'s own `planStartDate` (so Map 1's own
+  `yearStartDate`s — which Map 2's own year-window filtering is derived from — agree with Map 2 on
+  what day it is), `OpportunityFinderScreen.jsx`'s own deadline-passed check, and
+  `CourseSelectionScreen.jsx`'s UC Davis "next quarter" scope banner (this last one also picked up
+  a real, independent staleness fix as a side effect — its `useMemo` had a bare `[]` dependency
+  array, so it never re-resolved which quarter was "next" even on ordinary state changes; now
+  depends on `state.dateOverride`). **`HubScreen.jsx`'s own "Days active" stat is the one
+  deliberate exception**, left on real `startOfToday()` — it's a genuine elapsed-calendar-time
+  metric about the actual account (`state.accountCreatedAt`), not a planning concept, and letting
+  a testing override inflate/shrink it would misrepresent real account age.
+- **`toDateInputValue()` was promoted from a local copy inside `Roadmap.jsx` into `utils/dates.js`**
+  once the new `DateOverrideControl` needed the identical `input[type=date]`-formatting logic —
+  extract-once-reuse, the same convention this codebase already applies elsewhere
+  (`gpaBenchmarkText`, `getStage0TargetLabel`). `Roadmap.jsx` now imports it instead of defining
+  its own copy.
+- **Task 1 ("You are here" always tracks the real device date) was mostly already true by
+  construction, confirmed rather than assumed**: `generateRoadmap()`/`getYearOverview()` were
+  already called fresh (inside `useMemo`s keyed on `state`) on every real state change or
+  remount/reload, with `startOfToday()` itself never caching anything — there was no stale value
+  frozen anywhere. The one genuine gap was a page left open with literally no interaction across a
+  real day boundary — nothing would trigger a re-render in that case. **`src/hooks/
+  useRealTimeTick.js`** closes this: a plain `useState`/`setInterval` (60s) hook, added to
+  `AcademicPlanScreen.jsx`'s own `years`/`roadmap` `useMemo` dependency arrays — purely a
+  re-render nudge, touches no persisted state at all (so it can't trigger the kind of redundant
+  localStorage writes `AppContext`'s own mount-skip guard exists to avoid), checked once a minute
+  since day-level positioning needs no finer granularity.
+- **A real, non-obvious architectural fact this feature surfaced (not a bug, a correct consequence
+  of this app's own "today"-anchored design)**: only tasks with a genuinely FIXED real date —
+  custom tasks (`buildCustomItems` reads `parseDateInputValue(task.date)` directly, never
+  `anchorDate()`), Project Builder steps (same — a real picked date), any node with a
+  `nodeDateOverrides` entry, or UC Davis's own real calendar-date quarters (`ucdavisQuarters.js`)
+  — can ever have their real day-gap from "today" change as the override (or real time) advances.
+  A template-based CORE task or an unedited OPPORTUNITY/course-request chain is always
+  `planStartDate + a fixed offset`, so moving `planStartDate` moves that task by the identical
+  amount — the day-gap between it and "today" is invariant, by design (this is the same "a
+  template date always maps to today-or-later" principle this file's own Dates section already
+  documents, just traced through to its consequence for a testing tool that moves "today" around).
+  This means the override tool's realistic testing workflow for "watch You are here approach a
+  task" is a custom/edited/UC-Davis-quarter task with a real fixed date — verified directly via a
+  5-real-day-out custom task and stepping the override forward one real day at a time.
+- **Task 2 — `DateOverrideControl.jsx`** is a small, deliberately testing-styled floating
+  control (`--bloom-orange` accent, a flask icon, explicit "(Testing)"/"Testing tool only" copy) —
+  a collapsed pill toggle (`Change Date (Testing)`, or `Testing as [date]` once active) that
+  expands into a small panel: a disclaimer, an `input[type=date]` bound straight to
+  `state.dateOverride` (blank/cleared input writes `null`), and a "Reset to real today" button
+  (shown only while an override is active). Rendered by `AcademicPlanScreen.jsx` as a sibling of
+  whichever sub-view (Map 1 or Map 2) is currently active, not owned by either — it needs to stay
+  present and consistently positioned across both very different layouts (Map 1's normal shell vs.
+  Map 2's full-bleed one), which a component owned by just one of them couldn't guarantee.
+  **Rendered via `createPortal(..., document.body)`, not inline — a real, confirmed bug, not a
+  style choice**: Map 1 is one of the screens `App.jsx` wraps in `.screen-transition`
+  (`needsTransition`'s own `(screenKey === 'plan' && !isPlanDetail)` clause), whose `screen-enter`
+  keyframe's `animation-fill-mode: both` transform makes it a containing block for `position:
+  fixed` descendants — the exact same landmine already documented and fixed once for
+  `MascotWidget` and the course detail modal. Confirmed directly via `getBoundingClientRect()`
+  before fixing it: the toggle's own `bottom`-anchored position resolved far below the true
+  viewport (fully off-screen) instead of near the visible bottom edge. The portal is a no-op on
+  Map 2 (never wrapped in `.screen-transition` to begin with) but is applied unconditionally so
+  this component never has to know which sub-view it's under. **Positioned top-right, `top: 68px`
+  (clearing `App.jsx`'s own persistent header), not bottom-left or bottom-right** — a first attempt
+  at bottom-left visibly collided with `MascotWidget`'s own dialogue bubble (confirmed via
+  screenshot: the two overlapped directly), and bottom-right would collide with Map 2's own zoom
+  controls and full-width bottom panel.
+- **Task 3 — same-date collision handling.** `roadmapGenerator.js` computes a new
+  `todayCollision` field (after `layoutRoadmap()` runs, only for the year that actually contains
+  real "today" — a non-current year never shows a "You are here" marker at all, so there's nothing
+  to merge there): whichever top-level spine item (not a branch sub-step — scoped deliberately,
+  documented inline) shares "today"'s own real date (`realDaysBetween(item.date, laidToday.date)
+  === 0`), or `null`. This is a pure "which item, if any, coincides" pointer — a display-only
+  field, not a positioning change; the actual MERGE decision is `Roadmap.jsx`'s to make:
+  - The main spine-rendering loop skips rendering `todayCollision` as its own separate node
+    (`if (todayCollision && n.id === todayCollision.id) return null;`) — its own branch, if it has
+    one, still renders normally via the separate branch-rendering loops, which filter
+    `roadmap.spine` independently and never go through this particular map at all, so Task 4
+    ("steps 2+ unchanged") falls out for free.
+  - The "today" marker's own block now branches three ways: no collision renders the original
+    marker byte-for-byte unchanged; an INCOMPLETE collision swaps the Compass icon for a `Bell`
+    (one glyph representing "something is due today," per the task's own framing) and sets the
+    label to `"${title} is due today."`; a COMPLETE collision keeps the Compass and gold ring as
+    the PRIMARY identity (per the task's own explicit "keep the marker as You are here"
+    instruction) and layers on a small `Sparkles` accent (`.today-sparkle-accent`, a gentle
+    twinkle keyframe, disabled under `prefers-reduced-motion`) with the label
+    `You are here — nice, you finished "${title}" today!`. Both collision cases route the
+    marker's own click handler to `setSelected(todayCollision)` instead of the synthetic
+    `{ ...roadmap.today, isToday: true }` object — the underlying task is still a real,
+    fully-interactive node (date-edit, remove, mark-complete/undo), not folded into a dead-end
+    info-only "today" modal.
+- Verified with two dedicated Playwright suites (18 checks total): the override tool renders with
+  clear testing-only copy; stepping a 5-real-day-out custom task's override forward one day at a
+  time shrinks the pixel gap between "You are here" and it by exactly `PIXELS_PER_DAY` per step
+  (correctly landing on the pre-existing `MIN_SPINE_GAP` floor once the true day-gap reaches 1,
+  not a bug — the same floor `verify:spacing` already covers); setting the override to the exact
+  match produces the merged "is due today" marker with no separate node still rendering, opens the
+  real task's own fully-interactive modal on click, and shows zero sparkle accent; marking that
+  task complete flips the marker to the celebratory version with a real sparkle accent and the
+  exact specified label text; "Reset to real today" clears `state.dateOverride` and reverts the
+  marker to plain "You are here"; and, for the deadline-passed consistency requirement, a real
+  Opportunity Finder card's own displayed due-date text shifts by the exact same day delta as an
+  applied override (confirming it resolves through the identical `getEffectiveToday()`, not a
+  disconnected value), while the two genuinely past-dated opportunities still correctly read as
+  "Deadline passed" under an active override. A third scripted attempt — jumping the override
+  ~2.5 real years forward and expecting Map 1's own "current year" marker to move to a later
+  year — was found to rest on a mistaken premise and removed rather than "fixed": which stage is
+  "current" (`stageIndex === 0`) is a structural constant tied to the student's own self-reported
+  `schoolYear` from the survey, never derived from a real date comparison (`yearOverview.js`'s own
+  pre-existing header comment already states this explicitly) — correct, pre-existing,
+  intentional behavior this feature was never meant to change. The full pre-existing regression
+  suite (`test.js`, `test-hub.js`, `test-map2-redesign.js`, `test-academicplan-repaint.js`,
+  `test-stage4.js`, `test-ucdavis-stage4.js`, `test-ucdavis-density.js`,
+  `test-roslyn-consolidation.js`, `test-myschool.js`, `test-anchor-removal.js`,
+  `test-countplantasks-fix.js`, `test-projectbuilder-skip.js`, `test-return-to-hub.js`) all still
+  pass with zero regressions; `npm run verify:spacing` stayed at 18/18 both before and after every
+  edit in this pass.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

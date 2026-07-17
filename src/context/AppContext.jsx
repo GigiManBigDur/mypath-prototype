@@ -6,6 +6,15 @@ const DEFAULT_STATE = {
   // welcome | signup | hub | survey | discovery | transcript | courseSelection |
   // programSummary | opportunities | projectBuilder | plan
   screen: 'welcome',
+  // Real-Time Tracking feature (see CLAUDE.md) — a plain 'YYYY-MM-DD' string, or `null` meaning
+  // "use the real device date." Set only by the Academic Plan's own "Change Date (Testing)"
+  // control (DateOverrideControl.jsx) — every "what day is it" computation in the app resolves
+  // through `getEffectiveToday(state.dateOverride)` (utils/dates.js) rather than calling
+  // `startOfToday()` directly, so this one field consistently drives the roadmap's own "You are
+  // here" position, deadline-passed opportunity checks, and the UC Davis quarter banner alike.
+  // Persists like every other field (so a tester can navigate around with it still applied), and
+  // is naturally cleared back to `null` by the hub's own Reset button along with everything else.
+  dateOverride: null,
   // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — entered on SignUpScreen, which sits
   // between welcome and hub. `username` is the only required field there and the only one
   // SignUpScreen's own canContinue gate depends on; '' means not yet entered. `avatarIcon` is

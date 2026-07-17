@@ -37,6 +37,34 @@ export function startOfToday() {
   return d;
 }
 
+// input[type=date] wants a plain YYYY-MM-DD string in LOCAL time — toISOString() would shift by
+// the timezone offset and silently show the wrong day, so build the string from local getters.
+// Promoted here from a local copy Roadmap.jsx used to keep (see CLAUDE.md's "Real-Time Tracking"
+// section) once the "Change Date (Testing)" control became a second real consumer — extract once,
+// every caller reads the identical value, matching this codebase's own established convention.
+export function toDateInputValue(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// The one place the whole app resolves "what day is it right now" — real device date by default,
+// or a tester-set override (`state.dateOverride`, a plain 'YYYY-MM-DD' string, see the Academic
+// Plan's "Change Date (Testing)" control) when one is active. Every "what day is it" computation
+// in the app (roadmap positioning/"You are here", deadline-passed opportunity checks, the UC
+// Davis quarter banner) reads through this single function rather than calling `startOfToday()`
+// directly, so an active override consistently affects all of them at once — never a disconnected
+// value some consumers see and others don't. `state.accountCreatedAt`'s own "Days active" hub
+// stat is the one deliberate exception (see HubScreen.jsx) — it's a real elapsed-calendar-time
+// metric about the actual account, not a planning concept, so it stays on real `startOfToday()`.
+export function getEffectiveToday(dateOverride) {
+  if (!dateOverride) return startOfToday();
+  const overridden = parseDateInputValue(dateOverride);
+  overridden.setHours(0, 0, 0, 0);
+  return overridden;
+}
+
 export function realAddDays(date, n) {
   const d = new Date(date);
   d.setDate(d.getDate() + n);

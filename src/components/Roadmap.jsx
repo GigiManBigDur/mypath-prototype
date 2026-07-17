@@ -2,27 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
-  GraduationCap, Lock,
+  GraduationCap, Lock, Bell, Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
 import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
-import { formatDateWithYear } from '../utils/dates';
+import { formatDateWithYear, toDateInputValue } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useModalExit } from '../hooks/useModalExit';
 import { getTrackColor } from './TrackVisuals';
-
-// input[type=date] wants a plain YYYY-MM-DD string in LOCAL time — toISOString() would shift by
-// the timezone offset and silently show the wrong day, so build the string from local getters.
-function toDateInputValue(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
 // "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
@@ -189,6 +180,11 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   }, [reducedMotion]);
 
   const isDone = (id) => !!state.completedNodes[id];
+  // Real-Time Tracking feature, Task 3 (see CLAUDE.md) — `roadmapGenerator.js` already found
+  // whichever real spine item (if any) shares "today"'s own real date; this component only
+  // decides how to RENDER that collision, not whether one exists.
+  const todayCollision = roadmap.todayCollision || null;
+  const todayCollisionDone = todayCollision ? isDone(todayCollision.id) : false;
   // Completing a started project's current LAST step (its one active step — see
   // buildProjectChain in roadmapGenerator.js, `steps` grows strictly in insertion order,
   // untouched by the chronological re-sort used only for display) opens the reveal-next-step
@@ -616,6 +612,12 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                 labels don't all pile onto one side, and a branch always peels opposite its own
                 anchor's label — see roadmapLayout.js. */}
             {roadmap.spine.map((n, i) => {
+              // Real-Time Tracking feature, Task 3 (see CLAUDE.md) — the item that coincides with
+              // "today" renders as part of the combined "today" marker below instead of a second,
+              // separately-positioned node at the identical spot. Its own branch (if it has one)
+              // still renders normally via the branch-rendering loops above, which filter
+              // `roadmap.spine` independently and don't go through this map at all.
+              if (todayCollision && n.id === todayCollision.id) return null;
               const cfg = configFor(n);
               const done = isDone(n.id);
               const isLeft = n.labelSide < 0;
@@ -672,32 +674,58 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
               );
             })}
 
-            {roadmap.showToday && (
-              <g
-                className="node-badge"
-                onClick={() => setSelected({ ...roadmap.today, isToday: true })}
-                transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
-              >
-                {/* Same fixed, always-present hit target as every other node — see comments above. */}
-                <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
-                {/* Item 6 — "You are here" should feel distinct/celebratory, not just another
-                    node: a continuous soft pulse ring (the same `welcome-pulse` keyframe
-                    WelcomeScreen's own hero marker and Map 1's own current-year marker already
-                    use) plus an always-on soft glow (every other node's glow is hover-only). Both
-                    purely decorative/`pointer-events: none`, at the exact same (x,y) transform —
-                    neither changes the real ring's own position or click target. */}
-                <g className="node-pop">
-                  <circle className="today-pulse" r="18" pointerEvents="none" />
-                  <circle r="18" fill="var(--bloom-yellow)" stroke="var(--bloom-yellow)" strokeWidth="3" className="today-glow" />
-                  <Compass x="-8" y="-8" size={16} color="#fff" />
+            {roadmap.showToday && (() => {
+              const labelX = roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26;
+              const labelAnchor = roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start';
+              // Real-Time Tracking feature, Task 3 (see CLAUDE.md):
+              //   - No collision: the original "You are here" marker, byte-for-byte unchanged.
+              //   - Incomplete collision: a combined "due today" marker — a Bell icon (one glyph
+              //     representing "something is due today") in place of the Compass, labeled with
+              //     the real task's own name. Clicking opens the REAL task's own modal (full
+              //     date-edit/remove/mark-complete), not a plain info-only "today" modal — it's
+              //     still a genuinely actionable node, just rendered at today's position.
+              //   - Complete collision: "You are here" stays the PRIMARY identity (per the task's
+              //     own explicit "keep the marker as You are here" instruction) — same Compass
+              //     icon, same gold ring — with a small celebratory Sparkles accent layered on top
+              //     and the label naming what got finished today. Clicking still opens the real
+              //     task's own modal (e.g. to undo, if marked done by mistake).
+              const label = !todayCollision
+                ? 'You are here'
+                : todayCollisionDone
+                  ? `You are here — nice, you finished "${todayCollision.title}" today!`
+                  : `${todayCollision.title} is due today.`;
+              return (
+                <g
+                  className="node-badge"
+                  onClick={() => setSelected(todayCollision || { ...roadmap.today, isToday: true })}
+                  transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
+                >
+                  {/* Same fixed, always-present hit target as every other node — see comments above. */}
+                  <circle className="hit-target" r="22" fill="none" pointerEvents="all" />
+                  {/* Item 6 — "You are here" should feel distinct/celebratory, not just another
+                      node: a continuous soft pulse ring (the same `welcome-pulse` keyframe
+                      WelcomeScreen's own hero marker and Map 1's own current-year marker already
+                      use) plus an always-on soft glow (every other node's glow is hover-only). Both
+                      purely decorative/`pointer-events: none`, at the exact same (x,y) transform —
+                      neither changes the real ring's own position or click target. */}
+                  <g className="node-pop">
+                    <circle className="today-pulse" r="18" pointerEvents="none" />
+                    <circle r="18" fill="var(--bloom-yellow)" stroke="var(--bloom-yellow)" strokeWidth="3" className="today-glow" />
+                    {todayCollision && !todayCollisionDone
+                      ? <Bell x="-8" y="-8" size={16} color="#fff" />
+                      : <Compass x="-8" y="-8" size={16} color="#fff" />}
+                    {todayCollision && todayCollisionDone && (
+                      <Sparkles className="today-sparkle-accent" x="7" y="-19" size={13} color="var(--bloom-yellow)" />
+                    )}
+                  </g>
+                  <text className="node-label" x={labelX} y="2" textAnchor={labelAnchor} fontWeight="600">{label}</text>
+                  <text className="node-due" x={labelX} y="18" textAnchor={labelAnchor}>
+                    <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
+                    {' · '}{formatDateWithYear(roadmap.today.date)}
+                  </text>
                 </g>
-                <text className="node-label" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="2" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'} fontWeight="600">You are here</text>
-                <text className="node-due" x={roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26} y="18" textAnchor={roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start'}>
-                  <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
-                  {' · '}{formatDateWithYear(roadmap.today.date)}
-                </text>
-              </g>
-            )}
+              );
+            })()}
             </svg>
           </div>
         </div>

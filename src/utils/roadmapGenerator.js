@@ -13,7 +13,7 @@ import {
   buildStageQuarterLists,
 } from '../data/ucdavisQuarters';
 import { layoutRoadmap } from './roadmapLayout';
-import { anchorDate, formatDate, startOfToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
+import { anchorDate, formatDate, getEffectiveToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
 
 // Single-stage label (unchanged behavior for the final-year case) vs. the multi-year label used
 // once earlier stages are prepended, so a freshman doesn't see "personalized senior-year plan".
@@ -34,7 +34,12 @@ const LEVEL_LABEL_MULTI_YEAR = {
 // `yearStartDate`s. Omitting `yearWindow` entirely (or passing `null`) keeps the old unfiltered
 // whole-plan behavior.
 export function generateRoadmap(state, yearWindow = null) {
-  const planStartDate = startOfToday();
+  // Real-Time Tracking feature (see CLAUDE.md) — resolves through the tester-set override
+  // (state.dateOverride) when one is active, real device date otherwise. Every date in this
+  // whole plan is computed relative to this ONE value (anchorDate() calls throughout), so an
+  // active override consistently shifts the entire "today"-anchored timeline, not just the
+  // "You are here" marker's own display.
+  const planStartDate = getEffectiveToday(state.dateOverride);
   const level = state.educationLevel;
   const dateOverrides = state.nodeDateOverrides || {};
   const removed = state.removedNodeIds || {};
@@ -150,6 +155,20 @@ export function generateRoadmap(state, yearWindow = null) {
 
   const levelLabel = stageNames.length > 1 ? LEVEL_LABEL_MULTI_YEAR[level] : LEVEL_LABEL[level];
 
+  // Real-Time Tracking feature, Task 3 (see CLAUDE.md) — when "You are here" lands on the exact
+  // same real date as another spine item (a custom task, an edited node date, a fixed UC Davis
+  // quarter date, or — in principle — a template task whose offset happens to be exactly 0), the
+  // two are meant to read as one combined moment on the map, not two separate close-but-distinct
+  // markers. This is purely a "which item, if any, coincides" pointer — a display-only field, not
+  // a positioning change — Roadmap.jsx decides how to fold `todayCollision`'s own rendering into
+  // the "today" marker. Scoped to top-level spine items only (not branch sub-steps, which have no
+  // "You are here" marker of their own to merge with) and only for the year that actually
+  // contains real "today" — a non-current year never shows a "You are here" marker at all (see
+  // `showToday` below), so there's nothing to merge there either.
+  const todayCollision = isCurrentYearView
+    ? spine.find((item) => realDaysBetween(item.date, laidToday.date) === 0) || null
+    : null;
+
   return {
     title: titleFor(selectedCareers),
     subtitle: `A personalized ${levelLabel} plan, built from your profile.`,
@@ -157,6 +176,7 @@ export function generateRoadmap(state, yearWindow = null) {
     // Only the year actually containing real "today" should show the "You are here" marker/
     // connector — Roadmap.jsx gates both on this.
     showToday: isCurrentYearView,
+    todayCollision,
     spine,
     canvasHeight,
     canvasWidth,

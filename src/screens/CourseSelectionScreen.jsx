@@ -26,7 +26,7 @@ import {
 import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
 import { getRecommendedUCDavisCourses } from '../data/ucdavisCourseRecommendations';
 import { QUARTER_LABELS, getNextQuarter } from '../data/ucdavisQuarters';
-import { startOfToday } from '../utils/dates';
+import { getEffectiveToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 import MascotWidget from '../components/MascotWidget';
@@ -918,8 +918,15 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   // enrollment task's title can never independently drift out of sync the way Roslyn's own
   // banner once did (see trunkSteps.js's getStage0TargetLabel for that history). UC Davis had no
   // equivalent banner at all before this fix — not a hardcoded-wrong-year bug like Roslyn's, just
-  // a genuinely missing one.
-  const nextQuarterLabel = useMemo(() => QUARTER_LABELS[getNextQuarter(startOfToday()).quarter], []);
+  // a genuinely missing one. Real-Time Tracking feature (see CLAUDE.md) — reads through
+  // `getEffectiveToday(state.dateOverride)` rather than a bare `startOfToday()`, and the memo's
+  // own deps now include `state.dateOverride` (previously `[]` — a real, pre-existing staleness
+  // this fix also happens to close: the banner would otherwise never re-resolve which quarter is
+  // "next" once a real quarter boundary passed while the app stayed open).
+  const nextQuarterLabel = useMemo(
+    () => QUARTER_LABELS[getNextQuarter(getEffectiveToday(state.dateOverride)).quarter],
+    [state.dateOverride],
+  );
 
   const selectedColleges = useMemo(
     () => getSelectedUCDavisColleges(state.selectedMajorIds),

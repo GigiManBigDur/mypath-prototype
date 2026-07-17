@@ -3,7 +3,7 @@ import { ArrowLeft, BadgeCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getOpportunityPool, getSchoolOpportunities } from '../data/opportunities';
-import { anchorDate, formatDate, startOfToday } from '../utils/dates';
+import { anchorDate, formatDate, getEffectiveToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
 import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
@@ -14,7 +14,9 @@ export default function OpportunityFinderScreen() {
   const opportunityTracks = getOpportunityTracks(state.interestTags);
   const isGeneric = opportunityTracks.length === 0;
   const recommendedOpportunities = getOpportunityPool(opportunityTracks, state.educationLevel);
-  const today = startOfToday();
+  // Real-Time Tracking feature (see CLAUDE.md) — resolves the tester-set override when one is
+  // active, so "deadline passed" reads consistently with the same "today" the roadmap itself uses.
+  const today = getEffectiveToday(state.dateOverride);
 
   // "My School" — real, independently-fetched club data for the student's actual school, a third
   // lens alongside Recommended/Browse rather than a filter within them. Scoped to High School +

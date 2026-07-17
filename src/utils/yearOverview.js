@@ -4,14 +4,17 @@
 // STAGE_PLAN/DEFAULT_SCHOOL_YEAR) generateRoadmap() already uses, so the two views can never
 // disagree about how many years there are or what they're called.
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR } from '../data/trunkSteps';
-import { anchorDate, startOfToday } from './dates';
+import { anchorDate, getEffectiveToday } from './dates';
 
 // stageIndex 0 is always "the year containing today" by construction — every stage gets
 // yearOffset: stageIndex applied to its dates elsewhere (roadmapGenerator.js), and yearOffset 0
 // is defined as "starts now." No date math is needed to find the current year; it's always the
 // first entry.
 export function getYearOverview(state) {
-  const planStartDate = startOfToday();
+  // Real-Time Tracking feature (see CLAUDE.md) — same shared "today" resolution
+  // roadmapGenerator.js uses, so Map 1 and Map 2 can never disagree about which year is current
+  // while a testing override is active.
+  const planStartDate = getEffectiveToday(state.dateOverride);
   const level = state.educationLevel;
   const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
   const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
