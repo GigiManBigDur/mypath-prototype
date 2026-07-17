@@ -4359,6 +4359,61 @@ the same non-negotiable gate this component's own repaint history has already es
   `test-ucdavis-stage4.js`, the general `test.js`, and `npm run verify:spacing`) all still pass
   with zero regressions.
 
+**Bug fix: nearly all 44 of Roslyn's "My School" clubs (the `rhs-*` ids added when that tab's real
+club data was first ingested) shared the literal identical template date `{ month: 9, day: 10 }`
+— meaning they didn't just look suspiciously clustered, they were LITERALLY the same date, every
+time, for every student.** Because this app's dates are "today"-anchored (`anchorDate()`,
+`utils/dates.js` — a template date resolves to a real calendar date by adding its "days after Aug
+15" offset to whatever day the student actually opens the app, not a fixed real date), all 44
+clubs colliding onto one shared template offset meant they'd always land on the exact same real
+day together, regardless of which day that happened to be — confirmed directly: opening the app
+in mid-July resolved all 44 to Aug 12, 2026 specifically (the bug report's own observation), which
+also happens to fall during summer break, before Roslyn's real school year (roughly September
+through June) has even started — a plausible-sounding but entirely wrong date for 44 different
+"first meeting" milestones.
+- **The fix hand-assigns each of the 44 `rhs-*` clubs its own distinct `{ month, day }` template
+  date**, spread across Sept 2 through Apr 14 (safely within Roslyn's real school year, per the
+  fix's own "after early September, before June" requirement — no entry falls in June, July, or
+  August). Dates lean earlier for clubs that realistically start with a September sign-up (most
+  interest clubs, academic teams), later into fall/winter for honor-society inductions (which
+  realistically follow after a grading period, not day one), and later still into winter/spring
+  for a handful with a real seasonal hook — Habitat for Humanity's own real build season lands in
+  spring (Apr 14), Winter Guard's own season naturally follows marching season (Nov 24), the
+  Hispanic Heritage Discussion Group's own first meeting falls inside the real Hispanic Heritage
+  Month window (Sept 15 – Oct 15), Red Ribbon Week (late October, a real, dated national
+  observance) motivated Students Against Destructive Decisions' own date. Every one of the 44 was
+  checked for date collisions against both the other 43 AND the 7 pre-existing "enriched" Roslyn
+  clubs from this same file's earlier My School batch (`deca`, `science-olympiad`,
+  `key-interact-club`, `student-government-hs`, `school-media-club`, `speech-debate-nsda`, `nhs`)
+  — two real collisions were found this way (a new `rhs-astronomy-club` pick landing on the same
+  day as the pre-existing `key-interact-club`/`school-media-club` pair, and `rhs-stock-market-club`
+  landing on the same day as the pre-existing `deca`) and nudged by a day each to clear them. Two
+  OTHER collisions remain, but both are PRE-EXISTING (between `science-olympiad`/
+  `speech-debate-nsda`, and between `key-interact-club`/`school-media-club` themselves) and
+  predate this fix entirely — they're outside this bug's own stated scope (which named the 44
+  `rhs-*` clubs specifically, not the smaller pre-existing enriched set), so they were left alone
+  rather than expanding scope beyond what was reported.
+- Verified directly against the real, running data (not just the raw source text) — a scratch
+  script loaded `opportunities.js` through Vite's own module loader (the same technique
+  `scripts/verify-spacing.mjs` already uses for `roadmapLayout.js`, needed here too since a plain
+  Node `import` can't resolve this codebase's extension-less relative imports) and confirmed: all
+  51 real Roslyn `schoolVerified` entries (44 `rhs-*` + 7 enriched) resolve to real `Date` objects
+  with zero landing in June/July/August, and the 44 `rhs-*` clubs are now all mutually distinct
+  with zero new collisions against the 7 pre-existing ones. A dedicated Playwright check then
+  selected 10 of the 44 clubs spanning several different months and confirmed, on the real rendered
+  Academic Plan: multiple genuinely distinct due dates render (not one shared value), and a real
+  cross-node bounding-box overlap check (the same technique this app's own density regression
+  tests already use) finds zero label collisions — the chains visibly spread out along the spine
+  by real date instead of collapsing into one cluster. `test-myschool.js` (the pre-existing,
+  dedicated functional suite for this tab) was re-run and still shows the identical real club
+  count (51) and still passes in full, confirming this was a pure date-data change with zero
+  effect on which clubs appear, their names/descriptions, or the tab's own routing/gating logic. A
+  pre-existing, unrelated failure was found while regression-testing
+  (`test-ucdavis-myschool.js`'s own "no My School tab for a generic Undergraduate student with no
+  school selected" check) — confirmed via `git stash` that it fails identically on the unmodified,
+  pre-existing code, so it's a real but separate gap, not something this date fix touched or
+  caused; left unfixed as out of scope for this task.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
