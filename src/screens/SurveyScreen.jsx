@@ -72,7 +72,6 @@ export function isSurveyComplete(state) {
 // educationLevel -> schoolYear -> school in sequence, each exactly once — not re-triggered on
 // every keystroke within a field, since each key only ever satisfies "not yet seen" once.
 const SURVEY_MASCOT_SEQUENCE = [
-  { key: 'survey-intro', when: () => true },
   { key: 'survey-interests', when: () => true },
   { key: 'survey-educationLevel', when: (state) => state.interestTags.length > 0 },
   { key: 'survey-schoolYear', when: (state) => !!state.educationLevel },
@@ -125,16 +124,16 @@ export default function SurveyScreen() {
   // changes `state.mascotSeenKeys`, which would otherwise trigger an immediate re-render whose
   // fresh resolution already sees THIS key as seen and instantly resolves the NEXT eligible step
   // too, cascading through the whole sequence within milliseconds — before the user ever had a
-  // chance to read the first line (confirmed directly: an unguarded version of this marked BOTH
-  // 'survey-intro' and 'survey-interests' seen within the same render pass on a fresh mount).
-  // Gating the recompute on the actual field values means it only re-runs when the user genuinely
-  // does something — filling in the next field — not as a side effect of the mascot's own
-  // bookkeeping.
+  // chance to read the first line (confirmed directly, back when this sequence still had two
+  // no-precondition steps at the front: an unguarded version of this marked BOTH of them seen
+  // within the same render pass on a fresh mount). Gating the recompute on the actual field
+  // values means it only re-runs when the user genuinely does something — filling in the next
+  // field — not as a side effect of the mascot's own bookkeeping.
   //
-  // A single trigger can leave MORE than one step eligible+unseen at once — e.g. on mount, both
-  // 'survey-intro' and 'survey-interests' have no precondition at all, and picking an interest
-  // makes 'survey-educationLevel' eligible on the very same tick 'survey-interests' might still
-  // be showing. An earlier version of this resolved only the first eligible+unseen step per
+  // A single trigger can leave MORE than one step eligible+unseen at once — e.g. picking an
+  // interest makes 'survey-educationLevel' eligible on the very same tick 'survey-interests'
+  // might still be showing. An earlier version of this resolved only the first eligible+unseen
+  // step per
   // trigger, which starved every step after the first "free" one until some LATER, unrelated
   // field change happened to fire the effect again — in practice a field's own prompt (e.g. "Now,
   // where are you in your journey right now?") only appeared AFTER the user had already answered

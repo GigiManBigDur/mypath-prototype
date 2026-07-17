@@ -2661,6 +2661,43 @@ first hub visit.
   `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, the
   general `test.js`, and this session's own `test-hub-progress-card-gate.js`) all still pass.
 
+**Removed the Survey's own first-entry mascot intro line ("Let's get to know you! Just a few
+quick questions before we build your plan."), now redundant with the hub's own pointing dialogue
+(Stage 4) already delivering a similar intro-style line when it points at "Let's Build Your Plan"
+before the user ever clicks in.** `SurveyScreen.jsx`'s `SURVEY_MASCOT_SEQUENCE` had this as its
+own first entry (`{ key: 'survey-intro', when: () => true }`, no precondition, so it was always
+first-in-queue on a genuinely fresh mount) — simply removed from the array, so the sequence now
+starts directly at `survey-interests` ("What gets you excited?..."), the first REAL per-question
+line, with everything after it (education level, grade/year, school selection) completely
+unaffected — none of those entries or their own `when` preconditions were touched.
+- **The underlying dialogue TEXT itself (`MASCOT_LINES['survey-intro']`, `mascotDialogue.js`) was
+  deliberately left in place, not deleted** — unlike a fully-retired feature (e.g. Admissions
+  Overview's own screen+data, deleted outright elsewhere in this app's history), this specific
+  string is still genuinely read by a SEPARATE, unrelated consumer: `VoiceSettingsPanel.jsx`'s own
+  `PREVIEW_TEXT` constant (`getMascotLine('survey-intro')`), the real sample line every voice's
+  own "preview" button speaks in the voice-picker panel. Deleting the MASCOT_LINES entry would
+  have silently broken that feature's preview button — confirmed this dependency directly via
+  grep before removing anything, rather than assuming "no longer shown on Survey" meant "no longer
+  used anywhere."
+- Two stale comments in `SurveyScreen.jsx` that specifically cited `'survey-intro'` as a
+  worked example of the mount-time cascade-prevention bug (both the original confirmed-bug
+  description and the "more than one step eligible at once" illustration) were updated to either
+  genericize the reference or fall back to the OTHER, still-accurate example already present
+  right below it (picking an interest making `survey-educationLevel` eligible while
+  `survey-interests` might still be showing) — so nothing in the surrounding code comments still
+  points at a key that no longer exists in the sequence.
+- Verified with a dedicated Playwright suite (5 checks): a genuinely fresh Survey entry never
+  shows the old intro text, and the very first thing shown instead is the real
+  `survey-interests` line; picking an interest tag still reveals the next real per-question line
+  (education level) after the usual short delay, and picking an education level still reveals the
+  one after that (grade/year) — confirming the rest of the in-flow sequence progresses completely
+  normally; and a student returning to an already-in-progress or completed survey (several keys
+  already in `mascotSeenKeys`) also never sees the old intro line. The full pre-existing suite —
+  `test-stage5-mascot.js` (including its own dedicated no-cascade-on-fresh-mount regression
+  check), `test-voice-picker.js` (confirms the voice-preview sample line still works, unaffected
+  by this change), `test-voiceover.js`, `test-hub.js`, `test-hub-reset.js`, `test-return-to-hub.js`,
+  `test.js`, and `test-signup.js` — all still pass with zero regressions.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
