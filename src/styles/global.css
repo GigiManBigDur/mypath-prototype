@@ -3531,7 +3531,7 @@ button.card.passed:hover {
   border-radius: 18px;
   box-shadow: var(--bloom-shadow);
   padding: 28px 20px 34px;
-  max-width: 320px;
+  max-width: 480px;
   margin: 28px auto 0;
 }
 .year-overview-ring {
