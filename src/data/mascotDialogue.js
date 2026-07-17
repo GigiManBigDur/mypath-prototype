@@ -57,6 +57,15 @@ export const MASCOT_LINES = {
 
   'plan-intro': 'And... here it is — your actual plan, built from everything you just told me. Click around, mark things off as you go, and come back anytime things change.',
   'plan-revisit': 'Your plan, always up to date. Anything new to add?',
+
+  // Bug fix (see CLAUDE.md) — the hub's own guided-sequence pointing dialogue (HubScreen.jsx's
+  // GUIDED_SEQUENCE) used to replay each step's real intro line in full on every hub visit, since
+  // it was never wired into the mascotSeenKeys "seen once" system every OTHER screen's dialogue
+  // already respects. One shared, generic, freely-repeatable line — reused for any already-seen
+  // guided step, regardless of which one — matching the same "-revisit" convention above, without
+  // needing 9 near-duplicate step-specific revisit lines for content that's meant to be a light
+  // acknowledgment, not a restatement.
+  'hub-guided-revisit': "Ready to keep going? Pick up where you left off.",
 };
 
 export function getMascotLine(key) {

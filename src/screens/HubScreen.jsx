@@ -13,8 +13,9 @@ import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dates';
 import { isSpeechAvailable } from '../utils/speech';
-import { ADMISSIONS_CONTEXT_LINES } from '../data/mascotDialogue';
+import { ADMISSIONS_CONTEXT_LINES, getMascotLine } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
+import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -350,13 +351,31 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   // Every other step's `intro` is a plain string; the 'careers' step's own is a function of
   // `state` (see GUIDED_SEQUENCE above) since its condensed admissions-context blurb varies by
   // education level — resolved once here rather than inline in the JSX below.
-  const nextStepIntro = typeof nextStep.intro === 'function' ? nextStep.intro(state) : nextStep.intro;
+  const nextStepFullIntro = typeof nextStep.intro === 'function' ? nextStep.intro(state) : nextStep.intro;
+  // Bug fix (see CLAUDE.md) — the hub's own guided-sequence dialogue used to replay this full
+  // line on every single hub visit, for as long as the current step stayed unfinished, since it
+  // was never wired into the mascotSeenKeys "seen once, ever" system every OTHER screen's
+  // in-flow dialogue already respects (Stage 5's `useMascotIntroThenRevisit`, etc.). Reuses the
+  // EXACT same anti-flicker snapshot/mark-seen pair those screens use, keyed per guided-sequence
+  // step id (`hub-guided-${nextStep.id}` — namespaced so it can never collide with an unrelated
+  // key, e.g. YearOverview.jsx's own separate `'plan-intro'`/`'plan-revisit'`, even though the
+  // guided sequence's own endpoint step happens to share the literal id `'plan'` with the
+  // Academic Plan tile). Once a given step's real line has been shown once, every later hub visit
+  // — for as long as that SAME step remains the current one — shows one shared, generic,
+  // freely-repeatable acknowledgment instead (`hub-guided-revisit`, mascotDialogue.js), never the
+  // original full line again. The moment the guided step actually ADVANCES to a new one, its own
+  // real line plays in full for the first time, exactly as before.
+  const guidedStepSeenKey = `hub-guided-${nextStep.id}`;
+  const guidedStepAlreadySeen = useMascotSeenSnapshot(guidedStepSeenKey);
+  useMarkMascotSeen(guidedStepAlreadySeen ? null : guidedStepSeenKey);
+  const nextStepIntro = guidedStepAlreadySeen ? getMascotLine('hub-guided-revisit') : nextStepFullIntro;
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own pointing dialogue speaks
   // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue.
   // There's no "dismiss" concept for this always-visible bubble, so it just speaks whenever
-  // `nextStepIntro` changes (advancing to a new guided step) and stops on unmount (navigating
-  // away from the hub) — both handled inside the hook itself. Radial-layout pass, Task 4 — the
-  // hook's own returned boolean now also drives the mascot's distinct "speaking" animation state.
+  // `nextStepIntro` changes (advancing to a new guided step, or the seen-state flipping to the
+  // generic revisit line) and stops on unmount (navigating away from the hub) — both handled
+  // inside the hook itself. Radial-layout pass, Task 4 — the hook's own returned boolean now also
+  // drives the mascot's distinct "speaking" animation state.
   const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted, state.voiceURI);
 
   const goTo = (tile) => {

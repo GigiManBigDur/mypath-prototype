@@ -2852,6 +2852,57 @@ mascot it happened to be on.
   `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`,
   `test-signup.js`, and the general `test.js`) all still pass with zero regressions.
 
+**Bug fix: the hub's own guided-sequence dialogue replayed its full line in every visit, for as
+long as the current step stayed unfinished — it was never actually wired into the `mascotSeenKeys`
+"seen once, ever" system Stage 5 already built and every OTHER screen's in-flow dialogue already
+respects.** Confirmed directly before touching anything: seeding a fresh hub visit, leaving, and
+returning without making any progress showed the byte-identical intro string both times, and
+`state.mascotSeenKeys` stayed empty the whole time — `HubScreen.jsx`'s own `nextStepIntro` was
+always just `nextStep.intro` (or `nextStep.intro(state)` for the one function-valued entry),
+recomputed fresh from `GUIDED_SEQUENCE`/`getNextGuidedStep` on every render with no seen-tracking
+of any kind, unlike `SurveyScreen`/`DiscoveryScreen`/etc., which all correctly use
+`useMascotIntroThenRevisit`/`useMascotSeenSnapshot` already (confirmed those were NOT broken via
+the same direct test, run against Discovery's own careers sub-step before assuming the bug was
+universal — the intro/revisit split there already worked exactly as designed).
+- **The fix reuses the EXACT same anti-flicker snapshot/mark-seen pair every other screen's
+  dialogue already relies on** (`useMascotSeenSnapshot`/`useMarkMascotSeen`, `useMascotSeen.js` —
+  no new mechanism invented), keyed per guided-sequence step id: `hub-guided-${nextStep.id}` — a
+  deliberately namespaced key so it can never collide with an unrelated one, e.g. `YearOverview.jsx`'s
+  own separate `'plan-intro'`/`'plan-revisit'` pair, even though the guided sequence's own endpoint
+  step happens to share the literal id `'plan'` with the "Academic Plan" tile (see `ENDPOINT_STEP`).
+  Once a given step's real line has been shown once, every later hub visit — for as long as that
+  SAME step remains current — now shows one new shared, generic, freely-repeatable acknowledgment
+  instead (`'hub-guided-revisit'`, a single new `mascotDialogue.js` entry: "Ready to keep going?
+  Pick up where you left off.") rather than the original line again. This is the ONE genuinely new
+  piece of dialogue content this fix adds — everything else (every real per-step intro line, every
+  other screen's own intro/revisit text) is completely untouched, matching the fix's own explicit
+  "purely about playback frequency, not rewriting content" scope; one small shared acknowledgment
+  was necessary to implement the fix's own "a much lighter, brief generic acknowledgment" option
+  without inventing 9 near-duplicate step-specific revisit lines for content that was only ever
+  meant to be a light nudge, not a restatement.
+- **The moment the guided step genuinely ADVANCES to a new one** (the survey completes, a career
+  gets selected, etc.), that NEW step's own key hasn't been seen yet, so its own real line plays in
+  full for the first time — confirmed directly: completing the survey and landing on the "careers"
+  step shows careers' own real admissions-context line (not the generic acknowledgment), and only
+  a SUBSEQUENT revisit to that same still-unfinished careers step falls back to the shared generic
+  line. The voice track needed no separate fix at all — `useMascotSpeech` already speaks whatever
+  `nextStepIntro` currently resolves to, so once the displayed text correctly becomes the shorter
+  generic line on revisit, the spoken audio automatically follows it for free; there's no second,
+  independently-tracked "have I spoken this before" concept to keep in sync.
+- Verified with a dedicated Playwright suite (11 checks): a fresh hub visit shows a real line; a
+  revisit to the same unfinished step never repeats it, showing the shared generic acknowledgment
+  instead; a THIRD visit to that same step shows the identical shared acknowledgment again (not a
+  new random variant — the generic line is itself meant to repeat freely, only the ORIGINAL line
+  must never play twice); advancing to a new guided step shows that step's own real line for the
+  first time, which then also correctly stops repeating on further revisits; and — confirming the
+  fix generalizes, not just patches the one broken spot — Discovery's own careers sub-step and
+  Opportunity Finder's own intro/revisit dialogue were independently re-checked and confirmed to
+  already behave correctly (they were never broken, only the hub's own dialogue was). The full
+  pre-existing hub/mascot/voice suite (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`,
+  `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
+  `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`, and
+  `test-mascot-wand-pointing.js`) all still pass with zero regressions.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
