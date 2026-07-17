@@ -417,6 +417,10 @@ export default function HubScreen({ onOpenVoiceSettings }) {
 
   const mascotRef = useRef(null);
   const tileRefs = useRef(new Map());
+  // Pointing-animation overhaul (see CLAUDE.md) — replaces the old separate arrow's own angle
+  // math with a simpler measured left/right comparison, reusing the exact same ref-based
+  // measurement approach (see the hook's own comment below for why).
+  const leanDirection = useLeanDirection(mascotRef, tileRefs, nextStep.id, tiles.length);
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
   // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
@@ -533,12 +537,11 @@ export default function HubScreen({ onOpenVoiceSettings }) {
 
         <div className="hub-mascot-area">
           {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
-              .hub-mascot-area (which also contains the greeting bubble stacked below). The pointer
-              arrow anchors to THIS ref, so it renders right at the mascot's own base and its angle
-              is measured from the mascot's real center, not from further down past the bubble. */}
+              .hub-mascot-area (which also contains the greeting bubble stacked below). `leanDirection`
+              (below) measures against THIS ref, so it's computed from the mascot's real center, not
+              from further down past the bubble. */}
           <div className="hub-mascot-figure" ref={mascotRef}>
-            <MascotIcon size={150} speaking={isSpeaking} />
-            <PointerArrow mascotRef={mascotRef} tileRefs={tileRefs} targetId={nextStep.id} tileCount={tiles.length} />
+            <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} leanDirection={leanDirection} />
           </div>
           <div className="mascot-greeting">
             {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
@@ -643,49 +646,48 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   );
 }
 
-// Dashboard/Guide feature, Stage 4 — the mascot's own "gesture/animation... directed at the
-// target tile," one of the 3 required pointing signals alongside the pulsing tile highlight
-// (`.pointing-target` on the tile itself, see global.css) and the dialogue line. Rather than
-// hand-waving a fixed-direction nudge (tiles reflow across viewport widths and as tiles are
-// added/removed from the DOM when `hasPartnerSchool` changes), this measures REAL positions —
-// same "don't fake it, compute it" approach WelcomeScreen's own marker placement already uses
-// (getPointAtLength there, getBoundingClientRect here) — and rotates a small arrow to the real
-// angle between the mascot and the target tile's current on-screen position.
-function PointerArrow({ mascotRef, tileRefs, targetId, tileCount }) {
-  const [angle, setAngle] = useState(null);
+// Pointing-animation overhaul (see CLAUDE.md) — replaces the old separate arrow element (the
+// former `PointerArrow`, which rotated a standalone `<ArrowRight>` to a precise measured angle)
+// with a simpler measured LEFT/RIGHT comparison, now that the mascot itself leans its whole body
+// toward the target instead of a detached arrow pointing at it. Keeps the exact same "don't fake
+// it, measure real DOM positions" posture WelcomeScreen's own marker placement already
+// established (getPointAtLength there, getBoundingClientRect here) — a lean pose still needs to
+// know which real side of the mascot the current target tile is actually on, since tiles reflow
+// across viewport widths and whenever the number of rendered tiles changes (hasPartnerSchool
+// toggling), same reasons the old arrow's own angle needed live measurement rather than a fixed
+// guess. Returns `null` (mascot stays centered, no lean class applied) until a real measurement
+// is available, same "don't guess" fallback the old arrow's own `angle === null` check already
+// held.
+function useLeanDirection(mascotRef, tileRefs, targetId, tileCount) {
+  const [direction, setDirection] = useState(null);
 
   useLayoutEffect(() => {
     function recompute() {
       const mascotEl = mascotRef.current;
       const targetEl = tileRefs.current.get(targetId);
-      if (!mascotEl || !targetEl) { setAngle(null); return; }
+      if (!mascotEl || !targetEl) { setDirection(null); return; }
       const mascotRect = mascotEl.getBoundingClientRect();
       const targetRect = targetEl.getBoundingClientRect();
-      // Measured from the mascot's own right-edge center, matching exactly where
-      // .mascot-pointer is CSS-anchored (`right: -4px; top: 50%`) — see that rule's own comment
-      // for why it's not anchored below the mascot instead.
-      const mx = mascotRect.right;
-      const my = mascotRect.top + mascotRect.height / 2;
+      const mx = mascotRect.left + mascotRect.width / 2;
       const tx = targetRect.left + targetRect.width / 2;
-      const ty = targetRect.top + targetRect.height / 2;
-      setAngle(Math.atan2(ty - my, tx - mx) * (180 / Math.PI));
+      setDirection(tx < mx ? 'left' : 'right');
     }
     // A plain synchronous call here raced React StrictMode's dev-only double-mount: the ref
     // callbacks that populate `tileRefs` hadn't landed yet the instant this specific layout
-    // effect fired (confirmed directly — both `mascotRef.current` and every `tileRefs` entry
-    // read as unset at that exact point, then were populated a moment later), so the arrow never
-    // appeared at all. A single `requestAnimationFrame` defers the first measurement to after the
-    // browser's next paint, by which point StrictMode's mount/remount cycle has settled and every
-    // ref is reliably attached — same "don't trust synchronous-at-mount DOM state, wait a frame"
-    // lesson WelcomeScreen's own double-rAF trail reveal already established for this codebase,
-    // just one rAF instead of two since there's no CSS transition being raced here, only a DOM
-    // read.
+    // effect fired (confirmed directly, back when this same measurement drove the old arrow's own
+    // angle instead — both `mascotRef.current` and every `tileRefs` entry read as unset at that
+    // exact point, then were populated a moment later), so nothing ever appeared at all. A single
+    // `requestAnimationFrame` defers the first measurement to after the browser's next paint, by
+    // which point StrictMode's mount/remount cycle has settled and every ref is reliably attached
+    // — same "don't trust synchronous-at-mount DOM state, wait a frame" lesson WelcomeScreen's own
+    // double-rAF trail reveal already established for this codebase, just one rAF instead of two
+    // since there's no CSS transition being raced here, only a DOM read.
     const raf = requestAnimationFrame(recompute);
     // Tile positions genuinely reflow on resize (a real CSS grid, not a fixed-viewBox SVG like
     // WelcomeScreen's trail) and whenever the number of rendered tiles changes (hasPartnerSchool
-    // toggling, or — from this stage on — the pointing target itself moving to a different tile).
-    // These later calls need no rAF wrapper of their own — by resize time the DOM is already
-    // settled, this only mattered for the very first measurement racing mount.
+    // toggling, or the pointing target itself moving to a different tile). These later calls need
+    // no rAF wrapper of their own — by resize time the DOM is already settled, this only mattered
+    // for the very first measurement racing mount.
     window.addEventListener('resize', recompute);
     return () => {
       cancelAnimationFrame(raf);
@@ -694,15 +696,7 @@ function PointerArrow({ mascotRef, tileRefs, targetId, tileCount }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId, tileCount]);
 
-  if (angle === null) return null;
-
-  return (
-    <div className="mascot-pointer" style={{ transform: `rotate(${angle}deg)` }} aria-hidden="true">
-      <div className="mascot-pointer-inner">
-        <ArrowRight size={20} />
-      </div>
-    </div>
-  );
+  return direction;
 }
 
 // The mascot illustration itself now lives in ../components/MascotIcon.jsx, shared with Stage 5's

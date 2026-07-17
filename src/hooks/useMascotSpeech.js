@@ -83,16 +83,54 @@ export function useMascotSpeech(text, muted, voiceURI) {
       return;
     }
 
-    if (!isNewKey) return;
-    lastKeyRef.current = key;
-    lastKeySetAtRef.current = Date.now();
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-    setIsSpeaking(true);
-    const started = speak(text, voiceURI, { onEnd: () => setIsSpeaking(false) });
-    if (!started) {
-      // Speech unavailable, or a device with genuinely no usable voices — same estimated-timer
-      // fallback as the muted branch above.
+    // Bug fix, confirmed directly (not assumed) — this is what made the mascot's speaking pose
+    // "stop working" specifically on the hub. Two compounding real issues, both fixed together:
+    //   1. `speak()` returning `true` only means a real utterance was successfully QUEUED, never
+    //      a guarantee the browser will actually fire `onend`/`onerror` for it — confirmed by
+    //      observing real `speechSynthesis` behavior in this app's own dev/test environment:
+    //      `speak()` returns `true` (real voices present), `speechSynthesis.speaking` never
+    //      becomes `true`, and neither event ever fires, leaving `isSpeaking` stuck `true`
+    //      forever with nothing left to flip it back.
+    //   2. Adding a plain unconditional safety-net timer here (an earlier attempt at this fix)
+    //      still didn't survive React 18 StrictMode's dev-only mount -> cleanup -> remount
+    //      replay — the EXACT SAME race already documented and fixed for the muted branch above,
+    //      just never applied here too: the first invocation's timer gets canceled by the
+    //      unmount-only cleanup effect below, and the second invocation's `isNewKey` reads
+    //      `false` (since `lastKeyRef` was already set by the first invocation and the cleanup
+    //      never resets it) — so `if (!isNewKey) return;` used to bail out before ever
+    //      (re-)scheduling anything, leaving no live speech AND no pending timer. Confirmed
+    //      directly: `isSpeaking` stayed stuck `true` for 8+ seconds straight (well past the 6s
+    //      cap `estimateSpeechDuration` enforces) with only the plain-timer fix in place.
+    // Fixed the same way the muted branch's own `lastKeySetAtRef` recovery already does: a
+    // genuinely new key always (re-)starts speaking; an unchanged key within the ~50ms StrictMode
+    // replay window with no timer currently pending means the just-issued attempt was torn down
+    // before completing, so it's re-issued; an unchanged key well outside that window is a
+    // genuine later re-render (e.g. unmuting with the same line still showing) and — matching
+    // this branch's own original "isNewKey gates everything" contract — does nothing.
+    const startSpeaking = () => {
+      setIsSpeaking(true);
+      speak(text, voiceURI, {
+        onEnd: () => {
+          setIsSpeaking(false);
+          if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        },
+      });
+      // A real `onEnd` firing clears this immediately above, so a normally-completing utterance
+      // is still timed by real audio exactly as before — this is only ever a backstop for when
+      // the browser silently never reports completion (see point 1 above).
       timeoutRef.current = setTimeout(() => setIsSpeaking(false), estimateSpeechDuration(text));
+    };
+
+    if (isNewKey) {
+      lastKeyRef.current = key;
+      lastKeySetAtRef.current = Date.now();
+      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+      startSpeaking();
+    } else if (Date.now() - lastKeySetAtRef.current > 50) {
+      // Genuine later re-render, same key — nothing to do, matching the original contract.
+    } else if (!timeoutRef.current) {
+      // Within the StrictMode replay window and nothing currently pending — recover.
+      startSpeaking();
     }
   }, [text, muted, voiceURI]);
 

@@ -2698,6 +2698,103 @@ unaffected — none of those entries or their own `when` preconditions were touc
   by this change), `test-voiceover.js`, `test-hub.js`, `test-hub-reset.js`, `test-return-to-hub.js`,
   `test.js`, and `test-signup.js` — all still pass with zero regressions.
 
+**Mascot pointing animation overhaul, plus a real, confirmed fix for a speaking-animation
+regression on the hub.** Replaces the old separate arrow indicator (`PointerArrow`, HubScreen.jsx
+— a standalone `<ArrowRight>` rotated via inline style to a precisely measured angle) with a real,
+full-body wand-based pointing gesture built directly into the mascot's own SVG, and fixes a real
+bug where the speaking (mouth/expression) animation could get permanently stuck on, specifically
+visible only on the hub.
+- **Task 3's regression, root-caused before any of the animation work started** — confirmed via
+  direct testing, not assumed: with a real voice available and voice unmuted (the app's own
+  default), `speech.js`'s `speak()` returns `true` (a real utterance was successfully queued) but
+  the browser can silently never actually fire `onstart`/`onend`/`onerror` for it — confirmed
+  directly by observing real `speechSynthesis` behavior in this app's own dev/test environment:
+  `speak()` returns `true`, `speechSynthesis.speaking` never becomes `true`, and neither event
+  ever fires. Since `useMascotSpeech`'s only path back to `isSpeaking: false` in the real-speech
+  branch was that `onEnd` callback, this left the speaking animation stuck ON forever. This is the
+  ONE caller that actually surfaces this visually: `MascotWidget` calls the exact same hook but
+  never reads its returned `isSpeaking` at all, so the identical stuck state there was silently
+  harmless — only `HubScreen.jsx` wires the return value to `MascotIcon`'s `speaking` prop, which
+  is why the bug reads as "hub-specific" even though the underlying hook is shared. A first fix
+  attempt (a plain, unconditional safety-net `setTimeout` mirroring the muted branch's own
+  fallback) turned out to be insufficient on its own — confirmed directly, it STILL left
+  `isSpeaking` stuck for 8+ seconds (well past the 6s cap `estimateSpeechDuration` enforces): React
+  18 StrictMode's dev-only mount -> cleanup -> remount replay tore the newly-scheduled timer down
+  before it could ever fire, and the SECOND (persisting) invocation's own `isNewKey` check read
+  `false` (since `lastKeyRef` was already set by the first invocation and the cleanup never resets
+  it), so `if (!isNewKey) return;` bailed out before ever rescheduling anything — the EXACT SAME
+  race already documented and fixed for the muted branch (`lastKeySetAtRef`'s ~50ms window check),
+  just never applied to the real-speech branch too. Fixed by giving the real branch the identical
+  recovery structure the muted branch already has: a genuinely new key always (re-)starts
+  speaking; an unchanged key within the StrictMode replay window with no timer currently pending
+  means the just-issued attempt was torn down before completing, so it's re-issued; an unchanged
+  key well outside that window is a genuine later re-render (e.g. unmuting with the same line
+  still showing) and does nothing, matching this branch's own original "isNewKey gates everything"
+  contract. Both paths now funnel through one small `startSpeaking()` closure to avoid duplicating
+  the speak()+timer logic twice.
+- **Task 1/2 — `MascotIcon.jsx` gained two new, purely additive props: `pointing` (boolean) and
+  `leanDirection` (`'left' | 'right' | null`).** `HubScreen.jsx` passes `pointing={isSpeaking}` —
+  deliberately the SAME real signal that already drives the speaking animation, not a second,
+  independently-tracked state — so "pointing" and "currently being displayed/spoken" are always
+  the identical real thing, and Task 2's own "held pose... while the dialogue/voiceover... is
+  playing" / "once the voiceover finishes (or... the dialogue's display duration ends)" behavior
+  falls out of `useMascotSpeech`'s already-correct real-audio-or-estimated-duration timing with
+  zero new state machine needed. `leanDirection` is measured the same "don't fake it, measure real
+  DOM positions" way the old arrow's own angle was (`useLeanDirection`, a direct simplification of
+  the old `PointerArrow`'s own measurement effect — same rAF-deferred-first-measurement fix for
+  the exact StrictMode ref-population race already documented there, same resize listener — just
+  resolving a binary left/right comparison instead of a continuous `atan2` angle, since a lean
+  pose doesn't need arrow-level precision).
+- **Three new SVG groups, each a deliberately SEPARATE element from the ones that already carry
+  their own `transform`** — the exact "don't put two transforms on the same element" landmine this
+  codebase has already documented and hit multiple times (WelcomeScreen's markers, Roadmap.jsx's
+  node transforms, the hub tile pop-in, MascotIcon's own leaf sway) is exactly why Task 3's own
+  "layers correctly on top of" requirement needed real structural care, not just a CSS class
+  toggle:
+  - `.mascot-pose` (new OUTERMOST wrapper around everything) leans the whole character via a plain
+    CSS `transition` (not a keyframe animation) on `transform` — toggling
+    `.mascot-pointing`/`.mascot-lean-left`/`.mascot-lean-right` on and off IS the "start-pointing"
+    and "end-pointing" transition Task 2 asks for, entirely for free.
+  - `.mascot-arm`/`.mascot-wand` are a NEW SIBLING of `.mascot-bob` (the group that already owns
+    the idle/speaking bob animation's own `transform`), not a child of it — this sibling
+    relationship is what lets the body's bob/speak animation and the arm's raise animation run
+    genuinely simultaneously (confirmed directly: sampling computed styles mid-speech-mid-point
+    shows `.mascot-bob` actively running `mascot-speak-bob` at the same instant `.mascot-arm`
+    shows its real raised rotation matrix and `.mascot-pose` shows its real lean rotation matrix —
+    three independent transforms, three independent elements, zero conflicts).
+  - `.mascot-arm-mirror` is a THIRD separate wrapper (parent of `.mascot-arm`) — the arm+wand is
+    drawn once, on the character's right side, and mirrored via `scaleX(-1)` on this wrapper only
+    when `leanDirection === 'left'`, so the mirror-flip and the arm's own raise-rotation don't
+    collide with each other either.
+  - The wand itself extends via `scaleY` from its own attachment point at the hand, nested INSIDE
+    `.mascot-arm` — nested parent-child transforms compose correctly in SVG/CSS (it's only
+    MULTIPLE transforms on the SAME single element that don't), so the wand correctly swings along
+    with the arm's own rotation while independently animating its own extend/retract.
+  - Task 2's own "held pose, not frozen — a slight wand-tip glow/wiggle" is a continuous
+    `animation` (not `transition`) on just `.mascot-wand-tip`, driven by `opacity`/`r` rather than
+    `transform` specifically so it can run alongside the wand's own transition-driven extend with
+    zero property conflicts on that same element — active only while actually raised.
+- **`prefers-reduced-motion: reduce` disables every new transition/animation the same way this
+  codebase already handles it everywhere else** — the pose still resolves to its correct final
+  state instantly (a locked/pointing tile still visually reads as "pointing," just without the
+  animated reveal), confirmed directly: `transition-duration` computes to `0s` on all three new
+  groups and the wand-tip glow's `animation-name` computes to `none` under a reduced-motion
+  context.
+- Verified with a dedicated Playwright suite (16 checks): the old arrow element (and its CSS rule)
+  is gone entirely; the mascot genuinely leans left for a top-left target and right for a top-right
+  one (real, non-identity transform matrices on the body, arm, AND wand, not just a class name);
+  the arm mirrors only for a left-side target, never a right-side one; the wand-tip glow animation
+  is genuinely active while held; the pointing pose correctly ends (arm lowers, lean returns to
+  centered) once the dialogue's display duration finishes; and — the actual regression this batch
+  set out to fix — with voice unmuted, the speaking animation activates on the hub, runs
+  SIMULTANEOUSLY with the pointing pose (not replacing it), and correctly resolves back to idle
+  rather than staying stuck for 6.5+ seconds. The full pre-existing hub/mascot/voice suite
+  (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js` — updated in place to check the new
+  pose classes instead of the retired arrow, same real behavior otherwise fully re-verified
+  unmodified, `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`,
+  `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, and the
+  general `test.js`) all still pass with zero regressions.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a

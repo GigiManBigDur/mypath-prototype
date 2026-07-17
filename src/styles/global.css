@@ -1373,37 +1373,79 @@ button.card.passed:hover {
   .mascot-greeting p.mascot-dialogue { animation: none; }
 }
 
-/* Dashboard/Guide hub, Stage 4 — the mascot's own pointing gesture. A small arrow anchored at the
-   mascot's own right edge (not directly below it — confirmed by direct screenshot inspection
-   that a below-mascot anchor sits almost exactly where .mascot-greeting's own upward-pointing
-   tail triangle renders, and being a later DOM sibling, the tail painted over the arrow and hid
-   it completely), rotated (via inline style, computed in HubScreen.jsx's PointerArrow) to the
-   real angle toward whichever tile is currently the guided target. The nudge animation moves the
-   arrowhead back and forth along its OWN local rightward axis — which, after the outer element's
-   rotation, reads as "gesturing toward" the target regardless of which direction that ends up
-   being, without needing a different keyframe per direction. */
-.mascot-pointer {
-  position: absolute;
-  right: -4px;
-  top: 50%;
-  width: 0;
-  height: 0;
-  color: var(--hub-accent);
-  /* Task 3 (animation quality) — a real, previously-missing transition: the target-to-target
-     ROTATION itself (the inline `transform: rotate(...)` HubScreen.jsx's own PointerArrow sets)
-     used to snap instantly whenever the guided step advanced to a different tile. This doesn't
-     touch the angle math itself (still computed fresh from real measured positions every time,
-     see PointerArrow's own comment) — purely how the already-correct new angle gets revealed. */
-  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* Pointing-animation overhaul (see CLAUDE.md) — replaces the old separate arrow element
+   (`.mascot-pointer`, HubScreen.jsx's former `PointerArrow`) with a real, full-body wand-based
+   pointing gesture built directly into the mascot's own SVG (see MascotIcon.jsx's own header
+   comment for the full group-structure rationale — why the lean/arm/wand each get their own
+   separate element rather than fighting over one `transform`).
+
+   `.mascot-pose` leans the WHOLE character toward the target — a plain CSS `transition` (not a
+   keyframe animation) on `transform`, so toggling `.mascot-pointing`/`.mascot-lean-left`/
+   `.mascot-lean-right` on and off is what gives the "start-pointing" and "end-pointing"
+   transitions Task 2 asks for, entirely for free, with zero JS-driven animation state. Origin
+   near the character's own base (matching `.mascot-bob`'s own `transform-origin`), so it reads as
+   leaning/tipping from the feet, not spinning around its own center. */
+.mascot-pose {
+  transform-origin: 80px 142px;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.mascot-pointer-inner { animation: mascot-pointer-nudge 1.4s ease-in-out infinite; }
-@keyframes mascot-pointer-nudge {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(6px); }
+.mascot-pose.mascot-pointing.mascot-lean-left { transform: rotate(-9deg); }
+.mascot-pose.mascot-pointing.mascot-lean-right { transform: rotate(9deg); }
+
+/* The arm+wand group is a SIBLING of `.mascot-bob` (see MascotIcon.jsx), not nested inside it —
+   this is what lets the body's own idle/speaking bob animation and the arm's own raise animation
+   run at the same time without either one silently discarding the other's `transform` (a CSS
+   transform on an element REPLACES that element's own previous transform value rather than
+   composing with it — this codebase has hit this exact landmine and documented it several times
+   already, e.g. WelcomeScreen's markers, Roadmap.jsx's node transforms, the hub tile pop-in). */
+.mascot-arm-mirror {
+  transform-origin: 80px 80px;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mascot-pose.mascot-lean-left .mascot-arm-mirror { transform: scaleX(-1); }
+
+.mascot-arm {
+  transform-origin: 119px 68px;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mascot-arm-limb { fill: #F8F6EF; stroke: #E3DFD2; stroke-width: 2; }
+/* -115deg: the limb is drawn pointing straight down (its natural resting pose, no transform
+   needed at idle) — this rotates it up and outward to roughly 25 degrees above horizontal, a
+   natural "raised, pointing outward" gesture. Mirrored automatically for a left-side lean by
+   `.mascot-arm-mirror`'s own scaleX(-1) above (a separate element, so the two transforms don't
+   conflict with each other either). */
+.mascot-arm.mascot-arm-raised { transform: rotate(-115deg); }
+
+/* The wand itself extends via `scaleY` from its own attachment point at the hand (transform-
+   origin at the TOP of the stick, so it grows outward/downward in its own local space and gets
+   carried along by the arm's rotation above it — nested SVG/CSS transforms compose correctly
+   parent-to-child; it's only multiple transforms on the SAME element that don't). */
+.mascot-wand {
+  transform-origin: 119px 100px;
+  transform: scaleY(0);
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mascot-wand-stick { fill: var(--hub-accent); }
+.mascot-arm.mascot-arm-raised .mascot-wand { transform: scaleY(1); }
+/* Task 2's own "held pose, not frozen — a slight wand-tip glow/wiggle" requirement: a continuous
+   pulse on the wand's tip, active only while actually raised (a plain `animation`, not a
+   `transition`, and driven by `opacity`/`r` rather than `transform` — so it can run alongside the
+   wand's own transition-driven extend/retract above with zero property conflicts on the same
+   element). */
+.mascot-wand-tip {
+  fill: var(--hub-accent);
+  opacity: 0.85;
+}
+.mascot-arm.mascot-arm-raised .mascot-wand-tip {
+  animation: mascot-wand-glow 1.3s ease-in-out infinite;
+}
+@keyframes mascot-wand-glow {
+  0%, 100% { opacity: 0.7; r: 6; }
+  50% { opacity: 1; r: 7.5; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mascot-pointer { transition: none; }
-  .mascot-pointer-inner { animation: none; }
+  .mascot-pose, .mascot-arm-mirror, .mascot-arm, .mascot-wand { transition: none; }
+  .mascot-arm.mascot-arm-raised .mascot-wand-tip { animation: none; }
 }
 
 /* Dashboard/Guide feature, Stage 5 — the in-flow mascot widget, appearing in a fixed screen
