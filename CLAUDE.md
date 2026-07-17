@@ -2653,6 +2653,109 @@ value everywhere, plus a testing-only date-override tool and same-day collision 
   pass with zero regressions; `npm run verify:spacing` stayed at 18/18 both before and after every
   edit in this pass.
 
+**Digest/Checklist feature: a "This Week" flat-list alternative to the Roadmap's own spatial
+spine, toggled on Map 2, reading the exact same underlying task data.**
+- **Task 1 — the view toggle (`.roadmap-view-toggle`, a small pill pair in the panel's own info
+  area) is local, unpersisted `mapMode` state (`'roadmap' | 'digest'`)** — named `mapMode`, not
+  `view`, since `view` already names the pan/zoom state object. Toggling it swaps what renders
+  inside `.roadmap-viewport-wrap` (the SVG canvas vs. a new `DigestList`) and hides everything
+  that's meaningless outside the spatial view: the zoom controls, the first-visit pan/zoom
+  callouts, and the ring-style legend (all gated on `mapMode === 'roadmap'` now). The panel's own
+  title/subtitle/progress ring/Back/Start Over/Add Task all stay visible in both modes — none of
+  that is roadmap-specific.
+- **A real, confirmed architectural gap surfaced building this — not a bug in the new code, a
+  pre-existing structural fact about the year-scoped `roadmap` prop Map 2 already renders from.**
+  For the year-stage that actually contains real "today" (`yearWindow.isCurrentYear`),
+  `yearWindow.start` IS today (`yearOffset: 0` is defined as "starts now" —
+  `roadmapGenerator.js`), so `filterItemsToYear`'s own `date >= start` check structurally excludes
+  ANYTHING dated even one day earlier — including a genuinely overdue custom task. Confirmed
+  directly: seeding an overdue custom task and checking the ALREADY-SHIPPED Roadmap SVG view
+  showed it was invisible there too, well before this feature ever existed — this was never a
+  regression, just a previously-unexercised corner of the existing "today"-anchored filtering.
+  Since Task 2 requires a real "Overdue" group, the digest can't be built on top of the year-scoped
+  `roadmap` prop at all. **Fixed by having `AcademicPlanScreen.jsx` compute a second, SEPARATE
+  `fullRoadmap = generateRoadmap(state)` call with no `yearWindow`** — the exact same "whole
+  multi-year plan, unfiltered by year" call `HubScreen.jsx`'s own `countPlanTasks` (its "Tasks
+  completed" stat) already makes — passed down to `Roadmap.jsx` as a new `fullRoadmap` prop. This
+  is same state, same generator function, no hand-maintained second data source to drift out of
+  sync with — it satisfies Task 1's own "no separate data source" requirement in spirit (one
+  source of truth: `state` + `generateRoadmap()`) even though it's technically a second function
+  call, which turned out to be the only way "Overdue" could ever be populated at all.
+  `fullRoadmap.today.date` is always the genuine current effective date regardless of which year
+  Map 2 happens to be showing (`isCurrentYearView` is always true when no `yearWindow` is passed),
+  so the digest's own "today" reference is correct no matter which year a student is currently
+  looking at on the spatial view.
+- **Task 2 — the digest groups (`digestGroups`, a `useMemo` in `Roadmap.jsx`) flatten
+  `fullRoadmap.spine` plus every `hasBranch` item's own `branchSteps`** (the identical flattening
+  `countPlanTasks` already uses), filter to items that are still INCOMPLETE (a completed task
+  isn't meaningfully "due" anymore — this is what makes Task 3's own "nothing due" empty-state
+  framing make sense, and what makes checking an item off feel like real progress rather than a
+  no-op), then bucket each by real day-gap from `fullRoadmap.today.date`
+  (`realDaysBetween(item.date, todayDate)`, the same function every other today-aware comparison
+  in this app already uses): `< 0` → Overdue (no lower bound — an item that's been outstanding for
+  weeks stays in Overdue, it never ages out into some other bucket or silently vanishes), `=== 0`
+  → Today, `1-6` → This Week (a rolling 7-day window INCLUDING today, matching a "daily check-in"
+  tool's own natural framing better than a literal Sun-Sat calendar week). Each group sorts
+  ascending by real date. Relative labels (`DigestList.jsx`'s own `relativeLabel()`): `Today`,
+  `Tomorrow`, `In N days`, or `N day(s) overdue` — real date (`formatDateWithYear`) always shown
+  alongside as secondary text, never instead of it. **`isCheckpoint` items
+  (`course-checkpoint`/`ucdavis-checkpoint`) are flagged, not made directly toggleable** — their
+  real completion only ever happens through the existing two-part Part 1/Part 2 flow (the modal's
+  own `selectedIsCourseCheckpoint`/`selectedIsUCDavisCheckpoint` special case, unchanged); a
+  "quick-check" here calls `setSelected(item)` (same as clicking the title) instead of writing
+  `completedNodes` directly, which would desync it from the real checkpoint state the same way a
+  raw `toggleDone()` call on a checkpoint node would in the Roadmap view itself. Every other item
+  type's checkbox calls the exact same `toggleDone(id)` `Roadmap.jsx` already uses for its own
+  "Mark complete" button — including a started Project's own current step, which correctly still
+  triggers the reveal-next-step prompt (`openNextStepPrompt`) exactly as it already does when
+  completed from the spatial view, since it's literally the same function call.
+- **`DigestList.jsx` is a purely presentational component** — all grouping/filtering logic lives
+  in `Roadmap.jsx` (which already owns `configFor`/`isDone`/`toggleDone`); it just renders
+  `{ overdue, today, week }` and forwards clicks via `onToggle`/`onOpen` (`handleDigestToggle`/
+  `handleDigestOpen` in `Roadmap.jsx`). Each item shows a small colored type tag
+  (`entry.cfg.label`/`.color`, the exact same `configFor()` resolution the Roadmap's own node
+  labels already use — an opportunity chain's own step reads the same track color there as it
+  does here). The Overdue group gets real, distinct visual weight (an orange left/full border and
+  tinted background on every card in that group, not just a colored word buried in the meta line)
+  since "surfacing missed items is one of the most valuable things this view can do" was the
+  task's own explicit framing — burying that behind subtle styling would undercut the point.
+- **Task 3 — the empty state (`.digest-empty`, only rendered when all three groups are empty)**
+  shows the exact specified copy ("Nothing due this week — good time to get ahead on something,
+  or take a breather.") with a `PartyPopper` icon rather than a bare/blank page. A fresh,
+  core-only senior-year plan with no custom tasks/opportunities is ALREADY naturally empty this
+  way (confirmed directly) — the nearest core milestone for that case sits well outside the 7-day
+  window on its own, with no override needed; the empty state isn't a hypothetical corner case,
+  it's the default for a lightly-populated plan.
+- **Task 4 — every date computation reads through `fullRoadmap.today.date`**, which is itself
+  resolved through `getEffectiveToday(state.dateOverride)` upstream in `roadmapGenerator.js` (see
+  the Real-Time Tracking section) — the digest needed zero direct integration work with the
+  override system, since `fullRoadmap` is just another `generateRoadmap(state)` call and that
+  function already reads the override internally. **A real, confirmed CSS collision was found and
+  fixed testing this at a narrow viewport**: `DigestList`'s own top item card sat directly under
+  `DateOverrideControl`'s fixed top-right toggle at ≤640px, where the centered `.digest-list`
+  (max-width 640px) effectively spans the full viewport width — confirmed via screenshot (the
+  "Ask counselor..." card's own title text was genuinely obscured, not just close). Fixed by
+  raising `.roadmap-digest-wrap`'s own narrow-viewport top padding to `110px`, clearing the
+  toggle's real rendered position with genuine margin, not a razor-thin fit.
+- Verified with a dedicated 26-check Playwright suite: the toggle cleanly swaps canvas ↔ digest
+  (and hides zoom controls/legend/callouts in digest mode) with no state loss either direction;
+  Overdue/Today/This Week render in that order with correct relative labels, real distinct overdue
+  styling, and a task 40 days out never appears anywhere; clicking a title opens the real detail
+  modal; checking a same-day item off correctly flows through the Real-Time Tracking feature's own
+  `todayCollision` merge (verified via the "You are here" marker's own celebratory label updating,
+  not a separate node, since that item is intentionally folded into the marker — see that
+  feature's own section) while a non-same-day item shows as done on its own real Roadmap node
+  either way, confirming one shared data source in both directions; and the override tool
+  genuinely produces and then reverses the empty state (moving "today" away from a real task's
+  fixed date, rather than past it — Overdue has no upper bound by design, so moving forward would
+  have left the task visible as increasingly overdue instead of demonstrating emptiness). The full
+  pre-existing regression suite (`test.js`, `test-hub.js`, `test-map2-redesign.js`,
+  `test-academicplan-repaint.js`, `test-stage4.js`, `test-ucdavis-stage4.js`,
+  `test-ucdavis-density.js`, `test-roslyn-consolidation.js`, `test-anchor-removal.js`,
+  `test-countplantasks-fix.js`, `test-realtime-tracking.js`, `test-override-consistency.js`,
+  `test-projectbuilder-skip.js`, `test-return-to-hub.js`) all still pass with zero regressions;
+  `npm run verify:spacing` stayed at 18/18 throughout.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

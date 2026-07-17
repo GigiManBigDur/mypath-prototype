@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
-  GraduationCap, Lock, Bell, Sparkles,
+  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
 import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
-import { formatDateWithYear, toDateInputValue } from '../utils/dates';
+import { formatDateWithYear, toDateInputValue, realDaysBetween } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
+import DigestList from './DigestList';
 import { makeTaskId } from '../utils/ids';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useModalExit } from '../hooks/useModalExit';
@@ -152,7 +153,7 @@ const ZOOM_CONTROLS_BOTTOM_EXPANDED = 240;
 const BOTTOM_PANEL_CLEARANCE_EXPANDED = 230;
 const BOTTOM_PANEL_CLEARANCE_COLLAPSED = 70;
 
-export default function Roadmap({ roadmap, onBack, onReset }) {
+export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   const { state, patch } = useApp();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const entranceEnabled = !reducedMotion && !hasPlayedRoadmapEntrance;
@@ -169,6 +170,11 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   const [smoothZoom, setSmoothZoom] = useState(false);
   const smoothZoomTimer = useRef(null);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  // Digest/Checklist feature (see CLAUDE.md), Task 1 — a view toggle between the existing spatial
+  // "Roadmap" and a new flat "This Week" list, both reading the exact same `roadmap` prop with no
+  // separate data source. Named `mapMode`, not `view`, since `view` already names the pan/zoom
+  // state above.
+  const [mapMode, setMapMode] = useState('roadmap');
   const viewportRef = useRef(null);
   const dragState = useRef(null);
   const pinchState = useRef(null);
@@ -278,6 +284,59 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   const requiredNodes = roadmap.spine.filter((n) => n.required);
   const trunkDoneCount = requiredNodes.filter((n) => isDone(n.id)).length;
   const trunkTotal = requiredNodes.length;
+
+  // Digest/Checklist feature (see CLAUDE.md), Task 1 — the exact same underlying task data as the
+  // Roadmap view (`fullRoadmap.spine` plus every `hasBranch` item's own `branchSteps` — the
+  // identical flattening `HubScreen.jsx`'s own `countPlanTasks` already uses for its "Tasks
+  // completed" stat), just grouped differently. Reads `fullRoadmap` (the UNFILTERED, whole-plan
+  // `generateRoadmap(state)` call — see AcademicPlanScreen.jsx's own comment), not the year-scoped
+  // `roadmap` prop the SVG canvas renders from: for the year containing real "today",
+  // `yearWindow.start` IS today, so `roadmap.spine` structurally excludes anything dated even one
+  // day earlier — which would silently make "Overdue" impossible to populate. Items are filtered
+  // to those still INCOMPLETE (a completed task isn't meaningfully "due" anymore — Task 3's own
+  // "nothing due" empty-state framing only makes sense under this reading) and bucketed by real
+  // day-gap from the SAME real/overridable "today" (`fullRoadmap.today.date`, always the genuine
+  // current effective date regardless of which year Map 2 happens to be showing — see
+  // `isCurrentYearView` in roadmapGenerator.js) every other today-aware feature in this app
+  // already uses. `isCheckpoint` items (course-checkpoint/ucdavis-checkpoint) are flagged rather
+  // than toggled directly — their real completion only ever happens through the two-part Part 1/
+  // Part 2 flow (see the modal's own `selectedIsCourseCheckpoint`/`selectedIsUCDavisCheckpoint`
+  // special case below), so a "quick-check" here opens that same flow instead of writing
+  // `completedNodes` straight from the list, which would desync it from the real checkpoint state.
+  const digestGroups = useMemo(() => {
+    const todayDate = fullRoadmap.today.date;
+    const flat = [];
+    fullRoadmap.spine.forEach((item) => {
+      flat.push(item);
+      if (item.hasBranch) flat.push(...item.branchSteps);
+    });
+
+    const overdue = [];
+    const todayItems = [];
+    const week = [];
+    flat.forEach((item) => {
+      if (isDone(item.id)) return;
+      const daysUntil = realDaysBetween(item.date, todayDate);
+      const isCheckpoint = item.coreType === 'course-checkpoint' || item.coreType === 'ucdavis-checkpoint';
+      const entry = { item, daysUntil, cfg: configFor(item), isCheckpoint };
+      if (daysUntil < 0) overdue.push(entry);
+      else if (daysUntil === 0) todayItems.push(entry);
+      else if (daysUntil <= 6) week.push(entry);
+    });
+
+    const byDate = (a, b) => a.item.date.getTime() - b.item.date.getTime();
+    overdue.sort(byDate);
+    todayItems.sort(byDate);
+    week.sort(byDate);
+
+    return { overdue, today: todayItems, week };
+  }, [fullRoadmap, state.completedNodes]);
+
+  const handleDigestToggle = (entry) => {
+    if (entry.isCheckpoint) { setSelected(entry.item); return; }
+    toggleDone(entry.item.id);
+  };
+  const handleDigestOpen = (entry) => setSelected(entry.item);
 
   const fitView = useCallback(() => {
     const el = viewportRef.current;
@@ -480,6 +539,11 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
   return (
     <div className="roadmap-fullscreen-root">
       <div className="roadmap-viewport-wrap">
+        {mapMode === 'digest' ? (
+          <div className="roadmap-digest-wrap">
+            <DigestList groups={digestGroups} onToggle={handleDigestToggle} onOpen={handleDigestOpen} />
+          </div>
+        ) : (
         <div
           className={`roadmap-viewport${dragging ? ' dragging' : ''}`}
           ref={viewportRef}
@@ -729,7 +793,9 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             </svg>
           </div>
         </div>
+        )}
 
+        {mapMode === 'roadmap' && (
         <div
           className="zoom-controls"
           style={{ bottom: panelCollapsed ? ZOOM_CONTROLS_BOTTOM_COLLAPSED : ZOOM_CONTROLS_BOTTOM_EXPANDED }}
@@ -738,8 +804,9 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
           <button type="button" className="zoom-btn" onClick={() => zoomButton(1 / 1.25)} aria-label="Zoom out"><ZoomOut size={16} /></button>
           <button type="button" className="zoom-btn" onClick={handleResetView} aria-label="Recenter / reset view"><Crosshair size={16} /></button>
         </div>
+        )}
 
-        {tooltipsRendered && (
+        {mapMode === 'roadmap' && tooltipsRendered && (
           <>
             <div className={`roadmap-callout roadmap-callout-tl${tooltipsClosing ? ' callout-exit' : ''}`}>
               <button type="button" className="roadmap-callout-close" onClick={dismissTooltips} aria-label="Dismiss">
@@ -801,6 +868,29 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
                 <span className="roadmap-panel-icon-badge"><Compass size={12} /></span>
                 <span className="eyebrow" style={{ margin: 0 }}>Step 9 of 9</span>
               </div>
+              {/* Digest/Checklist feature, Task 1 (see CLAUDE.md) — both tabs read the exact same
+                  `roadmap` prop; this only ever changes which of the two already-built views
+                  (below) gets rendered inside `.roadmap-viewport-wrap`. */}
+              <div className="roadmap-view-toggle" role="tablist" aria-label="Academic Plan view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mapMode === 'roadmap'}
+                  className={`roadmap-view-toggle-btn${mapMode === 'roadmap' ? ' active' : ''}`}
+                  onClick={() => setMapMode('roadmap')}
+                >
+                  <MapIcon size={13} /> Roadmap
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mapMode === 'digest'}
+                  className={`roadmap-view-toggle-btn${mapMode === 'digest' ? ' active' : ''}`}
+                  onClick={() => setMapMode('digest')}
+                >
+                  <ListChecks size={13} /> This Week
+                </button>
+              </div>
               <h1 className="rm-title">{roadmap.title}</h1>
               <p className="rm-sub">{roadmap.subtitle}</p>
             </div>
@@ -831,6 +921,10 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
 
           <div className="roadmap-panel-divider" />
 
+          {/* The legend explains RING styles (solid/hollow/dotted) — meaningless in the flat
+              "This Week" list, which has no rings at all, so it's hidden there rather than shown
+              and confusing. */}
+          {mapMode === 'roadmap' && (
           <div className="legend">
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-accent)' }} /> Required — solid ring</span>
             {/* "colored by interest area" clarifies Task 2's real, meaningful per-chain coloring
@@ -842,6 +936,7 @@ export default function Roadmap({ roadmap, onBack, onReset }) {
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-ink-soft)', border: '2px dotted var(--bloom-ink-soft)' }} /> Custom — dotted ring</span>
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-yellow)' }} /> You are here</span>
           </div>
+          )}
         </div>
       </div>
 

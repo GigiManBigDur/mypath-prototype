@@ -39,6 +39,18 @@ export default function AcademicPlanScreen() {
     };
   }, [years, state.planYearIndex]);
   const roadmap = useMemo(() => generateRoadmap(state, yearWindow), [state, yearWindow, tick]);
+  // Digest/Checklist feature (see CLAUDE.md), Task 1 — the year-scoped `roadmap` above can't
+  // supply the digest's own "Overdue" group: for the year actually containing real "today",
+  // `yearWindow.start` IS "today" (yearOffset 0 is defined as "starts now" — see
+  // roadmapGenerator.js), so `filterItemsToYear` structurally excludes anything dated even one
+  // day earlier, including a genuinely overdue custom task. `fullRoadmap` is the exact same
+  // `generateRoadmap(state)` call with NO yearWindow (the identical "whole multi-year plan, real
+  // today as the epoch" call HubScreen.jsx's own `countPlanTasks` already uses for its "Tasks
+  // completed" stat) — same state, same generator function, so there's no second, hand-maintained
+  // data source to drift out of sync with; it's just unfiltered by year, which is what "no matter
+  // which year Map 2 happens to be showing, the digest still finds real overdue/upcoming items"
+  // requires.
+  const fullRoadmap = useMemo(() => generateRoadmap(state), [state, tick]);
 
   // DateOverrideControl is a sibling of whichever sub-view is active, not owned by either — see
   // its own header comment for why (Map 2's very different full-bleed layout in particular).
@@ -54,6 +66,7 @@ export default function AcademicPlanScreen() {
       ) : (
         <Roadmap
           roadmap={roadmap}
+          fullRoadmap={fullRoadmap}
           onBack={() => patch({ planYearIndex: null })}
           onReset={reset}
         />
