@@ -141,6 +141,13 @@ const DEFAULT_STATE = {
   // type's own curated guide steps have been consumed so the next suggestion (and "guide
   // exhausted" detection) can be derived without re-deriving it from `steps.length`, which also
   // grows from user-authored steps added after the guide runs out.
+  // Bug fix (see CLAUDE.md) — HubScreen.jsx's own GUIDED_SEQUENCE used to have no way to tell
+  // "explicitly skipped Project Builder" apart from "hasn't gotten there yet," since this was the
+  // one step in that sequence with no dedicated completion flag of its own (every other step's
+  // isDone reads a real selection/action already recorded elsewhere). Set once, permanently, the
+  // moment ProjectBuilderScreen's "Skip for now" button is clicked — mirrors the same shape
+  // `transcriptCompleted` already established for a different "done OR explicitly skipped" step.
+  projectBuilderSkipped: false,
   roadmapTooltipsSeen: false, // the Academic Plan's paired first-visit callouts (full-bleed
   // canvas + pan/zoom controls) — dismissing either one sets this true and hides both, since
   // they're shown/dismissed as one onboarding moment. Persisted (not just session-scoped) so a

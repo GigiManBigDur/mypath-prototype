@@ -62,7 +62,14 @@ export default function ProjectBuilderScreen() {
 
   // Return-to-Hub routing restructure (see CLAUDE.md) — both exits (Skip and Back-from-the-
   // top-level category grid) return to the hub now, not the old chain's next/previous screen.
-  const skip = () => patch({ screen: 'hub' });
+  // Bug fix (see CLAUDE.md) — Skip now also sets `projectBuilderSkipped`, the same real
+  // "explicitly skipped" signal HubScreen.jsx's GUIDED_SEQUENCE reads for this step's own `isDone`
+  // — without this, the hub kept treating an explicitly-skipped Project Builder as still pending
+  // forever, repeatedly pointing back at it instead of recognizing the primary sequence as
+  // finished. `goBack`'s own top-level exit (below) is a genuine "leave without deciding" action,
+  // not an explicit skip, so it deliberately does NOT set this flag — only this dedicated button
+  // counts as "the student was asked and chose to skip."
+  const skip = () => patch({ screen: 'hub', projectBuilderSkipped: true });
 
   const openCategory = (id) => { setCategoryId(id); setProjectTypeId(null); setView('category'); };
   const openProjectType = (id) => { setProjectTypeId(id); setShowStartPicker(false); setStartDate(''); setView('projectType'); };

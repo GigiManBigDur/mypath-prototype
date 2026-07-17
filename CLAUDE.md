@@ -4091,6 +4091,43 @@ happens to share an id with the Academic Plan tile.
   `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`, and
   `test-mascot-wand-pointing.js`) all still pass with zero further regressions.
 
+**Bug fix: skipping Project Builder didn't register as "done" for the hub's own sequence
+tracking, so the end-of-sequence fix directly above never actually triggered for anyone who used
+the real, fully-supported "Skip for now" path — the mascot kept treating Project Builder as the
+pending next step forever, repeatedly pointing back at it and repeating "Ready to keep going?
+Pick up where you left off." even though the student had explicitly opted out.** Root cause:
+`GUIDED_SEQUENCE`'s own `projectBuilder` entry (`HubScreen.jsx`) was `isDone: (state) =>
+state.startedProjects.length > 0` — a real, deliberate design choice at the time (documented
+directly above it: "There's no separate 'explicitly skipped' flag anywhere in this app's state to
+check instead"), but a real gap once the end-of-sequence fix started depending on this step's own
+`isDone` to decide whether the WHOLE sequence was finished. `ProjectBuilderScreen.jsx`'s own "Skip
+for now" button (`skip = () => patch({ screen: 'hub' })`) never wrote anything beyond the screen
+navigation itself, so a skip and "hasn't gotten here yet" were byte-for-byte indistinguishable in
+state.
+- **The fix adds the dedicated flag that comment said didn't exist**: `state.projectBuilderSkipped`
+  (`AppContext.jsx`, `false` by default) — mirrors the exact same "done OR explicitly skipped"
+  shape `state.transcriptCompleted` already established for Transcript & GPA (a real, once-set
+  boolean read alongside the step's own "did a real thing happen" signal, never touching that
+  other signal's own semantics). `skip` now writes `patch({ screen: 'hub', projectBuilderSkipped:
+  true })`; `GUIDED_SEQUENCE`'s own `isDone` is now `state.startedProjects.length > 0 ||
+  state.projectBuilderSkipped`. **Deliberately NOT set by `goBack`'s own top-level exit** (Back
+  from the category grid, which also returns to the hub) — Back is "leave without deciding,"
+  not an explicit choice, so it stays a genuine "hasn't decided yet" state; only the dedicated
+  Skip button counts as "the student was asked and chose to skip," the same distinction this
+  app's Back/Skip pair already carries everywhere else it appears.
+- Verified with a dedicated 9-check Playwright suite: before skipping, the hub confirms Project
+  Builder is genuinely the pending step (real dialogue text, real tile glow); clicking "Skip for
+  now" sets `projectBuilderSkipped: true` without fabricating a `startedProjects` entry; the very
+  next hub visit shows the one-time completion acknowledgment (not the Project Builder intro
+  again, not the generic "keep going" line) with zero tile glow anywhere; and a later revisit
+  shows neither message and still no pointing — confirming this correctly feeds the exact
+  end-of-sequence mechanism the prior fix built, not a separate one. The full pre-existing hub/
+  mascot/voice suite (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`,
+  `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
+  `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`,
+  `test-mascot-wand-pointing.js`, and `test-sequence-complete.js`) all still pass with zero
+  regressions.
+
 **Palette repaint, Program Summary batch — the sixth and final screen in this rollout, closing
 out the "bloom" palette migration entirely.** `App.jsx`'s `isBloomScreen` now also covers
 `screenKey === 'programSummary'` — the same `.app-shell-bloom` scoping precedent every prior batch

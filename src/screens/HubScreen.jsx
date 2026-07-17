@@ -210,9 +210,15 @@ const GUIDED_SEQUENCE = [
     // "Skip for now" control) — "done" here means the student actually started a project, a real
     // trackable action, same "did they do something real" shape every earlier step's isDone
     // already uses (select a career/major/program, log a GPA, pick a course, save an
-    // opportunity). There's no separate "explicitly skipped" flag anywhere in this app's state to
-    // check instead.
-    isDone: (state) => state.startedProjects.length > 0,
+    // opportunity).
+    // Bug fix (see CLAUDE.md) — there used to be no separate "explicitly skipped" flag to check
+    // instead, so a student who deliberately skipped this step was indistinguishable from one who
+    // simply hadn't reached it yet: the hub kept treating the sequence as unfinished, repeatedly
+    // pointing back at Project Builder and never recognizing Academic Plan as the natural
+    // endpoint. `state.projectBuilderSkipped` (set by ProjectBuilderScreen's own "Skip for now"
+    // button) is that dedicated flag — mirrors `transcriptCompleted`'s own "done OR explicitly
+    // skipped" shape for the Transcript & GPA step.
+    isDone: (state) => state.startedProjects.length > 0 || state.projectBuilderSkipped,
     intro: 'Ready to start a hands-on project?',
   },
 ];
