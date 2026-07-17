@@ -356,10 +356,20 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   const greetingName = state.displayName || state.username;
   const guidedProgress = getGuidedProgress(state, hasPartnerSchool);
 
-  // Radial-layout pass, Task 3's "Your Progress" card — real numbers, not placeholders. Plan task
-  // counting needs a real survey (educationLevel/schoolYear) to generate a roadmap against at all;
-  // before that, there's honestly no plan yet, so this shows 0/0 rather than crashing on a null
-  // level.
+  // Bug fix: "Your Progress" (and its "View Roadmap" link) used to render unconditionally, right
+  // after sign-up, before any real Academic Plan exists — clicking "View Roadmap" that early
+  // navigated to `screen: 'plan'` regardless, which crashed outright (confirmed directly:
+  // AcademicPlanScreen -> getYearOverview -> `STAGE_PLAN[state.educationLevel]` throws when
+  // `educationLevel` is still `null`, since the survey hasn't been completed yet). The OLD
+  // "0/0 rather than crashing" comment here was only ever true for the STAT NUMBERS shown inside
+  // the card, not for the separate "View Roadmap" navigation button sitting right next to them —
+  // an empty card with a genuinely broken link was never a real fix. The real fix is to not show
+  // the card at all until there's a real plan behind it: reuses the exact same `unlock` function
+  // the "Academic Plan" tile itself already gates on (`state.selectedProgramKeys.length > 0`) —
+  // the same real-data threshold, not a second, possibly-drifting copy of that condition — so
+  // "Your Progress" and the "Academic Plan" tile can never disagree about whether a real plan
+  // exists yet.
+  const hasRoadmap = TILES.find((t) => t.id === 'plan').unlock(state, hasPartnerSchool);
   const roadmap = useMemo(
     () => (isSurveyComplete(state) ? generateRoadmap(state) : null),
     [state],
@@ -457,23 +467,25 @@ export default function HubScreen({ onOpenVoiceSettings }) {
           <p className="page-sub">All the tools you need for your academic journey, in one place.</p>
         </div>
 
-        <div className="hub-progress-card">
-          <div className="hub-progress-ring" style={{ background: `conic-gradient(var(--hub-accent) ${percentComplete}%, var(--hub-card-border) 0)` }}>
-            <div className="hub-progress-ring-hole">
-              <span className="hub-progress-ring-pct">{percentComplete}%</span>
-              <span className="hub-progress-ring-label">Complete</span>
+        {hasRoadmap && (
+          <div className="hub-progress-card">
+            <div className="hub-progress-ring" style={{ background: `conic-gradient(var(--hub-accent) ${percentComplete}%, var(--hub-card-border) 0)` }}>
+              <div className="hub-progress-ring-hole">
+                <span className="hub-progress-ring-pct">{percentComplete}%</span>
+                <span className="hub-progress-ring-label">Complete</span>
+              </div>
+            </div>
+            <div className="hub-progress-stats">
+              <p className="hub-progress-card-title"><TrendingUp size={13} /> Your Progress</p>
+              <div className="hub-progress-stat-row">Tasks completed <strong>{taskProgress.completed} / {taskProgress.total}</strong></div>
+              <div className="hub-progress-stat-row">Milestones reached <strong>{guidedProgress.doneCount} / {guidedProgress.total}</strong></div>
+              <div className="hub-progress-stat-row">Days active <strong>{daysActive}</strong></div>
+              <button type="button" className="hub-progress-view-link" onClick={() => patch({ screen: 'plan' })}>
+                View Roadmap <ArrowRight size={12} />
+              </button>
             </div>
           </div>
-          <div className="hub-progress-stats">
-            <p className="hub-progress-card-title"><TrendingUp size={13} /> Your Progress</p>
-            <div className="hub-progress-stat-row">Tasks completed <strong>{taskProgress.completed} / {taskProgress.total}</strong></div>
-            <div className="hub-progress-stat-row">Milestones reached <strong>{guidedProgress.doneCount} / {guidedProgress.total}</strong></div>
-            <div className="hub-progress-stat-row">Days active <strong>{daysActive}</strong></div>
-            <button type="button" className="hub-progress-view-link" onClick={() => patch({ screen: 'plan' })}>
-              View Roadmap <ArrowRight size={12} />
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="hub-radial-wrap">

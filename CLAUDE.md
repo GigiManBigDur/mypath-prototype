@@ -2566,6 +2566,48 @@ by lock state while the slots assumed a constant one.
   `PointerArrow`'s own live `getBoundingClientRect()` measurement naturally picks up each tile's
   new (taller, but now CONSISTENT) position with no code changes of its own needed.
 
+**Bug fix: "Your Progress" (the hub's conic-gradient stats card, with a "View Roadmap" link)
+rendered unconditionally, right after sign-up, before any real Academic Plan exists — clicking
+"View Roadmap" that early crashed the app outright, and was a likely contributor to the layout
+bug fixed just above.** Confirmed the crash directly before touching anything: the card's own
+`taskProgress` stat numbers already had a defensive `isSurveyComplete(state) ? generateRoadmap
+(state) : null` guard (falling back to an honest `0/0` rather than crashing), but the SEPARATE
+"View Roadmap" button right next to those numbers had no such guard at all — it unconditionally
+called `patch({ screen: 'plan' })`, which mounts `AcademicPlanScreen` → `getYearOverview(state)`
+→ `STAGE_PLAN[state.educationLevel][...]`, and `state.educationLevel` is still `null` at that
+point (the survey hasn't been completed yet) — `STAGE_PLAN[null]` is `undefined`, so indexing
+into it throws `Cannot read properties of undefined`, and the whole React tree unmounts with no
+error boundary catching it (confirmed via Playwright: `document.body.innerText` reads completely
+empty after the click, not just a console error). The OLD "0/0 rather than crashing" framing in
+the surrounding comment was only ever true for the STAT NUMBERS shown inside the card, never for
+the navigation button beside them — an empty card with a genuinely broken link behind it was
+never a real fix, just an untested one.
+- **The fix hides the whole card, not just the button, until there's a real plan behind it** —
+  matching the exact same real-data threshold the "Academic Plan" tile itself already unlocks on
+  (`state.selectedProgramKeys.length > 0`), reused directly (`TILES.find((t) => t.id ===
+  'plan').unlock(state, hasPartnerSchool)`) rather than a second, possibly-drifting copy of that
+  condition — so "Your Progress" and the "Academic Plan" tile can never disagree about whether a
+  real plan exists yet. This is a stricter gate than `isSurveyComplete` alone (a student can
+  finish the survey and still have zero programs selected — Careers → Majors → Programs are all
+  separate steps after it), so the card stays hidden through that whole in-between stretch too,
+  not just the very first moment after sign-up. Before this gate is met, the card is entirely
+  ABSENT from the DOM (a plain `{hasRoadmap && (...)}`), not rendered empty or with placeholder
+  zeros — `.hub-top-section`'s own `justify-content: space-between` flexbox needed no changes to
+  handle a single remaining child gracefully, confirmed directly via screenshot (the header row
+  simply occupies the row on its own, no leftover gap or stray empty box). The `roadmap`/
+  `taskProgress` `useMemo` calls themselves were left in place unconditionally (React hooks can't
+  be called conditionally) — only the JSX render of the card was gated; both memos are cheap and
+  harmless to compute even when their result goes unused.
+- Verified with a dedicated Playwright suite: the card is completely absent (not just visually
+  hidden) on a fresh sign-up, with zero page errors just from viewing the hub in that state; it
+  stays absent even after the survey alone is completed, confirming program selection (not survey
+  completion) is the real gate; once a program is selected, the card renders with real stat rows;
+  and clicking "View Roadmap" at that point produces zero errors, correctly navigates to
+  `screen: 'plan'`, and the Academic Plan screen actually renders real UI rather than a blank
+  crashed page. The full pre-existing hub suite (including the layout-overlap regression test
+  from the fix just above, which incidentally also re-confirms the hub layout reads cleanly
+  without this card present) still passes with zero regressions.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a
