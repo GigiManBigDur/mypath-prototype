@@ -3663,6 +3663,80 @@ button.card.passed:hover {
   .today-sparkle-accent { animation: none; opacity: 0.85; }
 }
 
+/* Date-cluster feature (see CLAUDE.md) — the small count badge overlaid at the top-right of a
+   cluster marker's own ring (Task 2's own "count badge" requirement). A plain filled circle +
+   centered number, not reusing any other badge pattern in this app (there isn't a real precedent
+   for a numeric count badge elsewhere) — sized and positioned to sit clear of the ring's own icon
+   rather than overlapping it. */
+.cluster-count-badge-bg { fill: var(--bloom-orange); stroke: var(--bloom-card); stroke-width: 2; }
+.cluster-count-badge-text {
+  fill: #fff;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+}
+/* A today cluster's badge sits on the gold "You are here" ring instead of the plain cluster
+   orange — the badge itself stays orange (it's still the "multiple things" signal), just needs
+   its own stroke to read clearly against the different background it's now layered on. */
+.cluster-count-badge-today { stroke: var(--bloom-yellow); }
+
+/* Date-cluster feature, Task 3 (see CLAUDE.md) — the cluster expand-list modal's own rows. Reuses
+   the shared `.overlay`/`.modal`/`.modal-close`/`.modal-eyebrow`/`.modal-title` classes wholesale
+   (only `.cluster-modal` tweaks the width slightly for a comfortable row list) rather than
+   inventing new modal chrome for what's structurally the same "detail panel" every other node
+   already opens. */
+.cluster-modal { max-width: 460px; }
+.cluster-item-list { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cluster-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+.cluster-item-row:hover { background: var(--bloom-bg); }
+.cluster-item-checkbox {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.cluster-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.cluster-item-title {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--bloom-ink);
+}
+.cluster-item-body:hover .cluster-item-title { color: var(--bloom-accent); }
+.cluster-item-type {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* ==========================================================================
    Comprehensive Map 1 visual redesign (see CLAUDE.md) — the same pass applied
    to Map 1 (YearOverview.jsx), per the task's own explicit "apply the same

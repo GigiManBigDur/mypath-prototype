@@ -2756,6 +2756,104 @@ spine, toggled on Map 2, reading the exact same underlying task data.**
   `test-projectbuilder-skip.js`, `test-return-to-hub.js`) all still pass with zero regressions;
   `npm run verify:spacing` stayed at 18/18 throughout.
 
+**Date-cluster feature: generalizes the today-collision merge to any 2+ top-level spine items
+sharing an exact date, rendered as one expandable cluster marker.**
+- **Task 1 — `roadmapGenerator.js` groups `spine` by exact calendar day
+  (`item.date.toDateString()`) right after `layoutRoadmap()` runs**, producing `dateClusters`
+  (`[{ id, date, items, isToday }]`) for every group with 2+ members — a pure "which items, if
+  any, share a date" pointer, the same display-only-data shape `todayCollision` already
+  established, computed alongside it (not replacing it — see Task 4). Scoped to top-level spine
+  items only, matching `todayCollision`'s own existing scope (a branch sub-step has no marker of
+  its own to cluster with). `todayCollision` itself is now only set when EXACTLY ONE item matches
+  today's date (`todayMatches.length === 1`) — 2+ matches becomes a `dateClusters` entry with
+  `isToday: true` instead, per Task 4.
+- **Task 2 — `Roadmap.jsx` skips rendering any clustered item individually**
+  (`clusterByMemberId.has(n.id)` in the main spine-skip, alongside the existing `todayCollision`
+  skip) and instead renders one marker per non-today cluster: a `Layers` icon (a distinct
+  "grouped items" identity, not borrowed from any single member's own type, since a cluster can
+  mix required/optional/custom/opportunity items), an orange accent (`CLUSTER_CONFIG`, reusing
+  the digest's own "Overdue" warning color — a real, if different, "pay attention" signal), and a
+  small count-badge circle (`.cluster-count-badge-bg`/`-text`) overlaid at the ring's corner. The
+  marker's own position is the CLUSTER's first member's already-computed `(x, y)` — deliberately
+  the FIRST member (not the last), since any later real spine item's own floor-based spacing
+  decision already compares against the true day-gap from the cluster's real date (not the
+  cluster's own artificially-stacked internal positions — the exact bug class `roadmapLayout.js`'s
+  own `MIN_SPINE_GAP` comment already documents fixing once), so anchoring at the first member can
+  only ever leave MORE breathing room to whatever comes next, never less — this never touches
+  `roadmapLayout.js`'s actual layout math, only which already-computed position gets used to
+  render the merged marker.
+- **A clustered item's own branch (if it has one — e.g. an opportunity anchor sharing a date with
+  something else) still renders normally**, since the branch-rendering loops filter
+  `roadmap.spine` independently and never go through the main spine-skip — but its first
+  connector segment needs to start from the CLUSTER's own shared marker position, not the item's
+  own original (no-longer-individually-rendered) one, or it would visually originate from an
+  empty point. `renderPos(item)` resolves this: a non-today cluster member resolves to its
+  cluster's first member's `(x, y)` (the same position the marker itself renders at); a TODAY
+  cluster member resolves to `roadmap.today`'s own fixed position instead (matching how the
+  existing single-item today-collision merge already anchors there rather than at the colliding
+  item's own possibly-floor-drifted position, since a today cluster fully REPLACES the "You are
+  here" marker at that exact spot, not wherever raw date math happened to land its first member).
+  Verified directly via screenshot: a Science Olympiad chain sharing its cluster's date shows its
+  own dashed branch connector originating cleanly from the "3 tasks" marker, not floating
+  disconnected nearby.
+- **Task 3 — the expand-list modal (`.cluster-modal`, reusing the shared `.overlay`/`.modal`/
+  `.modal-close`/`.modal-eyebrow`/`.modal-title` classes wholesale)** lists every cluster member as
+  its own row with a real mini-ring — literally the same three-way solid (required) / dashed
+  (optional) / dotted (custom) styling the main spine rendering already uses, at a smaller size,
+  per the task's own explicit "reusing the existing required/optional/custom ring styling"
+  instruction (not just a colored text tag, the way `DigestList`'s own rows use). Each row's own
+  checkbox calls the exact same `toggleDone(id)` every other complete control in this file already
+  uses — fully independent per row, completing one item never touches any other member's own
+  `completedNodes` entry — EXCEPT a checkpoint item (`course-checkpoint`/`ucdavis-checkpoint`),
+  whose checkbox opens that item's own real detail modal instead (mirroring `DigestList`'s own
+  identical `isCheckpoint` rule), since a checkpoint's real completion only ever happens through
+  its existing two-part Part 1/Part 2 flow, never a direct toggle. Clicking a row's TITLE closes
+  the cluster modal and opens that one item's own full detail modal (date-edit/remove/mark-
+  complete) — `openClusterItem(item)`, a modal-to-modal transition, never both open at once.
+- **Task 4 — the "today" marker block now checks `todayCluster` FIRST**, before the existing
+  single-item `todayCollision` logic (mutually exclusive by construction, per Task 1's own
+  `todayCollision`/`dateClusters` split above) — a today cluster fully replaces "You are here" the
+  same way the single-item merge already does, just layering the cluster's own `Layers` icon and
+  orange count badge (`.cluster-count-badge-today`, its own stroke color so the badge reads
+  clearly against the gold ring instead of the plain cluster orange background) onto "today"'s
+  EXISTING gold ring/pulse/glow rather than the Bell/Sparkles the single-item case uses — "flagged
+  as today... using the You Are Here accent color/style," per the task's own explicit instruction.
+  Label reads `"${count} tasks due today"`, or a celebratory `"You are here — nice, everything due
+  today is done!"` once every member is complete. Clicking opens the cluster's own expand-list
+  modal, not a single item's detail.
+- **A real, confirmed dependent consequence was found and fixed while regression-testing this**:
+  a checkpoint node (`course-checkpoint`/`ucdavis-checkpoint`) and the enrollment/course-request
+  task it produces once Part 2 finishes are dated IDENTICALLY by design (both land within the
+  checkpoint's own stage — see the Course Selection Stage 4 section above) — meaning every real
+  checkpoint completion now produces a genuine 2-item date cluster where there used to be two
+  individually-stacked nodes. Confirmed directly this is the new feature working exactly as
+  designed, not a bug: opening the resulting cluster shows both the (now-complete) checkpoint row
+  and the freshly-produced request/enrollment task row, each independently correct. Three
+  pre-existing test files (`test-stage4.js`, `test-roslyn-consolidation.js`,
+  `test-ucdavis-stage4.js`) asserted the OLD "find this task by a bare `.node-label` text match"
+  shape and were updated to open the resulting cluster and check its own row list instead — the
+  same "update a pre-existing test after an intentional, expected change" pattern this suite has
+  already needed many times before, not a regression in the app itself.
+- Verified with a dedicated 19-check Playwright suite: a genuinely mixed 3-item cluster (one
+  required core item + one opportunity's own promoted first step + one custom task, all sharing a
+  future date via `nodeDateOverrides`) renders as exactly one "3 tasks" marker with a correct count
+  badge, while an unrelated solo custom task on its own unique date still renders individually,
+  completely unaffected; the cluster's own branch (the opportunity's real prep-step chain)
+  connects cleanly from the merged marker; opening the cluster lists all 3 real tasks with correct
+  solid/dashed/dotted mini-rings; completing one row writes only its own `completedNodes` entry,
+  confirmed independent of the other two; clicking a row's title closes the cluster and opens that
+  item's own real detail modal; a today scenario with 2+ tasks renders the gold-ring "N tasks due
+  today" cluster (not the old single-item merge text); and a today scenario with exactly ONE task
+  still uses the original, byte-for-byte-unchanged single-item merge behavior. The full
+  pre-existing regression suite (`test.js`, `test-hub.js`, `test-map2-redesign.js`,
+  `test-academicplan-repaint.js`, `test-stage4.js`, `test-ucdavis-stage4.js`,
+  `test-ucdavis-density.js`, `test-roslyn-consolidation.js`, `test-anchor-removal.js`,
+  `test-countplantasks-fix.js`, `test-realtime-tracking.js`, `test-override-consistency.js`,
+  `test-projectbuilder-skip.js`, `test-digest-checklist.js`, `test-return-to-hub.js`) all still
+  pass (three with the intentional-change updates described above); `npm run verify:spacing`
+  stayed at 18/18 both before and after every edit in this pass — this feature never opens
+  `roadmapLayout.js` at all, only reads its already-computed output.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

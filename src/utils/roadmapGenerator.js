@@ -155,19 +155,44 @@ export function generateRoadmap(state, yearWindow = null) {
 
   const levelLabel = stageNames.length > 1 ? LEVEL_LABEL_MULTI_YEAR[level] : LEVEL_LABEL[level];
 
+  // Date-cluster feature (see CLAUDE.md) — generalizes the Real-Time Tracking feature's own
+  // "You are here + today's one task" merge to ANY 2+ top-level spine items sharing the exact
+  // same real date (required, custom, or opportunity-chain items alike), not just a today
+  // collision. Grouped by calendar day (`toDateString()`, not `getTime()` — two items dated the
+  // same day always share midnight already, since every date in this app is constructed at
+  // midnight, but this is the more obviously-correct key regardless). Purely a "which items, if
+  // any, share a date" pointer — a display-only field, not a positioning change; Roadmap.jsx
+  // decides how to fold each cluster's members into one marker instead of rendering them
+  // individually. Scoped to top-level spine items only (not branch sub-steps, which have no
+  // marker of their own to cluster with — matching `todayCollision`'s own existing scope).
+  const dateGroups = new Map();
+  spine.forEach((item) => {
+    const key = item.date.toDateString();
+    if (!dateGroups.has(key)) dateGroups.set(key, []);
+    dateGroups.get(key).push(item);
+  });
+  const dateClusters = [...dateGroups.values()]
+    .filter((items) => items.length >= 2)
+    .map((items) => ({
+      id: `cluster-${items[0].id}`,
+      date: items[0].date,
+      items,
+      // Only the year actually containing real "today" can have a "today cluster" — same
+      // `isCurrentYearView` gate `todayCollision` below already uses.
+      isToday: isCurrentYearView && realDaysBetween(items[0].date, laidToday.date) === 0,
+    }));
+
   // Real-Time Tracking feature, Task 3 (see CLAUDE.md) — when "You are here" lands on the exact
-  // same real date as another spine item (a custom task, an edited node date, a fixed UC Davis
-  // quarter date, or — in principle — a template task whose offset happens to be exactly 0), the
-  // two are meant to read as one combined moment on the map, not two separate close-but-distinct
-  // markers. This is purely a "which item, if any, coincides" pointer — a display-only field, not
-  // a positioning change — Roadmap.jsx decides how to fold `todayCollision`'s own rendering into
-  // the "today" marker. Scoped to top-level spine items only (not branch sub-steps, which have no
-  // "You are here" marker of their own to merge with) and only for the year that actually
-  // contains real "today" — a non-current year never shows a "You are here" marker at all (see
-  // `showToday` below), so there's nothing to merge there either.
-  const todayCollision = isCurrentYearView
-    ? spine.find((item) => realDaysBetween(item.date, laidToday.date) === 0) || null
-    : null;
+  // same real date as EXACTLY ONE other spine item, the two are meant to read as one combined
+  // moment on the map, not two separate close-but-distinct markers — Roadmap.jsx folds
+  // `todayCollision`'s own rendering into the "today" marker. Deliberately only set when today's
+  // date matches a single item (`todayMatches.length === 1`) — 2+ matches is now a date CLUSTER
+  // instead (see `dateClusters` above, `isToday: true` entry), which gets its own distinct
+  // cluster-flagged-as-today treatment rather than reusing this single-item merge shape.
+  const todayMatches = isCurrentYearView
+    ? spine.filter((item) => realDaysBetween(item.date, laidToday.date) === 0)
+    : [];
+  const todayCollision = todayMatches.length === 1 ? todayMatches[0] : null;
 
   return {
     title: titleFor(selectedCareers),
@@ -177,6 +202,7 @@ export function generateRoadmap(state, yearWindow = null) {
     // connector — Roadmap.jsx gates both on this.
     showToday: isCurrentYearView,
     todayCollision,
+    dateClusters,
     spine,
     canvasHeight,
     canvasWidth,

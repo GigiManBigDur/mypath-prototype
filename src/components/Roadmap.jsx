@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
-  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon,
+  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -68,6 +68,12 @@ const CUSTOM_CONFIG = { label: 'Custom task', color: 'var(--bloom-ink-soft)', Ic
 // (below) differentiate it visually — same collision-avoidance reasoning as the header comment
 // above for why it doesn't get its own pick from the 7-color vivid set.
 const PROJECT_CONFIG = { label: 'Project', color: 'var(--bloom-ink-soft)', Icon: Rocket };
+// Date-cluster feature (see CLAUDE.md) — a cluster can mix required/optional/custom/opportunity
+// items, so it doesn't adopt any single member's own color/icon; it gets its own distinct
+// identity (a stacked-layers icon, an orange accent shared with the digest's own "Overdue"
+// warning language — a real, if different, "pay attention, more than one thing here" signal)
+// instead of trying to represent every member's own type at the anchor level.
+const CLUSTER_CONFIG = { label: 'Multiple tasks', color: 'var(--bloom-orange)', Icon: Layers };
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
@@ -158,6 +164,11 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const entranceEnabled = !reducedMotion && !hasPlayedRoadmapEntrance;
   const [selected, setSelected] = useState(null);
+  // Date-cluster feature (see CLAUDE.md), Task 3 — the cluster whose expand-list modal is open,
+  // or null. A separate piece of state from `selected` (a single item's own modal) since the two
+  // render genuinely different modal shapes; clicking a row inside the cluster list closes this
+  // and opens `selected` for that one item instead, never both at once.
+  const [selectedCluster, setSelectedCluster] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   // { project, projectType, mode: 'guide' | 'choice' | 'customStep' } — the reveal-next-step
   // flow for a started project; null when no prompt is open.
@@ -191,6 +202,40 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   // decides how to RENDER that collision, not whether one exists.
   const todayCollision = roadmap.todayCollision || null;
   const todayCollisionDone = todayCollision ? isDone(todayCollision.id) : false;
+
+  // Date-cluster feature (see CLAUDE.md), Task 1/4 — `roadmap.dateClusters` is already the
+  // "which items, if any, share a date" data; this component only decides how to render each
+  // cluster instead of the items it replaces. `clusterByMemberId` gives O(1) "is this spine item
+  // part of a cluster, and which one" lookups for both the main spine-skip check and the branch
+  // anchor-position override below. `todayCluster` is the (at most one) cluster whose own date is
+  // today's — mutually exclusive with `todayCollision` by construction (roadmapGenerator.js only
+  // sets `todayCollision` when exactly one item matches today, never when 2+ do).
+  const clusterByMemberId = new Map();
+  (roadmap.dateClusters || []).forEach((cluster) => {
+    cluster.items.forEach((item) => clusterByMemberId.set(item.id, cluster));
+  });
+  const todayCluster = (roadmap.dateClusters || []).find((c) => c.isToday) || null;
+  // A clustered item's own branch (if it has one, e.g. an opportunity anchor sharing a date with
+  // something else) still renders normally via the branch-rendering loops below — those loops
+  // filter `roadmap.spine` independently and never go through the main spine-skip. But its own
+  // branch's FIRST connector segment needs to start from the CLUSTER's single shared marker
+  // position, not the item's own original (possibly floor-stacked, no-longer-rendered) position —
+  // otherwise a branch would visually originate from a point with nothing drawn there. A regular
+  // (non-today) cluster resolves every member to its own first member's position (the same
+  // position the cluster marker itself renders at, below); a TODAY cluster resolves to
+  // `roadmap.today`'s own fixed position instead — matching how the existing single-item
+  // today-collision merge already anchors at "today"'s own canonical spot rather than the
+  // colliding item's own (possibly floor-drifted) one, since a today cluster fully replaces the
+  // "You are here" marker at that exact position, not wherever its first member's raw date-math
+  // happened to land. This never touches roadmapLayout.js's actual layout math, only which
+  // already-computed (x,y) a clustered item's branch anchor reads for its own render.
+  const renderPos = (item) => {
+    const cluster = clusterByMemberId.get(item.id);
+    if (!cluster) return { x: item.x, y: item.y };
+    if (cluster.isToday) return { x: roadmap.today.x, y: roadmap.today.y };
+    return { x: cluster.items[0].x, y: cluster.items[0].y };
+  };
+
   // Completing a started project's current LAST step (its one active step — see
   // buildProjectChain in roadmapGenerator.js, `steps` grows strictly in insertion order,
   // untouched by the chronological re-sort used only for display) opens the reveal-next-step
@@ -497,6 +542,17 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   if (selected) lastSelectedRef.current = selected;
   const modalNode = selected || lastSelectedRef.current;
 
+  // Date-cluster feature (see CLAUDE.md), Task 3 — the cluster expand-list modal shares the exact
+  // same "stay mounted through an exit animation" mechanism every other modal in this file uses.
+  const { rendered: clusterRendered, closing: clusterClosing } = useModalExit(!!selectedCluster);
+  const lastClusterRef = useRef(null);
+  if (selectedCluster) lastClusterRef.current = selectedCluster;
+  const modalCluster = selectedCluster || lastClusterRef.current;
+  // Clicking a row inside the cluster list opens that ONE item's own real detail modal (full
+  // date-edit/remove/mark-complete) instead — closes the cluster list first so only one modal is
+  // ever showing at a time.
+  const openClusterItem = (item) => { setSelectedCluster(null); setSelected(item); };
+
   const { rendered: choiceRendered, closing: choiceClosing } = useModalExit(projectPrompt?.mode === 'choice');
   const lastChoiceRef = useRef(null);
   if (projectPrompt?.mode === 'choice') lastChoiceRef.current = projectPrompt;
@@ -614,12 +670,17 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // for a project, the generic fallback otherwise), so a whole chain (line + every
               // node in it) reads as one consistent interest-colored unit, not just its dots.
               const branchColor = configFor(n).color;
+              // Date-cluster feature (see CLAUDE.md) — if `n` itself is a clustered item, its own
+              // marker no longer renders at `n.x`/`n.y` (see the main spine-skip above); the
+              // branch's first segment has to start from the cluster's own shared marker position
+              // instead, or it would visually originate from an empty point on the canvas.
+              const anchorPos = renderPos(n);
               return (
                 <g key={`branch-${n.id}`}>
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={line(n.x, n.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                    d={line(anchorPos.x, anchorPos.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
                   {n.branchSteps.slice(0, -1).map((s, i) => {
                     const next = n.branchSteps[i + 1];
@@ -682,6 +743,11 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // still renders normally via the branch-rendering loops above, which filter
               // `roadmap.spine` independently and don't go through this map at all.
               if (todayCollision && n.id === todayCollision.id) return null;
+              // Date-cluster feature (see CLAUDE.md), Task 2 — any item belonging to a 2+-member
+              // date cluster renders as part of that cluster's own single marker (below) instead
+              // of individually here. Same "branch still renders via the separate branch loops"
+              // reasoning as the today-collision case above.
+              if (clusterByMemberId.has(n.id)) return null;
               const cfg = configFor(n);
               const done = isDone(n.id);
               const isLeft = n.labelSide < 0;
@@ -738,9 +804,77 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               );
             })}
 
+            {/* Date-cluster feature (see CLAUDE.md), Task 2 — every 2+-member cluster whose date
+                ISN'T today (the today case is folded into the "You are here" marker below
+                instead, per Task 4) gets its own single marker: a distinct stacked-layers icon,
+                a count badge, and a click target that opens the expand-list modal rather than a
+                single item's own detail. */}
+            {(roadmap.dateClusters || []).filter((c) => !c.isToday).map((cluster) => {
+              const anchor = cluster.items[0];
+              const allDone = cluster.items.every((item) => isDone(item.id));
+              const isLeft = anchor.labelSide < 0;
+              const delay = entranceDelay(roadmap.spine.indexOf(anchor), entranceEnabled);
+              return (
+                <g key={cluster.id} className="node-badge" onClick={() => setSelectedCluster(cluster)} transform={`translate(${anchor.x},${anchor.y})`}>
+                  <circle className="hit-target" r="24" fill="none" pointerEvents="all" />
+                  <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
+                    <circle className="node-halo" r="26" fill={CLUSTER_CONFIG.color} opacity="0.16" />
+                    <circle className="ring" r="18" fill={CLUSTER_CONFIG.color} fillOpacity={allDone ? 1 : 0} stroke={CLUSTER_CONFIG.color} strokeWidth="3" pointerEvents="all" />
+                    {allDone
+                      ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />
+                      : <Layers className="node-icon-pop" x="-8" y="-8" size={16} color={CLUSTER_CONFIG.color} />}
+                    <circle className="cluster-count-badge-bg" cx="14" cy="-14" r="9" />
+                    <text className="cluster-count-badge-text" x="14" y="-14" textAnchor="middle" dominantBaseline="central">{cluster.items.length}</text>
+                  </g>
+                  <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{cluster.items.length} tasks</text>
+                  <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
+                    <tspan className="node-due-tag" fill={CLUSTER_CONFIG.color}>{CLUSTER_CONFIG.label}</tspan>
+                    {' · '}{formatDateWithYear(cluster.date)}
+                  </text>
+                </g>
+              );
+            })}
+
             {roadmap.showToday && (() => {
               const labelX = roadmap.today.x < roadmap.canvasWidth / 2 ? -26 : 26;
               const labelAnchor = roadmap.today.x < roadmap.canvasWidth / 2 ? 'end' : 'start';
+
+              // Date-cluster feature, Task 4 (see CLAUDE.md) — a today CLUSTER (2+ items sharing
+              // today's date) fully replaces "You are here" the same way the single-item merge
+              // below already does, checked FIRST since the two are mutually exclusive by
+              // construction (roadmapGenerator.js only ever sets one or the other). Layers the
+              // cluster's own icon/count badge onto "today"'s existing gold ring/pulse/glow
+              // rather than the Bell/Sparkles the single-item case uses below — flagged as today
+              // via that same gold styling, per the task's own explicit "using the You Are Here
+              // accent color/style" instruction. Clicking opens the cluster's own expand-list
+              // modal (Task 3), not a single item's detail.
+              if (todayCluster) {
+                const allDone = todayCluster.items.every((item) => isDone(item.id));
+                return (
+                  <g
+                    className="node-badge"
+                    onClick={() => setSelectedCluster(todayCluster)}
+                    transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
+                  >
+                    <circle className="hit-target" r="24" fill="none" pointerEvents="all" />
+                    <g className="node-pop">
+                      <circle className="today-pulse" r="18" pointerEvents="none" />
+                      <circle r="18" fill="var(--bloom-yellow)" stroke="var(--bloom-yellow)" strokeWidth="3" className="today-glow" />
+                      <Layers x="-8" y="-8" size={16} color="#fff" />
+                      <circle className="cluster-count-badge-bg cluster-count-badge-today" cx="14" cy="-14" r="9" />
+                      <text className="cluster-count-badge-text" x="14" y="-14" textAnchor="middle" dominantBaseline="central">{todayCluster.items.length}</text>
+                    </g>
+                    <text className="node-label" x={labelX} y="2" textAnchor={labelAnchor} fontWeight="600">
+                      {allDone ? 'You are here — nice, everything due today is done!' : `${todayCluster.items.length} tasks due today`}
+                    </text>
+                    <text className="node-due" x={labelX} y="18" textAnchor={labelAnchor}>
+                      <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
+                      {' · '}{formatDateWithYear(roadmap.today.date)}
+                    </text>
+                  </g>
+                );
+              }
+
               // Real-Time Tracking feature, Task 3 (see CLAUDE.md):
               //   - No collision: the original "You are here" marker, byte-for-byte unchanged.
               //   - Incomplete collision: a combined "due today" marker — a Bell icon (one glyph
@@ -1060,6 +1194,62 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 {isDone(modalNode.id) ? 'Marked complete — undo' : 'Mark complete'}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Date-cluster feature (see CLAUDE.md), Task 3 — the expand-list modal for a cluster
+          marker. Each row's own mini-ring literally reuses the same three-way solid/dashed/dotted
+          styling the main spine rendering uses for required/optional/custom, at a smaller size —
+          "type indicator... reusing the existing required/optional/custom ring styling," per the
+          task's own explicit instruction, not just a colored text tag the way DigestList's own
+          rows use. The checkbox mirrors DigestList's own "isCheckpoint opens the modal instead of
+          toggling directly" rule (a checkpoint's real completion only ever happens through its
+          own Part 1/Part 2 flow — see selectedIsCourseCheckpoint/selectedIsUCDavisCheckpoint
+          above); every other item's checkbox calls the exact same `toggleDone(id)` every other
+          complete control in this file already uses, fully independent per row — completing one
+          item never touches any other member's own `completedNodes` entry. */}
+      {clusterRendered && modalCluster && (
+        <div className={`overlay${clusterClosing ? ' overlay-exit' : ''}`} onClick={() => setSelectedCluster(null)}>
+          <div className={`modal cluster-modal${clusterClosing ? ' modal-exit' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedCluster(null)}><X size={18} /></button>
+            <div className="modal-eyebrow" style={{ color: CLUSTER_CONFIG.color }}>{CLUSTER_CONFIG.label}</div>
+            <h2 className="modal-title">{modalCluster.items.length} tasks due {formatDateWithYear(modalCluster.date)}</h2>
+            <ul className="cluster-item-list">
+              {modalCluster.items.map((item) => {
+                const cfg = configFor(item);
+                const done = isDone(item.id);
+                const isCheckpoint = item.coreType === 'course-checkpoint' || item.coreType === 'ucdavis-checkpoint';
+                return (
+                  <li key={item.id} className="cluster-item-row">
+                    <button
+                      type="button"
+                      className="cluster-item-checkbox"
+                      onClick={() => (isCheckpoint ? openClusterItem(item) : toggleDone(item.id))}
+                      aria-label={isCheckpoint ? `Open ${item.title}` : `Mark "${item.title}" complete`}
+                      title={isCheckpoint ? 'Open to complete this checkpoint' : 'Mark complete'}
+                    >
+                      <svg width="24" height="24" viewBox="-12 -12 24 24" aria-hidden="true">
+                        {item.required ? (
+                          <circle r="10" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="2" />
+                        ) : item.category === 'custom' ? (
+                          <circle r="9" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="1.5" strokeDasharray={done ? undefined : '2 2'} />
+                        ) : (
+                          <circle r="9" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="1.5" strokeDasharray={done ? undefined : '3 3'} />
+                        )}
+                        {done && <CheckCircle2 x="-6" y="-6" size={12} color="#fff" />}
+                      </svg>
+                    </button>
+                    <button type="button" className="cluster-item-body" onClick={() => openClusterItem(item)}>
+                      <span className="cluster-item-title">{item.title}</span>
+                      <span className="cluster-item-type" style={{ color: cfg.color }}>
+                        {item.category === 'project' ? item.projectLabel : cfg.label}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       )}
