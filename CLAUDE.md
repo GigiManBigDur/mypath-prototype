@@ -2795,6 +2795,63 @@ visible only on the hub.
   `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, and the
   general `test.js`) all still pass with zero regressions.
 
+**Bug fix: the pointing gesture built above aimed toward a general LEFT/RIGHT side of the mascot,
+not the target tile's actual precise position** — a real, confirmed regression in the pointing
+overhaul itself (the `leanDirection: 'left' | 'right' | null` prop from that pass), caught and
+fixed the same day. Two different targets sitting on the same general side — one almost directly
+overhead, one far off at a shallow angle, or two at genuinely different distances/angles — got the
+IDENTICAL fixed lean/raise angle as long as they were both simply "left" or both simply "right" of
+the mascot; the gesture never actually tracked where a target really was, only which half of the
+mascot it happened to be on.
+- **The fix replaces the binary `leanDirection` with a continuous, precisely measured
+  `pointAngle`** (`HubScreen.jsx`'s `usePointAngle`, a direct restoration of the SAME real
+  `Math.atan2(dy, dx)` measurement the original `PointerArrow` used before the pointing overhaul
+  ever simplified it down to a side comparison — same ref-based `getBoundingClientRect()`
+  approach, same rAF-deferred-first-measurement StrictMode fix, same resize listener). `pointAngle`
+  is the real angle in degrees (0=target directly right, 90=directly below, -90=directly above,
+  ±180=directly left) from the mascot's own center to the target tile's own actual center.
+- **`MascotIcon.jsx` now computes the arm's rotation and the body's lean directly from this real
+  angle, in JS, rather than reading a fixed value off a CSS class**: `dx = cos(angle)`, `dy =
+  sin(angle)` give the target's real unit direction; `mirrored = dx < 0` (the target is on the
+  left half) decides which shoulder to draw the arm on, exactly as before; the LOCAL angle — always
+  expressed as if the target were on the right, via `Math.atan2(dy, Math.abs(dx))`, so it always
+  lands within ±90° of straight-right regardless of which real side the target is on — is what
+  actually varies continuously between any two targets, even ones on the same side; the arm's
+  neutral orientation (drawn pointing straight down, 90° in this convention) is rotated by `local
+  angle - 90°` to swing precisely to that local angle; the body's own lean is `dx * MAX_LEAN_DEG`
+  (10°), so a target further to the side leans the body more than one nearer to directly overhead
+  or underfoot, rather than one fixed lean angle applied to every "left" or every "right" target
+  alike. These computed degree values are applied via inline `style={{ transform: 'rotate(...)'
+  }}` (React), not a CSS class — the class-driven `.mascot-pose.mascot-pointing.mascot-lean-left {
+  transform: rotate(-9deg); }` / `.mascot-arm.mascot-arm-raised { transform: rotate(-115deg); }`
+  rules from the original pass were removed entirely, since there's no longer a small fixed set of
+  discrete poses to name with classes. The existing CSS `transition: transform ...` declarations on
+  `.mascot-pose`/`.mascot-arm-mirror`/`.mascot-arm` needed no changes at all — a CSS transition
+  animates between successive INLINE `transform` values exactly the same way it animates between
+  class-driven ones, so the "start-pointing"/"end-pointing" smooth transitions from the original
+  pass are completely unaffected by this fix.
+- **Verified the underlying math is correct, not just "looks about right"**: for four real guided-
+  sequence targets at four genuinely different real screen positions, the arm's own resolved
+  rotation was checked against an INDEPENDENTLY computed expected value (calculated fresh from real
+  `getBoundingClientRect()` data in the test itself, not by re-reading the app's own internal
+  numbers) — all four matched to within numerical rounding. Two of the four targets happened to sit
+  at near-mirror-image positions in this particular hub layout (`majors` and `programs`), which
+  correctly produced the same LOCAL rotation magnitude — by design, since the whole point of the
+  mirroring approach is reusing one rotation formula for either side — while still resolving to
+  genuinely different REAL angles and opposite mirror directions, confirming the fix tracks true
+  position rather than coincidentally repeating a shared value.
+- Verified with a dedicated Playwright suite (25 checks total, extending the prior batch's own
+  suite): a top-left target leans left (negative rotate) and mirrors the arm to the left shoulder;
+  a top-right target leans right (positive rotate) and stays unmirrored; four distinct real targets
+  each produce an arm rotation matching their own independently-computed real angle to within 1°;
+  all four have genuinely different real `atan2` angles (not just two repeated "left"/"right"
+  buckets); and both a mirrored and an unmirrored case are represented among them. The full
+  pre-existing hub/mascot/voice suite (`test-hub.js`, `test-hub-locking.js`, `test-hub-pointing.js`
+  — updated in place to check for a real inline `rotate(...)` transform instead of the now-retired
+  `mascot-lean-left`/`-right` classes, `test-hub-radial.js`, `test-hub-reset.js`,
+  `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`, `test-voice-picker.js`,
+  `test-signup.js`, and the general `test.js`) all still pass with zero regressions.
+
 **Palette repaint, Discovery batch — Survey (interests/grade/school) and Discovery (Careers of
 Interest / Related College Majors / Recommended Programs) move onto the shared "bloom" tokens too,
 plus genuine new visual interest beyond a plain color swap: colored category icon chips, a

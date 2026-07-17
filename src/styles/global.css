@@ -1377,20 +1377,26 @@ button.card.passed:hover {
    (`.mascot-pointer`, HubScreen.jsx's former `PointerArrow`) with a real, full-body wand-based
    pointing gesture built directly into the mascot's own SVG (see MascotIcon.jsx's own header
    comment for the full group-structure rationale — why the lean/arm/wand each get their own
-   separate element rather than fighting over one `transform`).
+   separate element rather than fighting over one `transform`, and the exact math behind aiming at
+   the real measured angle rather than a fixed "left" or "right").
 
-   `.mascot-pose` leans the WHOLE character toward the target — a plain CSS `transition` (not a
-   keyframe animation) on `transform`, so toggling `.mascot-pointing`/`.mascot-lean-left`/
-   `.mascot-lean-right` on and off is what gives the "start-pointing" and "end-pointing"
-   transitions Task 2 asks for, entirely for free, with zero JS-driven animation state. Origin
-   near the character's own base (matching `.mascot-bob`'s own `transform-origin`), so it reads as
-   leaning/tipping from the feet, not spinning around its own center. */
+   Bug fix — the ROTATION AMOUNTS themselves (how far the body leans, how far the arm swings) are
+   now computed in JS from a real, continuously-measured angle and applied via inline `style`
+   (MascotIcon.jsx), not a fixed-degree value baked into a CSS class — an earlier version aimed
+   the SAME fixed lean/raise angle at every target on a given side, regardless of whether that
+   target sat almost directly overhead or far off at a shallow angle. Only the WHETHER (currently
+   pointing, mirrored to the left half or not) stays class-driven here; the CSS below supplies the
+   `transition` timing so those JS-computed inline values still animate smoothly in and out,
+   exactly as they did when the values came from a class instead — a `transition` animates between
+   successive inline `transform` values the same way it animates between class-driven ones.
+
+   `.mascot-pose` leans the WHOLE character toward the target, origin near the character's own
+   base (matching `.mascot-bob`'s own `transform-origin`), so it reads as leaning/tipping from the
+   feet, not spinning around its own center. */
 .mascot-pose {
   transform-origin: 80px 142px;
   transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.mascot-pose.mascot-pointing.mascot-lean-left { transform: rotate(-9deg); }
-.mascot-pose.mascot-pointing.mascot-lean-right { transform: rotate(9deg); }
 
 /* The arm+wand group is a SIBLING of `.mascot-bob` (see MascotIcon.jsx), not nested inside it —
    this is what lets the body's own idle/speaking bob animation and the arm's own raise animation
@@ -1402,19 +1408,12 @@ button.card.passed:hover {
   transform-origin: 80px 80px;
   transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.mascot-pose.mascot-lean-left .mascot-arm-mirror { transform: scaleX(-1); }
 
 .mascot-arm {
   transform-origin: 119px 68px;
   transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .mascot-arm-limb { fill: #F8F6EF; stroke: #E3DFD2; stroke-width: 2; }
-/* -115deg: the limb is drawn pointing straight down (its natural resting pose, no transform
-   needed at idle) — this rotates it up and outward to roughly 25 degrees above horizontal, a
-   natural "raised, pointing outward" gesture. Mirrored automatically for a left-side lean by
-   `.mascot-arm-mirror`'s own scaleX(-1) above (a separate element, so the two transforms don't
-   conflict with each other either). */
-.mascot-arm.mascot-arm-raised { transform: rotate(-115deg); }
 
 /* The wand itself extends via `scaleY` from its own attachment point at the hand (transform-
    origin at the TOP of the stick, so it grows outward/downward in its own local space and gets

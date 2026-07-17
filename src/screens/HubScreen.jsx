@@ -417,10 +417,11 @@ export default function HubScreen({ onOpenVoiceSettings }) {
 
   const mascotRef = useRef(null);
   const tileRefs = useRef(new Map());
-  // Pointing-animation overhaul (see CLAUDE.md) — replaces the old separate arrow's own angle
-  // math with a simpler measured left/right comparison, reusing the exact same ref-based
-  // measurement approach (see the hook's own comment below for why).
-  const leanDirection = useLeanDirection(mascotRef, tileRefs, nextStep.id, tiles.length);
+  // Pointing-animation overhaul (see CLAUDE.md) — the real, precisely measured angle from the
+  // mascot to the current target tile (bug fix: an earlier version only measured a binary left/
+  // right side, aiming every target on a given side at the same fixed angle regardless of exactly
+  // where it actually sat — see the hook's own comment below).
+  const pointAngle = usePointAngle(mascotRef, tileRefs, nextStep.id, tiles.length);
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
   // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
@@ -537,11 +538,11 @@ export default function HubScreen({ onOpenVoiceSettings }) {
 
         <div className="hub-mascot-area">
           {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
-              .hub-mascot-area (which also contains the greeting bubble stacked below). `leanDirection`
+              .hub-mascot-area (which also contains the greeting bubble stacked below). `pointAngle`
               (below) measures against THIS ref, so it's computed from the mascot's real center, not
               from further down past the bubble. */}
           <div className="hub-mascot-figure" ref={mascotRef}>
-            <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} leanDirection={leanDirection} />
+            <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} pointAngle={pointAngle} />
           </div>
           <div className="mascot-greeting">
             {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
@@ -646,31 +647,34 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   );
 }
 
-// Pointing-animation overhaul (see CLAUDE.md) — replaces the old separate arrow element (the
-// former `PointerArrow`, which rotated a standalone `<ArrowRight>` to a precise measured angle)
-// with a simpler measured LEFT/RIGHT comparison, now that the mascot itself leans its whole body
-// toward the target instead of a detached arrow pointing at it. Keeps the exact same "don't fake
-// it, measure real DOM positions" posture WelcomeScreen's own marker placement already
-// established (getPointAtLength there, getBoundingClientRect here) — a lean pose still needs to
-// know which real side of the mascot the current target tile is actually on, since tiles reflow
-// across viewport widths and whenever the number of rendered tiles changes (hasPartnerSchool
-// toggling), same reasons the old arrow's own angle needed live measurement rather than a fixed
-// guess. Returns `null` (mascot stays centered, no lean class applied) until a real measurement
-// is available, same "don't guess" fallback the old arrow's own `angle === null` check already
-// held.
-function useLeanDirection(mascotRef, tileRefs, targetId, tileCount) {
-  const [direction, setDirection] = useState(null);
+// Pointing-animation overhaul (see CLAUDE.md) — measures the REAL angle from the mascot's own
+// center to the current target tile's actual center, same "don't fake it, measure real DOM
+// positions" posture WelcomeScreen's own marker placement already established (getPointAtLength
+// there, getBoundingClientRect here) and the same measurement this replaced (the old
+// `PointerArrow`'s own angle math, before that) already held. Bug fix: an intermediate version of
+// this reduced the real measurement down to a binary left/right comparison, which aimed every
+// target on a given side at the identical fixed lean/raise angle regardless of exactly where it
+// sat — a tile almost directly overhead got the same gesture as one far off at a shallow angle.
+// This version keeps the full `atan2` angle (degrees, standard convention: 0=target directly
+// right, 90=directly below, -90=directly above, ±180=directly left) so MascotIcon.jsx can aim the
+// lean/arm/wand precisely along it. Returns `null` (mascot stays centered, no pointing pose
+// applied) until a real measurement is available, same "don't guess" fallback the old arrow's own
+// `angle === null` check already held.
+function usePointAngle(mascotRef, tileRefs, targetId, tileCount) {
+  const [angle, setAngle] = useState(null);
 
   useLayoutEffect(() => {
     function recompute() {
       const mascotEl = mascotRef.current;
       const targetEl = tileRefs.current.get(targetId);
-      if (!mascotEl || !targetEl) { setDirection(null); return; }
+      if (!mascotEl || !targetEl) { setAngle(null); return; }
       const mascotRect = mascotEl.getBoundingClientRect();
       const targetRect = targetEl.getBoundingClientRect();
       const mx = mascotRect.left + mascotRect.width / 2;
+      const my = mascotRect.top + mascotRect.height / 2;
       const tx = targetRect.left + targetRect.width / 2;
-      setDirection(tx < mx ? 'left' : 'right');
+      const ty = targetRect.top + targetRect.height / 2;
+      setAngle(Math.atan2(ty - my, tx - mx) * (180 / Math.PI));
     }
     // A plain synchronous call here raced React StrictMode's dev-only double-mount: the ref
     // callbacks that populate `tileRefs` hadn't landed yet the instant this specific layout
@@ -696,7 +700,7 @@ function useLeanDirection(mascotRef, tileRefs, targetId, tileCount) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId, tileCount]);
 
-  return direction;
+  return angle;
 }
 
 // The mascot illustration itself now lives in ../components/MascotIcon.jsx, shared with Stage 5's

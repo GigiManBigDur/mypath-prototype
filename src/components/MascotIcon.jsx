@@ -19,51 +19,86 @@
 // `useMascotSpeech`'s own returned `isSpeaking` boolean (real audio timing when unmuted, an
 // estimated word-count timer otherwise — see that hook's own comment).
 //
-// Pointing-animation overhaul (see CLAUDE.md) — `pointing`/`leanDirection` are two more purely
-// additive props, driving a real wand-based pointing gesture (replacing the old separate arrow
-// element, HubScreen.jsx's own former `PointerArrow`). `pointing` is a plain boolean (the caller
-// passes `isSpeaking` straight through — see HubScreen.jsx — so "pointing" and "currently
-// speaking/being displayed" are the SAME real signal, not two independently-tracked states);
-// `leanDirection` is `'left' | 'right' | null` (which side of the mascot the current target tile
-// is actually on, measured — see HubScreen.jsx's `useLeanDirection`). Structured as TWO new
-// sibling groups layered on top of the untouched body:
+// Pointing-animation overhaul (see CLAUDE.md) — `pointing`/`pointAngle` drive a real wand-based
+// pointing gesture (replacing the old separate arrow element, HubScreen.jsx's own former
+// `PointerArrow`). `pointing` is a plain boolean (the caller passes `isSpeaking` straight through
+// — see HubScreen.jsx — so "pointing" and "currently speaking/being displayed" are the SAME real
+// signal). `pointAngle` is the REAL measured angle (degrees, standard `atan2(dy, dx)` convention:
+// 0=target directly right, 90=directly below, -90=directly above, ±180=directly left) from the
+// mascot to the current target tile's actual on-screen position — see HubScreen.jsx's own
+// `usePointAngle`. Bug fix: an earlier version of this only computed a binary left/right side
+// (`leanDirection`) and aimed at a fixed angle regardless of exactly where the target was — a
+// tile sitting almost directly above the mascot, or one further away at a shallow angle, still
+// got the identical "point left" or "point right" gesture as one sitting at a much steeper angle.
+// This version aims precisely along the real measured angle instead.
+//
+// Structured as TWO new sibling groups layered on top of the untouched body:
 //   - `.mascot-pose` (new OUTERMOST wrapper, added around everything below) leans the WHOLE
-//     character a few degrees toward the target when pointing — a CSS `transition` (not a
-//     keyframe animation) on `transform`, so simply toggling the `pointing`/`lean-left`/
-//     `lean-right` classes on/off is what gives the "start-pointing"/"end-pointing" transitions
-//     for free, with zero extra JS state machine needed.
+//     character toward the target when pointing — now a CONTINUOUS lean (via inline `transform`,
+//     not a fixed-degree CSS class), scaled by the target's real horizontal offset (`cos` of the
+//     angle) so a target further to the side leans the body more than one closer to directly
+//     ahead. The CSS `transition` on `.mascot-pose` (unconditional, not gated by a class) is what
+//     still gives the "start-pointing"/"end-pointing" transitions for free — a transition
+//     animates between successive inline `transform` values exactly the same way it would between
+//     class-driven ones.
 //   - `.mascot-arm`/`.mascot-wand` (new, a sibling of `.mascot-bob`, NOT nested inside it) raise
-//     from a resting, tucked-at-the-side pose to an extended point, also via CSS transitions on
-//     the SAME `pointing` toggle. Deliberately a SIBLING of `.mascot-bob`, not a child of it —
-//     `.mascot-bob` already owns its own `transform` (the idle/speaking bob animation), and a CSS
-//     transform on one element REPLACES rather than composes with another rule's transform on
-//     that SAME element (the exact landmine this codebase's own WelcomeScreen/Roadmap.jsx/hub-tile
+//     from a resting, tucked-at-the-side pose to an extended point, ALSO now at the real measured
+//     angle rather than one fixed raised angle. Deliberately a SIBLING of `.mascot-bob` — `.mascot-
+//     bob` already owns its own `transform` (the idle/speaking bob animation), and a CSS transform
+//     on one element REPLACES rather than composes with another rule's transform on that SAME
+//     element (the exact landmine this codebase's own WelcomeScreen/Roadmap.jsx/hub-tile
 //     transforms already document repeatedly) — keeping the arm+wand as a separate sibling group
 //     is what lets the body's own bob/speaking animation and the arm's own raise animation run
 //     simultaneously without one silently overwriting the other. The arm is drawn once, on the
 //     character's right side, and mirrored via `scaleX(-1)` on its own outer wrapper
-//     (`.mascot-arm-mirror`) when `leanDirection === 'left'` — a THIRD, separate element, so the
-//     mirror-flip and the raise-rotation (an inner child of the mirror wrapper) don't collide with
-//     each other either, for the same "different elements, different concerns" reason.
+//     (`.mascot-arm-mirror`) whenever the target is on the left half (real `cos(angle) < 0`) — a
+//     THIRD, separate element, so the mirror-flip and the raise-rotation (an inner child of the
+//     mirror wrapper) don't collide with each other either.
+//
+//     The math: the arm's own neutral/undrawn orientation points straight down (angle 90° in this
+//     same convention). Mirroring negates the horizontal component of the target direction, so a
+//     "local" angle — always expressed as if the target were on the right (using `Math.abs(cos)`
+//     for the horizontal component) — stays within ±90° of straight-right regardless of which real
+//     side the target is actually on; rotating the arm by `local angle - 90°` swings it from
+//     "pointing down" to "pointing at the local angle," and the SAME rotation value reads correctly
+//     as the true real-world direction once the mirror (if any) is applied on top of it.
 // The wand's own continuous "held pose, not frozen" motion (Task 2's own explicit requirement) is
 // a slow glow pulse on just the wand's tip (`.mascot-wand-tip`, animating `opacity`+`r`, not
 // `transform`, so it can run as a plain `animation` alongside the wand's own `transition`-driven
 // extend/retract with zero property conflicts) — active only while actually raised, so it never
 // runs during idle.
-export default function MascotIcon({ size = 140, speaking = false, pointing = false, leanDirection = null }) {
-  // A real pointing pose needs a real, measured direction — with neither (still measuring, e.g.
-  // the very first frame after mount), the character simply stays in its centered idle pose
-  // rather than guessing a side, same "don't fake it" posture the old PointerArrow already held
-  // for its own angle.
-  const isPointing = pointing && !!leanDirection;
-  const leanClass = leanDirection === 'left' ? ' mascot-lean-left' : leanDirection === 'right' ? ' mascot-lean-right' : '';
+const MAX_LEAN_DEG = 10;
+
+export default function MascotIcon({ size = 140, speaking = false, pointing = false, pointAngle = null }) {
+  // A real pointing pose needs a real, measured angle — with none (still measuring, e.g. the very
+  // first frame after mount), the character simply stays in its centered idle pose rather than
+  // guessing a direction, same "don't fake it" posture the old PointerArrow already held.
+  const hasAngle = pointing && pointAngle !== null && pointAngle !== undefined;
+  let mirrored = false;
+  let armRotateDeg = 0;
+  let leanDeg = 0;
+  if (hasAngle) {
+    const rad = (pointAngle * Math.PI) / 180;
+    const dx = Math.cos(rad);
+    const dy = Math.sin(rad);
+    mirrored = dx < 0;
+    // atan2(dy, |dx|) always keeps the horizontal component non-negative, so the result stays
+    // within ±90° of straight-right regardless of the real target direction — see the header
+    // comment for why this is what lets one rotation formula work for either side.
+    const localDeg = (Math.atan2(dy, Math.abs(dx)) * 180) / Math.PI;
+    armRotateDeg = localDeg - 90;
+    leanDeg = dx * MAX_LEAN_DEG;
+  }
 
   return (
     <svg className="mascot-svg" viewBox="0 0 160 160" width={size} height={size} aria-hidden="true">
       {/* Fixed, not part of the bob group — a still shadow under a bobbing body is what actually
           sells the "lifting" illusion; a shadow that moves in lockstep with the body wouldn't. */}
       <ellipse className="mascot-shadow" cx="80" cy="149" rx="36" ry="7" />
-      <g className={`mascot-pose${isPointing ? ' mascot-pointing' : ''}${leanClass}`}>
+      <g
+        className={`mascot-pose${hasAngle ? ' mascot-pointing' : ''}`}
+        style={hasAngle ? { transform: `rotate(${leanDeg}deg)` } : undefined}
+      >
         <g className={`mascot-bob${speaking ? ' mascot-speaking' : ''}`}>
           <rect className="mascot-body" x="35" y="30" width="90" height="112" rx="45" />
           <circle className="mascot-ear" cx="38" cy="74" r="7" />
@@ -86,13 +121,15 @@ export default function MascotIcon({ size = 140, speaking = false, pointing = fa
           </g>
         </g>
 
-        {/* Arm + wand — always drawn on the character's right side; mirrored to the left via
-            `.mascot-lean-left`'s own CSS rule when pointing that way (see the header comment
-            above for why this lives in its own wrapper rather than flipping `.mascot-arm`
-            itself). Resting: arm tucked down at the body's side, wand retracted (scaled to
-            nothing) so it reads as put-away, not just invisible. */}
-        <g className="mascot-arm-mirror">
-          <g className={`mascot-arm${isPointing ? ' mascot-arm-raised' : ''}`}>
+        {/* Arm + wand — always drawn on the character's right side; mirrored to the left (inline
+            style, see above) whenever the real target angle puts it on that half. Resting: arm
+            tucked down at the body's side, wand retracted (scaled to nothing) so it reads as
+            put-away, not just invisible. */}
+        <g className="mascot-arm-mirror" style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
+          <g
+            className={`mascot-arm${hasAngle ? ' mascot-arm-raised' : ''}`}
+            style={hasAngle ? { transform: `rotate(${armRotateDeg}deg)` } : undefined}
+          >
             <rect className="mascot-arm-limb" x="111" y="68" width="16" height="34" rx="8" />
             <g className="mascot-wand">
               <rect className="mascot-wand-stick" x="115.5" y="100" width="7" height="42" rx="3.5" />
