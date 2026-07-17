@@ -741,13 +741,59 @@ button.card.passed:hover {
 }
 
 /* Reach/Match/Safety Summary's count line (Task 2) — a light, honest recap of counts already
-   shown in each group's own header below, not a second source of truth. */
+   shown in each group's own header below, not a second source of truth. Palette repaint, Program
+   Summary batch (see CLAUDE.md) — this class is exclusive to this one screen (which is now always
+   rendered under `.app-shell-bloom`, no unpainted variant to preserve), so it's recolored directly
+   in place rather than via a separate bloom-scoped override — same "exclusive class, edit
+   directly" precedent Welcome/Sign-Up's own `.welcome-*` classes already established. */
 .rms-summary-line {
   font-family: 'Fraunces', serif;
   font-size: 17px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--bloom-ink);
   margin-bottom: 28px;
+}
+
+/* Palette repaint, Program Summary batch — colored Reach/Match/Safety (and "Not Yet Categorized")
+   group headers, reusing the exact same colors `.rms-badge`'s own bloom override already
+   established for these tags (below) so a card's small badge and its group's big section header
+   always agree on which color means which tag. `--rms-accent` is set inline per group
+   (ProgramSummaryScreen.jsx's own GROUP_VISUALS), the same "data/JSX picks the value, CSS just
+   reads a custom property" convention this codebase already uses for `--tile-accent`/
+   `--track-accent`/`--pb-accent`. Exclusive to this one screen, so styled directly rather than
+   `.app-shell-bloom`-scoped, same reasoning as `.rms-summary-line` just above. */
+.rms-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--rms-accent, var(--bloom-ink));
+}
+.rms-group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--rms-accent, var(--bloom-ink-soft)) 16%, var(--bloom-card));
+  color: var(--rms-accent, var(--bloom-ink-soft));
+  flex-shrink: 0;
+}
+/* "A satisfying reveal when the grouped list loads" — reuses the exact `bloom-section-reveal`
+   keyframe the Transcript/Course Selection batch's own Program-Specific/School-Specific sections
+   already established (defined further down this file), rather than a second, near-identical
+   keyframe. Plays once per section, the moment it's actually mounted — a group that goes from
+   zero to one program gets a fresh key/DOM node and replays this; an already-shown group isn't
+   remounted just because a SIBLING group's own count changes. */
+.rms-group-reveal {
+  animation: bloom-section-reveal 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rms-group-reveal { animation: none; }
 }
 
 /* Groups the merged Careers of Interest pool by source track (see getCareerGroups in

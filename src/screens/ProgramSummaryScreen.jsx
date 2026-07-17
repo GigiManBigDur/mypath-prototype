@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Flame, CheckCircle2, ShieldCheck, HelpCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getMergedPrograms, reachMatchSafetyTag, gpaBenchmarkText } from '../data/programs';
 import { MAJORS } from '../data/majors';
@@ -22,6 +22,27 @@ const GROUP_COPY = {
   Match: "Your GPA lines up well with this program's typical benchmark.",
   Safety: 'Your GPA is comfortably above the typical benchmark here.',
 };
+// Palette repaint, Program Summary batch (see CLAUDE.md) — the sixth and final screen in this
+// rollout. Reuses the EXACT colors `.rms-badge`'s own bloom override already established for
+// these three tags (global.css) rather than inventing a second color mapping, so a card's own
+// small badge and its group's big section header always agree on which color means which tag.
+// One small icon per group (Flame/CheckCircle2/ShieldCheck), matching this app's own established
+// "colored label + small icon" idiom (TrackBadge, the hub's own Quick Actions title, etc.) rather
+// than a bare colored text label.
+const GROUP_VISUALS = {
+  Reach: { color: 'var(--bloom-orange)', Icon: Flame },
+  Match: { color: 'var(--bloom-yellow)', Icon: CheckCircle2 },
+  Safety: { color: 'var(--bloom-green)', Icon: ShieldCheck },
+};
+
+function RmsGroupHeader({ label, color, Icon }) {
+  return (
+    <div className="rms-group-label" style={{ '--rms-accent': color }}>
+      <span className="rms-group-icon"><Icon size={18} /></span>
+      {label}
+    </div>
+  );
+}
 
 function SummaryProgramCard({ p, tag }) {
   return (
@@ -104,8 +125,12 @@ export default function ProgramSummaryScreen() {
           </div>
 
           {GROUP_ORDER.map((tag) => groups[tag].length > 0 && (
-            <div className="field-block" key={tag}>
-              <div className="field-label">{tag} ({groups[tag].length})</div>
+            <div className="field-block rms-group-reveal" key={tag}>
+              <RmsGroupHeader
+                label={`${tag} (${groups[tag].length})`}
+                color={GROUP_VISUALS[tag].color}
+                Icon={GROUP_VISUALS[tag].Icon}
+              />
               <p className="field-hint">{GROUP_COPY[tag]}</p>
               <div className="grid grid-3">
                 {groups[tag].map((p) => <SummaryProgramCard key={p.key} p={p} tag={tag} />)}
@@ -114,8 +139,12 @@ export default function ProgramSummaryScreen() {
           ))}
 
           {uncategorized.length > 0 && (
-            <div className="field-block">
-              <div className="field-label">Not Yet Categorized ({uncategorized.length})</div>
+            <div className="field-block rms-group-reveal">
+              <RmsGroupHeader
+                label={`Not Yet Categorized (${uncategorized.length})`}
+                color="var(--bloom-ink-soft)"
+                Icon={HelpCircle}
+              />
               <p className="field-hint">
                 Either there's no GPA on file yet, or these specific programs are portfolio/audition-based
                 (GPA secondary) — see each card's own benchmark line for which applies.

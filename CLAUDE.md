@@ -4022,6 +4022,147 @@ internally changed (two parts for every quarter instead of just Fall).
   for the ABSENCE of `.checkpoint-actions` on its modal and the PRESENCE of the generic date input
   and remove button.
 
+**Bug fix: reaching the natural end of the primary guided sequence (through Project Builder, with
+Academic Plan as the endpoint) wasn't recognized as its own distinct completed state — the hub
+kept treating it like an ordinary mid-sequence step, which produced two real problems: the shared
+"Ready to keep going? Pick up where you left off." acknowledgment (from the earlier
+dialogue-no-repeat fix) kept showing on every return visit even though there genuinely was nothing
+left to keep going TO, and the mascot kept actively pointing/glowing at the Academic Plan tile
+forever.** Both bugs traced to the same root cause: `getNextGuidedStep` (`HubScreen.jsx`) returns
+the literal `ENDPOINT_STEP` constant (`{ id: 'plan', intro: '...' }`) once every real
+`GUIDED_SEQUENCE` step is done — and that constant deliberately reuses the literal id `'plan'`
+(the same id `GUIDED_SEQUENCE`'s own doc comment already explains is "deliberately unlocked...
+also deliberately NOT part of GUIDED_SEQUENCE... the mascot never force-points at it mid-sequence,
+only offers it as the natural endpoint"). Nothing anywhere previously distinguished "the current
+guided step happens to be the last real one" from "there is no real step at all, this is the
+synthetic endpoint" — both `nextStepIntro`'s own seen-key fallback and `isPointingTarget`/
+`pointAngle`'s own target-id comparison treated `ENDPOINT_STEP` exactly like an ordinary step that
+happens to share an id with the Academic Plan tile.
+- **The fix introduces one new derived boolean, `sequenceComplete = nextStep === ENDPOINT_STEP`**
+  — a plain reference-equality check against the same module-level constant `getNextGuidedStep`
+  already returns, not a new completion concept invented from scratch. This is safe specifically
+  because `ENDPOINT_STEP` is a real, single, stable object identity — `getNextGuidedStep` never
+  constructs a new `{ id: 'plan', ... }` object on the fly, it always returns this exact same
+  reference — so the check can never produce a false positive for a real GUIDED_SEQUENCE step that
+  simply happens to still be `'plan'`-flavored in some other way (there isn't one; `'plan'` is
+  never a real sequence-step id).
+- **Task 1's dialogue fix**: `nextStepIntro`'s own fallback — previously
+  `guidedStepAlreadySeen ? getMascotLine('hub-guided-revisit') : nextStepFullIntro` — is now
+  `guidedStepAlreadySeen ? (sequenceComplete ? null : getMascotLine('hub-guided-revisit')) :
+  nextStepFullIntro`. The one-time completion acknowledgment itself needed no new tracking
+  mechanism at all — it already goes through the same `guidedStepSeenKey`/`guidedStepAlreadySeen`
+  pair (`hub-guided-plan`, since `ENDPOINT_STEP.id` is `'plan'`) every other guided step already
+  uses, so it plays in full exactly once, the same way any other step's own intro line does; the
+  only change is what happens on every subsequent visit AFTER it's been seen — `null` (nothing)
+  instead of falling through to the generic "keep going" line. `ENDPOINT_STEP.intro` itself was
+  also reworded from "Your plan is really coming together! Come back anytime." to "You've made it
+  through the whole guide — your plan is ready! Come back anytime to keep building on it." — a
+  small copy change matching the fix's own explicit "you're all set — your plan is ready" framing,
+  now that this line is genuinely shown exactly once rather than blending into an ongoing
+  encouragement loop. The dialogue `<p>` itself is now conditionally rendered
+  (`{nextStepIntro && <p>...</p>}`) rather than always rendering an (occasionally empty) paragraph,
+  so a completed sequence's quiet hub genuinely shows no dialogue bubble at all, not an empty one.
+- **Task 2's pointing/glow fix, three call sites, all gated the same way**: `usePointAngle`'s own
+  target id argument is now `sequenceComplete ? null : nextStep.id` (previously always
+  `nextStep.id`) — the hook already returns `null` for an unresolvable target (its own existing
+  "don't guess" fallback), which is what puts the mascot back into its centered, non-pointing
+  pose. `isPointingTarget` (the per-tile glow class) is now `!sequenceComplete && tile.id ===
+  nextStep.id` — without this, the Academic Plan tile specifically would carry `.pointing-target`
+  forever once the sequence finished, since it's the one real tile whose id happens to collide
+  with `ENDPOINT_STEP`'s borrowed one. `MascotIcon`'s own `pointing` prop — previously always
+  `isSpeaking` (deliberately the "pointing and currently-speaking are the same real thing" signal
+  from the pointing-animation overhaul) — is now `!sequenceComplete && isSpeaking`, so the mascot's
+  MOUTH/body can still animate while it delivers the one-time completion line (the separate
+  `speaking` prop is untouched), just without raising its arm/wand toward a target that no longer
+  means anything.
+- Verified with a dedicated 11-check Playwright suite: a freshly-completed sequence shows a real,
+  distinctly-worded completion line (not the generic "keep going" text) and carries NO pointing
+  pose and NO tile glow (specifically checked against the Academic Plan tile) even during that
+  one-time message; a later revisit shows no dialogue text at all (neither message) and still no
+  pointing pose; a third revisit is unchanged; and, confirming the fix doesn't over-suppress, an
+  UNFINISHED sequence still shows a real step intro and still glows exactly one tile. The one
+  pre-existing test that asserted the OLD, now-intentionally-changed behavior
+  (`test-hub-pointing.js`'s own "mascot points at Academic Plan as the endpoint" check) was updated
+  to assert the new one instead, plus an added check confirming a later revisit shows neither
+  dialogue nor a pointing target — the same "update a pre-existing test after an intentional,
+  expected change" pattern this suite has already needed several times before, not a regression.
+  The full pre-existing hub/mascot/voice suite (`test-hub.js`, `test-hub-locking.js`,
+  `test-hub-radial.js`, `test-hub-reset.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
+  `test-voiceover.js`, `test-voice-picker.js`, `test-signup.js`, `test.js`, and
+  `test-mascot-wand-pointing.js`) all still pass with zero further regressions.
+
+**Palette repaint, Program Summary batch — the sixth and final screen in this rollout, closing
+out the "bloom" palette migration entirely.** `App.jsx`'s `isBloomScreen` now also covers
+`screenKey === 'programSummary'` — the same `.app-shell-bloom` scoping precedent every prior batch
+already established, so no other screen is affected. This was purely a visual-layer pass, per its
+own explicit "no functional changes" scope: `reachMatchSafetyTag`/`getMergedPrograms`'s grouping
+logic and the count line's own arithmetic were not touched at all.
+- **Most of the repaint came for free from already-existing generic bloom rules**, the same way
+  every prior batch's own "most of it inherits automatically" pattern already worked: `.card`'s
+  background/border/shadow, `.card-desc`/`.card-meta`/`.card-meta strong`/`.card-meta .label`,
+  `.rms-badge.rms-safety/.rms-match/.rms-reach` (already bloom-scoped from the Discovery batch,
+  since `ProgramsStep.jsx`'s own cards use the identical classes), `.rms-caveat`, `.btn-primary`/
+  `.btn-ghost`, and `body:has(.app-shell-bloom)`'s own global text-color override (`.field-hint`,
+  `h1.page-title`, etc.) all applied automatically the instant this screen joined
+  `isBloomScreen` — zero new CSS needed for any of them.
+- **Colored Reach/Match/Safety group headers (Task 3's own explicit ask)**: a new
+  `RmsGroupHeader`/`.rms-group-label`/`.rms-group-icon` (ProgramSummaryScreen.jsx/global.css)
+  replaces the group section's old bare `.field-label` text with a small colored icon + colored
+  label, reusing the EXACT same colors `.rms-badge`'s own bloom override already established for
+  these three tags (`--bloom-orange`/`--bloom-yellow`/`--bloom-green`) rather than inventing a
+  second color mapping — so a card's own small badge and its group's big section header always
+  agree on which color means which tag. One small icon per group (`Flame`/`CheckCircle2`/
+  `ShieldCheck`, lucide-react), matching this app's own established "colored label + small icon"
+  idiom (`TrackBadge`, the hub's own Quick Actions title) rather than a bare colored text label.
+  The "Not Yet Categorized" section gets the same treatment for visual consistency (a neutral
+  `--bloom-ink-soft` color + `HelpCircle` icon), even though it wasn't explicitly named in the
+  task — a plain, low-risk consistency extension, not a new concept. `--rms-accent` is set inline
+  per group (JSX), the same "data/JSX picks the value, CSS just reads a custom property"
+  convention `--tile-accent`/`--track-accent`/`--pb-accent` already established elsewhere in this
+  codebase. `.rms-group-label`/`.rms-group-icon`/`.rms-summary-line` are all exclusive to this one
+  screen (which is now always rendered under `.app-shell-bloom`, no unpainted variant left to
+  preserve), so they're styled directly rather than via a separate bloom-scoped override — the
+  same "exclusive class, edit/define directly" precedent Welcome/Sign-Up's own `.welcome-*`
+  classes already established, rather than the "shared class, scope under `.app-shell-bloom`"
+  convention used for classes other screens still read.
+- **"A satisfying reveal when the grouped list loads" (Task 3's own animation-polish ask)** reuses
+  the EXACT `bloom-section-reveal` keyframe the Transcript/Course Selection batch's own
+  Program-Specific/School-Specific sections already established (`.rms-group-reveal`, applied to
+  each group's outer `.field-block`), rather than a second, near-identical keyframe — plays once
+  per section, the moment it's actually mounted (a group that goes from zero to one program gets a
+  fresh key/DOM node and replays this; an already-shown group isn't remounted just because a
+  SIBLING group's own count changes), respecting `prefers-reduced-motion` the same way every other
+  `bloom-section-reveal` consumer already does.
+- **A real, confirmed pre-existing test breakage was found and fixed while regression-testing
+  this batch, not a new bug — an intentional markup change, same class this codebase's own test
+  suite has needed several times before.** `test-rms-summary.js` (a pre-existing scratch
+  Playwright file, functional not visual) located each Reach/Match/Safety group section via
+  `.field-label` text matching — since the group header markup moved from a bare `.field-label`
+  div to the new `RmsGroupHeader`/`.rms-group-label` component, those 4 selectors were updated to
+  match the new class, with zero change to what they actually assert (grouping/count/badge
+  correctness, all confirmed still byte-for-byte unchanged). Three other repaint-batch test files
+  (`test-bloom-repaint.js`, `test-discovery-repaint.js`, `test-transcript-courseselection-
+  repaint.js`) each had their own stale "confirm zero leakage" check, which used to target Program
+  Summary as "the one screen still on the old parchment palette" — now that this batch closes out
+  the rollout, there's no unpainted screen left to check against, so each was retargeted to Map 2
+  (`Roadmap.jsx`), the one screen that deliberately never joins `.app-shell-bloom` at all (its own
+  separate `.app-shell-plan` full-bleed system) and so remains a genuine "did this leak somewhere
+  it shouldn't" check going forward.
+- Verified with a dedicated 9-check Playwright suite: the body background/button colors resolve
+  to the bloom palette; the empty-state message still renders correctly with zero programs
+  selected; after selecting 2 real programs via real Discovery navigation (not guessed key
+  strings), the rendered group header shows a real bloom color and a real icon; the reveal
+  animation is genuinely active (non-`none` `animationName`); cards show real bloom background
+  colors; and the real Reach/Match/Safety badges and count line still reflect the exact same
+  grouping this screen always computed, unchanged. `test-rms-summary.js` (the dedicated, more
+  thorough pre-existing functional suite for this screen's own grouping/routing logic) passes in
+  full after its selector update, confirming grouping-by-institution+program, the portfolio/
+  audition "Not Yet Categorized" bucket, the empty state, and Back/Continue routing are all
+  completely unaffected. The full pre-existing regression suite — every `test-hub*.js`,
+  `test-signup.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-voiceover.js`,
+  `test-voice-picker.js`, every other `*-repaint.js` file, `test-ucdavis-stage1.js`, and the
+  general `test.js` — still passes with zero further regressions.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

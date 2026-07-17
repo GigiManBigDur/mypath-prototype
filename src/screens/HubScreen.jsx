@@ -217,7 +217,11 @@ const GUIDED_SEQUENCE = [
   },
 ];
 
-const ENDPOINT_STEP = { id: 'plan', intro: 'Your plan is really coming together! Come back anytime.' };
+// Bug fix (see CLAUDE.md) — reworded slightly toward a clearer one-time "you're all set" framing
+// (was "Your plan is really coming together! Come back anytime."), now that this line is
+// genuinely shown exactly once rather than blending into the ongoing generic "keep going"
+// acknowledgment it used to fall through to afterward.
+const ENDPOINT_STEP = { id: 'plan', intro: "You've made it through the whole guide — your plan is ready! Come back anytime to keep building on it." };
 
 // Re-evaluated fresh from `state` on every render — nothing here is cached from a previous visit,
 // so returning to the hub after finishing a step always reflects the CURRENT next incomplete step,
@@ -348,6 +352,12 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   // `partnerSchoolGate` above for the matching `unlock`/`lockedReason` half of this fix.
   const tiles = TILES.filter((t) => !t.requiresPartnerSchool || !isSurveyComplete(state) || hasPartnerSchool);
   const nextStep = getNextGuidedStep(state, hasPartnerSchool);
+  // Bug fix (see CLAUDE.md) — `getNextGuidedStep` returns the literal `ENDPOINT_STEP` constant
+  // once every real GUIDED_SEQUENCE step is done, rather than a step actually IN that sequence —
+  // a reference-equality check against that same constant is what distinguishes "the primary
+  // sequence is genuinely finished" from "there's a real next step, and it happens to be the last
+  // one," since `ENDPOINT_STEP.id` ('plan') isn't a step id any real sequence entry ever uses.
+  const sequenceComplete = nextStep === ENDPOINT_STEP;
   // Every other step's `intro` is a plain string; the 'careers' step's own is a function of
   // `state` (see GUIDED_SEQUENCE above) since its condensed admissions-context blurb varies by
   // education level — resolved once here rather than inline in the JSX below.
@@ -365,10 +375,21 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   // freely-repeatable acknowledgment instead (`hub-guided-revisit`, mascotDialogue.js), never the
   // original full line again. The moment the guided step actually ADVANCES to a new one, its own
   // real line plays in full for the first time, exactly as before.
+  //
+  // Bug fix (see CLAUDE.md) — that shared "keep going" acknowledgment is exactly wrong once
+  // `sequenceComplete` is true: there IS no next step to keep going to. The one-time completion
+  // message (ENDPOINT_STEP's own real text) still plays in full the first time this state is
+  // reached — it goes through the SAME `guidedStepSeenKey`/`guidedStepAlreadySeen` mechanism every
+  // other step already uses, so nothing new was needed to make that part "once, ever" — but once
+  // it's been seen, this now falls through to `null` (nothing shown) instead of the generic
+  // hub-guided-revisit line, matching the fix's own explicit "after that single acknowledgment,
+  // don't show either message again" requirement.
   const guidedStepSeenKey = `hub-guided-${nextStep.id}`;
   const guidedStepAlreadySeen = useMascotSeenSnapshot(guidedStepSeenKey);
   useMarkMascotSeen(guidedStepAlreadySeen ? null : guidedStepSeenKey);
-  const nextStepIntro = guidedStepAlreadySeen ? getMascotLine('hub-guided-revisit') : nextStepFullIntro;
+  const nextStepIntro = guidedStepAlreadySeen
+    ? (sequenceComplete ? null : getMascotLine('hub-guided-revisit'))
+    : nextStepFullIntro;
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own pointing dialogue speaks
   // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue.
   // There's no "dismiss" concept for this always-visible bubble, so it just speaks whenever
@@ -440,7 +461,16 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   // mascot to the current target tile (bug fix: an earlier version only measured a binary left/
   // right side, aiming every target on a given side at the same fixed angle regardless of exactly
   // where it actually sat — see the hook's own comment below).
-  const pointAngle = usePointAngle(mascotRef, tileRefs, nextStep.id, tiles.length);
+  //
+  // Bug fix (see CLAUDE.md) — once `sequenceComplete`, there is no real "next thing to do" for the
+  // mascot to aim at, so the target id passed in is `null` instead of `nextStep.id` (which, in
+  // this state, is only ever ENDPOINT_STEP's own borrowed 'plan' id — not a real tile the guided
+  // sequence should ever point at, per GUIDED_SEQUENCE's own "Academic Plan... deliberately
+  // excluded... the mascot never force-points at it" rule above). `usePointAngle` already returns
+  // `null` for a `null`/unresolvable target, which is what puts the mascot back into its neutral,
+  // centered idle pose with no pointing gesture — see `isPointingTarget` below for the matching
+  // tile-glow half of this same fix.
+  const pointAngle = usePointAngle(mascotRef, tileRefs, sequenceComplete ? null : nextStep.id, tiles.length);
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
   // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
@@ -561,14 +591,23 @@ export default function HubScreen({ onOpenVoiceSettings }) {
               (below) measures against THIS ref, so it's computed from the mascot's real center, not
               from further down past the bubble. */}
           <div className="hub-mascot-figure" ref={mascotRef}>
-            <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} pointAngle={pointAngle} />
+            {/* Bug fix (see CLAUDE.md) — `pointing` used to be exactly `isSpeaking`, which stayed
+                true even for the one-time completion line once `sequenceComplete`, raising the
+                arm/wand toward a target that no longer means anything. Gating it on
+                `!sequenceComplete` too keeps the mascot's mouth/body still animating while it
+                delivers that one-time line (the SEPARATE `speaking` prop, untouched), just without
+                the pointing gesture — matching "the mascot returns to a neutral idle state with no
+                active pointing target" once the primary sequence is finished. */}
+            <MascotIcon size={150} speaking={isSpeaking} pointing={!sequenceComplete && isSpeaking} pointAngle={pointAngle} />
           </div>
           <div className="mascot-greeting">
             {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
                 to a new guided step), which is what makes .mascot-dialogue's CSS entrance
                 animation replay on every new line instead of only once ever — see global.css's
-                own comment. */}
-            <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>
+                own comment. Bug fix (see CLAUDE.md) — `nextStepIntro` is now genuinely `null` once
+                the one-time completion acknowledgment has already been shown, so this renders
+                nothing rather than an empty paragraph — the hub "just sits quietly available." */}
+            {nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>}
             {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
                 (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
             <div className="hub-progress-dots">
@@ -583,7 +622,11 @@ export default function HubScreen({ onOpenVoiceSettings }) {
 
         {tiles.map((tile, i) => {
           const unlocked = tile.unlock(state, hasPartnerSchool);
-          const isPointingTarget = tile.id === nextStep.id;
+          // Bug fix (see CLAUDE.md) — without `!sequenceComplete`, the Academic Plan tile (id
+          // 'plan') would pick up the pulsing glow forever once the sequence finished, since
+          // ENDPOINT_STEP happens to reuse that same id — even though GUIDED_SEQUENCE itself
+          // deliberately never includes 'plan' as a real step to point at.
+          const isPointingTarget = !sequenceComplete && tile.id === nextStep.id;
           const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
           const pos = RADIAL_POSITIONS[i % RADIAL_POSITIONS.length];
           return (
