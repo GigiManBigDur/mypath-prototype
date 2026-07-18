@@ -89,18 +89,11 @@ body {
 }
 .brand svg { width: 16px; height: 16px; color: var(--teal); }
 
-/* "Show Available Voice Options" feature (see CLAUDE.md) — wraps the voice-settings trigger and
-   the mute toggle together so .app-header's own space-between still treats them as one unit at
-   its right-hand end, not two independently-spaced items. */
 .header-actions { display: flex; align-items: center; gap: 8px; }
 
-/* Shared base look for both small round header icon buttons (the mute toggle and, since "Show
-   Available Voice Options," the voice-settings trigger next to it) — `.voice-mute-toggle` used to
-   carry ALL of this alone, which broke once a second button needed the identical look: reusing
-   the same class on both made them impossible to select uniquely (confirmed directly — an
-   existing Playwright test's own `.voice-mute-toggle` locator started resolving to 2 elements and
-   silently clicking the wrong one). Each button now also carries its own distinct class
-   (`.voice-mute-toggle` / `.voice-settings-toggle`) for anything that needs to target just one. */
+/* Shared base look for small round header icon buttons — was also used by the now-removed "Choose
+   mascot voice" gear button before ElevenLabs Voice replaced the multi-voice browser picker (see
+   CLAUDE.md); `.voice-mute-toggle` is the one real consumer left. */
 .header-icon-btn {
   display: flex;
   align-items: center;
@@ -117,64 +110,6 @@ body {
 }
 .header-icon-btn:hover { color: var(--teal); border-color: var(--teal); }
 .header-icon-btn:active { transform: scale(0.92); }
-
-/* "Show Available Voice Options" feature — the voice picker modal reuses .overlay/.modal
-   wholesale (see VoiceSettingsPanel.jsx's own comment for why); .voice-settings-modal only
-   widens the default .modal max-width slightly, since a voice name + language code + preview
-   button per row needs a bit more horizontal room than the app's other, shorter modals. */
-.voice-settings-modal { max-width: 480px; }
-.voice-option-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; max-height: 320px; overflow-y: auto; }
-.voice-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid var(--paper-line);
-  border-radius: 6px;
-  background: var(--paper);
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  /* Also the ROOT element for the standalone "Default (auto-picked)" row, which is a plain real
-     `<button>` (not a `<div>` wrapping two nested buttons the way every real-voice row is) — these
-     reset it to look identical either way, since a bare `<button>` doesn't inherit font/cursor/
-     alignment the way a `<div>` naturally does. */
-  width: 100%;
-  font-family: 'IBM Plex Sans';
-  cursor: pointer;
-  text-align: left;
-}
-.voice-option.selected { border-color: var(--teal); background: rgba(30, 61, 50, 0.05); }
-.voice-option-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1px solid var(--paper-line);
-  background: var(--card);
-  color: var(--teal);
-  cursor: pointer;
-  padding: 0;
-}
-.voice-option-preview:hover { border-color: var(--teal); background: rgba(30, 61, 50, 0.08); }
-.voice-option-pick {
-  flex: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  background: none;
-  border: none;
-  padding: 0;
-  text-align: left;
-  cursor: pointer;
-  font-family: 'IBM Plex Sans';
-}
-.voice-option-name { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.voice-option-lang { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--ink-soft); flex-shrink: 0; }
-.voice-option-check { color: var(--teal); flex-shrink: 0; }
 
 /* Academic Plan layout restructure — the Plan screen alone becomes a full-viewport flex column
    (brand bar, then the roadmap filling everything else) instead of the normal centered/padded/

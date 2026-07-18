@@ -2988,6 +2988,145 @@ currently selected — highschool only.**
   18/18 throughout — this feature only ever adds new spine items via the exact same data shape
   every other core item already uses, never touches `roadmapLayout.js`.
 
+**ElevenLabs Voice — replaces the free browser-native SpeechSynthesis engine (Dashboard/Guide
+Stage 6) with real, natural-sounding audio from Eleven Creative's Text-to-Speech API, one fixed
+voice ("Karma — Social Media Starlet", voice ID `4BYplVmdmNPw4bhCsabh`) for every mascot line app-
+wide. This is a deliberate, explicit exception to this file's own "No backend, no database, no
+auth" hard constraint at the top of this document — the user's own explicit security requirement
+("the ElevenLabs API key must live in a server-side function, never in client-side/browser-facing
+code") makes a pure-static-site architecture impossible for this one feature specifically. Every
+other constraint (no AI/LLM calls for RECOMMENDATIONS, state lives in React/localStorage, etc.)
+is completely untouched — this is a single, narrowly-scoped server-side proxy for audio synthesis,
+not a general backend.**
+- **`api/tts.js`** (new, repo root) is a plain Vercel serverless function — zero config needed,
+  Vercel auto-detects any `api/*.js` file and deploys it as its own endpoint, completely separate
+  from the Vite static build (confirmed directly: `api/tts.js` does not appear anywhere in
+  `dist/` after `npm run build`). It reads `process.env.ELEVENLABS_API_KEY` — a server-only
+  environment variable that is NEVER bundled into the client, unlike this app's own Vite convention
+  where a `VITE_`-prefixed var WOULD be inlined into the browser bundle; this function deliberately
+  uses a plain (non-`VITE_`) env var name specifically so it can only ever be read server-side.
+  **The real key must be set directly in the Vercel project's own environment variables (dashboard
+  or `vercel env add`) — it is never pasted into this repo, this file, or any conversation with
+  Claude.** The function validates method (`POST` only, `OPTIONS` for CORS preflight), validates a
+  real `text` string is present, calls ElevenLabs' own REST endpoint
+  (`POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}`, `xi-api-key` header, `eleven_
+  turbo_v2_5` model), and streams the resulting `audio/mpeg` binary straight back as the response
+  body — the browser never talks to `elevenlabs.io` directly, confirmed via a dedicated Playwright
+  check that no request during normal use ever targets that domain.
+- **CORS is a real, proportionate-not-bulletproof origin allowlist** (`ALLOWED_ORIGIN_PATTERNS`),
+  not a wildcard `*` — regex-matched against `localhost:*` (dev), `gigimanbigdur.github.io` (the
+  standing GitHub Pages target), and `*.vercel.app` (this project's own Vercel deployments). This
+  is an accepted, deliberate limitation for a prototype: it stops casual cross-site abuse of a paid
+  API key, not a determined attacker who can spoof an `Origin` header directly — a full auth layer
+  was explicitly out of scope for this task.
+- **`src/utils/speech.js` was rewritten from scratch** — `TTS_ENDPOINT` is a hardcoded ABSOLUTE URL
+  pointing at this project's own live Vercel deployment
+  (`https://mypath-prototype-seven.vercel.app/api/tts`), called from the client regardless of where
+  the FRONTEND itself is being served from. This is necessary, not just convenient: the Vite dev
+  server (`npm run dev`) has no serverless functions of its own, and GitHub Pages — the standing
+  default public deploy target — is a purely static host that can't run one either, so there is no
+  "local"/same-origin `/api/tts` for either of those to call; the Vercel deployment is the ONLY
+  place this function can ever actually run, so every environment calls it directly, cross-origin.
+  `speak(text, {onStart, onEnd})` fetches, gets a real `Blob`, creates a real `Audio` element from
+  it, and wires `onStart`/`onEnd` to that audio's own genuine `playing`/`ended`/`error` events —
+  not guessed or optimistic. `stopSpeaking()` now also aborts any in-flight fetch via a shared
+  module-level `AbortController` (not just pausing already-created audio) — a real HTTP request has
+  real latency an in-process browser TTS call never did, so without this, an old, superseded
+  request could still resolve and start playing audio for a dialogue line the student already
+  navigated away from or dismissed. **`speak()`'s own contract guarantees `onEnd` fires on every
+  path — real completion OR any failure** (network error, the endpoint not yet deployed, a bad/
+  missing API key, ElevenLabs itself erroring, an autoplay-policy rejection) — nothing ever throws
+  out of this function; Task 2's own "graceful fallback ... dialogue text should still display even
+  if audio doesn't play" requirement is satisfied structurally, not by a try/catch bolted onto each
+  caller. Everything about the OLD voice engine's own selection layer —
+  `isSpeechAvailable`/`primeVoices`/`getAvailableVoices`/`pickVoice`/the preferred-voice-name
+  wishlist/`SPEECH_RATE`/`SPEECH_PITCH` — is gone; there's exactly one fixed voice now, so none of
+  that has anything left to select between.
+- **`useMascotSpeech(text, muted)` dropped its old third `voiceURI` parameter** (there's only one
+  voice now, nothing to fingerprint a re-speak decision against) and was restructured around the
+  real asynchronous latency a network TTS call has that the old same-process browser API never
+  did: `isSpeaking` only turns `true` once real playback GENUINELY begins (`onStart`, tied to the
+  audio element's own `playing` event), not the moment `speak()` is merely called — flipping it
+  optimistically at call time (the old SpeechSynthesis version's own approach, safe there since
+  queuing an utterance was near-instant) would desync the mouth/expression animation from when the
+  student can actually hear anything over a real network round trip.
+- **A real, deliberate design decision made while building this: the graceful-fallback requirement
+  extends to the visual pointing/speaking GESTURE, not just the dialogue text.** `pointing`
+  (`HubScreen.jsx`) and `speaking` (`MascotIcon.jsx`, everywhere) both read this hook's own
+  `isSpeaking` (per the earlier pointing-animation-overhaul's own "deliberately the SAME real
+  signal" design) — so naively only ever setting `isSpeaking` true from a genuinely-started real
+  `onStart` would mean ANY TTS failure (not yet deployed, a network blip, autoplay blocked before
+  the student's first click) silently kills the whole pointing gesture too, not just the audio,
+  which is a much larger degradation than "no sound" alone. Since `speak()`'s own contract already
+  guarantees `onEnd` fires on every failure path, `startSpeaking()` tracks a plain closure flag
+  (`started`, set inside `onStart`) and checks it inside `onEnd`: real playback that genuinely
+  finished just stops normally; `onEnd` firing WITHOUT `started` ever having been set means real
+  playback never began at all, so it falls back to the exact same word-count `estimateSpeechDuration`
+  timing the muted branch already uses — the gesture still plays, timed against how long the line
+  would take to read, rather than the mascot going visibly inert. A `FETCH_LATENCY_BUFFER_MS`
+  (4000ms) safety-net timer still covers the case where `onEnd` never fires at all (a truly hung
+  fetch) — the one scenario this fallback can't help, since nothing ever calls back to trigger it.
+  All of React 18 StrictMode's own dev-only mount→cleanup→remount replay protection (`lastKeyRef`,
+  `lastKeySetAtRef`'s 50ms window) — a React-level race, unrelated to which speech engine is
+  underneath — was preserved unchanged in structure.
+- **The "Show Available Voice Options" settings panel (`VoiceSettingsPanel.jsx`) was deleted
+  entirely**, along with its trigger (the gear icon in `App.jsx`'s header), `state.voiceURI`
+  (`AppContext.jsx`), and its own CSS block (`.voice-settings-modal`/`.voice-option*` in
+  `global.css`) — there's only one fixed voice now, so a picker with nothing to pick between has no
+  remaining purpose. The mute toggle (`state.voiceMuted`, unchanged) is the only voice-related
+  control left, and now renders UNCONDITIONALLY — it used to be gated behind `isSpeechAvailable()`
+  (a real client-side feature-detection check for the old browser API, which doesn't apply to a
+  server-proxied network call at all: every browser can attempt a `fetch()`, so there's no
+  equivalent "this browser doesn't support it" case left to gate on).
+- **Muting still means zero ElevenLabs API calls are ever made** — `useMascotSpeech`'s muted branch
+  calls `stopSpeaking()` and returns before `speak()` is ever reached, exactly like before; no real
+  usage/cost is spent on audio nobody will hear.
+- Verified with two dedicated Playwright suites. The first (14 checks, run against the currently-
+  live Vercel deployment, which genuinely lacks this route yet — a real, unfaked "API call fails"
+  scenario, not simulated) confirms: the old voice-settings gear is gone, the mute toggle still
+  renders unconditionally, a real `POST` request is attempted to this app's own `/api/tts` proxy
+  (never directly to `elevenlabs.io`) with real dialogue text in the body, dialogue text displays
+  regardless of that request's outcome, the speaking animation never gets stuck forever even though
+  every request in this environment currently fails, muting stops requests entirely, once-only
+  playback (`mascotSeenKeys`) is completely unaffected by the engine swap, and no API key pattern
+  appears anywhere in the live rendered page source. The second (`page.route()`-mocked, fulfilling
+  `/api/tts` with a real playable WAV, since a genuine key hasn't been deployed yet) verifies the
+  full mechanical pipeline end-to-end two ways: a cold reload with zero prior page interaction
+  (Chromium's own autoplay policy blocks `Audio.play()` without one — confirmed directly via the
+  browser's own rejection message, "play() failed because the user didn't interact with the
+  document first") correctly falls back to the estimated-duration gesture rather than getting
+  stuck; and a REAL click-through (Welcome → Sign-Up → Hub, exactly how every real user reaches the
+  hub in this single-page app, which grants a genuine user gesture) shows real mocked audio actually
+  playing, the speaking animation activating in sync with real `onStart`, the pointing pose layered
+  simultaneously on top (not replacing it), and both correctly resolving back to idle once the mock
+  audio's own real `ended` event fires. The full pre-existing hub/mascot regression suite
+  (`test-hub.js`, `test-hub-locking.js`, `test-hub-radial.js`, `test-hub-reset.js`,
+  `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-signup.js`, `test-dialogue-no-repeat.js`,
+  `test-dynamic-dialogue-no-repeat.js`, `test-survey-no-intro.js`, `test-hub-progress-card-gate.js`,
+  `test-hub-transcript-visibility.js`, `test-sequence-complete.js`,
+  `test-sequence-complete-pointing.js`, `test-projectbuilder-skip.js`, the general `test.js`) all
+  still pass; `test-mascot-wand-pointing.js`'s own Task 3 block was updated to mock `/api/tts` and
+  drive a real click-through rather than assuming near-instant `onstart` timing the way the old
+  SpeechSynthesis version could — the same "update a pre-existing test after an intentional,
+  expected change" pattern this codebase's suite has already needed many times before, not a
+  regression; `test-hub-pointing.js`'s own Test 1 needed a short poll (instead of an immediate
+  check) added for the same real-network-latency reason. The two scratch test files that exercised
+  the deleted browser-SpeechSynthesis-mocking/voice-picker mechanism (`test-voiceover.js`,
+  `test-voice-picker.js`) were deleted outright rather than patched, since they tested a mechanism
+  that no longer exists by design — the same precedent this codebase already established for
+  `test-chain-start-bug.js`/`test-chain-lifecycle.js` after an earlier superseded mechanism was
+  removed. `npm run build`/`npm run lint` both stay clean, and a direct `grep` across the built
+  `dist/` bundle confirms zero occurrences of the real API key or its env var name anywhere in the
+  shipped client code.
+- **What still needs to happen before this is live**: a real `ELEVENLABS_API_KEY` must be set in
+  the Vercel project's own environment variables (not committed anywhere), and `api/tts.js` must
+  actually be deployed via `vercel deploy --prod` — per this file's own standing "deploys are
+  opt-in only" rule, neither of these should happen proactively. Until both are done, every mascot
+  line in every environment (including local dev) falls back exactly the way the "no prior gesture"
+  / "endpoint not yet deployed" test paths above already demonstrate: dialogue text displays
+  normally, the gesture plays on its estimated timing, and nothing breaks — just with no real audio
+  yet.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -5210,32 +5349,26 @@ download). Cover at minimum:
   of Skip) still produces a non-blank `gpa` AND sets `transcriptCompleted`, and still unlocks both
   tiles exactly as before — this fix must not change that path. Repeat for the UC Davis variant
   (`UCDavisTranscriptScreen`'s own Skip button and `ucdavisTranscript`).
-- Dashboard/Guide Stage 6 (voiceover): monkey-patch `window.speechSynthesis.speak`/`.cancel` in
-  place (don't try to reassign `window.speechSynthesis` wholesale — confirmed non-configurable)
-  to record calls, then confirm both the hub's own pointing dialogue and a Stage-5 in-flow
-  `MascotWidget` line each trigger exactly one `speak()` call whose text matches what's actually
-  visible, with a real picked voice and a rate/pitch off the flat 1.0 default. Dismiss a
-  `MascotWidget` line mid-speech and confirm `cancel()` fires immediately. Click the header's
-  mute toggle and confirm `state.voiceMuted` flips, no further `speak()` calls happen while muted,
-  and the muted state survives navigating to a different screen (the toggle itself stays mounted
-  across navigation, so this should be automatic — a genuine regression here would mean something
-  broke that assumption). Confirm the toggle is entirely absent when `window.speechSynthesis`/
-  `window.SpeechSynthesisUtterance` don't exist at all (`delete` both, a real page reload with
-  that init script applied) and that the rest of the app — dialogue text, navigation — is
-  completely unaffected. Separately, patch `getVoices()` alone to return `[]` (leaving `speak`/
-  `cancel` real) and confirm zero `speak()` calls are attempted while dialogue text still renders
-  normally.
-- "Show Available Voice Options": open the voice settings panel (the gear icon, distinct from the
-  mute toggle right next to it — re-verify these are two independently-clickable elements, not the
-  same regression the naming-collision bug above already caused once) and confirm the list shows
-  more than one real voice with real names, not a single placeholder entry. Click a preview button
-  and confirm (via the same `speechSynthesis.speak`/`.cancel` monkey-patch instrumentation the
-  Stage 6 tests use) that it fires a real `speak()` call using that exact row's own voice and the
-  real mascot sample line, not placeholder text. Pick a voice and confirm `state.voiceURI` is set,
-  exactly one row shows as selected, and — a real, non-obvious behavior worth checking
-  specifically — the currently-displayed mascot line re-speaks immediately in the new voice rather
-  than waiting for the next natural dialogue change. Reload onto a DIFFERENT screen entirely (e.g.
-  Survey) with that same `voiceURI` already in state and confirm its own in-flow mascot dialogue
-  speaks using that exact voice too — the pick has to be honored app-wide, not just from within
-  the panel that set it. Confirm picking "Default (auto-picked)" clears `state.voiceURI` back to
-  `null`.
+- ElevenLabs Voice (replaces the old browser SpeechSynthesis-based Stage 6): intercept `/api/tts`
+  via `page.route()` and fulfill with a real, valid, playable audio file (a plain WAV works fine)
+  to test the real client-side pipeline without needing a live deployed API key. Confirm both the
+  hub's own pointing dialogue and a Stage-5 in-flow `MascotWidget` line trigger a real `POST` to
+  this app's own `/api/tts` proxy (never directly to `elevenlabs.io`) with the actual visible
+  dialogue text in the body. **Because Chromium's autoplay policy blocks `Audio.play()` until the
+  page has received a real user gesture, a plain seed-localStorage-then-reload will NOT play
+  audio** — that's expected, not a bug; use it specifically to verify the graceful-fallback path
+  (dialogue text still displays, the speaking/pointing gesture falls back to its estimated-
+  duration timing rather than getting stuck). To verify audio actually plays, drive a real click-
+  through instead (Welcome → Sign-Up → Hub — exactly how every real user reaches the hub in this
+  single-page app), which grants Chromium a genuine activation that persists for the rest of that
+  tab's session; confirm the speaking animation activates in sync with the mocked audio's real
+  `playing` event, the pointing pose is layered simultaneously on top (not replaced), and both
+  resolve back to idle once the mocked audio's real `ended` event fires. Separately, confirm
+  against the CURRENTLY-LIVE (not-yet-updated) Vercel deployment — a real, unfaked "the API call
+  fails" scenario, since that deployment genuinely lacks the route until it's redeployed — that
+  dialogue text still displays and the animation never gets stuck. Click the header's mute toggle
+  and confirm `state.voiceMuted` flips, no further `/api/tts` requests happen while muted, and the
+  toggle now renders unconditionally (no more feature-detection gate — there's no browser-support
+  case left to check for a network call). Confirm once-only playback (`mascotSeenKeys`) is
+  completely unaffected by the engine swap. Confirm no ElevenLabs API key or its env var name
+  appears anywhere in `dist/`'s built output or the live rendered page source/network requests.

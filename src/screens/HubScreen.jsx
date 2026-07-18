@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User,
-  Volume2, VolumeX, Settings2, TrendingUp, Zap, Plus, Send,
+  Volume2, VolumeX, TrendingUp, Zap, Plus, Send,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -12,7 +12,6 @@ import AddTaskModal from '../components/AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dates';
-import { isSpeechAvailable } from '../utils/speech';
 import { ADMISSIONS_CONTEXT_LINES, getMascotLine } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
@@ -344,7 +343,7 @@ const PARTICLES = [
 // this one's just an inspirational quote with a real, correctly-attributed author, not a stat.
 const QUOTE = { text: 'A goal without a plan is just a wish.', author: 'Antoine de Saint-Exupéry' };
 
-export default function HubScreen({ onOpenVoiceSettings }) {
+export default function HubScreen() {
   const { state, patch, reset } = useApp();
 
   const hasPartnerSchool = state.currentSchool === 'Roslyn High School' || state.currentSchool === 'UC Davis';
@@ -399,7 +398,7 @@ export default function HubScreen({ onOpenVoiceSettings }) {
   // generic revisit line) and stops on unmount (navigating away from the hub) — both handled
   // inside the hook itself. Radial-layout pass, Task 4 — the hook's own returned boolean now also
   // drives the mascot's distinct "speaking" animation state.
-  const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted, state.voiceURI);
+  const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted);
 
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it
@@ -527,29 +526,19 @@ export default function HubScreen({ onOpenVoiceSettings }) {
           <button type="button" className="hub-icon-btn" aria-label="Notifications" title="Notifications">
             <Bell size={16} />
           </button>
-          {isSpeechAvailable() && (
-            <>
-              <button
-                type="button"
-                className="hub-icon-btn voice-settings-toggle"
-                onClick={onOpenVoiceSettings}
-                aria-label="Choose mascot voice"
-                title="Choose mascot voice"
-              >
-                <Settings2 size={16} />
-              </button>
-              <button
-                type="button"
-                className="hub-icon-btn voice-mute-toggle"
-                onClick={() => patch({ voiceMuted: !state.voiceMuted })}
-                aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-                aria-pressed={state.voiceMuted}
-                title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-              >
-                {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
-            </>
-          )}
+          {/* ElevenLabs Voice integration (see CLAUDE.md) — always renders now (no more
+              `isSpeechAvailable()` client feature-detection gate, and no more separate "Choose
+              mascot voice" gear — see App.jsx's own matching comment for why). */}
+          <button
+            type="button"
+            className="hub-icon-btn voice-mute-toggle"
+            onClick={() => patch({ voiceMuted: !state.voiceMuted })}
+            aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+            aria-pressed={state.voiceMuted}
+            title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+          >
+            {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
           <div className="hub-avatar" aria-hidden="true">
             {avatarOption ? <avatarOption.Icon size={17} /> : <User size={17} />}
           </div>

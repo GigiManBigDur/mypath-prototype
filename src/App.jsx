@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Compass, Volume2, VolumeX, Settings2 } from 'lucide-react';
+import { Compass, Volume2, VolumeX } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
-import { isSpeechAvailable, primeVoices } from './utils/speech';
-import VoiceSettingsPanel from './components/VoiceSettingsPanel';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
@@ -43,11 +40,6 @@ const TRANSITION_SCREENS = new Set([
 
 function AppShell() {
   const { state, patch } = useApp();
-  // "Show Available Voice Options" feature (see CLAUDE.md) — local, unpersisted UI state (the
-  // panel itself is always closed on a fresh load, matching every other transient overlay in
-  // this app; the STUDENT'S ACTUAL PICK, state.voiceURI, is what's persisted, not whether this
-  // panel happens to be open).
-  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
   const screenKey = SCREENS[state.screen] ? state.screen : 'hub';
   const Screen = SCREENS[screenKey];
   // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
@@ -86,58 +78,45 @@ function AppShell() {
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
     || screenKey === 'programSummary' || isMap1;
 
-  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — prime the browser's voice list once, as
-  // early as possible in the app's lifetime, so it's very likely already populated by the time
-  // the first real mascot line needs to speak (which requires navigating past Welcome/Sign Up
-  // first) — see speech.js's own comment for why this matters on Chrome specifically.
-  useEffect(() => {
-    primeVoices();
-  }, []);
-
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>
       {/* Radial-layout pass (see CLAUDE.md) — the hub renders its own dedicated top bar (logo,
-          search, notifications, avatar, PLUS the same real mute/voice-settings controls this
-          generic header carries) instead of this one, so the two don't stack. Every other screen
-          is unaffected. */}
+          search, notifications, avatar, PLUS the same real mute control this generic header
+          carries) instead of this one, so the two don't stack. Every other screen is unaffected. */}
       {!isHub && state.screen !== 'welcome' && (
         <div className="app-header">
           <div className="brand">
             <Compass />
             MyPath — prototype
           </div>
-          {isSpeechAvailable() && (
-            <div className="header-actions">
-              <button
-                type="button"
-                className="header-icon-btn voice-settings-toggle"
-                onClick={() => setVoiceSettingsOpen(true)}
-                aria-label="Choose mascot voice"
-                title="Choose mascot voice"
-              >
-                <Settings2 size={16} />
-              </button>
-              <button
-                type="button"
-                className="header-icon-btn voice-mute-toggle"
-                onClick={() => patch({ voiceMuted: !state.voiceMuted })}
-                aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-                aria-pressed={state.voiceMuted}
-                title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-              >
-                {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-              </button>
-            </div>
-          )}
+          {/* ElevenLabs Voice integration (see CLAUDE.md) — the mute toggle now always renders,
+              unconditionally: it used to be gated on `isSpeechAvailable()` (a real client-side
+              feature-detection question for the old browser SpeechSynthesis API), but a remote TTS
+              API has no such static "is this supported on this device" question to ask — it either
+              succeeds or fails per request, handled entirely by speech.js's own graceful fallback,
+              never by hiding the control itself. The separate "Choose mascot voice" gear/settings
+              panel is gone entirely along with it — this app now speaks in exactly one fixed voice,
+              so there's nothing left to choose between. */}
+          <div className="header-actions">
+            <button
+              type="button"
+              className="header-icon-btn voice-mute-toggle"
+              onClick={() => patch({ voiceMuted: !state.voiceMuted })}
+              aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+              aria-pressed={state.voiceMuted}
+              title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
+            >
+              {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          </div>
         </div>
       )}
-      <VoiceSettingsPanel isOpen={voiceSettingsOpen} onClose={() => setVoiceSettingsOpen(false)} />
       {needsTransition ? (
         <div className="screen-transition" key={`${screenKey}:${isPlanDetail ? 'detail' : 'overview'}`}>
-          <Screen onOpenVoiceSettings={() => setVoiceSettingsOpen(true)} />
+          <Screen />
         </div>
       ) : (
-        <Screen onOpenVoiceSettings={() => setVoiceSettingsOpen(true)} />
+        <Screen />
       )}
     </div>
   );

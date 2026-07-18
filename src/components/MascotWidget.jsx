@@ -44,12 +44,13 @@ export default function MascotWidget({ text }) {
     setDismissed(false);
   }, [text]);
 
-  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — speaks `text` aloud alongside it appearing.
-  // Passing `null` once dismissed (rather than the raw `text` prop) is what makes "dismissing
-  // stops the speech immediately" work for free: from useMascotSpeech's own perspective, a
-  // dismiss is just an ordinary "the current line went away" change, handled by the exact same
-  // effect that also stops audio when a screen navigates away or the line is genuinely replaced.
-  useMascotSpeech(!dismissed ? text : null, state.voiceMuted, state.voiceURI);
+  // Dashboard/Guide feature, Stage 6, now running on ElevenLabs Voice (see CLAUDE.md) — speaks
+  // `text` aloud alongside it appearing. Passing `null` once dismissed (rather than the raw `text`
+  // prop) is what makes "dismissing stops the speech immediately" work for free: from
+  // useMascotSpeech's own perspective, a dismiss is just an ordinary "the current line went away"
+  // change, handled by the exact same effect that also stops audio when a screen navigates away or
+  // the line is genuinely replaced.
+  useMascotSpeech(!dismissed ? text : null, state.voiceMuted);
 
   if (!text || dismissed) return null;
 

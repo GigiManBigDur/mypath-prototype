@@ -1,144 +1,101 @@
-// Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — free, browser-native voiceover via the Web
-// Speech API (`SpeechSynthesis`). Deliberately the cheap version: this is here to test whether
-// voice adds anything at all before ever considering a paid, more natural-sounding service, so
-// there's no attempt to disguise synthetic-sounding browser voices as something they're not.
+// ElevenLabs Voice integration (see CLAUDE.md — "Integrate ElevenLabs Voice"). Every mascot line
+// in this app is synthesized through Eleven Creative's Text-to-Speech API, using one fixed voice
+// ("Karma - Social Media Starlet") — replacing the earlier free browser-native SpeechSynthesis
+// version this file used to wrap. The real ElevenLabs API key lives ONLY in a server-side Vercel
+// serverless function (api/tts.js) — this module never touches it and never could; it only ever
+// calls this app's OWN `/api/tts` proxy over a plain fetch, exactly like calling any other backend
+// endpoint. See api/tts.js's own header comment for the proxy itself and why this is the one
+// deliberate exception to this app's "no backend" constraint.
 //
-// Kept as a plain module (not a hook) since `speechSynthesis` is a single, genuinely global
-// browser resource — there's only ever one utterance meaningfully "in flight" for the whole app
-// (only one screen, and therefore at most one mascot dialogue source, is ever mounted at a time),
-// so a shared module-level a la carte API (`speak`/`stopSpeaking`) is simpler than routing every
+// Kept as a plain module (not a hook), same reasoning as the SpeechSynthesis version it replaces —
+// there's only ever one utterance meaningfully "in flight" for the whole app (one screen mounted
+// at a time), so a shared module-level speak()/stopSpeaking() pair is simpler than routing every
 // call through React state.
-export function isSpeechAvailable() {
-  return typeof window !== 'undefined'
-    && 'speechSynthesis' in window
-    && typeof window.SpeechSynthesisUtterance === 'function';
-}
 
-let cachedVoices = [];
+// The Vite dev server (`npm run dev`) has no serverless functions of its own, and GitHub Pages
+// (a purely static host) can't run one either — so the client always calls this app's OWN linked
+// Vercel deployment directly, via an absolute cross-origin URL, regardless of where the frontend
+// itself happens to be served from. A plain hardcoded constant rather than an env var: the
+// endpoint's own URL isn't sensitive (it's a public API route with its own origin allowlist, see
+// api/tts.js), and a prototype doesn't need the extra indirection of a configurable value that
+// still requires a full rebuild to change either way.
+const TTS_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/api/tts';
 
-function refreshVoices() {
-  if (!isSpeechAvailable()) return;
-  const voices = window.speechSynthesis.getVoices();
-  if (voices.length > 0) cachedVoices = voices;
-}
+let currentAudio = null;
+let currentAbortController = null;
 
-// Call once, early (App.jsx, on mount) — voice lists load ASYNCHRONOUSLY on many browsers
-// (Chrome in particular reports an empty list on the very first `getVoices()` call and only
-// populates it once its own `voiceschanged` event fires), so priming this well before the first
-// real mascot line needs to speak (which requires navigating past Welcome/Sign Up first, giving
-// the browser a real head start) means `speak()` itself can stay a plain synchronous call rather
-// than needing its own async retry/wait logic.
-export function primeVoices() {
-  if (!isSpeechAvailable()) return;
-  refreshVoices();
-  if (cachedVoices.length === 0) {
-    window.speechSynthesis.addEventListener('voiceschanged', refreshVoices, { once: true });
+// Stops whatever's currently speaking (or still being fetched) immediately — used both when a
+// mascot line is dismissed/muted before finishing and when the screen it belongs to unmounts
+// (navigating away mid-speech). Safe to call even when nothing is speaking/fetching. Aborting the
+// in-flight fetch (not just pausing any already-playing audio) matters specifically because a real
+// network request has real latency a browser TTS call never did — without this, an old, superseded
+// request could still resolve and start playing audio for a line the student already navigated
+// away from.
+export function stopSpeaking() {
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.src = '';
+    currentAudio = null;
   }
 }
 
-// "Show Available Voice Options" feature (see CLAUDE.md) — the real voice list this device/
-// browser actually offers, exposed so a settings panel can list every option with a preview
-// button, rather than the app silently guessing on the student's behalf. Always a fresh read
-// (via `refreshVoices()`), not a stale snapshot from whenever this was first called.
-export function getAvailableVoices() {
-  refreshVoices();
-  return cachedVoices;
-}
-
-// No API exposes "which voice sounds warm/friendly" — this is a plain name-substring wishlist of
-// voices commonly available on major platforms (macOS/iOS Safari, Chrome, Windows Edge) that
-// tend to read as more natural than a device's absolute-first default, checked in order; the
-// first one actually present on this device/browser wins. Falls through to "first English voice,
-// then just the first voice available" if none of these are present — matching Task 1's own
-// original "choose one that sounds relatively natural if there's a choice, defaulting to
-// whatever's first" instruction. Only ever consulted now when `preferredURI` (below) doesn't
-// resolve to a real voice — i.e. the student hasn't explicitly picked one yet, or picked one that
-// stopped being available (a device/voice-pack change) — since an explicit human pick should
-// always win over this heuristic guess.
-const PREFERRED_VOICE_NAME_HINTS = [
-  'Samantha', 'Google US English', 'Microsoft Zira', 'Karen', 'Moira', 'Google UK English Female',
-];
-
-// `preferredURI` is `state.voiceURI` (AppContext.jsx) — a voice's own stable `voiceURI`, the one
-// thing about a `SpeechSynthesisVoice` worth persisting (the objects themselves aren't meaningful
-// to serialize/store, and aren't guaranteed to be the same object instances across a
-// `getVoices()` re-fetch anyway). Resolved fresh against the CURRENT voice list every call,
-// rather than cached, so a voice that's no longer available (uninstalled, or a genuinely
-// different device) safely falls through to the auto-pick heuristic instead of silently doing
-// nothing.
-function pickVoice(preferredURI) {
-  refreshVoices();
-  if (cachedVoices.length === 0) return null;
-  if (preferredURI) {
-    const preferred = cachedVoices.find((v) => v.voiceURI === preferredURI);
-    if (preferred) return preferred;
-  }
-  for (const hint of PREFERRED_VOICE_NAME_HINTS) {
-    const match = cachedVoices.find((v) => v.name.includes(hint));
-    if (match) return match;
-  }
-  return cachedVoices.find((v) => v.lang && v.lang.startsWith('en')) || cachedVoices[0];
-}
-
-// A natural-feeling rate/pitch, not the flat default — slightly slower than 1.0 so it doesn't
-// read as rushed, and a touch higher-pitched than flat so it doesn't read as monotone. Hand-
-// picked judgment calls, not derived from anything measured; browser TTS quality varies enough
-// by device that these are a reasonable middle ground, not a guarantee of "warm."
-const SPEECH_RATE = 0.95;
-const SPEECH_PITCH = 1.05;
-
-// Speaks `text` aloud, replacing whatever was speaking before (a mascot line changing — the
-// student advancing to a new screen/sub-step, or the survey's own staggered sequence moving on
-// — should always interrupt the previous line, never queue behind it; the same is true of a
-// voice-settings preview interrupting a mascot line, or vice versa — there's still only ever one
-// utterance meaningfully "in flight"). A real, confirmed "fail silently" case (Task 3): if speech
-// isn't available at all, OR the voice list is still empty even after `primeVoices()` had a
-// chance to populate it (a device/browser with genuinely no usable voices), this is a deliberate
-// no-op — no error, no attempted `speak()` call, the caller's own text UI is completely
-// unaffected either way. `preferredURI` (optional) is a specific voice's `voiceURI` to use
-// instead of the auto-pick heuristic — see `pickVoice()`'s own comment.
+// Fetches real ElevenLabs audio for `text` from this app's own server-side proxy and plays it,
+// wiring `onStart`/`onEnd` to the actual audio element's own real `playing`/`ended`/`error` events
+// — genuinely synced to real playback, not guessed. Fire-and-forget (no return value): callers
+// drive their own fallback timer in parallel (see useMascotSpeech.js), the same "real audio wins,
+// a timer is just a backstop" shape the old SpeechSynthesis version used, still needed here since
+// a real HTTP request can fail or hang in ways a same-process browser API call couldn't.
 //
-// Radial-layout pass (see CLAUDE.md) — `onStart`/`onEnd` are optional callbacks wired straight to
-// the real utterance's own `onstart`/`onend`/`onerror` events, added so `useMascotSpeech` can
-// drive a "the mascot is actively speaking right now" boolean off REAL audio timing when audio is
-// actually playing (rather than a guessed duration) — see `estimateSpeechDuration` below for the
-// fallback used when it isn't. Returns `true` only if a real utterance was actually queued, so the
-// caller knows whether to fall back to the estimated-duration timer instead.
-export function speak(text, preferredURI, { onStart, onEnd } = {}) {
-  if (!isSpeechAvailable() || !text) return false;
-  refreshVoices();
-  if (cachedVoices.length === 0) return false;
-  window.speechSynthesis.cancel();
-  const utterance = new window.SpeechSynthesisUtterance(text);
-  const voice = pickVoice(preferredURI);
-  if (voice) utterance.voice = voice;
-  utterance.rate = SPEECH_RATE;
-  utterance.pitch = SPEECH_PITCH;
-  if (onStart) utterance.onstart = onStart;
-  if (onEnd) {
-    utterance.onend = onEnd;
-    utterance.onerror = onEnd;
-  }
-  window.speechSynthesis.speak(utterance);
-  return true;
+// A real, deliberate "fail silently" case (Task 2's own "graceful fallback" requirement): if the
+// fetch fails for ANY reason — network error, server error, a missing/invalid API key, ElevenLabs
+// itself erroring, audio decoding failure, an autoplay-policy block — no exception ever escapes
+// this function. `onEnd` fires so the caller's own speaking-animation state doesn't get stuck, and
+// the caller's own dialogue TEXT (already rendered independent of this call — MascotWidget/
+// HubScreen never gate the visible text on whether audio loaded) is completely unaffected either
+// way.
+export function speak(text, { onStart, onEnd } = {}) {
+  stopSpeaking();
+  if (!text) return;
+
+  const controller = new AbortController();
+  currentAbortController = controller;
+
+  fetch(TTS_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal: controller.signal,
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`TTS request failed: ${res.status}`);
+      return res.blob();
+    })
+    .then((blob) => {
+      if (controller.signal.aborted) return; // superseded by a newer call while this was in flight
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudio = audio;
+      audio.addEventListener('playing', () => { if (onStart) onStart(); }, { once: true });
+      const finish = () => { URL.revokeObjectURL(url); if (onEnd) onEnd(); };
+      audio.addEventListener('ended', finish, { once: true });
+      audio.addEventListener('error', finish, { once: true });
+      audio.play().catch(finish);
+    })
+    .catch(() => {
+      if (!controller.signal.aborted && onEnd) onEnd();
+    });
 }
 
-// Radial-layout pass (see CLAUDE.md) — Task 4's mascot "speaking" animation needs SOME notion of
-// "how long is this line" even when there's no real audio to time it against (muted, or a device
-// with no usable voices at all) — a plain, honest estimate (~2.3 words/sec, roughly in line with
-// SPEECH_RATE's slightly-slower-than-default pace) rather than a fixed duration, so a one-word
-// line and a long paragraph don't animate for the same length of time. Clamped to a sane range so
-// neither extreme looks broken (a blink-and-you-miss-it flash, or an animation that outlasts the
-// dialogue bubble itself).
+// The mascot "speaking" animation (Task 4 of the original Radial-layout pass) needs SOME notion
+// of "how long is this line" as a fallback when real audio timing can't be relied on (muted, or
+// the ElevenLabs fetch itself is still in flight/never resolves) — a plain, honest estimate
+// (~2.3 words/sec) rather than a fixed duration, so a one-word line and a long paragraph don't
+// animate for the same length of time. Clamped to a sane range so neither extreme looks broken.
 export function estimateSpeechDuration(text) {
   const words = (text || '').trim().split(/\s+/).filter(Boolean).length;
   return Math.min(6000, Math.max(1200, Math.round((words / 2.3) * 1000)));
-}
-
-// Stops whatever's currently speaking (or queued) immediately — used both when a mascot line is
-// dismissed/muted before finishing and when the screen it belongs to unmounts (navigating away
-// mid-speech). Safe to call even when nothing is speaking, or when speech isn't available at all.
-export function stopSpeaking() {
-  if (!isSpeechAvailable()) return;
-  window.speechSynthesis.cancel();
 }

@@ -166,25 +166,18 @@ const DEFAULT_STATE = {
   // current year, matching STAGE_PLAN's ordering) = viewing Map 2 (Roadmap.jsx) scoped to that
   // one year. Persisted like every other navigation field so a returning user resumes on
   // whichever year they were looking at, not bounced back to the overview.
-  voiceMuted: false, // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the mascot's spoken
-  // voiceover (Web Speech API) defaults ON, since this stage exists specifically to test whether
-  // voice is worth keeping at all. A single toggle in App.jsx's persistent header controls this
-  // for the whole app, not a per-screen setting — stored here (rather than a module-level "session
-  // only" flag, the pattern this app already uses for pure entrance-animation flags like
-  // `hasPlayedRoadmapEntrance`) so it survives across screen navigation the same simple way every
-  // other real user preference in this app already does; it also happens to survive a reload,
-  // which is a reasonable bonus for a deliberate mute choice, not something worth engineering
-  // around. "Start Over" resetting it back to on along with everything else is fine — that's a
-  // fresh run of the app, same as every other DEFAULT_STATE field.
-  voiceURI: null, // "Show Available Voice Options" (see CLAUDE.md) — the `voiceURI` of a specific
-  // browser voice the student explicitly picked after previewing options in the voice settings
-  // panel (App.jsx's own trigger next to the mute toggle), or `null` if they haven't picked one
-  // yet (in which case speech.js's own auto-pick heuristic decides). A voice's `voiceURI` is the
-  // one part of a `SpeechSynthesisVoice` worth persisting — the objects themselves aren't
-  // meaningful to serialize, and aren't guaranteed to be the same instances across a later
-  // `getVoices()` re-fetch anyway (speech.js re-resolves this URI against the CURRENT voice list
-  // every time it's used, so a voice that's no longer available on a different device/browser
-  // safely falls back to the heuristic instead of silently failing).
+  voiceMuted: false, // Dashboard/Guide feature, Stage 6 (see CLAUDE.md), now ElevenLabs Voice —
+  // the mascot's spoken voiceover defaults ON. A single toggle in App.jsx's persistent header
+  // controls this for the whole app, not a per-screen setting — stored here (rather than a
+  // module-level "session only" flag, the pattern this app already uses for pure entrance-
+  // animation flags like `hasPlayedRoadmapEntrance`) so it survives across screen navigation the
+  // same simple way every other real user preference in this app already does; it also happens to
+  // survive a reload, which is a reasonable bonus for a deliberate mute choice, not something
+  // worth engineering around. "Start Over" resetting it back to on along with everything else is
+  // fine — that's a fresh run of the app, same as every other DEFAULT_STATE field.
+  // `voiceURI` (the old "Show Available Voice Options" browser-voice picker's own pick) was
+  // removed entirely once ElevenLabs Voice replaced the old SpeechSynthesis system — there's now
+  // exactly one fixed voice for every mascot line, so there's nothing left to persist a pick for.
   accountCreatedAt: null, // Hub redesign, radial-layout pass (see CLAUDE.md) — set once, by
   // SignUpScreen's own submit handler, to a plain 'YYYY-MM-DD' string the first time a student
   // ever completes sign-up (never overwritten afterward, so a defensive re-submit can't reset
