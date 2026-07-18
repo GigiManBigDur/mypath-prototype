@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
-  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers,
+  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -50,6 +50,15 @@ const CORE_TYPE_CONFIG = {
   // Roslyn's per-year request), but the same "(Est.)" honesty marker and icon language.
   'ucdavis-enrollment': { label: 'Enroll (Est.)', color: 'var(--bloom-teal)', Icon: BookOpen },
   'ucdavis-checkpoint': { label: 'Quarter Checkpoint (Est.)', color: 'var(--bloom-teal)', Icon: GraduationCap },
+  // Per-School Application Deadlines & Supplemental Essays (see CLAUDE.md) — unlike the Course
+  // Selection "(Est.)" labels above, whether a given task is verified or pattern-estimated varies
+  // PER SCHOOL, not uniformly per coreType, so that distinction lives in the task's own dynamically
+  // generated title (roadmapGenerator.js's buildApplicationItems) instead of baked into this
+  // static label the way 'course-request'/etc. do. Application reuses the 'final'-tier orange
+  // (a genuine major milestone, same weight as `t6`'s own "Get accepted..." goal); the
+  // supplement/PIQ prep step reuses the teal 'milestone' color, one tier lighter.
+  'college-application': { label: 'Application', color: 'var(--bloom-orange)', Icon: Send },
+  'college-supplement': { label: 'Supplemental Essay', color: 'var(--bloom-teal)', Icon: FileText },
 };
 // Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
 // a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.

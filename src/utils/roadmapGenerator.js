@@ -1,6 +1,7 @@
 import { MAJORS } from '../data/majors';
 import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
+import { getSchoolDeadlineInfo, schoolRequiresSupplement, realDeadlineDate } from '../data/collegeDeadlines';
 import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
 import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT, getStage0TargetLabel } from '../data/trunkSteps';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS } from '../data/interests';
@@ -138,7 +139,19 @@ export function generateRoadmap(state, yearWindow = null) {
       ? buildUCDavisQuarterItems(state, stageNames, planStartDate, dateOverrides, removed)
       : [];
 
-  const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems];
+  // Per-School Application Deadlines & Supplemental Essays (see CLAUDE.md) — highschool-only:
+  // undergraduate/transfer students' own selected `programs` are grad-school programs (LEVEL_LABEL
+  // below already treats `undergraduate` as "graduate-school"), a genuinely different application
+  // cycle this feature's own real/pattern deadline research doesn't cover. Replaces the old static
+  // "Submit all college applications" trunk step (`t5`, removed from trunkSteps.js) with real,
+  // per-school tasks generated fresh from `selectedPrograms` every time this function runs — see
+  // buildApplicationItems' own header comment for why this needs no separate "did the selection
+  // change" tracking to satisfy Task 5's own regeneration requirement.
+  const applicationItems = level === 'highschool'
+    ? buildApplicationItems(selectedPrograms, stageNames, planStartDate, dateOverrides, removed)
+    : [];
+
+  const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems, ...applicationItems];
 
   // Scope to the selected year, if any. A non-current year uses that year's own start date as
   // the layout epoch instead of real "today" — the min-gap/collision math only ever depends on
@@ -441,6 +454,121 @@ function buildCourseCheckpointItem(stageName, targetStageName, stageIndex, planS
     steps: null,
     checkpointStageName: stageName,
   };
+}
+
+function slugify(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+// Per-School Application Deadlines & Supplemental Essays (see CLAUDE.md). Generated fresh from
+// `selectedPrograms` (the SAME array generateRoadmap() already derives from
+// state.selectedProgramKeys for the plan's own title/personalization text) every time this
+// function runs — there is no separate cache/snapshot of "the programs the student had selected
+// when this task was first created," so Task 5's own "regenerate as selections change"
+// requirement falls out for free, the same way every other selection-driven spine item in this
+// file already works (opportunityItems, courseItems, etc.).
+//
+// Deduped by INSTITUTION, not by individual program key — a real student submits ONE application
+// to a school regardless of how many of that school's own programs/majors they're considering
+// there (Common App-style platforms don't support "apply twice to the same school"), so two
+// selected programs at the same institution produce exactly one submission task (and, if
+// applicable, one supplement/PIQ task), not a confusing duplicate of each.
+//
+// Anchored at the SENIOR stage specifically (`stageNames.indexOf('senior')`) — the same
+// year-offset the old static `t5` step (see trunkSteps.js, now removed) always resolved to,
+// since 'senior' is always the final stage in STAGE_PLAN.highschool regardless of which
+// schoolYear (9-12) produced the current stage sequence — so a student years out from actually
+// applying (e.g. a 9th-grader) still gets these tasks generated now, correctly positioned on
+// their own future senior year.
+function buildApplicationItems(selectedPrograms, stageNames, planStartDate, dateOverrides, removed) {
+  const seniorStageIndex = stageNames.indexOf('senior');
+  if (seniorStageIndex === -1 || selectedPrograms.length === 0) return [];
+
+  const byInstitution = new Map();
+  selectedPrograms.forEach((p) => {
+    if (!byInstitution.has(p.institution)) byInstitution.set(p.institution, p);
+  });
+
+  const items = [];
+  byInstitution.forEach((program, institution) => {
+    const info = getSchoolDeadlineInfo(institution);
+    // Real calendar-date math, not anchorDate()'s usual today-relative template offset — see
+    // collegeDeadlines.js's own header comment for why a real admissions deadline needs this.
+    const regularAnchor = realDeadlineDate(info.single || info.regular, planStartDate, seniorStageIndex);
+    const regularDateStr = formatDate(regularAnchor);
+    const earlyDateStr = info.early ? formatDate(realDeadlineDate(info.early, planStartDate, seniorStageIndex)) : null;
+
+    const applicationId = `application-${slugify(institution)}`;
+    if (!removed[applicationId]) {
+      const realDate = dateOverrides[applicationId] ? parseDateInputValue(dateOverrides[applicationId]) : regularAnchor;
+      items.push({
+        id: applicationId,
+        title: info.isVerified ? `Submit application to ${institution}` : `Submit application to ${institution} (Est.)`,
+        category: 'core',
+        required: true,
+        coreType: 'college-application',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: describeApplicationDeadline(institution, info, regularDateStr, earlyDateStr),
+        resources: ['Common App', 'Coalition App', `${institution}'s own admissions website`],
+        steps: null,
+      });
+    }
+
+    if (schoolRequiresSupplement(institution, program.selectivity)) {
+      const supplementId = `supplement-${slugify(institution)}`;
+      if (!removed[supplementId]) {
+        const templateDate = realAddDays(regularAnchor, -21);
+        const realDate = dateOverrides[supplementId] ? parseDateInputValue(dateOverrides[supplementId]) : templateDate;
+        items.push({
+          id: supplementId,
+          title: info.isUC
+            ? `Complete ${institution}'s Personal Insight Questions`
+            : info.isVerified ? `Complete ${institution}'s supplemental essays` : `Complete ${institution}'s supplemental essays (Est.)`,
+          category: 'core',
+          required: true,
+          coreType: 'college-supplement',
+          date: realDate,
+          due: formatDate(realDate),
+          desc: describeSupplementDeadline(institution, info),
+          resources: info.isUC
+            ? ['UC Personal Insight Questions — official prompts (admission.universityofcalifornia.edu)']
+            : [`${institution}'s own supplemental essay prompts (published each application cycle)`],
+          steps: null,
+        });
+      }
+    }
+  });
+
+  return items;
+}
+
+// Task 4's own "(Est.)" honesty requirement — a verified school's own note is still a real "these
+// can shift by a day or two, confirm before applying" caveat, just a much lighter one than the
+// full "typical deadline for this type of school" framing a pattern-derived date needs.
+function describeApplicationDeadline(institution, info, regularDateStr, earlyDateStr) {
+  if (info.isUC) {
+    return info.isVerified
+      ? `${institution}'s application deadline — the UC system uses one single deadline, no Early Decision/Action option. Even verified deadlines can shift by a day or two — confirm the exact date on the UC application portal before applying.`
+      : `(Est.) Typical deadline for this type of school — confirm the exact date closer to application season, as these can shift slightly year to year. UC-system schools use one single deadline (${regularDateStr} here), no Early Decision/Action option.`;
+  }
+  return info.isVerified
+    ? `${institution}'s Regular Decision deadline. Early Action/Decision, if you're applying that way, is due ${earlyDateStr}. Even verified deadlines can shift by a day or two — confirm the exact date on ${institution}'s own admissions site before applying.`
+    : `(Est.) Typical deadline for this type of school — confirm the exact date closer to application season, as these can shift slightly year to year. This Regular Decision estimate is ${regularDateStr}; if ${institution} offers Early Action/Decision, that's typically around ${earlyDateStr}.`;
+}
+
+// The "a few weeks before" offset (21 real days) is itself a general best-practice
+// recommendation, not an independently verified per-school fact, even for one of the 5 verified
+// application-deadline schools — so this always carries its own honest caveat about the offset,
+// regardless of whether the underlying application deadline itself is verified or pattern-based.
+function describeSupplementDeadline(institution, info) {
+  const base = info.isUC
+    ? "Draft and polish your Personal Insight Questions (PIQs) — the UC system's own required short-answer prompts, used across every UC campus, in place of a Common App-style supplement."
+    : `Draft and polish ${institution}'s own required supplemental essays, on top of your main Common App essay.`;
+  const estimateNote = info.isVerified
+    ? "This due date gives you a few weeks of buffer before the real application deadline — a general best-practice cushion, not an independently confirmed date."
+    : "(Est.) Typical deadline for this type of school — confirm the exact date closer to application season, as these can shift slightly year to year. This due date gives you a few weeks of buffer before the estimated application deadline.";
+  return `${base} ${estimateNote}`;
 }
 
 function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, planStartDate, dateOverrides, removed) {

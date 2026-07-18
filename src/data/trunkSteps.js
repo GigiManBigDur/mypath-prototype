@@ -137,11 +137,13 @@ export const TRUNK_STAGES = {
           desc: 'Colleges may see updated grades — make sure your transcript reflects your best work before you hit submit.',
           resources: [],
         },
-        {
-          id: 't5', title: 'Submit all college applications', type: 'major', date: { month: 1, day: 5 },
-          desc: 'Final proofread, then submit. Double-check every supplement is attached.',
-          resources: ['Common App', 'Coalition App', 'Submission checklist'],
-        },
+        // `t5` ("Submit all college applications", one generic task regardless of who was
+        // actually selected) was removed here — see CLAUDE.md's "Per-School Application
+        // Deadlines & Supplemental Essays" section. It's replaced by real, per-school tasks
+        // dynamically generated in roadmapGenerator.js's own buildApplicationItems(), from
+        // whichever programs are CURRENTLY in state.selectedProgramKeys, not a single static
+        // step — this is the one senior-year step this feature couldn't leave as plain trunk
+        // data, since its whole point is to vary per student.
         {
           id: 't6', title: finalGoalTitle, type: 'final', date: { month: 4, day: 15 },
           desc: 'The finish line. Everything on this path was built to get you here.',

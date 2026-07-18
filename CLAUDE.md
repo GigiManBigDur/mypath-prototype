@@ -2854,6 +2854,140 @@ sharing an exact date, rendered as one expandable cluster marker.**
   stayed at 18/18 both before and after every edit in this pass — this feature never opens
   `roadmapLayout.js` at all, only reads its already-computed output.
 
+**Per-School Application Deadlines & Supplemental Essays: replaces the single static "Submit all
+college applications" task with real, per-school tasks generated fresh from whatever programs are
+currently selected — highschool only.**
+- **`src/data/collegeDeadlines.js` is new**, holding `VERIFIED_DEADLINES` (Task 1's own 5 real,
+  individually verified deadlines — MIT/Cornell/Georgetown/Michigan each with a real ED-or-EA date
+  plus the real RD date the task is actually dated to, and UC Berkeley/UCLA/UC Davis with the real
+  single Nov 30/no-ED-EA UC-system policy), an `INSTITUTION_TYPE` public/private classification
+  covering every one of the ~69 distinct institutions currently in `programs.js` (programs.js has
+  no dedicated field for this — cross-referenced against that institution's own `overview` text
+  where it says "public"/"private" somewhere across its own entries, zero conflicts found; the
+  ~25 institutions whose entries never use either literal word — mostly elite private research
+  universities and private conservatories/art schools, plus a handful of public flagships — were
+  classified from real-world public knowledge instead, each an unambiguous, well-known case), and
+  `PATTERN_DATES` (Task 1's own honest fallback for every non-verified school: UC-system → single
+  Nov 30; private → ED/EA ~Nov 1, RD "Jan 1-10" represented by Jan 5 — deliberately the SAME date
+  the old generic task used, kept for continuity rather than picked arbitrarily; public non-UC →
+  EA ~Nov 1, RD "Dec-Feb" represented by Jan 15, the range's own middle value). `getSchoolDeadlineInfo(institution)` resolves verified-first, then UC-system (checked as its own
+  rule — `institution.startsWith('UC ')` — not just the 3 named campuses, so it still applies
+  correctly if another UC campus is ever added without its own dedicated verified entry), then the
+  general pattern; an institution missing from `INSTITUTION_TYPE` (a genuinely new one added to
+  `programs.js` later without updating this file) defaults to the public pattern — a safe, honest
+  middle ground rather than guessing private and inventing an ED/EA date that may not exist.
+  `schoolRequiresSupplement(institution, selectivity)` implements Task 3's own "most selective
+  private schools do" judgment call: every UC school (PIQs, a real system-wide requirement), the 4
+  verified non-UC schools (all genuinely require supplements in real life), and any other PRIVATE
+  school at the Extremely/Highly Selective tier — deliberately excluding less-selective private
+  schools (many genuinely have no supplement beyond the Common App essay) and non-UC public
+  schools at any tier (the general real-world pattern skews toward none), the same "don't force a
+  fit" posture this app's data layer already holds elsewhere (e.g. `programRecommendations.js`'s
+  own `culinary-arts` exclusion).
+- **A real, confirmed architectural bug was found and fixed while building this — not a data
+  error, a genuine date-system mismatch.** The first implementation fed deadline templates
+  through this app's own standard `anchorDate()` (every OTHER date in this app is "N days after
+  Aug 15, added to whatever day the plan is generated" — see `utils/dates.js`'s own header
+  comment) — confirmed directly this produced "Dec 9" for MIT's real Jan 6 deadline, since the
+  offset gets added to TODAY, not resolved to any real calendar year. A REAL, individually
+  verified admissions deadline is a genuinely fixed calendar date that doesn't shift based on when
+  a student happens to open the app — the exact same problem already solved once for UC Davis's
+  own ~10-week quarters (`ucdavisQuarters.js`), just more severe here since a full admissions
+  cycle spans months. Fixed with real calendar-year math instead, mirroring that file's own
+  established precedent directly: `seniorFallAnchorYear(today)` finds the real calendar year of
+  the CURRENT (if today falls within one) or NEXT application cycle's own fall term — Aug-Dec
+  today means the cycle already started this calendar year; Jan-Feb means still finishing the
+  cycle that started last August (every real RD deadline in this file falls in this window); Mar-
+  Jul is the "dead zone" between one cycle wrapping up and the next starting, treated as prep for
+  the upcoming fall (matching this app's own "yearOffset 0 means starts now/soon" convention every
+  other stage-0 item already uses). `realDeadlineDate(templateDate, today, seniorStageIndex)`
+  applies `yearOffset` (real years from now, matching how every other stage already resolves its
+  own year) on top of that anchor, with Aug-Dec template months landing in the anchor year itself
+  and Jan-Jul months (every real RD deadline here) landing in the year immediately after — a
+  plain real calendar-year rollover, not a day offset. Verified directly: re-running the same test
+  after this fix showed MIT correctly dated Jan 6, 2027 (not Dec 9, 2026).
+- **`roadmapGenerator.js`'s new `buildApplicationItems(selectedPrograms, stageNames,
+  planStartDate, dateOverrides, removed)` is highschool-only** (`level === 'highschool'`) —
+  undergraduate/transfer's own selected `programs` are grad-school programs (`LEVEL_LABEL` already
+  treats `undergraduate` as `'graduate-school'`), a genuinely different application cycle this
+  feature's own real/pattern research doesn't cover. Reuses the EXACT same `selectedPrograms`
+  array `generateRoadmap()` already derives from `state.selectedProgramKeys` for the plan's own
+  title/personalization text — there is no separate cache/snapshot of "the programs selected when
+  a task was first created," so Task 5's own "regenerate as selections change" requirement falls
+  out for free, the same way every other selection-driven spine item in this file already works.
+  **Deduped by INSTITUTION, not by individual program key** — a real student submits ONE
+  application to a school regardless of how many of that school's own programs/majors they're
+  considering there (Common App-style platforms don't support "apply twice to the same school"),
+  so two selected programs at the same institution correctly produce exactly one submission task
+  (and, if applicable, one supplement/PIQ task), not a confusing duplicate of each. Anchored at the
+  SENIOR stage specifically (`stageNames.indexOf('senior')`) — the same year-offset the old static
+  `t5` step always resolved to, since 'senior' is always the final stage in
+  `STAGE_PLAN.highschool` regardless of which `schoolYear` (9-12) produced the current stage
+  sequence, so a student years out from actually applying (e.g. a 9th-grader) still gets these
+  tasks generated now, correctly positioned on their own future senior year.
+- **Task 2 — the old static `t5` ("Submit all college applications", one generic task regardless
+  of who was selected) was removed from `trunkSteps.js`'s `highschool.senior.steps` entirely** —
+  a comment left in its place explains why (this is the one senior-year step that couldn't stay
+  plain trunk data, since its whole point is to vary per student) — replaced by real per-school
+  `category: 'core', required: true, coreType: 'college-application'` items titled `Submit
+  application to ${institution}` (with `(Est.)` appended for every non-verified school, per Task
+  4). `t6` ("Get accepted to...", the "finish line" goal) is untouched.
+- **Task 3 — a parallel `coreType: 'college-supplement'` item** per school that
+  `schoolRequiresSupplement()` returns true for, dated 21 real days before that same school's own
+  application deadline (via `realAddDays`, applied to the ALREADY-real-calendar-resolved deadline
+  date — not re-run through any template math). Titled `Complete ${institution}'s Personal Insight
+  Questions` for UC schools (`info.isUC`), `Complete ${institution}'s supplemental essays`
+  otherwise (with `(Est.)` appended for non-verified schools, matching the application task's own
+  rule). The 21-day offset itself is a general best-practice recommendation, never independently
+  verified per school (even for one of the 5 verified-deadline schools) — its own `desc` text
+  always says so explicitly, regardless of whether the underlying application deadline is verified
+  or pattern-based.
+- **Task 4 — "(Est.)" honesty is baked into the task's own TITLE, dynamically, per school** —
+  deliberately NOT a static `CORE_TYPE_CONFIG` label the way `'course-request'`'s own "(Est.)"
+  already is (every course-request task is uniformly estimated; here, whether a given task is
+  verified varies per school, so it can't live in one shared static label). `Roadmap.jsx` gained
+  two new `CORE_TYPE_CONFIG` entries — `'college-application'` (a `Send` icon, reusing the
+  `'final'`-tier orange — a genuine major milestone, the same visual weight as `t6`'s own "Get
+  accepted..." goal) and `'college-supplement'` (a `FileText` icon, reusing the `'milestone'`-tier
+  teal, one weight lighter). Every generated `desc` carries a real honesty note: a verified
+  school's own task still says deadlines "can shift by a day or two — confirm... before applying";
+  a non-verified (pattern-estimated) school's own task leads with the exact required disclaimer,
+  "(Est.) Typical deadline for this type of school — confirm the exact date closer to application
+  season, as these can shift slightly year to year," before naming its own specific estimated
+  date(s).
+- **A real, expected interaction with the Date-Cluster feature (see its own section above),
+  confirmed directly rather than assumed**: UC Berkeley and UCLA share the IDENTICAL real Nov 30
+  deadline (and therefore the identical "21 days before" PIQ date too) whenever both are selected
+  — per that feature's own general "any 2+ same-date top-level spine items merge" rule, their two
+  application tasks correctly render as one shared cluster marker instead of two individual nodes
+  (and separately, their two PIQ tasks form their own second cluster) — a genuine, realistic
+  validation of that feature working correctly against real generated data, not a bug needing a
+  workaround. `state.dateOverride` (Real-Time Tracking) needed zero direct integration work here —
+  `buildApplicationItems` reads the exact same `planStartDate` (`getEffectiveToday(
+  state.dateOverride)`) every other dynamic spine-item builder in this file already receives, so
+  an active override already flows through automatically.
+- Verified with a dedicated 30-check Playwright suite selecting a realistic mix of 8 schools
+  spanning every honesty tier: all 4 individually-dateable verified schools (MIT/Cornell/
+  Georgetown/Michigan) render with their own correct, real, verified date and no "(Est.)" tag; UC
+  Berkeley + UCLA's shared Nov 30 cluster (both application and PIQ) opens correctly and lists both
+  schools with the real PIQ wording; a non-verified Extremely Selective private school (Duke)
+  correctly gets both the pattern date AND a supplement task, both carrying "(Est.)"; a
+  non-verified Selective public non-UC school (UT Austin) correctly gets the pattern date but NO
+  supplement task; the exact required disclaimer text renders verbatim for non-verified schools,
+  and a lighter "confirm before applying" note renders for verified ones; zero cross-node overlap
+  across the resulting dense set of 15 new tasks; and narrowing the selection down to just one
+  school correctly regenerates the spine to show only that school's own tasks, with no stale
+  duplicates left over from the wider selection. The full pre-existing regression suite (`test.js`,
+  `test-hub.js`, `test-map2-redesign.js`, `test-academicplan-repaint.js`, `test-stage4.js`,
+  `test-ucdavis-stage4.js`, `test-ucdavis-density.js`, `test-roslyn-consolidation.js`,
+  `test-anchor-removal.js`, `test-countplantasks-fix.js`, `test-realtime-tracking.js`,
+  `test-override-consistency.js`, `test-projectbuilder-skip.js`, `test-digest-checklist.js`,
+  `test-date-clusters.js`, `test-return-to-hub.js`) all still pass with zero regressions (one
+  test's own "Tasks completed" total shifted from 0/11 to 0/10, an expected, correct consequence
+  of removing the old single static `t5` task, not a bug); `npm run verify:spacing` stayed at
+  18/18 throughout — this feature only ever adds new spine items via the exact same data shape
+  every other core item already uses, never touches `roadmapLayout.js`.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
