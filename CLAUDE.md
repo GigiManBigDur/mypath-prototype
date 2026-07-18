@@ -3118,14 +3118,33 @@ not a general backend.**
   removed. `npm run build`/`npm run lint` both stay clean, and a direct `grep` across the built
   `dist/` bundle confirms zero occurrences of the real API key or its env var name anywhere in the
   shipped client code.
-- **What still needs to happen before this is live**: a real `ELEVENLABS_API_KEY` must be set in
-  the Vercel project's own environment variables (not committed anywhere), and `api/tts.js` must
-  actually be deployed via `vercel deploy --prod` — per this file's own standing "deploys are
-  opt-in only" rule, neither of these should happen proactively. Until both are done, every mascot
-  line in every environment (including local dev) falls back exactly the way the "no prior gesture"
-  / "endpoint not yet deployed" test paths above already demonstrate: dialogue text displays
-  normally, the gesture plays on its estimated timing, and nothing breaks — just with no real audio
-  yet.
+- **Live as of this writing.** `ELEVENLABS_API_KEY` is set in the Vercel project's own environment
+  variables (Team-level "Shared" variable, linked to this project — not committed anywhere in this
+  repo), scoped to Text-to-Speech access only (every other ElevenLabs endpoint — Speech to Speech,
+  Dubbing, Voices, Projects, etc. — is deliberately left at "No Access" on the key itself, a
+  real least-privilege restriction independent of the CORS allowlist), and `api/tts.js` has been
+  deployed to production via `vercel deploy --prod`. **A real, confirmed gotcha hit while turning
+  this on**: ElevenLabs' own API returns `402 Payment Required` (`code: "paid_plan_required"`) for
+  any request to a Voice Library voice (like "Karma," the one this app uses) from an account still
+  on ElevenLabs' Free plan — this is unrelated to that account's own credit balance (confirmed
+  directly: the account had 0/10,000 free credits used and still got this error) and unrelated to
+  anything in this app's own code; ElevenLabs' Free tier simply doesn't permit API access to
+  Voice Library voices at all, only to what a free UI session can use directly on their site. The
+  fix was upgrading the ElevenLabs account itself to a paid tier (Starter, $6/mo — confirmed
+  directly to actually resolve it, not merely inferred from documentation) — nothing in this app
+  needed to change once that happened. `api/tts.js`'s own error response for a non-2xx ElevenLabs
+  reply now forwards the real `detail` text from ElevenLabs alongside the wrapped status code (a
+  small, deliberate improvement made while diagnosing this — surfaces the real upstream reason
+  directly instead of just a bare status number, useful if this ever needs debugging again; still
+  never exposes the API key itself, which only ever lives in the request header this function
+  sends, never in anything it returns). **This is a live, ongoing account-level dependency, not a
+  one-time setup step**: if the ElevenLabs subscription is ever cancelled/lapses, every request
+  reverts to the exact same `paid_plan_required` failure, and the app falls back to its already-
+  verified graceful behavior (dialogue text displays normally, the pointing/speaking gesture plays
+  on its estimated-duration timing, nothing breaks) with zero code changes needed either way —
+  resubscribing brings real audio back automatically the moment ElevenLabs' own account state
+  allows it again, since `api/tts.js` checks this live on every request rather than caching
+  anything about plan status.
 
 ## Design tokens
 
