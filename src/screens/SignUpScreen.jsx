@@ -25,6 +25,17 @@ import { useApp } from '../context/AppContext';
 // Deliberately no StepProgress here, matching `welcome`'s own precedent — this is a pre-flow
 // screen, not one of the 9 tracked survey-through-plan steps, so it doesn't get a step indicator
 // any more than the welcome hero does.
+//
+// A third optional field, "Mascot voice," sets `state.voiceMuted` (ElevenLabs Voice, see CLAUDE.md)
+// before the student ever reaches the hub — the earliest point in the flow it can matter, since the
+// hub is where the first real mascot dialogue (and therefore the first real, billed ElevenLabs API
+// request) fires. This doesn't add a second mute mechanism — `voiceMuted` and its own real header
+// toggle (App.jsx) already existed; this just surfaces the identical field one screen earlier so a
+// tester/student who wants zero real API usage from the very start can opt out before the first
+// request would otherwise go out. Labeled "For testing purposes" per its own explicit build ask,
+// since the practical reason to reach for this pre-emptively (rather than the header toggle after
+// the fact) is conserving a real, metered/billed API quota during testing, not a normal end-user
+// preference.
 const COUNTRY_OPTIONS = ['United States', 'United Kingdom', 'Canada', 'India', 'China', 'Australia'];
 // Palette repaint (see CLAUDE.md) — 6 of the shared 7-color "bloom" accent palette (global.css's
 // own `:root` tokens, first established for the hub's colorful tile icons), one per avatar so
@@ -51,6 +62,13 @@ export default function SignUpScreen() {
   const [username, setUsername] = useState(state.username);
   const [country, setCountry] = useState(state.country);
   const [avatarIcon, setAvatarIcon] = useState(state.avatarIcon);
+  // Lets a new sign-up opt out of mascot voice BEFORE ever reaching the hub — the earliest point
+  // it can be set, since the hub is where the first real mascot dialogue (and therefore the first
+  // real ElevenLabs API request) fires. `state.voiceMuted` already exists and already has a real
+  // header toggle (App.jsx) that works from every screen after this one — this doesn't add a new
+  // mechanism, it just surfaces that same field one screen earlier so a student who wants to skip
+  // real API usage entirely can do so before the very first request would otherwise go out.
+  const [voiceMuted, setVoiceMuted] = useState(state.voiceMuted);
 
   const canContinue = username.trim().length > 0;
 
@@ -61,6 +79,7 @@ export default function SignUpScreen() {
       username: username.trim(),
       country,
       avatarIcon,
+      voiceMuted,
       // Set once, ever — a defensive re-submit (state restored mid-flow) must not reset the
       // hub's own "Days active" stat back to day 1. See AppContext.jsx's own comment.
       accountCreatedAt: state.accountCreatedAt || new Date().toISOString().slice(0, 10),
@@ -137,6 +156,24 @@ export default function SignUpScreen() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="field-block">
+          <div className="field-label">
+            Mascot voice <span className="optional-badge">Optional</span>
+          </div>
+          <p className="field-hint">
+            Turn off the mascot's spoken voice. For testing purposes — you can also mute/unmute
+            anytime later from the header.
+          </p>
+          <button
+            type="button"
+            className={`pill${voiceMuted ? ' selected' : ''}`}
+            aria-pressed={voiceMuted}
+            onClick={() => setVoiceMuted(!voiceMuted)}
+          >
+            {voiceMuted ? 'Voice off' : 'Voice on'}
+          </button>
         </div>
 
         <div className="btn-row" style={{ justifyContent: 'flex-end' }}>

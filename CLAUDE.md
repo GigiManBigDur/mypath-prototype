@@ -3146,6 +3146,25 @@ not a general backend.**
   allows it again, since `api/tts.js` checks this live on every request rather than caching
   anything about plan status.
 
+**Sign-Up gained a third optional field, "Mascot voice," so real ElevenLabs API usage can be
+opted out of before it ever starts, not just muted after the fact.** `state.voiceMuted` and its
+own real toggle already existed (`App.jsx`'s header, mounted on every screen after Sign-Up) — this
+doesn't add a second mute mechanism, it surfaces that identical field one screen earlier, since the
+hub is where the FIRST real mascot dialogue (and therefore the first real, billed ElevenLabs
+request) fires, before a student would ever see the header toggle. `SignUpScreen.jsx` follows the
+exact same local-state-seeded-from-`state`, committed-on-submit pattern the `country`/`avatarIcon`
+fields already use — a `.pill` toggle (reusing the country field's own toggle-button language)
+reading "Voice on"/"Voice off", defaulting to unmuted (matching `DEFAULT_STATE.voiceMuted: false`).
+Labeled "For testing purposes" per its own explicit build request — the practical reason to reach
+for this pre-emptively (rather than the header toggle after the fact) is conserving a real,
+metered/billed API quota during testing, not a normal end-user preference. Verified with a
+dedicated 7-check Playwright suite: the field renders with the required hint text, defaults to
+"Voice on," toggling it and submitting correctly writes `voiceMuted: true` to state before the hub
+ever mounts, and the header's own mute toggle correctly reflects that pre-set value. The
+pre-existing `test-signup.js` needed one update — its "exactly 2 optional badges" assertion became
+3, the same "update a pre-existing test after an intentional, expected change" pattern this
+codebase's suite has already needed many times before, not a regression.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
