@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
-  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText,
+  GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
+  ClipboardCheck, Archive, Eye, CreditCard,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -59,6 +60,20 @@ const CORE_TYPE_CONFIG = {
   // supplement/PIQ prep step reuses the teal 'milestone' color, one tier lighter.
   'college-application': { label: 'Application', color: 'var(--bloom-orange)', Icon: Send },
   'college-supplement': { label: 'Supplemental Essay', color: 'var(--bloom-teal)', Icon: FileText },
+  // Fill Out the High School Academic Plan (see CLAUDE.md) — the same per-school test/
+  // documentation logistics pattern the application/supplement entries above already established,
+  // extended to 4 more real per-school task types. 'track-status' is deliberately the muted
+  // ink-soft tone (not teal/orange) since it's explicitly a "light, optional check-in," the same
+  // lighter visual weight `procedure` already carries for a routine action.
+  'test-decision': { label: 'Testing Decision', color: 'var(--bloom-teal)', Icon: HelpCircle },
+  'score-report': { label: 'Score Report', color: 'var(--bloom-teal)', Icon: ClipboardCheck },
+  'transcript-request': { label: 'Transcript Request', color: 'var(--bloom-teal)', Icon: Archive },
+  'track-status': { label: 'Status Check', color: 'var(--bloom-ink-soft)', Icon: Eye },
+  // The post-acceptance phase's own real finish line (see trunkSteps.js's `pa-deposit`) — reuses
+  // the same 'final'-tier orange as `t6`'s own "Get accepted" goal (this is, practically, the
+  // SECOND and truer finish line of the whole journey now that the plan extends past acceptance),
+  // with its own distinct icon/label so it doesn't read as a literal duplicate of `t6`.
+  enrollment: { label: 'Enrollment', color: 'var(--bloom-orange)', Icon: CreditCard },
 };
 // Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
 // a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.

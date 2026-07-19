@@ -79,8 +79,14 @@ export function generateRoadmap(state, yearWindow = null) {
   const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
   const yearSpan = stageNames.length;
 
-  // Required, single-step items — every core admissions/milestone task, flattened across
-  // however many year-stages the student's schoolYear pulls in. None of these carry a `steps`
+  // Single-step items — every core admissions/milestone task, flattened across however many
+  // year-stages the student's schoolYear pulls in. Almost all of these are Required
+  // (`required: true`, the default whenever a trunk step doesn't say otherwise) — a small handful
+  // (the post-acceptance phase's own genuinely optional steps, e.g. a financial aid appeal or a
+  // waitlist letter of continued interest — see trunkSteps.js) set `required: false` directly in
+  // their own data, read here via `step.required !== false` rather than the old hardcoded
+  // `required: true`, so an explicit `false` is honored while every other step (which never sets
+  // this field at all) still defaults to Required exactly as before. None of these carry a `steps`
   // chain in the data, so they always render as plain points on the spine (see Task 2 rule in
   // roadmapLayout.js / Roadmap.jsx). A user-removed core task is dropped entirely; a user-edited
   // due date overrides the template-computed one, using the exact same anchorDate() call — the
@@ -96,7 +102,7 @@ export function generateRoadmap(state, yearWindow = null) {
           id: step.id,
           title: typeof step.title === 'function' ? step.title(ctx) : step.title,
           category: 'core',
-          required: true,
+          required: step.required !== false,
           coreType: step.type,
           date: realDate,
           due: formatDate(realDate),
@@ -151,7 +157,22 @@ export function generateRoadmap(state, yearWindow = null) {
     ? buildApplicationItems(selectedPrograms, stageNames, planStartDate, dateOverrides, removed)
     : [];
 
-  const spineItems = [...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems, ...applicationItems];
+  // Fill Out the High School Academic Plan (see CLAUDE.md) — highschool-only, same reasoning as
+  // applicationItems above: both the personal-statement chain and AP exam registration/testing
+  // are Roslyn-catalog-specific content (`courses.js`'s own `weightCategory`), with no
+  // undergraduate/transfer equivalent this feature covers.
+  const seniorStageIndex = stageNames.indexOf('senior');
+  const personalStatementItem = level === 'highschool' && seniorStageIndex !== -1
+    ? buildPersonalStatementChain(seniorStageIndex, planStartDate, dateOverrides, removed)
+    : null;
+  const apExamItems = level === 'highschool'
+    ? buildApExamItems(stageNames, state.selectedCourseIds, state.courseCheckpoints || {}, planStartDate, dateOverrides, removed)
+    : [];
+
+  const spineItems = [
+    ...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems,
+    ...applicationItems, ...(personalStatementItem ? [personalStatementItem] : []), ...apExamItems,
+  ];
 
   // Scope to the selected year, if any. A non-current year uses that year's own start date as
   // the layout epoch instead of real "today" — the min-gap/collision math only ever depends on
@@ -497,8 +518,9 @@ function buildApplicationItems(selectedPrograms, stageNames, planStartDate, date
     const regularAnchor = realDeadlineDate(info.single || info.regular, planStartDate, seniorStageIndex);
     const regularDateStr = formatDate(regularAnchor);
     const earlyDateStr = info.early ? formatDate(realDeadlineDate(info.early, planStartDate, seniorStageIndex)) : null;
+    const slug = slugify(institution);
 
-    const applicationId = `application-${slugify(institution)}`;
+    const applicationId = `application-${slug}`;
     if (!removed[applicationId]) {
       const realDate = dateOverrides[applicationId] ? parseDateInputValue(dateOverrides[applicationId]) : regularAnchor;
       items.push({
@@ -516,7 +538,7 @@ function buildApplicationItems(selectedPrograms, stageNames, planStartDate, date
     }
 
     if (schoolRequiresSupplement(institution, program.selectivity)) {
-      const supplementId = `supplement-${slugify(institution)}`;
+      const supplementId = `supplement-${slug}`;
       if (!removed[supplementId]) {
         const templateDate = realAddDays(regularAnchor, -21);
         const realDate = dateOverrides[supplementId] ? parseDateInputValue(dateOverrides[supplementId]) : templateDate;
@@ -537,6 +559,89 @@ function buildApplicationItems(selectedPrograms, stageNames, planStartDate, date
           steps: null,
         });
       }
+    }
+
+    // Fill Out the High School Academic Plan (see CLAUDE.md), Tasks 4/5/7 — real testing and
+    // documentation logistics that genuinely happen PER SCHOOL (score reports, transcripts, and
+    // status tracking are each sent/checked separately, school by school, not once for the whole
+    // list) — built in this same per-institution loop since they all reuse `info`/`regularAnchor`,
+    // already resolved above, rather than re-deriving a second `byInstitution` map.
+    const testDecisionId = `test-decision-${slug}`;
+    if (!removed[testDecisionId]) {
+      const templateDate = realAddDays(regularAnchor, -30);
+      const realDate = dateOverrides[testDecisionId] ? parseDateInputValue(dateOverrides[testDecisionId]) : templateDate;
+      items.push({
+        id: testDecisionId,
+        title: `Decide: submit scores to ${institution}, or apply test-optional?`,
+        category: 'core',
+        required: true,
+        coreType: 'test-decision',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: `Check ${institution}'s own current testing policy — many schools are test-optional now, but whether submitting a strong score helps your application still varies school to school.`,
+        resources: [`${institution}'s own admissions website (testing policy)`],
+        steps: null,
+      });
+    }
+
+    const scoreReportId = `score-report-${slug}`;
+    if (!removed[scoreReportId]) {
+      const templateDate = realAddDays(regularAnchor, -14);
+      const realDate = dateOverrides[scoreReportId] ? parseDateInputValue(dateOverrides[scoreReportId]) : templateDate;
+      items.push({
+        id: scoreReportId,
+        title: `Send SAT/ACT scores to ${institution}`,
+        category: 'core',
+        required: true,
+        coreType: 'score-report',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: 'Only relevant if you\'re submitting scores — official reports are sent directly from College Board or ACT, not by you, and can take a week or more to arrive.',
+        resources: ['College Board Send Scores (official)', 'ACT Score Reports (official)'],
+        steps: null,
+      });
+    }
+
+    const transcriptId = `transcript-request-${slug}`;
+    if (!removed[transcriptId]) {
+      // -12 days, deliberately not -10 — PATTERN_DATES' own private (Jan 5) and public-non-UC
+      // (Jan 15) regular deadlines are EXACTLY 10 days apart, so a -10 offset here would mean any
+      // selection spanning one unverified private AND one unverified public school always collides
+      // (a private school's own application date landing on the exact same day as a DIFFERENT
+      // public school's own transcript-request) — a real, confirmed structural collision, not a
+      // one-off coincidence, caught via a dense multi-school test selection.
+      const templateDate = realAddDays(regularAnchor, -12);
+      const realDate = dateOverrides[transcriptId] ? parseDateInputValue(dateOverrides[transcriptId]) : templateDate;
+      items.push({
+        id: transcriptId,
+        title: `Send your transcript to ${institution}`,
+        category: 'core',
+        required: true,
+        coreType: 'transcript-request',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: 'Your school counselor\'s office sends this directly — ask early, since a busy counseling office may need lead time, especially around a shared deadline for the rest of your senior class.',
+        resources: [],
+        steps: null,
+      });
+    }
+
+    const trackStatusId = `track-status-${slug}`;
+    if (!removed[trackStatusId]) {
+      const templateDate = realAddDays(regularAnchor, 14);
+      const realDate = dateOverrides[trackStatusId] ? parseDateInputValue(dateOverrides[trackStatusId]) : templateDate;
+      items.push({
+        id: trackStatusId,
+        title: `Track your application status at ${institution}`,
+        category: 'core',
+        required: false,
+        coreType: 'track-status',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: `A light check-in — log into ${institution}'s own applicant portal and confirm every required document actually arrived.`,
+        resources: [],
+        steps: null,
+      });
     }
   });
 
@@ -608,6 +713,88 @@ function buildCourseItems(stageNames, selectedCourseIds, courseCheckpoints, plan
       const targetLabel = TRUNK_STAGES.highschool[targetStageName].label;
       const item = buildCourseRequestItem(checkpoint.selectedCourseIds, stageIndex, false, targetLabel, planStartDate, dateOverrides, removed);
       if (item) items.push(item);
+    }
+  }
+
+  return items;
+}
+
+// Fill Out the High School Academic Plan (see CLAUDE.md), Task 8 — tied to REAL Course Selection
+// data, not guessed: mirrors buildCourseItems' own per-stage/per-checkpoint iteration exactly,
+// checking each stage's own real selected course list (stage 0's `selectedCourseIds`, or a future
+// stage's own `courseCheckpoints[stageName].selectedCourseIds`) for at least one AP-weighted
+// course (courses.js's own `weightCategory === 'ap'`). Deliberately does NOT also try to infer a
+// future exam from `state.transcript` — a transcript entry is already-completed, past-tense
+// coursework with a grade recorded, not a genuine future exam to plan for, so checking it wouldn't
+// usefully predict anything. A checkpoint's own selections are for the FOLLOWING stage (see
+// buildCourseCheckpointItem's own comment — the registration act happens one stage earlier than
+// the courses/exam themselves), so each course list is paired with the stage it actually applies
+// to (`targetYearOffset`), not the checkpoint's own registration stage — that's the year the
+// student is really enrolled and the exam genuinely happens. At most one Register+Take pair per
+// real year that has a real AP course selected; a plan with no AP courses selected anywhere
+// produces nothing here at all.
+function buildApExamItems(stageNames, selectedCourseIds, courseCheckpoints, planStartDate, dateOverrides, removed) {
+  const yearSpan = stageNames.length;
+  const items = [];
+
+  const hasApCourse = (courseIds) => (courseIds || []).some((id) => getCourseById(id)?.weightCategory === 'ap');
+
+  const addPairIfNeeded = (courseIds, targetYearOffset) => {
+    if (!hasApCourse(courseIds)) return;
+
+    const registerId = `ap-exam-register-y${targetYearOffset}`;
+    if (!removed[registerId]) {
+      // Nov 8, not Nov 5 — deliberately offset a few days from the senior year's own `sr-css-
+      // profile` step (also Nov 5), which otherwise land on the exact same real date for any
+      // senior with an AP course selected and correctly merge into one date-cluster marker (the
+      // Date-Cluster feature working as designed) — a real, harmless case, but avoidable, and
+      // avoiding it keeps each task independently visible on the spine without opening a cluster.
+      const templateDate = anchorDate({ month: 11, day: 8, yearOffset: targetYearOffset }, planStartDate);
+      const realDate = dateOverrides[registerId] ? parseDateInputValue(dateOverrides[registerId]) : templateDate;
+      items.push({
+        id: registerId,
+        title: 'Register for your AP exam(s)',
+        category: 'core',
+        required: true,
+        coreType: 'procedure',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: 'AP exam registration typically opens in the fall with a November deadline — check with your school\'s AP coordinator for the exact date.',
+        resources: ['AP Exam Registration (official College Board site)'],
+        steps: null,
+      });
+    }
+
+    const takeId = `ap-exam-take-y${targetYearOffset}`;
+    if (!removed[takeId]) {
+      const templateDate = anchorDate({ month: 5, day: 5, yearOffset: targetYearOffset }, planStartDate);
+      const realDate = dateOverrides[takeId] ? parseDateInputValue(dateOverrides[takeId]) : templateDate;
+      items.push({
+        id: takeId,
+        title: 'Take your AP exam(s)',
+        category: 'core',
+        required: true,
+        coreType: 'milestone',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: 'AP exams are administered in a fixed window each May — check the official schedule for your exact exam dates.',
+        resources: ['AP Exam Schedule (official College Board site)'],
+        steps: null,
+      });
+    }
+  };
+
+  // Stage 0's own current-year selections — the same source buildCourseItems' own stage-0 request
+  // item already reads.
+  addPairIfNeeded(selectedCourseIds, 0);
+
+  // Every future checkpoint's own selections are FOR stageIndex + 1, same offset
+  // buildCourseCheckpointItem's own targetStageName already uses.
+  for (let stageIndex = 1; stageIndex <= yearSpan - 2; stageIndex += 1) {
+    const stageName = stageNames[stageIndex];
+    const checkpoint = courseCheckpoints[stageName];
+    if (checkpoint?.selectedCourseIds?.length) {
+      addPairIfNeeded(checkpoint.selectedCourseIds, stageIndex + 1);
     }
   }
 
@@ -908,6 +1095,66 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
     desc: anchor.desc,
     resources: anchor.resources,
     track,
+    totalSteps: steps.length,
+    steps: branchSteps.length ? branchSteps : null,
+  };
+}
+
+// Fill Out the High School Academic Plan (see CLAUDE.md), Task 3 — the old atomic "Draft your
+// personal statement" trunk step (trunkSteps.js's own `t3`, now removed) becomes a real 5-step
+// chain, reusing the exact same buildStepsChain() mechanism opportunity prep chains already use —
+// no new mechanism, just a second real caller of it. `category: 'core', required: true` (not
+// 'opportunity'), since this is a Required part of the plan, not an optional add-on: the chain-
+// rendering code (roadmapLayout.js/Roadmap.jsx) never gates whether a branch renders on category,
+// only on `hasBranch` (`steps.length >= 1`), so a Required core item with a real `steps` array
+// renders exactly the way an opportunity's own chain already does — just with the solid (not
+// dashed) anchor ring every other Required core task already gets. Highschool-only, since this
+// replaces highschool's own senior-year `t3`; undergraduate/transfer's own statement-of-purpose
+// steps are untouched plain trunk data.
+function buildPersonalStatementChain(seniorStageIndex, planStartDate, dateOverrides, removed) {
+  const deadlineDate = anchorDate({ month: 11, day: 20, yearOffset: seniorStageIndex }, planStartDate);
+  const stepNames = [
+    'Brainstorm your personal statement topic',
+    'Draft your personal statement',
+    'Get feedback on your draft',
+    'Revise your personal statement',
+    'Proofread your final essays',
+  ];
+
+  const steps = buildStepsChain(
+    stepNames, deadlineDate, 10, planStartDate, dateOverrides, removed,
+    (i) => `personal-statement-${i}`,
+    (stepName, i, isLastByDefault) => ({
+      title: stepName,
+      desc: isLastByDefault
+        ? 'One final read-through before you submit every essay — read it out loud, and have someone else look it over too. Typos and awkward phrasing are far easier to catch out loud than silently.'
+        : i === 0
+          ? 'Before you write a word, spend real time here — the strongest essays come from a specific, genuine story, not a topic picked because it "sounds good."'
+          : i === 1
+            ? 'Get a full draft down before you polish anything — focus on getting the real story onto the page first.'
+            : i === 2
+              ? 'A teacher, counselor, or someone who knows you well — ask for honest feedback on whether it actually sounds like you.'
+              : 'Work the feedback in — this is usually where an essay goes from "fine" to "actually yours."',
+      resources: i === 0
+        ? ['Common App official essay prompts page']
+        : i === 1
+          ? ['3 example essays that worked']
+          : [],
+    }),
+  );
+  if (!steps) return null;
+
+  const [anchor, ...branchSteps] = steps;
+  return {
+    id: anchor.id,
+    title: anchor.title,
+    category: 'core',
+    required: true,
+    coreType: 'procedure',
+    date: anchor.date,
+    due: anchor.due,
+    desc: anchor.desc,
+    resources: anchor.resources,
     totalSteps: steps.length,
     steps: branchSteps.length ? branchSteps : null,
   };

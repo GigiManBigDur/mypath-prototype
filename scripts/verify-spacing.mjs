@@ -122,18 +122,27 @@ async function main() {
       console.log(`${ok ? 'PASS' : 'FAIL'}  today -> day-gap=${gap}  expected=${expected}px  actual=${actual}px`);
     }
 
-    // Regression test for the actual historical bug class (see CLAUDE.md): comparing a node's
+    // Regression test for the ORIGINAL historical bug class (see CLAUDE.md): comparing a node's
     // proportional y against the PREVIOUS node's rendered position (prevY) instead of the TRUE
     // day-gap from the previous node's real date. An isolated 2-item pair can't distinguish the
     // two comparisons (there's no prior drift yet to bleed in), so this needs a 3+ item chain
     // where an earlier pair is genuinely floored first: item-0/item-1 are 0 days apart (floors,
-    // pushing item-1 88px further than its true position), item-1/item-2 are 1 day apart (floors
-    // again), then item-2/item-3 are a genuine 2 real days apart. Per the confirmed rule, item-3
-    // must NOT be floored — it's computed purely from its own true date, giving a 24px rendered
-    // gap from item-2 here (smaller than the isolated-pair table's 64px, because item-2 itself
-    // was pushed away from ITS true position — see this script's own header comment). The buggy
-    // version instead compares item-3's naive position against item-2's already-drifted prevY,
-    // finds it's still "too close", and incorrectly floors item-3 too, producing a 60px gap.
+    // pushing item-1 further than its true position), item-1/item-2 are 1 day apart (floors
+    // again), then item-2/item-3 are a genuine 2 real days apart.
+    //
+    // A SECOND, later-discovered gap in that same original fix (see CLAUDE.md — Fill Out the High
+    // School Academic Plan): this test used to assert item-3's gap from item-2 was exactly 24px
+    // and called that "unfloored, correct" — but 24px here actually meant item-3 rendered LESS
+    // negative than (i.e. as if BEFORE) item-2, even though item-3's real date is genuinely LATER.
+    // The test only ever checked the gap's MAGNITUDE (`Math.abs(...)`), never its DIRECTION, so
+    // this inversion shipped silently for a long time — only surfaced once a real, dense generated
+    // plan (a 3-item run of consecutive floors, immediately followed by a moderately-spaced item)
+    // produced an 84px version of the exact same inversion, large enough to show up as a real
+    // cross-node label collision. `roadmapLayout.js`'s own floor condition now ALSO triggers
+    // whenever an item's true position would otherwise land less negative than the accumulated
+    // `prevY` (not just when its own immediate day-gap is 0-1) — this changes item-3's own gap
+    // here from 24px to a real 60px floor, and (the part that actually matters) makes it render
+    // AFTER item-2, not before, which the old assertion never checked.
     console.log('\n--- Compounding-drift regression (historical bug class) ---');
     {
       const chain = [
@@ -144,10 +153,42 @@ async function main() {
       ];
       const { spine } = layoutRoadmap({ today, spineItems: chain });
       const actual = Math.round(Math.abs(spine[2].y - spine[3].y));
-      const ok = actual === 24;
+      const ok = actual === 60;
       checks += 1;
       if (!ok) failures += 1;
-      console.log(`${ok ? 'PASS' : 'FAIL'}  r2 -> r3 (true 2-day gap after two floored predecessors)  expected=24px (unfloored)  actual=${actual}px${ok ? '' : '  <-- floored when it should not have been (compounding-drift bug)'}`);
+      console.log(`${ok ? 'PASS' : 'FAIL'}  r2 -> r3 (true 2-day gap after two floored predecessors)  expected=60px (correctly re-floored to preserve order)  actual=${actual}px`);
+
+      // The check that was actually missing before: item-3 (later real date) must render with a
+      // SMALLER y than item-2 (earlier real date) — not just "some gap of the right size."
+      const orderOk = spine[3].y < spine[2].y;
+      checks += 1;
+      if (!orderOk) failures += 1;
+      console.log(`${orderOk ? 'PASS' : 'FAIL'}  r3 renders AFTER r2 (later real date = smaller y)  r2.y=${spine[2].y}  r3.y=${spine[3].y}`);
+    }
+
+    // The real-world scenario that surfaced the direction bug above: a RUN of 3 consecutive
+    // 0-1-day-apart items (not just 2), immediately followed by a 2-real-day-apart item. Each
+    // pairwise floor decision is individually correct, but the push compounds across the whole
+    // run (60px x 3), which is large enough to overshoot r4's own true position if the fix above
+    // only handled a 2-item run. Every item must render in strict real-date order — the direct,
+    // general version of the check this whole regression class is about.
+    console.log('\n--- Compounding-drift, 3-item run (the real scenario that surfaced this) ---');
+    {
+      const chain = [
+        makeItem('s0', base),
+        makeItem('s1', addDays(base, 0)),
+        makeItem('s2', addDays(base, 1)),
+        makeItem('s3', addDays(base, 2)),
+        makeItem('s4', addDays(base, 4)), // 2 real days after s3
+      ];
+      const { spine } = layoutRoadmap({ today, spineItems: chain });
+      let ordered = true;
+      for (let i = 1; i < spine.length; i += 1) {
+        if (spine[i].y >= spine[i - 1].y) ordered = false;
+      }
+      checks += 1;
+      if (!ordered) failures += 1;
+      console.log(`${ordered ? 'PASS' : 'FAIL'}  every item in a 3-item floored run + one clear item renders in strict real-date order  y=[${spine.map((n) => n.y).join(', ')}]`);
     }
   } finally {
     await server.close();

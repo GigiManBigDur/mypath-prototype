@@ -84,6 +84,11 @@ export const TRUNK_STAGES = {
           resources: ['Khan Academy Official SAT Practice (free)', 'ACT Academy (free official ACT prep)'],
         },
         {
+          id: 'jr2b', title: 'Register for the SAT/ACT', type: 'procedure', date: { month: 1, day: 20 },
+          desc: 'Registration deadlines typically fall 5–6 weeks before test day — this also applies if you end up registering for a retake in early senior fall instead.',
+          resources: ['College Board SAT registration', 'ACT.org registration'],
+        },
+        {
           id: 'jr3', title: 'Take the SAT or ACT', type: 'milestone', date: { month: 3, day: 1 },
           desc: 'Most students take their first official test in the spring of junior year, leaving room for a retake in the fall if needed.',
           resources: ['College Board SAT registration', 'ACT.org registration'],
@@ -108,6 +113,32 @@ export const TRUNK_STAGES = {
     senior: {
       label: 'Senior Year',
       steps: [
+        // Fill Out the High School Academic Plan (see CLAUDE.md) — real tester feedback was that
+        // Senior Year read as too sparse for how substantial a real college application actually
+        // is. Everything below `sr-reflect` through `sr-thankyou` fills the early-fall gap between
+        // "build your list" and "submit applications" with the real logistics/reflection work that
+        // actually happens there — plain single-step Required tasks, no new mechanism, same as
+        // every other trunk step in this file.
+        {
+          id: 'sr-reflect', title: "Reflect: what's the one thing you want admissions officers to remember about you?", type: 'milestone', date: { month: 9, day: 1 },
+          desc: 'Before you start filling out forms, spend a few minutes on this — it\'ll make every essay and interview answer sharper if you already know your own answer.',
+          resources: [],
+        },
+        {
+          id: 'sr-commonapp-account', title: 'Create your Common App account', type: 'procedure', date: { month: 9, day: 4 },
+          desc: 'The Common App is accepted by the vast majority of schools — setting it up early gives you room to fill it in gradually instead of all at once.',
+          resources: ['Common App official site (commonapp.org)'],
+        },
+        {
+          id: 'sr-commonapp-profile', title: 'Fill out your Common App profile and basic info section', type: 'procedure', date: { month: 9, day: 8 },
+          desc: 'The straightforward part — contact info, family, education history. Getting it done now clears the way for the parts that actually take thought.',
+          resources: ['Common App official site (commonapp.org)'],
+        },
+        {
+          id: 'sr-fee-waiver', title: 'Check your application fee waiver eligibility', type: 'procedure', date: { month: 9, day: 11 },
+          desc: 'Application fees add up fast across several schools — most students who qualify don\'t realize it until someone tells them to check.',
+          resources: ["Common App's official Fee Waiver eligibility page", 'NACAC Fee Waiver information'],
+        },
         {
           id: 't1', title: 'Build your college list', type: 'milestone', date: { month: 9, day: 15 },
           desc: (ctx) => ctx.programNames.length
@@ -116,21 +147,61 @@ export const TRUNK_STAGES = {
           resources: ['BigFuture College Search (College Board)', 'Net price calculators for each school', "Your school counselor's list-building worksheet"],
         },
         {
+          id: 'sr-npc', title: "Research each school's net price calculator", type: 'procedure', date: { month: 9, day: 18 },
+          desc: 'Every school is required by federal law to have one — it\'s the most honest early read you\'ll get on what a school will actually cost you, before financial aid offers are even out.',
+          resources: ['Net price calculators (required by federal law on every college website)'],
+        },
+        {
+          id: 'sr-counselor', title: 'Meet with your school counselor to review your college list', type: 'procedure', date: { month: 9, day: 22 },
+          desc: 'A second set of eyes on your list — your counselor has seen how past students\' Reach/Match/Safety picks actually played out.',
+          resources: [],
+        },
+        {
+          id: 'sr-brag-sheet', title: 'Prepare a "brag sheet" for your recommenders', type: 'procedure', date: { month: 9, day: 29 },
+          desc: 'A short summary of your activities, strengths, and a few specific moments you\'re proud of — handing this to your teachers before you ask makes their letters far more specific.',
+          resources: ['Brag sheet template'],
+        },
+        {
           id: 't2', title: 'Request recommendation letters', type: 'procedure', date: { month: 10, day: 1 },
           desc: 'Ask 2 teachers who know your work well — ideally from junior year, in different subjects.',
           resources: ['Email template for asking teachers', 'Brag sheet template'],
         },
         {
-          id: 't3', title: 'Draft your personal statement', type: 'procedure', date: { month: 10, day: 20 },
-          desc: (ctx) => ctx.careerName
-            ? `First full draft of your Common App essay. Consider weaving in what draws you to ${ctx.careerName.toLowerCase()} — specific stories beat general interest.`
-            : 'First full draft of your Common App essay. Focus on getting the story down before polishing.',
-          resources: ['Common App official essay prompts page', '3 example essays that worked'],
+          id: 'sr-thankyou', title: 'Send a thank-you note to each recommender', type: 'procedure', date: { month: 10, day: 15 },
+          desc: 'A short, genuine thank-you now that they\'ve agreed — worth sending a second one later once they\'ve actually submitted your letter.',
+          resources: [],
         },
+        // `t3` ("Draft your personal statement", one atomic task) was removed here — see
+        // CLAUDE.md's "Fill Out the High School Academic Plan" section. It's replaced by a real
+        // multi-step chain (Brainstorm -> Draft -> Get feedback -> Revise -> Proofread) built in
+        // roadmapGenerator.js's own buildPersonalStatementChain(), using the exact same
+        // buildStepsChain() mechanism opportunity prep chains already use — this is the one
+        // senior-year step that needed the chain mechanism, everything else here stays plain
+        // trunk data.
         {
           id: 't4', title: 'Submit FAFSA & financial aid forms', type: 'milestone', date: { month: 11, day: 1 },
           desc: 'File as early as possible — some aid is first-come, first-served.',
           resources: ['studentaid.gov (official FAFSA site)', 'CSS Profile guide'],
+        },
+        {
+          id: 'sr-css-profile', title: 'Complete the CSS Profile', type: 'milestone', date: { month: 11, day: 5 },
+          desc: 'Required by many private schools in addition to FAFSA — it asks for a more detailed financial picture, so start it while your FAFSA numbers are still fresh.',
+          resources: ['CSS Profile (official College Board site)'],
+        },
+        {
+          id: 'sr-scholarship-search', title: 'Search for scholarships matching your profile', type: 'procedure', date: { month: 11, day: 10 },
+          desc: 'Beyond school-based aid — search broadly, since even small scholarships add up and many go unclaimed each year for lack of applicants.',
+          resources: ['Fastweb (free scholarship search)', 'BigFuture Scholarship Search (College Board)'],
+        },
+        {
+          id: 'sr-local-scholarships', title: 'Apply to local/community scholarships', type: 'procedure', required: false, date: { month: 11, day: 20 },
+          desc: 'Local and community scholarships (your school, a local business, a community organization) tend to have far less competition than national ones — genuinely optional, but often a strong return on a small amount of effort.',
+          resources: [],
+        },
+        {
+          id: 'sr-interview-prep', title: 'Prepare for your admissions interview', type: 'procedure', required: false, date: { month: 12, day: 1 },
+          desc: 'Not every school requires or even offers one — check each school\'s own application requirements to see if this applies to you.',
+          resources: ['Common admissions interview questions and how to prepare'],
         },
         {
           id: 'sr-gpa', title: 'Check your GPA — before you submit', type: 'milestone', date: { month: 12, day: 20 },
@@ -143,11 +214,66 @@ export const TRUNK_STAGES = {
         // dynamically generated in roadmapGenerator.js's own buildApplicationItems(), from
         // whichever programs are CURRENTLY in state.selectedProgramKeys, not a single static
         // step — this is the one senior-year step this feature couldn't leave as plain trunk
-        // data, since its whole point is to vary per student.
+        // data, since its whole point is to vary per student. That same function now also
+        // generates each selected school's own test-score decision, score-report, transcript-
+        // request, and status-tracking tasks — see roadmapGenerator.js's own comment.
         {
           id: 't6', title: finalGoalTitle, type: 'final', date: { month: 4, day: 15 },
           desc: 'The finish line. Everything on this path was built to get you here.',
           resources: [],
+        },
+        // Post-acceptance phase (see CLAUDE.md) — the plan used to just stop at "Get accepted."
+        // Real tester feedback was that this left out the entire second half of a real senior
+        // year, which is at least as busy as application season itself.
+        {
+          id: 'pa-compare-offers', title: 'Compare your acceptance offers', type: 'milestone', date: { month: 4, day: 20 },
+          desc: 'Once more than one offer is in, weigh them side by side — fit, program strength, and cost together, not any one factor alone.',
+          resources: [],
+        },
+        {
+          id: 'pa-compare-aid', title: 'Compare financial aid award letters once they arrive', type: 'milestone', date: { month: 4, day: 22 },
+          desc: 'Award letters use inconsistent formats and terms school to school — a real comparison usually means putting every offer\'s actual out-of-pocket cost side by side yourself.',
+          resources: ['College Board / NerdWallet financial aid award letter comparison tools'],
+        },
+        {
+          id: 'pa-aid-appeal', title: 'Submit a financial aid appeal, if warranted', type: 'procedure', required: false, date: { month: 4, day: 25 },
+          desc: 'If your situation changed, or a competing offer is meaningfully better, many schools have a real appeals process — genuinely optional, worth it only if you have a real case to make.',
+          resources: [],
+        },
+        {
+          id: 'pa-waitlist-loci', title: 'If waitlisted anywhere: decide whether to submit a letter of continued interest', type: 'procedure', required: false, date: { month: 4, day: 24 },
+          desc: 'A short note reaffirming that a waitlisted school is still your top choice, if it genuinely is — optional, and only relevant if you were actually waitlisted somewhere.',
+          resources: [],
+        },
+        {
+          id: 'pa-decide', title: 'Decide: accept or decline each offer', type: 'major', date: { month: 4, day: 28 },
+          desc: 'The real decision, made with everything above in front of you — give yourself a few real days to sit with it before National College Decision Day.',
+          resources: [],
+        },
+        {
+          id: 'pa-deposit', title: 'Submit your enrollment deposit', type: 'enrollment', date: { month: 5, day: 1 },
+          desc: 'National College Decision Day — most schools require your enrollment deposit by May 1 to hold your spot.',
+          resources: [],
+        },
+        {
+          id: 'pa-withdraw', title: "Withdraw applications from schools you won't attend", type: 'procedure', date: { month: 5, day: 3 },
+          desc: 'A courtesy to the schools and to other students still on their waitlists — takes a few minutes per school once your decision is made.',
+          resources: [],
+        },
+        {
+          id: 'pa-housing', title: 'Complete housing forms', type: 'procedure', date: { month: 5, day: 20 },
+          desc: 'Housing assignments and roommate matching often run on a first-come basis — check your enrolling school\'s own deadline.',
+          resources: [],
+        },
+        {
+          id: 'pa-orientation', title: 'Register for orientation', type: 'procedure', date: { month: 6, day: 10 },
+          desc: 'Orientation is usually where course registration, advising, and your first real campus visit as an admitted student all happen — most schools require signing up in advance.',
+          resources: [],
+        },
+        {
+          id: 'pa-final-transcript', title: 'Send your final transcript and AP scores to your enrolling school', type: 'procedure', date: { month: 6, day: 25 },
+          desc: 'The last official step — schools need your genuinely final transcript (after final grades post) and any AP scores sent directly from the College Board.',
+          resources: ['AP score sending (official College Board site)'],
         },
       ],
     },

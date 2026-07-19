@@ -3165,6 +3165,159 @@ pre-existing `test-signup.js` needed one update — its "exactly 2 optional badg
 3, the same "update a pre-existing test after an intentional, expected change" pattern this
 codebase's suite has already needed many times before, not a regression.
 
+**Fill Out the High School Academic Plan: real tester feedback was that the Senior-year roadmap
+read as too sparse for how substantial a real college application actually is — this is a pure
+content addition (plus one real, previously-undiscovered bug fix it surfaced, see below), reusing
+the existing single-step task, multi-step chain, and Required/Optional styling systems wholesale.
+Highschool only; undergraduate/transfer's own senior-equivalent trunk content is untouched.**
+- **Early senior-year additions (`trunkSteps.js`, `highschool.senior.steps`)**: 7 new Required
+  single-step tasks (`sr-reflect` through `sr-brag-sheet`) fill the gap between "build your college
+  list" (`t1`) and "request recommendation letters" (`t2`) — a reflection prompt, Common App
+  account creation, Common App profile completion, fee waiver eligibility, net price calculator
+  research, a counselor meeting, and a brag sheet for recommenders — spread realistically across
+  September. A new `sr-thankyou` task ("Send a thank-you note to each recommender") follows `t2`.
+- **The personal statement is now a real 5-step chain, not one atomic task** (`t3`, removed from
+  `trunkSteps.js` — a comment marks why, matching the precedent already set for the removed `t5`).
+  `roadmapGenerator.js`'s new `buildPersonalStatementChain()` reuses the EXACT same
+  `buildStepsChain()` helper opportunity prep chains already use (Brainstorm → Draft → Get
+  feedback → Revise → Proofread, spread across a 10-week window ending Nov 20) — the one genuine
+  reuse of an existing mechanism this whole feature needed. `category: 'core', required: true`
+  (not `'opportunity'`), since this is Required plan content, not optional — the chain/branch
+  rendering code (`roadmapLayout.js`/`Roadmap.jsx`) never gates whether a branch renders on
+  category, only on `hasBranch` (`steps.length >= 1`), so a Required core item with a real `steps`
+  array renders exactly like an opportunity's own chain, just with the solid (not dashed) anchor
+  ring every other Required core task already gets.
+- **Testing follow-through**: a new junior-year task, `jr2b` ("Register for the SAT/ACT", ~6 weeks
+  before `jr3`'s own test day) — one addition, not a duplicated retake cycle, with its own
+  description noting it applies equally to a senior-fall retake. Per-school "Decide: submit scores
+  or apply test-optional," "Send SAT/ACT scores," and "Track your application status" tasks are
+  generated in `roadmapGenerator.js`'s existing `buildApplicationItems()` per-institution loop
+  (Tasks 4/5/7 — see below).
+- **Per-school documentation/tracking tasks extend the existing per-school application/supplement
+  pattern** (`buildApplicationItems()`, same institution-deduped loop the Per-School Application
+  Deadlines feature already established) — 4 new task types per selected school, each with its own
+  new `CORE_TYPE_CONFIG` entry in `Roadmap.jsx` (`test-decision`, `score-report`,
+  `transcript-request`, `track-status` — the last one `required: false`, since it's explicitly a
+  "light, optional check-in"): a testing decision (30 days before the school's own regular
+  deadline), sending SAT/ACT scores (14 days before), requesting an official transcript (12 days
+  before — see the real, confirmed collision this specific offset fixed, below), and tracking
+  application status (14 days AFTER the deadline).
+- **Financial aid additions** (alongside the existing FAFSA task, `t4`): `sr-css-profile`
+  (Required, Nov 5), `sr-scholarship-search` (Required, Nov 10), `sr-local-scholarships`
+  (`required: false` — genuinely optional, unlike FAFSA/CSS Profile, Nov 20).
+- **Post-submission tracking and interview prep**: `sr-interview-prep` (`required: false`, Dec 1,
+  its own description noting not every school requires one) plus the per-school `track-status`
+  task described above.
+- **AP exam tasks, tied to REAL Course Selection data, not guessed**: `roadmapGenerator.js`'s new
+  `buildApExamItems()` mirrors `buildCourseItems()`'s own per-stage/per-checkpoint iteration
+  exactly — checking each stage's own real selected course list (stage 0's own
+  `state.selectedCourseIds`, or a future stage's own `courseCheckpoints[stageName].
+  selectedCourseIds`) for at least one course with `courses.js`'s own `weightCategory === 'ap'`.
+  Deliberately does NOT also try to infer a future exam from `state.transcript` — a transcript
+  entry is already-completed, past-tense coursework with a grade already recorded, not a genuine
+  future exam to plan for. A checkpoint's own selections are for the FOLLOWING stage (same
+  `stageIndex + 1` offset `buildCourseCheckpointItem`'s own `targetStageName` already uses — the
+  registration act happens one stage earlier than the courses/exam themselves), so each course
+  list is paired with the stage it actually applies to, not the checkpoint's own registration
+  stage. At most one Register (Nov 8) + Take (May 5) pair per real year with a real AP course
+  selected; a plan with no AP courses selected anywhere produces nothing here at all — verified
+  directly with both a positive and a negative test case.
+- **Post-acceptance phase, appended after the existing `t6` ("Get accepted...") goal** — the plan
+  used to just stop there; real tester feedback was that this left out the entire second half of a
+  real senior year. 10 new tasks (`pa-compare-offers` through `pa-final-transcript`, April–July):
+  comparing acceptance offers and financial aid awards (Required), a financial aid appeal and a
+  waitlist letter of continued interest (`required: false` — both genuinely optional), deciding
+  accept/decline (`type: 'major'`, reusing the existing "Major Goal" yellow-Star styling), submitting
+  the enrollment deposit by National College Decision Day (a NEW `enrollment` coreType — its own
+  `CreditCard` icon, reusing the `'final'`-tier orange since this is, practically, the plan's real
+  SECOND finish line now that it extends past acceptance, without visually duplicating `t6`'s own
+  "Final Goal" label), withdrawing other applications, housing forms, orientation registration, and
+  sending the final transcript/AP scores to the enrolling school.
+- **A real bug in `coreItems`'s own mapping was found and fixed while adding the first `required:
+  false` trunk steps**: `roadmapGenerator.js` used to hardcode `required: true` for every trunk
+  step regardless of what the data said — meaning `trunkSteps.js`'s own `required: false` flags
+  (on `sr-local-scholarships`, `sr-interview-prep`, `pa-aid-appeal`, `pa-waitlist-loci`) were
+  silently inert until this was changed to `required: step.required !== false` (defaulting to
+  Required, honoring an explicit `false`) — every trunk step that never sets this field at all is
+  completely unaffected.
+- **A real, previously-undiscovered bug in `roadmapLayout.js`'s own spacing algorithm was found
+  and fixed while density-testing this feature** — the one place this content addition genuinely
+  needed to touch positioning math, not just data. The existing "compare TRUE day-gap, not `prevY`"
+  fix (already documented above) correctly prevents a SINGLE pairwise floor decision from
+  cascading indefinitely, but it does NOT prevent a RUN of 3+ consecutive 0-1-day-apart items from
+  compounding: each pairwise floor is individually correct (60px pushed relative to the immediately
+  preceding item), but the push accumulates linearly across the whole run (60px × run length) —
+  and if that accumulated total exceeds what a LATER, genuinely-2+-day-apart item's own TRUE
+  position would place it at, that later item (which correctly finds no reason to floor on its own
+  terms) renders using its unflored true position, which can end up LESS negative than the run's
+  own drift-inflated final position — inverting their visual order even though every individual
+  pairwise decision was correct in isolation. Confirmed directly on real generated content: a
+  3-item run (Michigan's testing decision, Cornell's application, UT Austin's transcript-request —
+  all within 1 real day of each other) followed by MIT's own application (2 real days later)
+  produced an 84px inversion, large enough to register as a real cross-node label overlap.
+  **This codebase's own pre-existing "compounding-drift regression" test in `verify-spacing.mjs`
+  already had a matching, smaller version of this exact bug hiding inside it** — it asserted the
+  gap between two specific items was exactly 24px and labeled that "unfloored, correct," but never
+  checked the gap's DIRECTION, only its magnitude; that 24px was already an inverted render order,
+  just too small to visually notice or trip any overlap check until this feature's real, denser
+  content produced an 84px version of the identical bug. Fixed in `roadmapLayout.js`'s Pass-1 loop:
+  the floor now triggers whenever EITHER the original day-based condition applies (`t - prevT <=
+  1`, unchanged), OR the item's own true position would otherwise land less negative than the
+  accumulated `prevY` minus `MIN_SPINE_GAP` — a condition that can only ever fire to PRESERVE
+  ordering, never to resurrect the original prevY-cascade bug (it goes false on its own the moment
+  a real date gap grows large enough to clear whatever drift came before it). Confirmed this
+  doesn't touch the isolated 0-7-day table at all (those always start with `prevY = 0`, so the new
+  condition can only ever agree with, never override, the existing day-based one there).
+  `verify-spacing.mjs`'s own compounding-drift test was updated: its old 24px assertion is now 60px
+  (the correct, re-floored value), a NEW explicit order-preservation assertion was added right next
+  to it (`spine[3].y < spine[2].y` — the check that was actually missing before), and a NEW
+  dedicated 3-item-run test reproduces the real scenario that surfaced this, asserting every item
+  in a floored-run-plus-one-clear-item sequence renders in strict real-date order. 20/20 checks now
+  pass (up from 18), and this remains a pure Pass-1 floor-condition change — Pass 2 (branch
+  layout), the label-collision system, and every other part of this file are untouched.
+- **Two real, confirmed accidental date collisions between this feature's own new content and
+  either itself or pre-existing data were found and fixed while testing** (both a straightforward
+  consequence of adding many new, closely-timed tasks to an already-dense calendar, not further
+  instances of the layout bug above — these are genuine coincidences the Date-Cluster feature
+  handles correctly either way, just avoided here since they were easy to avoid): the
+  `transcript-request` per-school offset was originally -10 days, which exactly matches the fixed
+  10-day gap between `collegeDeadlines.js`'s own private-pattern (Jan 5) and public-pattern (Jan
+  15) regular deadlines — meaning ANY selection spanning one unverified private AND one unverified
+  public school would always collide (a private school's application landing on the same day as a
+  different public school's transcript-request); changed to -12 days. Separately, the new
+  `sr-brag-sheet` task's original date (Sept 27) coincidentally matched DECA's own real "Register
+  for DECA" prep-step date (a pre-existing, real opportunity, unrelated to this feature); shifted
+  to Sept 29. Two of this feature's new per-school task titles were also shortened
+  ("Send official SAT/ACT score reports to X" → "Send SAT/ACT scores to X"; "Request your official
+  transcript be sent to X" → "Send your transcript to X") after the original, much longer versions
+  (up to 76 characters once combined with a long institution name) triggered real visual overlaps
+  against `roadmapLayout.js`'s own character-count-based label-width ESTIMATE — the estimate itself
+  wasn't touched, since these titles were simply longer than anything this codebase's own
+  collision-padding had previously been exercised against.
+- Verified with a dedicated Playwright suite (27+7 checks across two files) plus the full
+  pre-existing regression suite: every one of the 9 tasks' own real content renders correctly on a
+  dense, realistic 8-school senior-year plan; the personal statement renders as a genuine 5-node
+  chain (not a single point), opens a plain generic detail modal on its promoted first step (no
+  special-cased "anchor" behavior); AP exam tasks are confirmed absent for a student with zero real
+  AP courses and confirmed present the moment one real AP course is selected; a dense senior year
+  (44-45 real nodes) renders with zero cross-node label overlap, measured at the canvas's own
+  NATIVE (1:1) scale rather than whatever the default fitView zoom happens to be for a denser plan
+  (a real, confirmed false-positive risk otherwise — correctly-spaced content at native scale can
+  visually compress at a reduced CSS zoom, testing the wrong thing entirely). The full pre-existing
+  suite (`test.js`, `test-hub*.js`, every `*-repaint.js` file, `test-stage4.js`,
+  `test-roslyn-consolidation.js`, `test-college-deadlines.js`, `test-anchor-removal.js`,
+  `test-countplantasks-fix.js`, `test-date-clusters.js`, `test-digest-checklist.js`,
+  `test-realtime-tracking.js`, `test-override-consistency.js`, `test-ucdavis-density.js`,
+  `test-ucdavis-stage4.js`, `test-grade-offbyone.js`, `test-signup-country.js`,
+  `test-mascot-wand-pointing.js`, `test-return-to-hub.js`) all still pass — several needed the same
+  "check standalone rendering, fall back to opening the shared-date cluster" update this codebase's
+  own Date-Cluster feature already established as standard practice for a pre-existing test after
+  new content legitimately starts clustering with something nearby, not a regression in the app
+  itself; `test-signup-country.js` needed one unrelated fix (scoping its `.pill` query to
+  `.pill-group .pill`, since the Sign-Up screen's own "Mascot voice" toggle — added earlier this
+  session — is a second, standalone `.pill` outside that container); `npm run build`/`npm run
+  lint` both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

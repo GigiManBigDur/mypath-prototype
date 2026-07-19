@@ -172,14 +172,38 @@ export function layoutRoadmap({ today, spineItems }) {
   // always dead-center, so without alternating, every spine label would permanently claim the
   // same side, guaranteeing a collision with any branch that happens to peel toward it).
   //
-  // The floor decision compares TRUE day-gap (`t - prevT`, both real `daysFromToday` values) to
-  // the previous item's real date, NOT the previous item's rendered `prevY` — comparing against
-  // `prevY` was the actual bug: if an earlier item had already been floored (pushed further from
-  // its true position), that drift carried into `prevY`, so a LATER pair of items that were
-  // genuinely several real days apart could still get floored again, simply because the earlier
-  // drift hadn't been "paid off" yet. Using the true day-gap for the decision means only a pair
-  // that is ACTUALLY 0 or 1 real days apart ever floors — every 2+ day gap is pure
-  // `PIXELS_PER_DAY * t`, independent of whatever happened earlier in the sequence.
+  // The primary floor decision compares TRUE day-gap (`t - prevT`, both real `daysFromToday`
+  // values) to the previous item's real date, NOT the previous item's rendered `prevY` —
+  // comparing against `prevY` was the ORIGINAL historical bug: if an earlier item had already
+  // been floored (pushed further from its true position), that drift carried into `prevY`, so a
+  // LATER pair of items that were genuinely several real days apart could still get floored
+  // again, simply because the earlier drift hadn't been "paid off" yet. Using the true day-gap
+  // for the FLOOR decision means only a pair that is ACTUALLY 0 or 1 real days apart ever floors
+  // for that REASON — but this alone doesn't fully prevent order inversion.
+  //
+  // A SECOND, later-discovered gap in that same original fix (see CLAUDE.md — Fill Out the High
+  // School Academic Plan): a RUN of 3+ consecutive 0-1-day-apart items still compounds — each
+  // pairwise floor is individually correct (60px pushed relative to the PREVIOUS item), but the
+  // push accumulates across the whole run (60px × run length). If a run is long enough, that
+  // accumulated total can exceed what a LATER, genuinely-2+-day-apart item's own TRUE (unfloored)
+  // position would place it at — and since that later item's floor decision only ever looks at
+  // its OWN immediate predecessor's real date (correctly finding no reason to floor on its own
+  // terms), it renders using its true, unflored y — which can end up LESS negative (rendering as
+  // if EARLIER) than the run's own drift-inflated final position, inverting their visual order
+  // even though every INDIVIDUAL pairwise decision was correct in isolation. Confirmed directly:
+  // a real 3-item run (each pair 0-1 real days apart) followed by a 2-real-day-apart item produced
+  // an 84px inversion on a real, dense generated plan — small compounding cases can even hide
+  // inside this codebase's own pre-existing regression test, which checked the GAP'S MAGNITUDE
+  // but never its DIRECTION (see verify-spacing.mjs's own updated comment).
+  //
+  // The fix: floor whenever EITHER the original day-based condition applies, OR the item's own
+  // true position would otherwise land less negative than (i.e. rendering "before") the
+  // accumulated `prevY` minus the same MIN_SPINE_GAP — this can only ever trigger to PRESERVE
+  // ordering, never to re-introduce the original prevY-cascade bug: it goes false on its own the
+  // moment a real date gap grows large enough to clear whatever drift came before it (confirmed by
+  // the isolated 0-7-day table below being completely unaffected — for those, prevY always starts
+  // at exactly 0, so this second condition can only ever agree with, never override, the day-based
+  // one).
   //
   // All spine labels get placed into `placedLabels` up front, in this same pass, before any
   // branch is laid out — a branch needs to know about EVERY spine label (including ones later in
@@ -189,8 +213,9 @@ export function layoutRoadmap({ today, spineItems }) {
   let sideToggle = 0;
   const placedLabels = [];
   const withPosition = withT.map(({ item, t }) => {
-    let y = -t * PIXELS_PER_DAY;
-    if (t - prevT <= 1) y = prevY - MIN_SPINE_GAP;
+    const trueY = -t * PIXELS_PER_DAY;
+    const needsFloor = t - prevT <= 1 || trueY > prevY - MIN_SPINE_GAP;
+    const y = needsFloor ? prevY - MIN_SPINE_GAP : trueY;
     prevY = y;
     prevT = t;
 
