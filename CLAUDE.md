@@ -3318,6 +3318,97 @@ Highschool only; undergraduate/transfer's own senior-equivalent trunk content is
   session — is a second, standalone `.pill` outside that container); `npm run build`/`npm run
   lint` both stay clean.
 
+**AI Personalization, Stage 1: Data Aggregation Layer — pure organization of data that already
+exists in `state` into one structured profile, ready to be handed to a future AI in Stage 2. No
+API calls, no AI, no cost at this stage, and no prior "AI Personalization" design existed anywhere
+in this document before this — this is a genuinely new feature area, not a continuation.**
+- **`src/utils/profileCompiler.js` (new file) exports `compileStudentProfile(state)`**, reusing
+  this app's own existing lookup functions wholesale rather than re-deriving a second copy of any
+  resolution logic — `getCareerPool`/`MAJORS`/`getMergedPrograms`/`reachMatchSafetyTag`/
+  `findOpportunity`/`findProjectType`/`getCourseById` (both Roslyn's and UC Davis's), and
+  `generateRoadmap` itself for the full task list. Returns `{ generatedAt, basicProfile, academic,
+  goals, activities, planHistory }`:
+  - **`basicProfile`** — interests, education level, grade/year, current school.
+  - **`academic`** — `gpa: { scale4, unweighted, weighted, ucdavis }` (only the 4.0-scale number is
+    ever persisted to `state.gpa` — see `gpa.js`'s own header comment — so unweighted/weighted are
+    recomputed live here the same way `TranscriptScreen`'s own preview already does; UC Davis has
+    no separate weighted/unweighted split to report, so those two stay `null` for a UC Davis
+    student rather than fabricating a distinction that grading system doesn't have), plus the
+    resolved transcript (course name + department/code, grade, year/quarter) and currently
+    selected courses — branches once on Roslyn vs. UC Davis (mutually exclusive by construction),
+    empty for a college student at neither.
+  - **`goals`** — careers/majors resolved to real names (looked up across EVERY built track, not
+    just the student's own narrow interest-derived set — the same "a Browse-mode selection must
+    still resolve" fix already applied twice elsewhere in this app for the identical reason), and
+    programs each carrying their real Reach/Match/Safety tag via the exact same
+    `reachMatchSafetyTag(state.gpa, program.gpaValue)` call `ProgramsStep`/`ProgramSummaryScreen`
+    already make per card.
+  - **`activities`** — opportunities (name, track, `recurring`, and completion read directly off
+    `completedNodes` using the same per-step id convention `roadmapGenerator.js`'s own chain
+    builders already use, `${opp.id}-prep-${i}` — deliberately only the opportunity's own year-1
+    chain, not any later escalation-year chain, since `recurring` alone already signals "this is
+    ongoing" to Stage 2 without needing full multi-year completion tracking) and started projects
+    (real category/project-type names via `findProjectType`, status, and per-step completion).
+  - **`planHistory`** — every real task (trunk item, opportunity prep step, project step, or
+    custom task) with its real date, completion state, and (the actual point of this whole
+    feature) any outcome note the student wrote. Built by calling `generateRoadmap(state)` with no
+    `yearWindow` (the same full, unfiltered, all-years call `HubScreen.jsx`'s own `countPlanTasks`
+    already makes) and walking `roadmap.spine` the identical "count every top-level item, plus
+    every `hasBranch` item's own `branchSteps`" way that function already established — the one
+    real precedent in this codebase for "flatten every node including chain sub-steps," reused
+    here rather than re-derived. `customTasks` is a filtered VIEW of this same list
+    (`category === 'custom'`), not a second, separately-derived array.
+- **Task 2 — outcome-note capture on task completion did NOT already exist, confirmed directly
+  before building anything**: `Roadmap.jsx`'s `toggleDone` was a pure boolean flip on
+  `completedNodes` with no text capture anywhere, and no `<textarea>` existed in the detail modal
+  at all (only a due-date `<input type="date">` and the Mark complete/Remove buttons). Added
+  `state.taskOutcomes` (`AppContext.jsx`) — a `{ [nodeId]: string }` flat map, the same shape as
+  `completedNodes`/`nodeDateOverrides` — and a `<textarea>` in the modal (reusing the shared
+  `.task-form-field`/`.optional-badge` classes `AddTaskModal`/`SignUpScreen` already established,
+  no new CSS needed), labeled "How did it go? Optional", with the exact example placeholder text
+  from the build spec ("I won 2nd place at Regionals" / "I missed this because I was sick") —
+  available on every real task (`modalNode.type !== 'today'`), not gated to the moment of clicking
+  Mark complete, so a note can describe either a genuine outcome OR why something was missed,
+  regardless of whether the task ends up marked complete. **Uncontrolled** (`defaultValue` +
+  `onBlur`, not `value` + `onChange`), with `key={modalNode.id}` forcing a fresh mount whenever
+  the selected node changes — this avoids re-patching state (and re-persisting to localStorage) on
+  every keystroke, the same "buffer locally, commit once" trade this codebase's other text-entry
+  forms already make, just via a remount instead of local `useState` since there's no separate
+  submit action here to hang the commit on. `updateTaskOutcome(id, value)` deletes the key
+  entirely for a blank/whitespace-only note rather than storing `''`, so `taskOutcomes` only ever
+  holds genuinely-written notes — the profile compiler can treat "key present" as "student wrote
+  something" with no extra blank-check of its own.
+- **Task 3 — a testing-only debug viewer on the Hub**, next to the existing "Reset" button:
+  clicking "View AI Profile (Testing)" calls `compileStudentProfile(state)`, logs the full result
+  to the console, and opens a portaled modal (`createPortal(..., document.body)` — the Hub is one
+  of `App.jsx`'s `TRANSITION_SCREENS`, so this needed the same containing-block fix every other
+  modal added to a `.screen-transition`-wrapped screen has already needed) showing the compiled
+  JSON in a scrollable `<pre>`. Recomputed fresh each time the button is clicked (stored in local
+  state, not re-derived on every render) since this is explicitly a low-frequency debug tool.
+- **A real, confirmed class-naming collision was found and fixed while building this — the exact
+  same bug class this codebase already documented once before for the mute/voice-settings toggle
+  buttons (see "Show Available Voice Options" above).** The new debug button was first given the
+  literal `.hub-reset-btn` class purely to reuse its small/muted look, which immediately broke the
+  pre-existing `test-hub-reset.js`'s own `.hub-reset-btn` locator (silently resolved to 2 elements,
+  Playwright's strict mode correctly refused to guess which one). Fixed the same way as last time:
+  the shared visual style now lives on a combined selector (`.hub-reset-btn, .hub-debug-profile-
+  btn { ... }`), while each button keeps its own distinct, uniquely-selectable class — the Reset
+  button's own class was left completely untouched, so the pre-existing test needed zero changes.
+- Verified with two dedicated Playwright suites (23 + 6 checks): a realistic, richly-seeded
+  student (real GPA/transcript, a selected career/major/program with a real RMS tag, a selected
+  opportunity with one real completed step, a started project, a custom task) produces a fully
+  accurate compiled profile end-to-end, including writing a real outcome note through the actual
+  UI and confirming it round-trips into both `state.taskOutcomes` and the compiled profile's own
+  `planHistory`; a completely fresh student (no data at all) and a UC Davis student both produce a
+  valid, non-crashing profile with honest empty arrays / null GPA fields rather than guessing. The
+  full pre-existing regression suite (`test-hub.js`, `test-hub-locking.js`, `test-hub-radial.js`,
+  `test-hub-reset.js`, `test-hub-pointing.js`, `test-hub-firstvisit-layout.js`,
+  `test-return-to-hub.js`, `test-stage5-mascot.js`, `test-signup.js`, `test-signup-country.js`,
+  `test-mascot-wand-pointing.js`, `test-sequence-complete.js`, `test-projectbuilder-skip.js`,
+  `test-academicplan-repaint.js`, `test-map2-redesign.js`, `test-anchor-removal.js`,
+  `test-opportunity-project-repaint.js`) all still pass with zero regressions; `npm run build`/
+  `npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

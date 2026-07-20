@@ -313,6 +313,19 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     if (!value) return;
     patch({ nodeDateOverrides: { ...state.nodeDateOverrides, [id]: value } });
   };
+
+  // AI Personalization, Stage 1 (see CLAUDE.md) — a student's own optional "how did it go" note
+  // on any real task, the richest personalization signal this app collects. A blank/whitespace-
+  // only note deletes the key entirely rather than storing '', so `state.taskOutcomes` only ever
+  // holds genuinely-written notes (the profile compiler can treat "key present" as "student wrote
+  // something" with no extra blank-check of its own).
+  const updateTaskOutcome = (id, value) => {
+    const trimmed = value.trim();
+    const next = { ...state.taskOutcomes };
+    if (trimmed) next[id] = trimmed;
+    else delete next[id];
+    patch({ taskOutcomes: next });
+  };
   // Required tasks get a light confirmation since removing one changes the core-progress count;
   // optional tasks (opportunity anchors and their steps) remove immediately — same distinction
   // the rest of the app already draws between required and optional nodes.
@@ -1155,6 +1168,28 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                   <Trash2 size={14} /> Remove task
                 </button>
               </div>
+            )}
+
+            {/* AI Personalization, Stage 1 (see CLAUDE.md) — an optional outcome note on any real
+                task, the richest personalization signal this app collects. Uncontrolled
+                (defaultValue + onBlur, not value + onChange) with `key={modalNode.id}` forcing a
+                fresh mount whenever the selected node changes — this avoids re-patching state (and
+                re-persisting to localStorage) on every keystroke, matching the same "buffer
+                locally, commit once" trade this codebase's other text-entry forms already make,
+                just via a remount instead of local useState since there's no separate submit
+                action here to hang the commit on. */}
+            {modalNode.type !== 'today' && (
+              <label className="task-form-field modal-outcome-field">
+                <span className="label">
+                  How did it go? <span className="optional-badge">Optional</span>
+                </span>
+                <textarea
+                  key={modalNode.id}
+                  defaultValue={state.taskOutcomes[modalNode.id] || ''}
+                  onBlur={(e) => updateTaskOutcome(modalNode.id, e.target.value)}
+                  placeholder={'e.g. "I won 2nd place at Regionals" or "I missed this because I was sick"'}
+                />
+              </label>
             )}
 
             {selectedIsCourseCheckpoint && (

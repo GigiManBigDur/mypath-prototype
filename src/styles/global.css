@@ -1634,7 +1634,14 @@ button.card.passed:hover {
    even .btn-ghost's already-quiet default. Kept alongside the new Quick Actions "Start Over"
    (which wires to this exact same handler) rather than removed, since it's still real, existing
    test coverage's own entry point and doesn't visually compete with anything above it. */
-.hub-reset-btn {
+/* AI Personalization, Stage 1 (see CLAUDE.md) — a second small testing-only control sits next to
+   the existing Reset button, sharing its deliberately-muted look via this combined selector — but
+   NOT sharing its actual class name. A real, confirmed naming collision already happened once in
+   this codebase for exactly this reason (two buttons sharing one class purely for styling broke a
+   pre-existing test's own `.voice-mute-toggle` locator, which silently resolved to 2 elements —
+   see CLAUDE.md's "Show Available Voice Options" section) — giving each button its own distinct
+   class here from the start avoids repeating that mistake. */
+.hub-reset-btn, .hub-debug-profile-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1649,7 +1656,23 @@ button.card.passed:hover {
   cursor: pointer;
   transition: opacity 0.15s ease, color 0.15s ease;
 }
-.hub-reset-btn:hover { opacity: 1; color: var(--rust); }
+.hub-reset-btn:hover, .hub-debug-profile-btn:hover { opacity: 1; color: var(--rust); }
+
+.hub-debug-row { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.profile-debug-modal { max-width: 720px; width: 92vw; }
+.profile-debug-json {
+  max-height: 55vh;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--stone);
+  border-radius: 8px;
+  padding: 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* Dashboard/Guide hub, Stage 3 — a locked tile stays visible (icon/title/desc unchanged) but
    reads as unavailable at a glance: dimmed, a lock icon in place of its usual theme icon, and a

@@ -142,6 +142,13 @@ const DEFAULT_STATE = {
   completedNodes: {},
   nodeDateOverrides: {}, // { [nodeId]: 'YYYY-MM-DD' } — user-edited due date, keyed like completedNodes
   removedNodeIds: {}, // { [nodeId]: true } — user-deleted tasks, same flat-map shape as completedNodes
+  // AI Personalization, Stage 1 (see CLAUDE.md) — { [nodeId]: string }, same flat-map shape as
+  // completedNodes/nodeDateOverrides. An optional, free-text "how did it go" note a student can
+  // attach to ANY real task (e.g. "I won 2nd place at Regionals" or "I missed this because I was
+  // sick") — the richest personalization signal this app collects, and the whole reason this field
+  // exists: Stage 2's future AI layer depends on it. A blank/whitespace-only note is never stored
+  // (the key is deleted, not set to ''), so this map only ever holds genuinely-written notes.
+  taskOutcomes: {},
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

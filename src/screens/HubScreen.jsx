@@ -1,8 +1,9 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User,
-  Volume2, VolumeX, TrendingUp, Zap, Plus, Send,
+  Volume2, VolumeX, TrendingUp, Zap, Plus, Send, Bug, X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -11,6 +12,7 @@ import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
 import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
+import { compileStudentProfile } from '../utils/profileCompiler';
 import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dates';
 import { ADMISSIONS_CONTEXT_LINES, getMascotLine } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
@@ -493,6 +495,19 @@ export default function HubScreen() {
     setAddTaskOpen(false);
   };
 
+  // AI Personalization, Stage 1 (see CLAUDE.md), Task 3 — a testing-only way to inspect the
+  // compiled profile before Stage 2's future AI layer ever reads it. Recomputed fresh every time
+  // the panel is opened (stored, not re-derived on every render) since this is explicitly a
+  // low-frequency debug tool, not something that needs to track live state changes while open.
+  // Logged to the console too, so it can be copied/inspected there without fighting the modal's
+  // own scroll area.
+  const [profileDebugData, setProfileDebugData] = useState(null);
+  const openProfileDebug = () => {
+    const profile = compileStudentProfile(state);
+    console.log('[AI Personalization Stage 1] Compiled student profile:', profile);
+    setProfileDebugData(profile);
+  };
+
   // Radial-layout pass, Task 3 — "Ask MyPath AI anything" is a UI mockup only, per this app's hard
   // "no AI/LLM calls anywhere" constraint (see CLAUDE.md): there's no model wired up behind it at
   // all, submitting only ever reveals a plain, honest "Coming soon" note.
@@ -704,9 +719,30 @@ export default function HubScreen() {
 
       <AddTaskModal isOpen={addTaskOpen} onCancel={() => setAddTaskOpen(false)} onSubmit={addTask} />
 
-      <button type="button" className="hub-reset-btn" onClick={handleReset}>
-        <RotateCcw size={12} /> Reset
-      </button>
+      <div className="hub-debug-row">
+        <button type="button" className="hub-reset-btn" onClick={handleReset}>
+          <RotateCcw size={12} /> Reset
+        </button>
+        <button type="button" className="hub-debug-profile-btn" onClick={openProfileDebug}>
+          <Bug size={12} /> View AI Profile (Testing)
+        </button>
+      </div>
+
+      {profileDebugData && createPortal(
+        <div className="overlay" onClick={() => setProfileDebugData(null)}>
+          <div className="modal profile-debug-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setProfileDebugData(null)}><X size={18} /></button>
+            <div className="modal-eyebrow">AI Personalization — Testing Only</div>
+            <h2 className="modal-title">Compiled Student Profile</h2>
+            <p className="modal-desc">
+              Also logged to the browser console. This is the exact structured object Stage 2's
+              future AI layer would read — nothing here is sent anywhere.
+            </p>
+            <pre className="profile-debug-json">{JSON.stringify(profileDebugData, null, 2)}</pre>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
