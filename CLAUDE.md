@@ -3409,6 +3409,149 @@ in this document before this — this is a genuinely new feature area, not a con
   `test-opportunity-project-repaint.js`) all still pass with zero regressions; `npm run build`/
   `npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**AI Personalization, Stage 2: Basic Personalized Suggestions — the first stage with a real API
+call. Model: Claude Sonnet 5 (`claude-sonnet-5`). Same hard security rule as ElevenLabs: the real
+Anthropic API key lives ONLY in a server-side Vercel function, never in client code — this is the
+SECOND deliberate, explicitly-requested exception to this app's own "no backend" constraint (see
+the top of this file), not a general backend.**
+- **`api/tts.js`'s own structure is mirrored almost exactly** for the new `api/suggest.js` — same
+  CORS allowlist shape (duplicated, not shared, matching that file's own "each Vercel function is
+  standalone" precedent), same "fail honestly, 500 if the key isn't configured, never expose it"
+  posture, same "the client only ever calls this app's own proxy, never the real API directly"
+  contract (`src/utils/suggestions.js`'s `SUGGESTION_ENDPOINT`, the same hardcoded absolute-URL-to-
+  this-project's-own-Vercel-deployment pattern `speech.js`'s `TTS_ENDPOINT` already established, for
+  the identical reason: the Vite dev server and GitHub Pages both lack serverless functions of
+  their own).
+- **Task 3's structured output ("a title, a suggested date, a brief one-sentence rationale") is
+  enforced via a FORCED Anthropic tool call** (`tool_choice: { type: 'tool', name: 'propose_task'
+  }`), not prompt-based JSON parsing — the "build carefully, this sets the pattern Stage 3 builds
+  on" instruction taken literally: a forced tool call is structurally reliable in a way asking the
+  model to "please respond in JSON" isn't. The tool schema itself carries a 4th field,
+  `referencesExternalFact` (boolean) — the model's own signal for Task 5's guardrail.
+- **Task 5's "verify this yourself" guardrail is enforced in CODE, server-side, not trusted to the
+  model's own prose.** `applyGuardrails()` in `api/suggest.js` deterministically appends "(Double-
+  check this detail yourself — I can't independently verify external facts.)" to the rationale
+  whenever `referencesExternalFact` is true, regardless of whether the model's own free-text
+  rationale happened to already say something similar — a real guardrail shouldn't depend on the
+  model remembering to include it every time. `validateProposal()` does structural validation only
+  (real non-empty strings within a sane length, a real parseable `YYYY-MM-DD` date) — it doesn't
+  try to police "is this date reasonable" beyond being a real date, trusting the system prompt's
+  own explicit "realistic near-future date relative to today" instruction for that.
+- **Task 3's own "grounded and conservative... not the more ambitious creative-leap connections
+  (that's explicitly Stage 3's job)" framing is enforced via the system prompt's own explicit
+  rules** plus a deliberately low `temperature: 0.4` (favoring safer, more predictable completions
+  over creative ones) and a real, current "today" date passed in every request (via
+  `toDateInputValue(getEffectiveToday(...))`, the exact same date-resolution this app's own
+  Real-Time Tracking feature already established) so the model's suggested date is anchored to
+  the real device date (or an active testing override), not guessed.
+- **Task 1's cost-efficiency requirement — a `compileSuggestionProfile(state, triggeringTaskId)`
+  export in `profileCompiler.js`** (Stage 1's own file, extended rather than duplicated) reuses
+  `basicProfile`/`academic`/`goals`/`activities` verbatim from `compileStudentProfile` (already
+  inherently small/bounded — a real student has at most a handful of careers/majors/programs/
+  opportunities/projects, nothing there needs summarizing), but replaces `planHistory` with a
+  bounded summary instead of dumping every task's full detail: a plain `{ total, completed,
+  incomplete }` count, plus full detail ONLY for tasks with a written outcome note, the
+  `RECENT_COMPLETED_COUNT` (5) most recently completed tasks (by due date, since this app tracks
+  no separate completion timestamp — the closest honest proxy available), and incomplete tasks due
+  within `UPCOMING_WINDOW_DAYS` (45, matching the roadmap's own default-view-window convention) of
+  real "today," capped at `UPCOMING_MAX_COUNT` (10). A task already in the outcome-notes list is
+  excluded from the other two, so nothing is sent twice — this is what keeps a real request roughly
+  the same size whether the plan spans one year or four, per the build spec's own explicit test.
+- **Task 2's trigger — `Roadmap.jsx`'s `maybeTriggerSuggestion(id, isComplete, outcomeNote,
+  effectiveState)`** fires exactly once, the moment BOTH "complete" and "has a written outcome
+  note" become true, regardless of which happens last: both `toggleDone` and `updateTaskOutcome`
+  call it with the OTHER field's own current value, so a student can mark complete then write the
+  note, or write the note then mark complete, and either order correctly triggers exactly once —
+  verified directly both ways. **A real, confirmed subtlety this needed to handle**: whichever of
+  the two handlers just ran has only patched React state ASYNCHRONOUSLY — the `state` closure at
+  that point is still one render behind — so each caller passes an `effectiveState` (a merged copy
+  reflecting its OWN just-made change) into `compileSuggestionProfile`, rather than the stale
+  `state` closure, so the just-written outcome note (or the just-flipped `completedNodes` entry)
+  is never missing from what actually gets sent. `state.suggestionSourceTaskIds` (a flat
+  `{[nodeId]: true}` map, same shape as `completedNodes`) is checked and set SYNCHRONOUSLY before
+  the async request even starts, guaranteeing a task can never trigger a second request — this is
+  also what makes "don't re-suggest the same thing immediately after dismissing" (Task 4) fall out
+  for free, since it's set regardless of whether the eventual suggestion is accepted, dismissed, or
+  the request simply fails.
+- **Task 4 — delivered via `MascotWidget`, extended rather than replaced.** `state.pendingSuggestion`
+  (`{ sourceTaskId, title, date, rationale } | null`), when present, OVERRIDES whatever contextual
+  `text` prop the calling screen passed in — the widget itself decides suggestion-vs-normal-
+  dialogue priority, reading `state` directly the same way it already does for `voiceMuted`, so
+  literally no calling screen needed to change. This is also why **`Roadmap.jsx` (Map 2) now
+  mounts `<MascotWidget text={null} />` for the first time** — Map 2 deliberately has no OTHER
+  in-flow dialogue (see this file's own Stage 5 section for why), but a pending suggestion still
+  needs somewhere to surface right where it was triggered; passing `text={null}` keeps it
+  completely inert for every other purpose. Accept/Not now render as two small buttons below the
+  dialogue bubble (a new `.mascot-widget-bubble` column wrapper holds the existing text bubble
+  plus these, since `.mascot-widget` itself is a ROW flex with the mascot icon). **Accept** appends
+  a real entry to `state.aiSuggestedTasks` (`{ id, title, date, desc: rationale, sourceTaskId }`,
+  its own dedicated array — deliberately NOT folded into `customTasks`, which specifically means
+  "the student typed this in themselves") and clears `pendingSuggestion`. **Not now** just clears
+  `pendingSuggestion` — nothing is added, and the source task was already marked in
+  `suggestionSourceTaskIds` at trigger time, so it can never immediately re-ask. The widget's own
+  X (dismiss) button is wired to the SAME "Not now" action while a suggestion is showing, rather
+  than a separate no-op dismiss, so there's no ambiguous third state.
+- **Task 4's own visual marker — a real 4th spine category, not a variant of the existing 3.**
+  `buildAiSuggestedItems()` in `roadmapGenerator.js` mirrors `buildCustomItems()` exactly (single-
+  step, `category: 'ai-suggested', required: false`) — once accepted, a suggestion is dated,
+  clickable, editable, and completable through the exact same generic paths every other core item
+  already uses, with zero special-casing. Three simultaneous differentiators satisfy the build
+  spec's own "clearly different from Required (solid), Optional (hollow), and Custom (dotted)"
+  instruction: a genuinely new accent color (`--bloom-ai`, a fuchsia distinct from every one of the
+  7 track colors `getTrackColor` cycles through — the same collision-avoidance reasoning
+  `PROJECT_CONFIG`'s own comment already documents for why "Project" doesn't get one of those 7
+  either, except AI-suggested content is different enough to warrant a genuinely new token rather
+  than reusing the neutral ink-soft fallback), a sparser dash pattern (`'2 6'`, distinct from
+  Custom's `'2 3'` and Optional's `'4 4'`), and a small, PERSISTENT `Sparkles` badge overlaid at the
+  ring's corner — unlike the main icon (which still swaps to a checkmark once done, matching every
+  other node type), this badge never changes, so a completed AI-suggested task stays visually
+  identifiable as AI-origin forever, not just while incomplete. The legend gained a real 4th entry
+  to match. **A real, confirmed bug was found and fixed via direct testing**: `configFor()`'s own
+  category-to-style resolution had no branch for `'ai-suggested'` at all, so it silently fell
+  through every check (not core, not custom, not project, not opportunity) and landed on the
+  generic `BRANCH_STEP_CONFIG` fallback — losing both the real color and icon, confirmed directly
+  via a rendered node showing `--bloom-ink-soft` instead of `--bloom-ai`. Fixed by adding the
+  missing branch; re-verified the node then renders with the correct color/icon/badge.
+- **A real, confirmed test-only date collision surfaced while testing this, unrelated to any of
+  the above** — a test using a fixed absolute date for a scratch custom task happened to land on
+  the exact same real calendar day a real trunk task's own template date resolves to (given
+  whatever day the test happened to run), correctly merging into a Date-Cluster marker instead of
+  rendering individually — the same "genuinely coincidental, already handled by the app's own
+  Date-Cluster feature" class of thing this codebase's own test suite has already hit and worked
+  around several times before. Fixed by making the test's own node-finder helper fall back to
+  opening the shared-date cluster, not by changing any app behavior.
+- Verified with two dedicated Playwright suites (26 + 6 checks) using `page.route()` to mock
+  `/api/suggest` with a real structured response: marking a task complete WITHOUT ever writing an
+  outcome triggers zero requests (checked across 3 separate completions); writing an outcome both
+  before AND after marking complete each correctly trigger exactly one request, with the real
+  outcome note present in the payload; the mascot shows the real mocked rationale/title with both
+  buttons; Accept adds a real node with the correct distinct color/dash-pattern/persistent badge,
+  fully clickable/editable/completable; Not now adds nothing and permanently prevents re-triggering
+  for that same source task (confirmed by revisiting and re-blurring the same task's already-saved
+  note afterward). A second suite confirms graceful, unfaked failure against the currently-live
+  (not-yet-deployed) Vercel endpoint: the real request goes to this app's own `/api/suggest` proxy
+  only (never directly to `api.anthropic.com`), and despite the request failing, task completion
+  and the outcome note are both still saved correctly, no suggestion ever appears, and nothing
+  crashes. A direct `grep` across the built `dist/` bundle confirms zero occurrences of the real
+  API key, its env var name, or any Anthropic auth header, and confirms `api/suggest.js` itself
+  isn't bundled into the client build at all (same as `api/tts.js`). The full pre-existing
+  regression suite (`test-hub*.js`, `test-return-to-hub.js`, `test-stage5-mascot.js`,
+  `test-signup.js`, `test-signup-country.js`, `test-mascot-wand-pointing.js`,
+  `test-sequence-complete.js`, `test-projectbuilder-skip.js`, `test-academicplan-repaint.js`,
+  `test-map2-redesign.js`, `test-anchor-removal.js`, `test-opportunity-project-repaint.js`,
+  `test-college-deadlines.js`, `test-countplantasks-fix.js`, `test-date-clusters.js`,
+  `test-digest-checklist.js`, `test-realtime-tracking.js`, `test-override-consistency.js`,
+  `test-stage4.js`, `test-roslyn-consolidation.js`, and both Stage 1 profile-compiler suites) all
+  still pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20)
+  all stay clean.
+- **What still needs to happen before this is live**: a real `ANTHROPIC_API_KEY` must be set in the
+  Vercel project's own environment variables (not committed anywhere — same "Shared" variable
+  mechanism already used for `ELEVENLABS_API_KEY`), and `api/suggest.js` must actually be deployed
+  via `vercel deploy --prod` — per this file's own standing "deploys are opt-in only" rule, neither
+  of these should happen proactively. Until both are done, every trigger falls back exactly the way
+  the graceful-failure test above already demonstrates: task completion and outcome notes still
+  save correctly, and simply no suggestion appears.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

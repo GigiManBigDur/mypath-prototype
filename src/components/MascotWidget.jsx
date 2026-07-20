@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import MascotIcon from './MascotIcon';
 import { useApp } from '../context/AppContext';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
+import { makeTaskId } from '../utils/ids';
 
 // Dashboard/Guide feature, Stage 5 — the in-flow mascot widget, appearing on every real screen
 // after the hub (not the hub itself, which already has its own larger mascot + pointer + greeting
@@ -33,39 +34,83 @@ import { useMascotSpeech } from '../hooks/useMascotSpeech';
 // button silently land on top of and intercept clicks meant for SurveyScreen's own "High School"
 // pill underneath — caught directly via Playwright, not assumed. The portal escapes that ancestor
 // entirely, the same fix that already worked for the modal.
+// AI Personalization, Stage 2 (see CLAUDE.md) — `state.pendingSuggestion`, when present, takes
+// over this widget entirely, OVERRIDING whatever contextual `text` the calling screen passed in.
+// This is deliberate: a suggestion can be triggered from Roadmap.jsx (Map 2) but the student may
+// navigate elsewhere before it resolves, and "no calling screen needs to know or care about
+// suggestions" only holds if the widget itself is what decides suggestion-vs-normal-dialogue
+// priority, reading `state` directly the same way it already does for `voiceMuted`. This is also
+// why Roadmap.jsx now renders `<MascotWidget text={null} />` for the first time — Map 2
+// deliberately has no OTHER in-flow dialogue (see CLAUDE.md's own Stage 5 section), but a pending
+// suggestion still needs somewhere to surface while the student is right there having just
+// triggered it.
 export default function MascotWidget({ text }) {
-  const { state } = useApp();
+  const { state, patch } = useApp();
   const [dismissed, setDismissed] = useState(false);
 
+  const suggestion = state.pendingSuggestion;
+  const effectiveText = suggestion
+    ? `${suggestion.rationale} Want to add "${suggestion.title}" to your plan?`
+    : text;
+
   // A NEW piece of dialogue (the `text` prop changing — including from null to a real line, or
-  // from one real line to the next) always starts undismissed. Dismissing one line only ever
-  // hides THAT line; it never permanently silences the widget for the rest of the screen.
+  // from one real line to the next, OR a suggestion appearing/resolving) always starts
+  // undismissed. Dismissing one line only ever hides THAT line; it never permanently silences the
+  // widget for the rest of the screen.
   useEffect(() => {
     setDismissed(false);
-  }, [text]);
+  }, [effectiveText]);
 
   // Dashboard/Guide feature, Stage 6, now running on ElevenLabs Voice (see CLAUDE.md) — speaks
-  // `text` aloud alongside it appearing. Passing `null` once dismissed (rather than the raw `text`
-  // prop) is what makes "dismissing stops the speech immediately" work for free: from
+  // `effectiveText` aloud alongside it appearing. Passing `null` once dismissed (rather than the
+  // raw text) is what makes "dismissing stops the speech immediately" work for free: from
   // useMascotSpeech's own perspective, a dismiss is just an ordinary "the current line went away"
   // change, handled by the exact same effect that also stops audio when a screen navigates away or
   // the line is genuinely replaced.
-  useMascotSpeech(!dismissed ? text : null, state.voiceMuted);
+  useMascotSpeech(!dismissed ? effectiveText : null, state.voiceMuted);
 
-  if (!text || dismissed) return null;
+  if (!effectiveText || dismissed) return null;
+
+  // Task 4 — Accept appends a real, permanent roadmap task (its own `category: 'ai-suggested'`
+  // spine item, see roadmapGenerator.js/Roadmap.jsx); Not now just clears the pending suggestion
+  // with nothing added. Neither ever touches `suggestionSourceTaskIds` — that was already set the
+  // moment the request was triggered (see Roadmap.jsx's `maybeTriggerSuggestion`), which is what
+  // actually prevents an immediate re-suggestion for the same source task, not anything decided
+  // here.
+  const acceptSuggestion = () => {
+    patch({
+      aiSuggestedTasks: [...(state.aiSuggestedTasks || []), {
+        id: makeTaskId('ai-suggestion'),
+        title: suggestion.title,
+        date: suggestion.date,
+        desc: suggestion.rationale,
+        sourceTaskId: suggestion.sourceTaskId,
+      }],
+      pendingSuggestion: null,
+    });
+  };
+  const dismissSuggestion = () => patch({ pendingSuggestion: null });
 
   return createPortal(
     <div className="mascot-widget">
       <button
         type="button"
         className="mascot-widget-dismiss"
-        onClick={() => setDismissed(true)}
+        onClick={() => (suggestion ? dismissSuggestion() : setDismissed(true))}
         aria-label="Dismiss"
       >
         <X size={13} />
       </button>
       <MascotIcon size={52} />
-      <p className="mascot-widget-text">{text}</p>
+      <div className="mascot-widget-bubble">
+        <p className="mascot-widget-text">{effectiveText}</p>
+        {suggestion && (
+          <div className="mascot-suggestion-actions">
+            <button type="button" className="mascot-suggestion-accept" onClick={acceptSuggestion}>Accept</button>
+            <button type="button" className="mascot-suggestion-dismiss" onClick={dismissSuggestion}>Not now</button>
+          </div>
+        )}
+      </div>
     </div>,
     document.body,
   );

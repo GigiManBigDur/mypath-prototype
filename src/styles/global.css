@@ -40,6 +40,15 @@
   --bloom-pink: #EC6FA0;
   --bloom-blue: #3B82F6;
   --bloom-green: #22C55E;
+  /* AI Personalization, Stage 2 (see CLAUDE.md) — a genuinely new accent, distinct from every one
+     of the 7 track colors above (getTrackColor cycles through all 7, so reusing any of them for
+     AI-suggested content could collide with a real interest track sharing that same hue on the
+     same roadmap — the same collision-avoidance reasoning PROJECT_CONFIG's own comment already
+     documents for why "Project" deliberately does NOT get one of these 7 either). The build spec
+     explicitly asked for AI-suggested tasks to be "clearly different" at a glance from Required/
+     Optional/Custom, so a dedicated new color is warranted here (unlike Project's own neutral-
+     fallback choice, which didn't have that same explicit requirement). */
+  --bloom-ai: #D946EF;
 }
 
 * { box-sizing: border-box; }
@@ -1494,6 +1503,11 @@ button.card.passed:hover {
   pointer-events: auto;
 }
 .mascot-widget-dismiss:hover { color: var(--ink); border-color: var(--teal); }
+/* AI Personalization, Stage 2 (see CLAUDE.md) — a plain, unstyled column wrapper around the text
+   bubble + (when a suggestion is pending) its Accept/Not now buttons, so they stack vertically
+   below the bubble instead of sitting beside it as a third row-flex child of `.mascot-widget`
+   itself. `.mascot-widget-text`'s own chrome (background/border/shadow) is untouched. */
+.mascot-widget-bubble { display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
 .mascot-widget-text {
   position: relative;
   margin: 0 0 6px;
@@ -1509,6 +1523,32 @@ button.card.passed:hover {
   box-shadow: 0 10px 24px -14px rgba(30,61,50,0.35);
   pointer-events: auto;
 }
+.mascot-suggestion-actions { display: flex; gap: 8px; margin-top: -4px; }
+.mascot-suggestion-accept,
+.mascot-suggestion-dismiss {
+  flex: 1;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.mascot-suggestion-accept:active,
+.mascot-suggestion-dismiss:active { transform: scale(0.96); }
+.mascot-suggestion-accept {
+  background: var(--bloom-accent, var(--teal));
+  color: #fff;
+  border: none;
+}
+.mascot-suggestion-accept:hover { opacity: 0.9; }
+.mascot-suggestion-dismiss {
+  background: none;
+  border: 1px solid var(--paper-line);
+  color: var(--ink-soft);
+}
+.mascot-suggestion-dismiss:hover { color: var(--ink); border-color: var(--stone); }
 @keyframes mascot-widget-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -3620,6 +3660,13 @@ button.card.passed:hover {
   .today-pulse { animation: none; opacity: 0; }
   .today-sparkle-accent { animation: none; opacity: 0.85; }
 }
+
+/* AI Personalization, Stage 2 (see CLAUDE.md) — a small, PERSISTENT badge (unlike
+   `.today-sparkle-accent`, this never animates and never goes away once a task is marked
+   complete) marking every AI-suggested node as AI-origin at a glance, permanently — not just
+   while incomplete. Purely decorative, `pointer-events: none` so it never interferes with the
+   node's own real click target underneath it. */
+.ai-suggestion-badge { pointer-events: none; }
 
 /* Date-cluster feature (see CLAUDE.md) — the small count badge overlaid at the top-right of a
    cluster marker's own ring (Task 2's own "count badge" requirement). A plain filled circle +

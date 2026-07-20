@@ -131,6 +131,7 @@ export function generateRoadmap(state, yearWindow = null) {
 
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
   const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed);
+  const aiSuggestedItems = buildAiSuggestedItems(state.aiSuggestedTasks || [], dateOverrides, removed);
 
   // Course Selection Stage 4 — highschool-only, same gating as every Course Selection screen
   // (Transcript & GPA / Course Selection are unreachable for undergraduate/transfer, so
@@ -172,6 +173,7 @@ export function generateRoadmap(state, yearWindow = null) {
   const spineItems = [
     ...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems,
     ...applicationItems, ...(personalStatementItem ? [personalStatementItem] : []), ...apExamItems,
+    ...aiSuggestedItems,
   ];
 
   // Scope to the selected year, if any. A non-current year uses that year's own start date as
@@ -324,6 +326,33 @@ function buildCustomItems(customTasks, dateOverrides, removed) {
         date: realDate,
         due: formatDate(realDate),
         desc: task.desc || 'A task you added yourself.',
+        resources: [],
+        steps: null,
+      };
+    });
+}
+
+// AI Personalization, Stage 2 (see CLAUDE.md) — an ACCEPTED suggestion, mirroring buildCustomItems
+// exactly (single-step, date-editable/removable/completable the same generic way every other core
+// item already is), but its own `category: 'ai-suggested'` — deliberately NOT folded into
+// `customTasks`, which specifically means "the student typed this in themselves." Once accepted,
+// this behaves like any normal task in every other respect; only the ring style/color differ (see
+// Roadmap.jsx's own CORE_TYPE_CONFIG/ring-rendering).
+function buildAiSuggestedItems(aiSuggestedTasks, dateOverrides, removed) {
+  return (aiSuggestedTasks || [])
+    .filter((task) => !removed[task.id])
+    .map((task) => {
+      const templateDate = parseDateInputValue(task.date);
+      const realDate = dateOverrides[task.id] ? parseDateInputValue(dateOverrides[task.id]) : templateDate;
+      return {
+        id: task.id,
+        title: task.title,
+        category: 'ai-suggested',
+        required: false,
+        coreType: 'ai-suggested',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: task.desc || 'Suggested based on something you reported.',
         resources: [],
         steps: null,
       };

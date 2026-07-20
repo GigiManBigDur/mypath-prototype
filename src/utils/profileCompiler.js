@@ -14,6 +14,7 @@ import { getCourseById } from '../data/courses';
 import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
 import { calculateUnweightedGpa, calculateWeightedGpa } from './gpa';
 import { calculateUCDavisGpa } from './ucdavisGpa';
+import { getEffectiveToday, realDaysBetween } from './dates';
 import { generateRoadmap } from './roadmapGenerator';
 
 // Widened to every built track / every opportunity track, not just the narrow set the student's
@@ -218,5 +219,56 @@ export function compileStudentProfile(state) {
       projects: resolveProjects(state),
     },
     planHistory: { tasks, customTasks },
+  };
+}
+
+// AI Personalization, Stage 2 (see CLAUDE.md), Task 1 — a cost-efficient variant for the real API
+// call: `basicProfile`/`academic`/`goals`/`activities` are reused verbatim from
+// `compileStudentProfile` (already inherently small/bounded — a real student has at most a
+// handful of careers/majors/programs/opportunities/projects, nothing here needs summarizing), but
+// `planHistory` is replaced with a bounded summary instead of every task's full detail, so a real
+// request stays roughly the same size whether the plan spans one year or four: a plain count, plus
+// full detail ONLY for tasks with a written outcome note, the most recently completed few tasks,
+// and incomplete tasks due soon. A task already covered by the outcome-notes list is excluded from
+// the other two lists to avoid sending the same task twice.
+const RECENT_COMPLETED_COUNT = 5;
+const UPCOMING_WINDOW_DAYS = 45;
+const UPCOMING_MAX_COUNT = 10;
+
+export function compileSuggestionProfile(state, triggeringTaskId) {
+  const full = compileStudentProfile(state);
+  const { tasks } = full.planHistory;
+  const today = getEffectiveToday(state.dateOverride);
+
+  const withOutcome = tasks.filter((t) => t.outcomeNote);
+  const withOutcomeIds = new Set(withOutcome.map((t) => t.id));
+
+  const recentlyCompleted = tasks
+    .filter((t) => t.complete && !withOutcomeIds.has(t.id))
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, RECENT_COMPLETED_COUNT);
+
+  const upcoming = tasks
+    .filter((t) => !t.complete && !withOutcomeIds.has(t.id))
+    .filter((t) => {
+      const days = realDaysBetween(new Date(t.date), today);
+      return days >= 0 && days <= UPCOMING_WINDOW_DAYS;
+    })
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, UPCOMING_MAX_COUNT);
+
+  return {
+    ...full,
+    planHistory: {
+      counts: {
+        total: tasks.length,
+        completed: tasks.filter((t) => t.complete).length,
+        incomplete: tasks.filter((t) => !t.complete).length,
+      },
+      tasksWithOutcomeNotes: withOutcome,
+      recentlyCompleted,
+      upcoming,
+    },
+    triggeringTask: tasks.find((t) => t.id === triggeringTaskId) || null,
   };
 }

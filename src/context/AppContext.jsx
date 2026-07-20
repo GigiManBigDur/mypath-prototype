@@ -149,6 +149,21 @@ const DEFAULT_STATE = {
   // exists: Stage 2's future AI layer depends on it. A blank/whitespace-only note is never stored
   // (the key is deleted, not set to ''), so this map only ever holds genuinely-written notes.
   taskOutcomes: {},
+  // AI Personalization, Stage 2 (see CLAUDE.md) — { [nodeId]: true }, same flat-map shape as
+  // completedNodes. Marks every task that has EVER triggered a real suggestion request (whether
+  // the request succeeded, failed, was accepted, or dismissed) — set synchronously the moment the
+  // trigger condition (complete AND has a written outcome) is first detected, so the same task can
+  // never trigger a second request, and dismissing a suggestion never causes an immediate re-ask.
+  suggestionSourceTaskIds: {},
+  // The one suggestion currently awaiting a student's Accept/Not now decision (Task 5's own "one
+  // suggestion at a time" guardrail) — `{ sourceTaskId, title, date, rationale } | null`. Shown via
+  // MascotWidget, which reads this directly rather than needing every screen threaded with a prop.
+  pendingSuggestion: null,
+  // Accepted suggestions become real, permanent roadmap tasks here — `[{ id, title, date, desc,
+  // sourceTaskId }]` — a dedicated array (not folded into `customTasks`, which specifically means
+  // "the student typed this in themselves") so `roadmapGenerator.js` can give them their own
+  // distinct required:false, category:'ai-suggested' spine items and their own visual marker.
+  aiSuggestedTasks: [],
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

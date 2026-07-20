@@ -9,13 +9,16 @@ import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
 import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
-import { formatDateWithYear, toDateInputValue, realDaysBetween } from '../utils/dates';
+import { formatDateWithYear, toDateInputValue, realDaysBetween, getEffectiveToday } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
 import DigestList from './DigestList';
 import { makeTaskId } from '../utils/ids';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useModalExit } from '../hooks/useModalExit';
 import { getTrackColor } from './TrackVisuals';
+import { compileSuggestionProfile } from '../utils/profileCompiler';
+import { requestSuggestion } from '../utils/suggestions';
+import MascotWidget from './MascotWidget';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
 // "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
@@ -74,6 +77,14 @@ const CORE_TYPE_CONFIG = {
   // SECOND and truer finish line of the whole journey now that the plan extends past acceptance),
   // with its own distinct icon/label so it doesn't read as a literal duplicate of `t6`.
   enrollment: { label: 'Enrollment', color: 'var(--bloom-orange)', Icon: CreditCard },
+  // AI Personalization, Stage 2 (see CLAUDE.md) — a real, distinct 4th visual category, not a
+  // variant of Required/Optional/Custom. Its own color (`--bloom-ai`, never used by any real
+  // interest track — see that token's own comment in global.css) plus a fine-dotted ring
+  // (`strokeDasharray: '2 6'`, in the ring-drawing JSX below — deliberately sparser than Custom's
+  // own "2 3" and Optional's "4 4" so it doesn't read as either one) AND a small overlaid sparkle
+  // badge are the three simultaneous differentiators the build spec's own "clearly different from
+  // Required (solid), Optional (hollow), and Custom (dotted)" instruction asked for.
+  'ai-suggested': { label: 'AI Suggestion', color: 'var(--bloom-ai)', Icon: Sparkles },
 };
 // Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
 // a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.
@@ -154,9 +165,16 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // data layer already holds everywhere else.
 function configFor(node) {
   let cfg;
+  // AI Personalization, Stage 2 (see CLAUDE.md) — a real, confirmed bug caught via direct testing:
+  // 'ai-suggested' has its own real CORE_TYPE_CONFIG entry (coreType === category here, same as
+  // 'custom'/'project'), but without this branch it fell through every check below (not core,
+  // not custom, not project, not opportunity) and silently landed on the generic
+  // BRANCH_STEP_CONFIG fallback — losing both its real color and icon, confirmed directly via a
+  // rendered node showing `--bloom-ink-soft` instead of `--bloom-ai`.
   if (node.category === 'core' || node.type === 'today') cfg = CORE_TYPE_CONFIG[node.coreType || node.type];
   else if (node.category === 'custom') cfg = CUSTOM_CONFIG;
   else if (node.category === 'project') cfg = PROJECT_CONFIG;
+  else if (node.category === 'ai-suggested') cfg = CORE_TYPE_CONFIG['ai-suggested'];
   else if (node.isLast) cfg = BRANCH_DEADLINE_CONFIG;
   else if (node.category === 'opportunity') cfg = OPPORTUNITY_CONFIG;
   else cfg = BRANCH_STEP_CONFIG;
@@ -267,12 +285,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   // finishing the one visible step is the trigger to reveal the next.
   const toggleDone = (id) => {
     const newValue = !state.completedNodes[id];
-    patch({ completedNodes: { ...state.completedNodes, [id]: newValue } });
+    const nextCompletedNodes = { ...state.completedNodes, [id]: newValue };
+    patch({ completedNodes: nextCompletedNodes });
     if (!newValue) return;
     const project = (state.startedProjects || []).find(
       (p) => p.status !== 'completed' && p.steps.length && p.steps[p.steps.length - 1].id === id,
     );
     if (project) openNextStepPrompt(project);
+    maybeTriggerSuggestion(id, true, state.taskOutcomes[id], { ...state, completedNodes: nextCompletedNodes });
   };
 
   const openNextStepPrompt = (project) => {
@@ -325,6 +345,37 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     if (trimmed) next[id] = trimmed;
     else delete next[id];
     patch({ taskOutcomes: next });
+    maybeTriggerSuggestion(id, !!state.completedNodes[id], next[id], { ...state, taskOutcomes: next });
+  };
+
+  // AI Personalization, Stage 2 (see CLAUDE.md), Task 2 — fires exactly once per task, the moment
+  // BOTH "complete" and "has a written outcome note" become true, regardless of which one happens
+  // last (a student can mark complete then write the note, or write the note then mark complete —
+  // both toggleDone and updateTaskOutcome above call this with the OTHER field's own current
+  // value). `effectiveState` exists because whichever of the two callers just ran has only patched
+  // React state asynchronously — the `state` closure here is still one render behind — so each
+  // caller passes a merged copy reflecting its OWN just-made change, which is what actually needs
+  // to feed the compiled profile (otherwise the just-written outcome note, or the just-flipped
+  // completedNodes entry, would be missing from what gets sent). `suggestionSourceTaskIds` is
+  // still read from the real `state` (not `effectiveState`) since neither caller ever changes it
+  // themselves — checked and set synchronously here, BEFORE the async request even starts, so a
+  // fast double-action (or React StrictMode's dev-only double-invoke) can't fire two requests for
+  // the same task, and dismissing the resulting suggestion later can never cause an immediate
+  // re-ask for that same task.
+  const maybeTriggerSuggestion = (id, isComplete, outcomeNote, effectiveState) => {
+    if (!isComplete || !outcomeNote) return;
+    if (state.suggestionSourceTaskIds?.[id]) return;
+    patch({ suggestionSourceTaskIds: { ...state.suggestionSourceTaskIds, [id]: true } });
+
+    const profileSummary = compileSuggestionProfile(effectiveState, id);
+    const today = toDateInputValue(getEffectiveToday(effectiveState.dateOverride));
+    requestSuggestion(
+      { today, profileSummary, triggeringTask: profileSummary.triggeringTask },
+      {
+        onResult: (proposal) => patch({ pendingSuggestion: { sourceTaskId: id, ...proposal } }),
+        onError: () => {}, // graceful no-op — no suggestion this time, nothing else changes
+      },
+    );
   };
   // Required tasks get a light confirmation since removing one changes the core-progress count;
   // optional tasks (opportunity anchors and their steps) remove immediately — same distinction
@@ -821,6 +872,22 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
                             : <cfg.Icon className="node-icon-pop" x="-7" y="-7" size={14} color={cfg.color} />}
                         </>
+                      ) : n.category === 'ai-suggested' ? (
+                        <>
+                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 6'} pointerEvents="all" />
+                          {done
+                            ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
+                            : <cfg.Icon className="node-icon-pop" x="-7" y="-7" size={14} color={cfg.color} />}
+                          {/* A small, PERSISTENT sparkle badge (unlike the main icon above, this
+                              doesn't swap to a checkmark once done) — the build spec's own
+                              explicit "clearly different... at a glance" requirement extends past
+                              completion, so an AI-suggested task stays visually identifiable as
+                              AI-origin forever, not just while incomplete. Same corner-badge
+                              positioning precedent the "today"/date-cluster count badges already
+                              established elsewhere in this file. */}
+                          <Sparkles className="ai-suggestion-badge" x="6" y="-20" size={11} color="var(--bloom-ai)" />
+                        </>
                       ) : (
                         <>
                           <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
@@ -1105,6 +1172,10 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 node's actual ring color already varied by coreType before this batch too). */}
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-teal)', border: '2px solid var(--bloom-teal)' }} /> Optional — hollow ring, colored by interest area</span>
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-ink-soft)', border: '2px dotted var(--bloom-ink-soft)' }} /> Custom — dotted ring</span>
+            {/* AI Personalization, Stage 2 (see CLAUDE.md) — a real 4th category now exists on the
+                spine, so the legend needs a real 4th entry, matching this app's own standing
+                practice of keeping the legend in sync with every real ring style. */}
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-ai)', border: '2px dotted var(--bloom-ai)' }} /> AI Suggestion — sparkle badge</span>
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-yellow)' }} /> You are here</span>
           </div>
           )}
@@ -1368,6 +1439,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
         onCancel={() => setProjectPrompt(null)}
         onSubmit={(task) => appendProjectStep(task.title, task.date, false, task.desc)}
       />
+
+      {/* AI Personalization, Stage 2 (see CLAUDE.md) — Map 2 deliberately has no OTHER in-flow
+          mascot dialogue (see CLAUDE.md's own Stage 5 section for why), but a pending suggestion
+          needs somewhere to surface right where it was triggered. `text={null}` keeps this
+          completely inert for every other purpose — MascotWidget itself is what decides whether
+          `state.pendingSuggestion` overrides the (here, always-null) text prop. */}
+      <MascotWidget text={null} />
     </div>
   );
 }
