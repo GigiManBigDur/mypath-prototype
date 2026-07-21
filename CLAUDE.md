@@ -84,16 +84,27 @@ npm package, publishing to `https://gigimanbigdur.github.io/mypath-prototype/`. 
 the repo to stay **public** — Pages needs that on the free tier, which is why it was made
 public.
 
-**Vercel deploys are also opt-in.** Only run `npx vercel deploy --prod --yes` when the user
-explicitly asks; treat "committed to GitHub" and "live" (on either target) as separate facts.
-As of this writing the Vercel account has an unresolved issue — every deploy after the very
-first one got stuck at status `UNKNOWN` with zero build logs ever generated (`vercel ls` shows
-this clearly), almost certainly an
-account-level block (e.g. email verification), not a code or network problem. Don't spend more
-than one retry on it without checking `vercel ls` / `vercel inspect <url>` first — if every
-recent deployment shows `UNKNOWN` with no logs, it's the account, not this attempt. GitHub
-Pages is the standing/default public link; Vercel (`https://mypath-prototype-seven.vercel.app`)
-is secondary and manual only.
+**Vercel deploys are now standing/automatic, paired with every git push — a deliberate policy
+change from this file's own earlier "opt-in only" rule.** The earlier rule existed mostly because
+of an account-level issue that's since resolved (every deploy used to get stuck at status
+`UNKNOWN` with zero build logs — confirmed via `vercel ls` to be an account block, not a code
+problem; deploys have worked reliably since). The change was prompted by a real, concrete cost of
+staying opt-in: `api/suggest.js`/`api/tts.js`/`api/creative-suggest.js` are real serverless
+functions the client always calls at a fixed, live Vercel URL regardless of where the frontend
+itself is served from (even `localhost:5173` calls the deployed function, since Vite's dev server
+can't run one) — so a client-side fix to any AI/voice feature can sit correctly committed and
+pushed to GitHub for multiple sessions while the LIVE backend still runs old code, producing a
+symptom that looks exactly like a persisting bug and costs real debugging time to untangle (see
+the chain-attachment bug's own history above — two fixes, then a whole extra diagnostic pass, before
+the actual cause turned out to be a stale deploy, not a code regression). **So: run `npx vercel
+deploy --prod --yes` as a standing step alongside every meaningful `git push` to `origin/main` —
+not opt-in, not something to ask about each time** — the same "do this proactively, without
+waiting to be asked" posture the git commit+push step above already has. GitHub Pages
+(`npm run deploy:pages`) is a SEPARATE decision and stays opt-in exactly as documented above —
+this change only applies to Vercel. Verify a deploy actually took effect the same way this file's
+own past debugging sessions have: a quick `curl` against the live endpoint with a representative
+payload, checking its response shape against what the current code expects, rather than assuming
+success from the CLI output alone.
 
 ## Architecture
 
