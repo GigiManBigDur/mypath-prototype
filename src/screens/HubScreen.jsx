@@ -10,6 +10,7 @@ import { isSurveyComplete } from './SurveyScreen';
 import { AVATAR_OPTIONS } from './SignUpScreen';
 import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
+import CreativeConnectionModal from '../components/CreativeConnectionModal';
 import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
@@ -508,14 +509,19 @@ export default function HubScreen() {
     setProfileDebugData(profile);
   };
 
-  // Radial-layout pass, Task 3 — "Ask MyPath AI anything" is a UI mockup only, per this app's hard
-  // "no AI/LLM calls anywhere" constraint (see CLAUDE.md): there's no model wired up behind it at
-  // all, submitting only ever reveals a plain, honest "Coming soon" note.
+  // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — "Ask MyPath AI
+  // anything" used to be a UI mockup only (a "Coming soon" note, no model wired up at all); it now
+  // opens CreativeConnectionModal, a real, second, deliberately-creative exception to this app's
+  // "no AI/LLM calls" default (alongside Stage 2's own automatic suggestions), reusing the SAME
+  // server-side-key/CORS/dual-provider patterns. Submitting the inline input just seeds the
+  // modal's own prompt step with whatever was typed (if anything) rather than sending it directly
+  // — the modal is the one real "prompt interface" (preset options + free text), matching Task 1's
+  // own framing.
   const [askAiValue, setAskAiValue] = useState('');
-  const [askAiSubmitted, setAskAiSubmitted] = useState(false);
+  const [creativeModalOpen, setCreativeModalOpen] = useState(false);
   const submitAskAi = (e) => {
     e.preventDefault();
-    setAskAiSubmitted(true);
+    setCreativeModalOpen(true);
   };
 
   const avatarOption = AVATAR_OPTIONS.find((a) => a.id === state.avatarIcon);
@@ -697,13 +703,12 @@ export default function HubScreen() {
               type="text"
               placeholder="Ask MyPath AI anything"
               value={askAiValue}
-              onChange={(e) => { setAskAiValue(e.target.value); setAskAiSubmitted(false); }}
+              onChange={(e) => setAskAiValue(e.target.value)}
             />
             <button type="submit" className="hub-ask-ai-submit" aria-label="Ask">
               <Send size={15} />
             </button>
           </form>
-          {askAiSubmitted && <p className="hub-ask-ai-note">Coming soon!</p>}
         </div>
 
         <div className="hub-quick-actions">
@@ -718,6 +723,11 @@ export default function HubScreen() {
       </div>
 
       <AddTaskModal isOpen={addTaskOpen} onCancel={() => setAddTaskOpen(false)} onSubmit={addTask} />
+      <CreativeConnectionModal
+        isOpen={creativeModalOpen}
+        initialPrompt={askAiValue}
+        onClose={() => { setCreativeModalOpen(false); setAskAiValue(''); }}
+      />
 
       <div className="hub-debug-row">
         <button type="button" className="hub-reset-btn" onClick={handleReset}>

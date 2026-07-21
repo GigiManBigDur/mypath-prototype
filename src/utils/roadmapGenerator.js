@@ -397,11 +397,18 @@ function buildProjectChain(project, dateOverrides, removed) {
 
   steps.sort((a, b) => a.date.getTime() - b.date.getTime());
   const total = steps.length;
+  // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — a project born from an
+  // accepted creative connection (no real curated PROJECT_CATEGORIES entry backs it) carries
+  // `project.aiSuggested`, propagated onto every one of its own steps here — same convention
+  // `buildFirstYearChain`'s own `track` field already established for opportunity chains — so
+  // Roadmap.jsx's existing `s.aiSuggested`/`n.aiSuggested` sparkle-badge checks (already built for
+  // Stage 2's chain-attached suggestions) show it here too with zero new rendering logic needed.
   steps = steps.map((step, i) => ({
     ...step,
     category: 'project',
     isLast: i === total - 1,
     projectLabel: `${project.projectName} · Step ${i + 1} of ${total}`,
+    aiSuggested: !!project.aiSuggested,
   }));
 
   const [anchor, ...branchSteps] = steps;
@@ -417,6 +424,7 @@ function buildProjectChain(project, dateOverrides, removed) {
     desc: anchor.desc,
     resources: [],
     projectLabel: anchor.projectLabel,
+    aiSuggested: !!project.aiSuggested,
     steps: branchSteps.length ? branchSteps : null,
   };
 }

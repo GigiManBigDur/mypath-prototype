@@ -107,13 +107,19 @@ function toISODate(date) {
 
 function resolveProjects(state) {
   return (state.startedProjects || []).map((project) => {
-    const resolved = findProjectType(project.categoryId, project.projectTypeId);
+    // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — a project born from
+    // an accepted creative connection has no real curated PROJECT_CATEGORIES entry
+    // (`categoryId`/`projectTypeId: 'ai-creative'` are synthetic), so `findProjectType` would
+    // correctly return `null` and this would otherwise fall back to showing the raw synthetic id
+    // string here. Reporting an honest, readable label instead — this profile is what a LATER
+    // Stage 2/3 request reads back, so a raw `'ai-creative'` string would be confusing there too.
+    const resolved = project.aiSuggested ? null : findProjectType(project.categoryId, project.projectTypeId);
     const totalSteps = project.steps.length;
     const completedSteps = project.steps.filter((s) => state.completedNodes[s.id]).length;
     return {
       id: project.id,
-      category: resolved?.category?.label || project.categoryId,
-      projectType: resolved?.projectType?.name || project.projectTypeId,
+      category: project.aiSuggested ? 'AI-suggested creative idea' : (resolved?.category?.label || project.categoryId),
+      projectType: project.aiSuggested ? 'Creative connection' : (resolved?.projectType?.name || project.projectTypeId),
       projectName: project.projectName,
       status: project.status,
       totalSteps,

@@ -3947,6 +3947,133 @@ against the real chain data before any code was touched, per the task's own expl
   all stay clean — confirming this narrow, `aiSuggested`-gated change doesn't alter spine
   positioning or any non-AI branch's layout at all.
 
+**AI Personalization, Stage 3: The Creative-Leap Layer — replaces the Hub's "Ask MyPath AI
+anything" "Coming soon" placeholder with a real, student-initiated feature: a genuinely creative,
+non-obvious connection across the student's own real profile, honestly bounded so it never claims
+to have verified a specific real organization/contact/program. This is the deliberate "later,
+separate feature" `api/suggest.js`'s own SYSTEM_PROMPT already named when it told the model to
+stay "grounded and conservative... not an ambitious creative leap."**
+- **Task 1 — trigger.** `HubScreen.jsx`'s existing inline `.hub-ask-ai` input/button is unchanged
+  in appearance; `submitAskAi` no longer sets a "Coming soon" flag, it opens
+  `CreativeConnectionModal` (new file), seeded with whatever the student already typed (if
+  anything) as its own free-text default. The modal itself — not the small inline hub box — is
+  the real "prompt interface": 3 preset buttons (`PRESET_PROMPTS` — "Help me find a unique angle,"
+  "What's distinctive about my profile so far?," "Suggest a project idea based on my interests")
+  clicking one submits immediately, reducing the blank-page problem per the build spec's own
+  framing, PLUS a free-form textarea + Submit for a more specific question. Rendered as a real,
+  centered, portaled `.overlay`/`.modal` (matching every other modal in this app) rather than
+  crammed into the small corner box — the response text plus a later date-picker step need real
+  room, the same reasoning that already moved Stage 2's own date-picker out of the corner mascot
+  widget into its own modal.
+- **Task 2 — the full real profile.** Sends `compileStudentProfile(state)` (Stage 1's FULL,
+  non-summarized export — interests, goals, activities/projects, and full `planHistory` including
+  every written outcome note) — deliberately NOT the bounded/summarized `compileSuggestionProfile`
+  variant Stage 2's auto-triggered suggestions use for cost efficiency. This is student-initiated
+  and infrequent (Task 5's own "no special rate-limiting needed"), so Stage 2's own cost-bounding
+  concern doesn't apply the same way here, and the build spec explicitly asks for the "full real
+  profile" by name.
+- **`api/creative-suggest.js`** (new file) is a SEPARATE Vercel serverless function from
+  `api/suggest.js`, not a mode flag on it — each Vercel function stays standalone, matching that
+  file's own established "never import from a sibling under `api/`" precedent. Mirrors its
+  structure closely (same CORS allowlist shape, same dual-provider Anthropic/OpenAI dispatch via
+  the SAME `AI_SUGGESTION_PROVIDER` env var — Task 5's own "reuse existing... whichever is
+  currently active," so this feature needs zero separate provider configuration — same forced-
+  tool-call reliability approach) but with a genuinely different `SYSTEM_PROMPT`/schema suited to
+  this different kind of request: `propose_creative_connection` returns `{title, response,
+  mentionsSpecificEntity}` — no `date`/`relatedOpportunityId` fields at all, since this isn't
+  attached to any existing chain or triggered by a specific completed task. `temperature: 0.9` for
+  Anthropic (up from Stage 2's conservative 0.4) and `reasoning: { effort: 'medium' }` for OpenAI
+  (up from Stage 2's 'low') — deliberately favoring a real creative leap over a safe, predictable
+  completion, matching Task 3's own framing, and accepted by Task 5's own "no special rate-
+  limiting" as a costlier-but-rarer request type.
+- **Task 3 — honesty, enforced in code, not just asked for in the prompt.** `mentionsSpecificEntity`
+  is the model's own self-reported signal (the SAME "ask the model to flag it, then enforce
+  deterministically in code, never trust the flag alone" pattern Stage 2's own
+  `referencesExternalFact`/`applyGuardrails` already established) — when true, the server
+  deterministically appends "(If this names anything specific, treat it only as an example of the
+  type of thing to look for — I haven't verified that it exists or is reachable.)" to the response
+  text. This is layered UNDERNEATH a separate, ALWAYS-VISIBLE client-side honesty note (below) that
+  never depends on this flag at all — two independent layers, not one conditional check the whole
+  feature rests on.
+- **Task 4 — turning it into a Project Builder entry.** `CreativeConnectionModal`'s result step
+  shows the AI's own `title`/`response` PLUS one shared, exported `HONESTY_NOTE` constant — "This
+  is a direction to explore — specific organizations or contacts are for you to find and verify
+  yourself." — rendered via `.caveat-banner` (recolored to `--bloom-ai` via a new
+  `.creative-honesty-note` modifier) UNCONDITIONALLY on every result, regardless of
+  `mentionsSpecificEntity`. Clicking "Turn into a project" opens a date-picker step (manually
+  picked by the student, same "student picks the date, not the AI" convention the two prior
+  chain-suggestion fixes already established — validated only against `getEffectiveToday()`, no
+  "after task X" constraint since there's no triggering task here to anchor against) and, on
+  Confirm, appends a new `state.startedProjects` entry:
+  ```js
+  { id, categoryId: 'ai-creative', projectTypeId: 'ai-creative', projectName: result.title,
+    status: 'active', guideStepsUsed: 0, aiSuggested: true,
+    steps: [{ id, title: result.title, date: pickedDate, desc: `${result.response} ${HONESTY_NOTE}` }] }
+  ```
+  `categoryId`/`projectTypeId: 'ai-creative'` are deliberately synthetic — there is no real curated
+  `PROJECT_CATEGORIES` entry backing a genuinely freeform creative idea, unlike every other started
+  project in this app. `aiSuggested: true` is the one new field this required threading through:
+  - **`roadmapGenerator.js`'s `buildProjectChain`** now propagates `aiSuggested: !!project.aiSuggested`
+    onto every one of its own steps (anchor + branch steps alike), the exact same convention
+    `buildFirstYearChain`'s own `track` field already established for opportunity chains — this is
+    what makes `Roadmap.jsx`'s EXISTING `s.aiSuggested`/`n.aiSuggested` sparkle-badge checks (already
+    built for Stage 2's chain-attached suggestions) show the marker here too, with ZERO new
+    rendering logic needed.
+  - **`Roadmap.jsx`'s `openNextStepPrompt`** gained a guard: `if (project.aiSuggested) { ...
+    setProjectPrompt({ project, projectType: null, mode: 'choice' }); return; }` — an ai-creative
+    project has no real curated `projectType` to resolve (`findProjectType('ai-creative',
+    'ai-creative')` correctly returns `null`, per that function's own established "returns `null`,
+    never throws, on no match" contract), so there's no curated guide-step list to suggest from at
+    all; completing its one step skips straight to the same open-ended "mark complete / add another
+    step" choice a normal project reaches once ITS OWN real guide is exhausted, rather than the
+    function bailing out silently (the pre-existing `if (!found) return;` guard) and leaving the
+    student stuck with no reveal-next-step prompt at all. Confirmed safe: `appendProjectStep`/
+    `markProjectComplete` and the choice modal's own JSX only ever read `projectPrompt.project`,
+    never `.projectType`, so passing `projectType: null` here needed no other changes.
+  - **`profileCompiler.js`'s `resolveProjects`** reports `category: 'AI-suggested creative idea'`/
+    `projectType: 'Creative connection'` for an `aiSuggested` project instead of the raw synthetic
+    `'ai-creative'` id strings `findProjectType`'s own `null` fallback would otherwise surface — this
+    profile is what a LATER Stage 2/3 request reads back, so an honest, readable label matters here
+    too, not just in the UI.
+- **Task 5 — security/cost reuse.** Same server-side-only API key requirement as Stage 2 (the key
+  lives only in `api/creative-suggest.js`, a Vercel serverless function — never client code); same
+  CORS allowlist; same active provider (`AI_SUGGESTION_PROVIDER`) with zero separate config. Being
+  student-initiated rather than automatically triggered, no special rate-limiting was added beyond
+  ordinary usage, per the build spec's own explicit Task 5.
+- **`src/utils/creativeSuggestions.js`** (new file) mirrors `suggestions.js`'s exact "fire-and-
+  forget fetch to this app's own Vercel proxy, `onResult`/`onError` callbacks, hardcoded absolute
+  cross-origin URL (`https://mypath-prototype-seven.vercel.app/api/creative-suggest`)" shape — same
+  reasoning as `suggestions.js`/`speech.js`: neither the Vite dev server nor GitHub Pages can run a
+  serverless function, so every environment calls the live Vercel deployment directly regardless of
+  where the frontend itself is served from. Unlike Stage 2's own `requestSuggestion` (which fails
+  silently, since it's an unprompted background suggestion), `onError` here is expected to be
+  handled by the caller — `CreativeConnectionModal` shows a real, honest error state ("Something
+  went wrong... try again") with a Try Again button, since this IS a direct response to something
+  the student explicitly just did, not a background suggestion that can just quietly not appear.
+- Verified with a dedicated 18-check Playwright suite (mocking `/api/creative-suggest`) covering
+  the build spec's own explicit test criteria: clicking a preset produces the real, mocked
+  profile-specific response (not a generic placeholder); the honesty note renders unconditionally,
+  confirmed identical whether `mentionsSpecificEntity` is true or false; turning a response into a
+  project creates exactly one real `startedProjects` entry, correctly tagged `aiSuggested: true`,
+  with the picked date and a description carrying both the real response text AND the honesty
+  note; the created project renders on the real roadmap with the AI-suggested sparkle badge; and
+  completing its one step opens the open-ended choice prompt rather than crashing or silently doing
+  nothing (confirming the `openNextStepPrompt` fix). A separate free-form-question run confirms
+  that path also produces a real, honest response. A dedicated 12-check Node-level test (mocking
+  `global.fetch` directly, the same technique used for `api/suggest.js`'s own dual-provider tests)
+  confirms the server: uses the real, higher-creativity `temperature: 0.9`; forces the
+  `propose_creative_connection` tool; correctly appends the guardrail note only when
+  `mentionsSpecificEntity` is true (and never mutates the text when false); and fails cleanly
+  (400/502/500, never a crash) for missing input, a structurally invalid model response, an
+  unrecognized provider, or a missing API key. The full pre-existing AI-suggestion regression suite
+  (the 30+6+15+13+3 checks from Stage 2 and the two prior chain-suggestion fixes) all still pass
+  unchanged; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+- **What still needs to happen before this is live**: per this file's own standing "deploys are
+  opt-in only" rule, `api/creative-suggest.js` needs an actual `vercel deploy --prod` before the
+  live Hub button calls real, working code — until then, the client's own graceful error state
+  ("Something went wrong... try again") is exactly what a student would see, the same honest
+  degradation Stage 2's own not-yet-deployed window already demonstrated.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

@@ -296,6 +296,19 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   };
 
   const openNextStepPrompt = (project) => {
+    // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — a project born from
+    // an accepted creative connection has no real curated PROJECT_CATEGORIES entry behind it
+    // (`categoryId`/`projectTypeId: 'ai-creative'` are synthetic, `findProjectType` would
+    // correctly return `null` for them), so there's no curated guide-step list to suggest from at
+    // all. Skips straight to the same open-ended "mark complete / add another step" choice a
+    // normal project reaches once its own real guide is exhausted — `appendProjectStep`/
+    // `markProjectComplete` and the choice modal's own JSX only ever read `projectPrompt.project`,
+    // never `.projectType`, so `projectType: null` here is safe.
+    if (project.aiSuggested) {
+      setSelected(null);
+      setProjectPrompt({ project, projectType: null, mode: 'choice' });
+      return;
+    }
     const found = findProjectType(project.categoryId, project.projectTypeId);
     if (!found) return;
     const { projectType } = found;

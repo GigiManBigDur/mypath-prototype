@@ -1908,14 +1908,32 @@ button.card.passed:hover {
   flex-shrink: 0;
 }
 .hub-ask-ai-wrap { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-.hub-ask-ai-note {
-  margin: 0;
-  padding: 0 6px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--hub-accent);
-  text-align: center;
+
+/* AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — CreativeConnectionModal's
+   own preset-prompt buttons and honesty note. Everything else in that modal reuses the shared
+   .overlay/.modal/.modal-eyebrow/.modal-title/.modal-desc/.task-form-field/.task-form-actions/
+   .btn-* classes wholesale. */
+.creative-preset-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.creative-preset-btn {
+  text-align: left;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--paper-line);
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
 }
+.creative-preset-btn:hover { border-color: var(--bloom-ai); background: var(--card); }
+.creative-connection-text { white-space: pre-wrap; }
+/* A visible, always-shown honesty note (Task 3/4) — reuses .caveat-banner's own established
+   gold-accent "important context" visual language rather than inventing a new one, just recolored
+   to the same fuchsia every other AI-suggested marker in this app already uses, so it reads as
+   "AI-related" at a glance. */
+.creative-honesty-note { border-left-color: var(--bloom-ai); font-style: italic; }
 
 .hub-quick-actions {
   background: var(--hub-card);
