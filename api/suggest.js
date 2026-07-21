@@ -173,10 +173,14 @@ async function callAnthropic(apiKey, today, profileSummary, triggeringTask) {
 //   - GPT-5.6 Terra is a reasoning-tuned model and does NOT accept `temperature` at all (confirmed
 //     directly — reasoning models disable external sampling controls to protect their own internal
 //     calibration; sending it produces a real 400 error, not a silently-ignored parameter). The
-//     equivalent dial is `reasoning_effort` (`none|low|medium|high|xhigh|max`) — `'low'` is used
-//     here since this is a simple, bounded, structured-output decision, not a task that benefits
-//     from deep multi-step reasoning; it's also the cheaper/faster setting, which fits this
-//     feature's own "keep cost roughly constant" framing from Stage 2's original build spec.
+//     equivalent dial is `reasoning: { effort: ... }` (`none|low|medium|high|xhigh|max`) — a real,
+//     confirmed correction: a flat top-level `reasoning_effort` field (what secondary write-ups of
+//     this API described) is REJECTED by the live Responses API with an explicit "this parameter
+//     has moved to 'reasoning.effort'" error — caught immediately via a real end-to-end test call
+//     against the deployed function, not left for the next real user to hit. `'low'` is used here
+//     since this is a simple, bounded, structured-output decision that doesn't benefit from deep
+//     multi-step reasoning; it's also the cheaper/faster setting, fitting Stage 2's own "keep cost
+//     roughly constant" framing from its original build spec.
 async function callOpenAI(apiKey, today, profileSummary, triggeringTask) {
   const openaiRes = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -191,7 +195,7 @@ async function callOpenAI(apiKey, today, profileSummary, triggeringTask) {
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: TASK_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
       max_output_tokens: 500,
-      reasoning_effort: 'low',
+      reasoning: { effort: 'low' },
     }),
   });
 

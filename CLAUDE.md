@@ -3606,7 +3606,7 @@ becomes available).**
   `function_call`) is parsed correctly into the exact same `{title, date, rationale,
   referencesExternalFact}` shape the Anthropic path produces, with the external-fact guardrail note
   correctly appended; the outgoing request correctly omits `temperature` and includes
-  `reasoning_effort: 'low'` instead, uses the flat (non-nested) tool shape, and targets
+  `reasoning: { effort: 'low' }` instead, uses the flat (non-nested) tool shape, and targets
   `gpt-5.6-terra` at the Responses API endpoint; a genuinely unset `AI_SUGGESTION_PROVIDER` still
   routes to Anthropic with zero behavior change; and an unrecognized provider value fails with a
   clear, honest 500 rather than crashing. The full pre-existing Stage 2 Playwright suite (both the
@@ -3614,6 +3614,20 @@ becomes available).**
   restructured file and passes unchanged, confirming the currently-deployed Claude behavior is
   completely unaffected by this prep work — exactly Task 1 of this feature's own test criteria.
   `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+- **A real, confirmed second bug was caught the moment a real `OPENAI_API_KEY` first went live** —
+  a good example of why "verified against the docs" and "verified against the real, live API" can
+  still differ. The very first real request against the deployed endpoint returned an actual
+  `400 unsupported_parameter` error from OpenAI itself: `reasoning_effort` (a flat top-level field,
+  what secondary write-ups of the Responses API described, and what the original code shipped with)
+  has actually moved to a nested `reasoning: { effort: ... }` shape on the live API. Fixed
+  immediately, confirmed via TWO real end-to-end calls against the live, deployed endpoint (not
+  just the local mocked test) — one producing a plain grounded suggestion
+  (`referencesExternalFact: false`, no guardrail note), one deliberately referencing a real external
+  fact (a DECA national conference's own eligibility/deadlines) and correctly triggering the
+  "Double-check this detail yourself" guardrail note, appended exactly as designed. **This
+  confirms the OpenAI path is genuinely live and working**, not just theoretically ready — Anthropic
+  remains the account with an unresolved billing restriction; OpenAI (`AI_SUGGESTION_PROVIDER=
+  openai`) is the currently-active, real, working provider for this feature as of this deploy.
 
 ## Design tokens
 
