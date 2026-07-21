@@ -3891,6 +3891,62 @@ against the real chain data before any code was touched, per the task's own expl
   UI. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix
   never opens `roadmapLayout.js`, only reuses its existing date-driven positioning.
 
+**Fix: AI-Suggested Node's Horizontal Position Doesn't Match Its Branch — this DOES touch
+`roadmapLayout.js`, but narrowly, and re-verified before being trusted.**
+- **The diagnosis.** `layoutBranch`'s own `base = steps[0].date` — `steps[0]` being the array's
+  own first branch step, whatever that happens to be — is what every OTHER step's `rel` (and
+  therefore `x`/`y`) is measured against. Since `realDaysBetween(base, base)` is always exactly 0,
+  `steps[0]` ITSELF always collapses to a flat `rel = MIN_BRANCH_GAP` (46px), regardless of how
+  many real days separate it from the anchor. This has always been true — even before AI
+  suggestions existed — but was invisible: every real opportunity's own original first prep step
+  has always gotten this same flat offset, and there was nothing nearby to visually compare it
+  against. An accepted AI suggestion changes that the moment it lands chronologically BETWEEN the
+  anchor and the chain's own original first prep step (e.g. 1 real day after "Register for DECA",
+  versus the original "Prepare your presentation/event materials" 6 real days out) — it becomes
+  the new `steps[0]`, inheriting that same flat `MIN_BRANCH_GAP` offset that previously belonged to
+  a step several real days further out, while everything after it in the array still measures its
+  own `rel` relative to THIS step's date. The result: the newly-inserted step visually collapses
+  toward the spine, and the step right after it looks like it "resets" the fan's origin instead of
+  continuing an already-established diagonal.
+- **Why this wasn't a global `layoutBranch` rewrite.** A first instinct — make `base` always the
+  ANCHOR's real date instead of `steps[0].date` — was considered and rejected: it doesn't change
+  the RELATIVE spacing between any two consecutive real steps (that delta telescopes down to
+  `PIXELS_PER_DAY * realDaysBetween(step_i, step_{i-1})` regardless of what `base` is), but it DOES
+  uniformly shift where the WHOLE branch starts fanning from, for literally every existing
+  opportunity/project chain in the app (every real template's own anchor-to-first-prep-step gap is
+  several real days, not near-zero) — a much bigger, riskier blast radius than this narrow bug
+  calls for, and exactly the kind of `roadmapLayout.js` risk this codebase's own history has
+  repeatedly warned against taking lightly.
+- **The actual fix**: `layoutBranch` now takes a 5th param, `anchorDate` (the chain's real anchor
+  date, passed from `layoutRoadmap`'s own `item.date` at the one call site), and `base` is only
+  ever `anchorDate` instead of `steps[0].date` when `steps[0].aiSuggested` is true — every other
+  case (no AI insertion at all, or one landing anywhere OTHER than array index 0) is
+  byte-for-byte unaffected, since `steps[0].date` is exactly what already applied there. This is
+  the one narrow case where checking `aiSuggested` internally is warranted — it's a positioning-
+  math calibration, not a different code path for HOW an ai-suggested node is rendered (the ring/
+  connector/collision logic downstream is completely identical either way).
+- **Verified two ways.** First, a real Node-level reproduction (`generateRoadmap()` loaded through
+  Vite's own module loader) confirmed the exact mechanism directly, before AND after the fix,
+  measuring each branch step's real `x - anchor.x` delta — before: the ai-step's own delta was
+  disproportionately small relative to its 1-real-day gap; after: it correctly grew to reflect
+  that gap, with zero change to the RELATIVE deltas between every other pair of steps. Second, a
+  real rendered screenshot comparison (git-stashing the fix on and off) using a SPARSE test plan
+  (freshman year — a dense senior-year plan's own competing spine labels were found to mask the
+  effect via the pre-existing collision-avoidance nudge loop, which converges toward a similar
+  final position regardless of the starting `rel` whenever a nearby label forces heavy nudging
+  anyway) reproduces the reported screenshot exactly: BEFORE the fix, "Review DECA Marketing event
+  guidelines" renders essentially on top of "Register for DECA," visually indistinguishable from
+  the anchor; AFTER, it shows a real, clearly visible gap, correctly continuing the diagonal toward
+  "Prepare"/"Practice"/"Compete." A dedicated 3-check Playwright suite then confirmed this holds
+  through the real Accept → date-picker → Confirm flow (not just a directly-seeded state): the
+  ai-inserted step's own `|x - anchorX|` is a real, non-trivial offset (not near-zero), the fan's
+  `|x - anchorX|` grows monotonically from the ai-step outward through every real step
+  (review < prepare < practice < compete), and the sparkle badge still renders. The full
+  pre-existing regression suite (the 13+15+30+6 checks from the two prior chain-suggestion fixes)
+  all still pass unchanged, and `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20)
+  all stay clean — confirming this narrow, `aiSuggested`-gated change doesn't alter spine
+  positioning or any non-AI branch's layout at all.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

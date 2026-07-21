@@ -131,8 +131,33 @@ function intersects(a, b) {
 // overlap before scaling, so the "no label overlaps" invariant this file already guaranteed keeps
 // holding — and because rel/y are computed before this multiply ever applies, every node's
 // vertical position is provably untouched by it.
-function layoutBranch(steps, anchorY, side, placedLabels) {
-  const base = steps[0].date;
+// Fix: AI-Suggested Node's Horizontal Position Doesn't Match Its Branch (see CLAUDE.md) — `base`
+// is normally `steps[0].date` (the array's own first branch step), which makes that step's own
+// `rel` collapse to exactly `MIN_BRANCH_GAP` (a flat constant — `realDaysBetween(base, base)` is
+// always 0), regardless of how far it really is from the anchor in time. That's invisible for a
+// template chain (every real opportunity's own first prep step has always gotten this same flat
+// treatment, and nobody could tell), but an accepted AI suggestion can land BETWEEN the anchor and
+// the chain's own original first prep step — becoming the new `steps[0]` — and inherits that same
+// flat, near-spine offset that used to belong to a step several real days later. The step after it
+// (still measured relative to the ai-step's own date) then LOOKS like it resets the fan's origin,
+// rather than continuing an already-progressing diagonal.
+//
+// Fixed narrowly: `base` is only ever the ANCHOR's real date (passed in as `anchorDate`) instead
+// of `steps[0].date` when `steps[0]` is itself an ai-inserted step — every other case (no AI
+// insertion at all, or one that lands anywhere OTHER than array index 0) is completely
+// byte-for-byte unaffected, since `steps[0].date` is exactly what `anchorDate` would already
+// collapse to whenever `steps[0]` isn't ai-suggested... no, that's not true in general (the
+// anchor's own date is always earlier than steps[0]'s), which is exactly why this is scoped to the
+// `aiSuggested` case specifically, rather than changed globally — a global change would uniformly
+// shift EVERY existing template chain's branch further from the spine (every real opportunity's
+// prep-step-to-anchor gap is several real days, not near-zero), which is a much bigger, riskier
+// change than this narrow bug calls for. This does NOT change the relative spacing between any
+// other pair of consecutive steps — every `rel_i - rel_{i-1}` for i >= 1 telescopes down to
+// `PIXELS_PER_DAY * realDaysBetween(step_i.date, step_{i-1}.date)` regardless of what `base` is,
+// so only the array's own first entry's absolute offset (and therefore where the rest of the fan
+// starts from) is affected.
+function layoutBranch(steps, anchorY, side, placedLabels, anchorDate) {
+  const base = steps[0].aiSuggested ? anchorDate : steps[0].date;
   let prevRel = 0;
   let prevX = 0;
   return steps.map((step, i) => {
@@ -241,7 +266,7 @@ export function layoutRoadmap({ today, spineItems }) {
     let branchSteps = null;
     const side = hasBranch ? -labelSide : 0;
     if (hasBranch) {
-      branchSteps = layoutBranch(item.steps, y, side, placedLabels);
+      branchSteps = layoutBranch(item.steps, y, side, placedLabels, item.date);
     }
     return { ...item, x: 0, y, hasBranch, side, labelSide, branchSteps };
   });
