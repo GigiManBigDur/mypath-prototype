@@ -3552,6 +3552,69 @@ the top of this file), not a general backend.**
   the graceful-failure test above already demonstrates: task completion and outcome notes still
   save correctly, and simply no suggestion appears.
 
+**Prepare OpenAI Integration in Advance — a real, working second provider implementation lives
+side by side with the Claude one in the SAME `api/suggest.js` file, switched by a single env var,
+built ahead of having a real OpenAI key at all (the Anthropic account hit an unrelated billing
+restriction while setting up Stage 2, unrelated to any bug in this app — this work exists so
+switching providers, if needed, is purely a config change, not a coding task, whenever a key
+becomes available).**
+- **Model: GPT-5.6 Terra (`gpt-5.6-terra`)** — the exact API model id was verified directly rather
+  than assumed; the plain `gpt-5.6` alias actually routes to a DIFFERENT tier (Sol), not Terra, so
+  getting this exact string right mattered.
+- **Both providers share one pipeline, not two parallel ones.** `TASK_SCHEMA`/`SYSTEM_PROMPT` (the
+  JSON Schema for the 4 proposal fields, and the system prompt itself) are defined ONCE and reused
+  by both `callAnthropic()`/`callOpenAI()`; `validateProposal()`/`applyGuardrails()` (the same
+  structural validation and external-fact guardrail enforcement Stage 2 already established) run
+  AFTER either provider returns its own raw proposal, on the exact same code path regardless of
+  which one answered. This is what guarantees the client-facing request/response contract stays
+  byte-for-byte identical no matter which provider is active — Roadmap.jsx, MascotWidget.jsx, and
+  profileCompiler.js needed ZERO changes for this entire feature.
+- **The switch is one env var, `AI_SUGGESTION_PROVIDER` (`'anthropic' | 'openai'`), defaulting to
+  `'anthropic'`** — an unset var (the current, already-deployed state) behaves EXACTLY as before,
+  confirmed directly rather than assumed (see the verification note below). Switching to OpenAI
+  needs exactly two things in Vercel's environment variables: a real `OPENAI_API_KEY`, and
+  `AI_SUGGESTION_PROVIDER=openai` — then a redeploy. No code changes either way; switching back to
+  Anthropic is just removing/reverting that one value.
+- **OpenAI's Responses API (`POST /v1/responses`), not the older Chat Completions API** — the
+  current, non-legacy surface, confirmed directly against OpenAI's own docs rather than assumed.
+  Several real shape differences from the Anthropic version were each individually verified before
+  writing any code, since "no further coding needed" only holds if this is actually correct on the
+  first real try:
+  - `instructions` is a dedicated top-level field for the system prompt (no message-array
+    construction needed, unlike Anthropic's `system` + `messages`).
+  - Tool entries are FLAT (`type`/`name`/`description`/`parameters` directly on the tool object) —
+    NOT nested under a `function` key the way the OLDER Chat Completions API requires. Getting this
+    wrong would have silently produced a malformed request.
+  - `tool_choice: { type: 'function', name: 'propose_task' }` forces the one tool, mirroring
+    Anthropic's own `{ type: 'tool', name: ... }`.
+  - The response's tool call lives in a top-level `output` array (which can ALSO contain unrelated
+    item types, e.g. a `reasoning` item — confirmed via a direct test that the parsing correctly
+    searches for `type === 'function_call'` rather than assuming index `0`) as an item carrying a
+    JSON-ENCODED STRING `arguments` field — unlike Anthropic's `tool_use.input`, which arrives
+    already parsed, this needs its own explicit `JSON.parse`.
+  - **A real, confirmed gotcha caught BEFORE it could ever fail live**: GPT-5.6 Terra is a
+    reasoning-tuned model and does NOT accept `temperature` at all — reasoning models disable
+    external sampling controls to protect their own internal calibration, and sending it produces
+    a genuine 400 error, not a silently-ignored parameter. The equivalent dial is
+    `reasoning_effort` (`none|low|medium|high|xhigh|max`); `'low'` is used here since this is a
+    simple, bounded, structured-output decision that doesn't benefit from deep multi-step
+    reasoning, and it's the cheaper/faster setting, fitting Stage 2's own "keep cost roughly
+    constant" framing.
+- Verified with three dedicated Node-level tests (mocking `global.fetch` directly, since testing
+  the real OpenAI path end-to-end isn't possible without a real key yet): a realistic
+  OpenAI-response shape (including an unrelated `reasoning` output item ahead of the real
+  `function_call`) is parsed correctly into the exact same `{title, date, rationale,
+  referencesExternalFact}` shape the Anthropic path produces, with the external-fact guardrail note
+  correctly appended; the outgoing request correctly omits `temperature` and includes
+  `reasoning_effort: 'low'` instead, uses the flat (non-nested) tool shape, and targets
+  `gpt-5.6-terra` at the Responses API endpoint; a genuinely unset `AI_SUGGESTION_PROVIDER` still
+  routes to Anthropic with zero behavior change; and an unrecognized provider value fails with a
+  clear, honest 500 rather than crashing. The full pre-existing Stage 2 Playwright suite (both the
+  32-check mocked-Claude-flow suite and the graceful-live-failure suite) was re-run against the
+  restructured file and passes unchanged, confirming the currently-deployed Claude behavior is
+  completely unaffected by this prep work — exactly Task 1 of this feature's own test criteria.
+  `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
