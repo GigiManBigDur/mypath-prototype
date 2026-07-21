@@ -18,6 +18,7 @@ import { useModalExit } from '../hooks/useModalExit';
 import { getTrackColor } from './TrackVisuals';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestSuggestion } from '../utils/suggestions';
+import { resolveSuggestion } from '../utils/suggestionResolver';
 import MascotWidget from './MascotWidget';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
@@ -372,7 +373,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     requestSuggestion(
       { today, profileSummary, triggeringTask: profileSummary.triggeringTask },
       {
-        onResult: (proposal) => patch({ pendingSuggestion: { sourceTaskId: id, ...proposal } }),
+        // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — the raw proposal is
+        // resolved (chain lookup + real-date computation + validation) BEFORE ever becoming a
+        // pendingSuggestion; an unresolvable/invalid one (Task 3) resolves to `null` and is
+        // silently skipped — the student never sees a suggestion that would insert somewhere
+        // chronologically nonsensical, or that references a chain/step that doesn't really exist.
+        onResult: (proposal) => {
+          const resolved = resolveSuggestion(proposal, effectiveState, id);
+          if (resolved) patch({ pendingSuggestion: resolved });
+        },
         onError: () => {}, // graceful no-op — no suggestion this time, nothing else changes
       },
     );
@@ -809,6 +818,16 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                       {done
                         ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
                         : <cfg.Icon className="node-icon-pop" x="-6" y="-6" size={12} color={cfg.color} />}
+                      {/* Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md), Task 4 —
+                          an accepted chain-related suggestion is spliced in as an ordinary branch
+                          step (same ring style/color as every sibling step in this chain, so it
+                          reads as "connected in sequence like any other step"), with only this
+                          small, persistent sparkle badge (same treatment/positioning precedent as
+                          the top-level ai-suggested node below, scaled to this smaller ring)
+                          marking it as AI-origin — never swaps to a checkmark once done. */}
+                      {s.aiSuggested && (
+                        <Sparkles className="ai-suggestion-badge" x="5" y="-17" size={9} color="var(--bloom-ai)" />
+                      )}
                     </g>
                     <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
                     <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
@@ -895,6 +914,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
                             : <cfg.Icon className="node-icon-pop" x="-7" y="-7" size={14} color={cfg.color} />}
+                          {/* Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — the
+                              rare edge case where an accepted chain-related step happens to be the
+                              EARLIEST-dated one in its chain (so it's the promoted spine anchor,
+                              not a branchStep) still gets the same persistent sparkle badge. */}
+                          {n.aiSuggested && (
+                            <Sparkles className="ai-suggestion-badge" x="6" y="-20" size={11} color="var(--bloom-ai)" />
+                          )}
                         </>
                       )}
                     </g>

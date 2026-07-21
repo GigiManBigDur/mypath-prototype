@@ -164,6 +164,15 @@ const DEFAULT_STATE = {
   // "the student typed this in themselves") so `roadmapGenerator.js` can give them their own
   // distinct required:false, category:'ai-suggested' spine items and their own visual marker.
   aiSuggestedTasks: [],
+  // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — `{ [opportunityId]:
+  // [{ id, title, date, desc }] }`. An accepted suggestion the AI tagged as belonging to an
+  // existing opportunity chain (e.g. a follow-up step for FBLA) lands here instead of
+  // `aiSuggestedTasks` — roadmapGenerator.js splices these into that opportunity's own year-1
+  // chain (as one more dated step, sorted into place alongside the chain's own template steps)
+  // rather than creating a second, disconnected standalone spine item for it. Each entry's own
+  // `date` is a fixed, one-time value computed at accept time (see suggestionResolver.js) — not
+  // recomputed on every render — so the chain's existing steps never shift underneath it.
+  aiChainInsertions: {},
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

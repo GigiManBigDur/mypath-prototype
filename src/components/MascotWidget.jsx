@@ -71,13 +71,36 @@ export default function MascotWidget({ text }) {
 
   if (!effectiveText || dismissed) return null;
 
-  // Task 4 — Accept appends a real, permanent roadmap task (its own `category: 'ai-suggested'`
-  // spine item, see roadmapGenerator.js/Roadmap.jsx); Not now just clears the pending suggestion
-  // with nothing added. Neither ever touches `suggestionSourceTaskIds` — that was already set the
-  // moment the request was triggered (see Roadmap.jsx's `maybeTriggerSuggestion`), which is what
-  // actually prevents an immediate re-suggestion for the same source task, not anything decided
-  // here.
+  // Task 4 — Accept either appends a real, permanent STANDALONE roadmap task (its own
+  // `category: 'ai-suggested'` spine item, see roadmapGenerator.js/Roadmap.jsx), or — Fix: AI
+  // Suggestions Related to Existing Chains (see CLAUDE.md) — if `suggestion.chainOpportunityId`
+  // is set (this suggestion was resolved against a real existing chain by suggestionResolver.js),
+  // appends it to `aiChainInsertions[opportunityId]` instead, so roadmapGenerator.js splices it
+  // into that opportunity's own chain as one more dated step rather than a disconnected standalone
+  // one. `suggestion.date` was already computed and validated at resolve time either way — this
+  // handler never picks or checks a date itself. "Not now" just clears the pending suggestion with
+  // nothing added. Neither branch ever touches `suggestionSourceTaskIds` — that was already set
+  // the moment the request was triggered (see Roadmap.jsx's `maybeTriggerSuggestion`), which is
+  // what actually prevents an immediate re-suggestion for the same source task, not anything
+  // decided here.
   const acceptSuggestion = () => {
+    if (suggestion.chainOpportunityId) {
+      const existing = state.aiChainInsertions || {};
+      const forOpportunity = existing[suggestion.chainOpportunityId] || [];
+      patch({
+        aiChainInsertions: {
+          ...existing,
+          [suggestion.chainOpportunityId]: [...forOpportunity, {
+            id: makeTaskId('ai-chain-step'),
+            title: suggestion.title,
+            date: suggestion.date,
+            desc: suggestion.rationale,
+          }],
+        },
+        pendingSuggestion: null,
+      });
+      return;
+    }
     patch({
       aiSuggestedTasks: [...(state.aiSuggestedTasks || []), {
         id: makeTaskId('ai-suggestion'),

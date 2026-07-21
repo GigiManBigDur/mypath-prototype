@@ -127,6 +127,7 @@ export function generateRoadmap(state, yearWindow = null) {
   // "Recommended for you" view, since that narrower set is always a subset of OPPORTUNITY_TRACKS.
   const opportunityItems = buildOpportunityItems(
     OPPORTUNITY_TRACKS, level, state.selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
+    state.aiChainInsertions || {},
   );
 
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
@@ -1010,7 +1011,7 @@ function progressionTitle(opp, yearIndex) {
 // the escalated milestone title as the final step. A bare single-point node would read as "no
 // prep needed for the harder tier," which isn't true. Non-recurring opportunities are entirely
 // unaffected: exactly one chain, in its nearest year, same as always.
-function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed) {
+function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed, aiChainInsertions = {}) {
   const items = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
@@ -1020,7 +1021,13 @@ function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartD
     // the restructure note on buildFirstYearChain below. Per-step removal (handled inside
     // buildStepsChain's own filter) already collapses to `null`/omitted once every step is gone,
     // the same way a fully-removed Project Builder chain already does.
-    const firstYearItem = buildFirstYearChain(opp, planStartDate, dateOverrides, removed);
+    //
+    // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — any accepted suggestion
+    // tagged with THIS opportunity's own id (aiChainInsertions[opp.id]) is only ever merged into
+    // the year-1 chain, never an escalation-year one (matching resolveOpportunities' own
+    // "year-1 chain only" scoping in profileCompiler.js, which is what the AI was actually shown
+    // when it made the suggestion in the first place).
+    const firstYearItem = buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiChainInsertions[id] || []);
     if (firstYearItem) items.push(firstYearItem);
 
     if (opp.recurring) {
@@ -1084,11 +1091,11 @@ function titleWithOpportunityContext(stepTitle, oppName) {
 // ORIGINAL step count (including the promoted one) — Roadmap.jsx's "· N steps" subtitle reads
 // this instead of `branchSteps.length`, which would otherwise undercount by exactly one now that
 // the first step has moved off the branch and onto the spine.
-function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
+function buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiInsertedSteps = []) {
   const deadlineDate = anchorDate(opp.date, planStartDate);
   const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
 
-  const steps = buildStepsChain(
+  let steps = buildStepsChain(
     stepNames, deadlineDate, opp.prepWeeks, planStartDate, dateOverrides, removed,
     (i) => `${opp.id}-prep-${i}`,
     (stepName, i, isLastByDefault, total) => ({
@@ -1102,6 +1109,37 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
     }),
   );
   if (!steps) return null;
+
+  // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — merges in any accepted
+  // suggestion the AI tagged as belonging to THIS opportunity, each already carrying its own
+  // fixed, one-time-computed date (resolved once at accept time by suggestionResolver.js's
+  // resolveSuggestion(), positioned between two real neighboring steps at that moment — never
+  // recomputed here). Deliberately reuses the exact same "add to the array, then re-sort by real
+  // date and recompute isLast" tail buildStepsChain's own sort already does, rather than trying to
+  // splice at a remembered array index — this is what makes the inserted step connect into the
+  // SAME diagonal branch via the SAME date-driven positioning `layoutBranch`/roadmapLayout.js
+  // already use for every other step, with zero changes to that file. Respects removedNodeIds/
+  // nodeDateOverrides exactly like every other step, via the same per-id lookups.
+  const extraSteps = aiInsertedSteps
+    .filter((s) => !removed[s.id])
+    .map((s) => {
+      const templateDate = parseDateInputValue(s.date);
+      const realDate = dateOverrides[s.id] ? parseDateInputValue(dateOverrides[s.id]) : templateDate;
+      return {
+        id: s.id,
+        title: s.title,
+        date: realDate,
+        due: formatDate(realDate),
+        desc: s.desc || `A follow-up step suggested based on something you reported about ${opp.name}.`,
+        resources: [],
+        aiSuggested: true,
+      };
+    });
+  if (extraSteps.length) {
+    steps = [...steps, ...extraSteps]
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map((step, i, arr) => ({ ...step, isLast: i === arr.length - 1 }));
+  }
 
   // Palette repaint, Academic Plan batch (see CLAUDE.md) — `track` is a purely additive, display-
   // only field (same convention `projectLabel`/`courseList` already established here), carrying
@@ -1126,6 +1164,16 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed) {
     track,
     totalSteps: steps.length,
     steps: branchSteps.length ? branchSteps : null,
+    // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — a purely additive lookup
+    // field (not read by roadmapLayout.js at all) letting suggestionResolver.js find "the chain
+    // for opportunity X" by its real, stable id rather than by this item's own `id` (which is
+    // whichever step happens to be promoted onto the spine, and can change if that step is later
+    // removed).
+    sourceOpportunityId: opp.id,
+    // The promoted anchor can itself be an ai-inserted step (if the earliest-dated step in the
+    // merged array happens to be one) — carried through so Roadmap.jsx's spine rendering can show
+    // the same persistent sparkle badge in that case too, not just for branch steps.
+    aiSuggested: anchor.aiSuggested || false,
   };
 }
 

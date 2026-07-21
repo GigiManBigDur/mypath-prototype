@@ -3629,6 +3629,114 @@ becomes available).**
   remains the account with an unresolved billing restriction; OpenAI (`AI_SUGGESTION_PROVIDER=
   openai`) is the currently-active, real, working provider for this feature as of this deploy.
 
+**Fix: AI Suggestions Related to Existing Chains Aren't Inserted Correctly — a real, confirmed bug
+where a suggestion clearly tied to an existing opportunity (e.g. referencing FBLA/DECA by name) was
+inserted as a disconnected standalone spine task with an unvalidated, sometimes chronologically
+nonsensical date (dated before the chain's own first step), instead of becoming a new step within
+that chain's own diagonal branch. Four pieces, matching the bug's own 4-task fix spec.**
+- **Task 1 — chain detection.** `api/suggest.js`'s shared `TASK_SCHEMA` gained 3 new nullable
+  fields — `relatedOpportunityId`, `insertRelativeToStepTitle`, `insertPosition` (`'before' |
+  'after' | null`) — and `date` itself became nullable too. `SYSTEM_PROMPT` now instructs the model
+  to check `profileSummary.activities.opportunities` first: if the suggestion is a natural next
+  step within one already listed there, set `relatedOpportunityId` to that opportunity's real
+  `id`, reference one of its real `steps` entries by exact title, and leave `date` null (the app
+  computes it); otherwise leave all 3 chain fields null and provide a date as before. All 7 fields
+  stay in the schema's `required` list regardless (a `null` value still counts as "present"), so
+  both providers' structured-output modes see one fixed shape either way — this is the SAME shared
+  `TASK_SCHEMA`/`validateProposal` pipeline both Anthropic and OpenAI already converge on, so
+  neither `callAnthropic`/`callOpenAI` themselves needed any changes, only the schema/prompt/
+  validation they both already call through.
+- **`profileCompiler.js`'s `resolveOpportunities` now exposes each opportunity's own real, LIVE
+  step list** (`steps: [{id, title, date, complete}]`) instead of just a bare completion count —
+  this is what actually lets the model reference a step by its real title in the first place.
+  Reads from the SAME already-computed `roadmap` (`generateRoadmap(state)`) `resolvePlanHistory`
+  already builds — `compileStudentProfile` now computes this roadmap ONCE and passes it to both,
+  rather than `resolveOpportunities` re-deriving stale, template-only step titles independently
+  (a real gap: a chain with a removed/date-overridden step, or one that already has an earlier
+  AI-accepted step spliced in, would otherwise be described to the model differently from how it
+  actually exists — this matters because the LATER lookup, described below, checks a step title
+  against this exact same live data, so showing the model a stale view just means more
+  suggestions silently fail that lookup and get skipped for no real reason).
+- **Task 2 — relative position, not a raw date.** The model never picks the actual date for a
+  chain-related suggestion; it only names two things a real chain-relative decision needs
+  (`insertRelativeToStepTitle` + `insertPosition`). **`src/utils/suggestionResolver.js`** (new
+  file) is where a raw, validated server proposal becomes something safe to show: `resolveSuggestion(proposal, state, sourceTaskId)`
+  re-fetches the CURRENT live roadmap, finds the chain matching `relatedOpportunityId` via a new
+  `sourceOpportunityId` field (below), locates the referenced step by title, and computes the new
+  step's date as the real midpoint between that step and its immediate chronological neighbor (the
+  one before it, for `'before'`; the one after it, for `'after'`) — "positioned sensibly between
+  the two steps it falls between," using nothing but real `Date` arithmetic (`realAddDays`/
+  `realDaysBetween`, the same date utilities every other date computation in this app already
+  uses) — never touching `roadmapLayout.js`'s own date-to-y math at all.
+- **`roadmapGenerator.js`'s `buildFirstYearChain`/`buildOpportunityItems` gained a new
+  `sourceOpportunityId: opp.id` field** on every chain's returned item — a purely additive lookup
+  field (not read by `roadmapLayout.js`), since the item's own `id` is whichever step happens to be
+  currently promoted onto the spine (and can change if that step is later removed), not a stable
+  handle for "the chain belonging to opportunity X."
+- **Task 3 — validate before ever showing anything.** `resolveSuggestion` returns `null` (meaning:
+  skip, show nothing) whenever: the referenced opportunity id doesn't resolve to a real, currently-
+  selected chain; the referenced step title isn't actually present in that chain's own real steps
+  (a case-insensitive exact match); `insertPosition: 'before'` targets the chain's own very FIRST
+  step (would violate "after the chain's own first step," with nothing earlier to bound it); or
+  `insertPosition: 'after'` targets the chain's own LAST step (the real deadline/competition day —
+  there's no room after it within this chain). The computed midpoint date is also re-checked
+  against `getEffectiveToday()` (never in the past) and against the chain's own first-step/target-
+  step bounds one more time before ever being returned — redundant with the arithmetic in the
+  success path, but kept as an explicit final confirmation per the fix's own "confirm... before
+  inserting" wording rather than trusting the computation silently. This resolution/validation
+  happens BEFORE `state.pendingSuggestion` is ever set (`Roadmap.jsx`'s `maybeTriggerSuggestion`
+  now calls `resolveSuggestion` inside `requestSuggestion`'s `onResult`, only patching
+  `pendingSuggestion` if it returns non-null) — an invalid chain-related suggestion is never shown
+  to the student at all, not shown-then-blocked-on-accept. A STANDALONE suggestion (no
+  `relatedOpportunityId`) also now gets a real "never in the past" check for the first time, which
+  it never had before this fix — matching the same "chronologically nonsensical" concern the bug
+  report raised, applied consistently rather than only for the chain case.
+- **Task 4 — render it correctly within the chain.** `buildFirstYearChain` now accepts a 5th
+  param, `aiInsertedSteps` (sourced from the new `state.aiChainInsertions[opp.id]` —
+  `AppContext.jsx`'s `DEFAULT_STATE`, a dedicated field separate from `aiSuggestedTasks`, which
+  stays reserved for genuinely standalone accepted suggestions). Each accepted chain-related step
+  already carries its own FIXED, one-time-computed date (set at accept time by `resolveSuggestion`,
+  never recomputed on every render) — merging it in is as simple as appending it to the SAME steps
+  array `buildStepsChain` already builds from the opportunity's own template `prepSteps`, then
+  re-running the EXACT SAME "sort by real date, recompute `isLast`" tail that array's own
+  construction already ends with. This is what makes the inserted step connect into the SAME
+  diagonal branch via the SAME date-driven positioning `layoutBranch`/`roadmapLayout.js` already
+  use for every other step — no splicing at a remembered array index, no new layout code, zero
+  changes to `roadmapLayout.js` itself. Respects `removedNodeIds`/`nodeDateOverrides` exactly like
+  every other step via the same per-id lookups, so an inserted step is just as editable/removable
+  as any other chain step. **`MascotWidget.jsx`'s `acceptSuggestion` now branches on
+  `suggestion.chainOpportunityId`**: set, it appends to `aiChainInsertions[opportunityId]`; unset,
+  it appends to `aiSuggestedTasks` exactly as before this fix — the standalone path is completely
+  unchanged. **`Roadmap.jsx`'s branch-step rendering gained a small, persistent `Sparkles` badge
+  (reusing the exact same `.ai-suggestion-badge`/`--bloom-ai` visual language the existing
+  standalone ai-suggested node already established) whenever a branch step carries `aiSuggested:
+  true`** — the ring itself keeps the SAME color/style as every other step in that chain (so it
+  genuinely reads as "connected in sequence like any other step," not a visually distinct
+  intrusion), with only the small badge marking it as AI-origin. The same badge is also wired into
+  the rare edge case where an inserted step happens to sort earliest and become the promoted spine
+  anchor itself (via a new `aiSuggested` field carried on the chain's own returned item), so the
+  badge doesn't disappear depending on exactly where in the chain the step landed.
+- Verified two ways: a dedicated Node-level test (loading the real `roadmapGenerator.js`/
+  `suggestionResolver.js` through Vite's own module loader, the same technique
+  `scripts/verify-spacing.mjs` already uses) confirms, against the real DECA opportunity data —
+  the chain resolves by `sourceOpportunityId`; a valid "insert after 'Take a practice exam'"
+  proposal computes a real date strictly between that step and "Compete at Regionals"; "before" the
+  chain's own first step, "after" its own last step, an unresolvable step title, and an
+  unresolvable opportunity id are all correctly rejected (`null`); accepting a valid suggestion
+  produces a chain with 5 real steps (not a second standalone node) with the new step correctly
+  sorted into position and flagged `aiSuggested`; and a standalone (non-chain) suggestion still
+  resolves with its own date exactly as before, while a past-dated standalone one is now correctly
+  rejected. A dedicated Playwright suite drives the real UI end-to-end: an unresolvable chain
+  reference produces zero suggestion dialogue at all; a valid one shows the real Accept/Not-now UI,
+  and accepting it adds nothing to `aiSuggestedTasks`, adds exactly one real entry to
+  `aiChainInsertions.deca` with a real computed date, and the new step renders as a real node
+  inside the SAME DECA branch (found by its own real title, positioned between "Take a practice
+  exam" and "Compete at Regionals") carrying the persistent AI sparkle badge. The full pre-existing
+  Stage 2 Playwright suite (the 26-check mocked-flow suite and the graceful-live-failure suite) was
+  re-run and passes unchanged, confirming the standalone suggestion path is completely unaffected.
+  `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix never
+  opens `roadmapLayout.js` at all, only reuses its existing date-driven positioning.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

@@ -59,15 +59,32 @@ function resolvePrograms(state) {
 // deliberately only reports the opportunity's OWN year-1 chain, not any later escalation-year
 // chain a recurring opportunity might also have generated on a multi-year plan; `recurring` is
 // still surfaced so Stage 2 knows this is an ongoing, not one-time, commitment.
-function resolveOpportunities(state) {
+//
+// Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — `steps` is a NEW field: the
+// chain's own real, LIVE, ordered step list (title/date/complete/id), read from the already-
+// computed `roadmap` (the same one resolvePlanHistory below uses, passed in rather than
+// recomputed a second time) instead of re-deriving titles from `opp.prepSteps` directly. This
+// matters specifically because a chain can have removed/date-overridden steps, or (now) an
+// AI-accepted step already spliced in — the AI needs to see the chain exactly as it currently
+// exists, since Stage 2's own suggestion flow later looks up "insertRelativeToStepTitle" against
+// this SAME live data (see suggestionResolver.js) — showing it a stale, template-only step list
+// here would just mean more suggestions silently fail that lookup and get skipped.
+function resolveOpportunities(state, roadmap) {
   return state.selectedOpportunityIds.map((id) => {
     const opp = findOpportunity(id, OPPORTUNITY_TRACKS, state.educationLevel);
     if (!opp) return { id, name: id, resolved: false };
 
-    const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
-    const stepIds = stepNames.map((_, i) => `${id}-prep-${i}`);
-    const completedSteps = stepIds.filter((sid) => state.completedNodes[sid]).length;
-    const outcomeNotes = stepIds.map((sid) => state.taskOutcomes[sid]).filter(Boolean);
+    const chainItem = roadmap.spine.find((item) => item.category === 'opportunity' && item.sourceOpportunityId === id);
+    const liveSteps = chainItem
+      ? [
+        { id: chainItem.id, title: chainItem.title, date: toISODate(chainItem.date), complete: !!state.completedNodes[chainItem.id] },
+        ...(chainItem.branchSteps || []).map((s) => ({ id: s.id, title: s.title, date: toISODate(s.date), complete: !!state.completedNodes[s.id] })),
+      ]
+      : [];
+
+    const totalSteps = liveSteps.length || (opp.prepSteps?.length || 1);
+    const completedSteps = liveSteps.filter((s) => s.complete).length;
+    const outcomeNotes = liveSteps.map((s) => state.taskOutcomes[s.id]).filter(Boolean);
 
     return {
       id,
@@ -75,12 +92,17 @@ function resolveOpportunities(state) {
       track: opp._track || null,
       trackLabel: opp._track ? TRACK_LABELS[opp._track] : null,
       recurring: !!opp.recurring,
-      totalSteps: stepIds.length,
+      totalSteps,
       completedSteps,
-      complete: completedSteps === stepIds.length,
+      complete: totalSteps > 0 && completedSteps === totalSteps,
+      steps: liveSteps,
       outcomeNotes,
     };
   });
+}
+
+function toISODate(date) {
+  return date instanceof Date ? date.toISOString().slice(0, 10) : date;
 }
 
 function resolveProjects(state) {
@@ -168,10 +190,9 @@ function resolveAcademic(state) {
 // captured uniformly, whether it's a trunk task, an opportunity's prep step, a project's own
 // step, or a custom task the student added themselves. `customTasks` below is a filtered VIEW of
 // this same list (`category === 'custom'`), not a second, separately-derived array.
-function resolvePlanHistory(state) {
+function resolvePlanHistory(state, roadmap) {
   if (!state.educationLevel) return { tasks: [], customTasks: [] };
 
-  const roadmap = generateRoadmap(state);
   const tasks = [];
   const addTask = (item, parentId) => {
     tasks.push({
@@ -198,7 +219,14 @@ function resolvePlanHistory(state) {
 }
 
 export function compileStudentProfile(state) {
-  const { tasks, customTasks } = resolvePlanHistory(state);
+  // Computed once and shared by resolveOpportunities/resolvePlanHistory below (both previously
+  // called generateRoadmap independently — resolveOpportunities didn't call it at all before the
+  // AI-chain-suggestions fix, and this avoids the redundant second full computation that would
+  // otherwise mean) — see resolveOpportunities' own comment for why it now needs live roadmap data
+  // at all. `state.educationLevel` can be null (survey not yet complete); generateRoadmap handles
+  // that safely (an empty spine), same as resolvePlanHistory's own pre-existing null guard did.
+  const roadmap = state.educationLevel ? generateRoadmap(state) : { spine: [] };
+  const { tasks, customTasks } = resolvePlanHistory(state, roadmap);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -215,7 +243,7 @@ export function compileStudentProfile(state) {
       programs: resolvePrograms(state),
     },
     activities: {
-      opportunities: resolveOpportunities(state),
+      opportunities: resolveOpportunities(state, roadmap),
       projects: resolveProjects(state),
     },
     planHistory: { tasks, customTasks },
