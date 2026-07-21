@@ -57,22 +57,20 @@ function resolveAllowedOrigin(origin) {
 // wrapper, the Responses API's tool entries put name/description/parameters directly on the tool
 // object) — but the actual JSON Schema describing the fields is identical either way.
 //
-// Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md), Tasks 1-2 — three new nullable
-// fields let the model tag a suggestion as belonging to an existing opportunity chain, and specify
-// WHERE in that chain's own real step sequence it goes, instead of always picking a raw `date`
-// itself. `date` is now also nullable: when a suggestion is chain-related, the model leaves it
-// null and the app computes the real date on its own (positioned between the two real neighboring
-// steps — see suggestionResolver.js), rather than trusting the model's own arithmetic. All 7
-// fields stay in `required` regardless (a value of `null` is still "present") so both providers'
-// structured-output modes see one fixed, unambiguous shape either way.
+// Fix: Replace Automatic Date Computation with a Manual, Constrained Date Step (see CLAUDE.md) —
+// the model no longer picks a date OR a relative insert position at all; the student now picks
+// their own date afterward (MascotWidget's date-picker step), constrained client-side to fall
+// after the triggering task's own real date (the one rule this feature enforces). This
+// drastically simplifies what the model needs to return: just enough to phrase the suggestion and
+// detect whether it belongs to an existing opportunity chain by id — everything about WHEN and
+// WHERE within that chain is decided by the student, not computed. `relatedOpportunityId` is
+// still required in the schema (nullable) so chain-attachment (Task 3) keeps working — the app
+// still needs to know whether to attach this as a branch step of an existing chain or, if no
+// chain is identified, fall back to its own standalone spine task (Task 4, unchanged).
 const TASK_SCHEMA = {
   type: 'object',
   properties: {
     title: { type: 'string', description: 'A short, specific task title (not a full sentence).' },
-    date: {
-      type: ['string', 'null'],
-      description: 'A realistic suggested due date, YYYY-MM-DD, relative to the real "today" provided. ONLY set this when relatedOpportunityId is null (a standalone suggestion, not tied to any existing chain). Leave this null whenever relatedOpportunityId is set — the app computes the real date itself in that case.',
-    },
     rationale: { type: 'string', description: 'Exactly one sentence connecting this suggestion to what the student just reported.' },
     referencesExternalFact: {
       type: 'boolean',
@@ -82,17 +80,8 @@ const TASK_SCHEMA = {
       type: ['string', 'null'],
       description: 'If this suggestion is a natural next step within one of the student\'s EXISTING opportunities/chains listed in profileSummary.activities.opportunities (e.g. it clearly follows up on the same club or competition by name), set this to that opportunity\'s exact "id" field from that list. Otherwise null.',
     },
-    insertRelativeToStepTitle: {
-      type: ['string', 'null'],
-      description: 'Required (non-null) whenever relatedOpportunityId is set: the EXACT "title" of one of that opportunity\'s own "steps" entries (from profileSummary.activities.opportunities) to position the new step relative to. Must otherwise be null.',
-    },
-    insertPosition: {
-      type: ['string', 'null'],
-      enum: ['before', 'after', null],
-      description: 'Required (non-null) whenever relatedOpportunityId is set: "before" or "after" insertRelativeToStepTitle. Must otherwise be null.',
-    },
   },
-  required: ['title', 'date', 'rationale', 'referencesExternalFact', 'relatedOpportunityId', 'insertRelativeToStepTitle', 'insertPosition'],
+  required: ['title', 'rationale', 'referencesExternalFact', 'relatedOpportunityId'],
   additionalProperties: false,
 };
 const TOOL_NAME = 'propose_task';
@@ -102,8 +91,8 @@ const SYSTEM_PROMPT = `You are a careful, conservative academic and career plann
 
 Rules you must follow:
 - Keep the suggestion grounded and conservative: a realistic next step within something the student is ALREADY doing (the same club, competition, subject area, activity, or goal) — not an ambitious creative leap into something new or unrelated. That more ambitious kind of suggestion is a later, separate feature; this stage is deliberately simple and safe.
-- Check profileSummary.activities.opportunities first. If your suggestion is clearly a natural next step within one of the opportunities/chains already listed there (it references the same club, competition, or activity by name), set relatedOpportunityId to that opportunity's exact "id" field, set insertRelativeToStepTitle to the EXACT "title" of one of that opportunity's own "steps" entries, set insertPosition to "before" or "after" it, and leave date null — do not invent a date yourself in this case, the app computes it. Only ever reference a step title that is really present in that opportunity's own "steps" list — never invent or paraphrase one.
-- If your suggestion does NOT relate to any existing opportunity in that list, leave relatedOpportunityId, insertRelativeToStepTitle, and insertPosition all null, and instead provide a realistic, near-future date (relative to the real "today" provided) in the date field — not vague, not implausibly far out with no reason.
+- Check profileSummary.activities.opportunities first. If your suggestion is clearly a natural next step within one of the opportunities/chains already listed there (it references the same club, competition, or activity by name), set relatedOpportunityId to that opportunity's exact "id" field. Otherwise leave it null.
+- Do NOT propose a date for this task, and do not reason about timing or scheduling at all — the student picks their own date for it afterward, in the app.
 - The rationale must be exactly one sentence, directly connecting the suggestion to what the student just reported (e.g. referencing their outcome note).
 - Set referencesExternalFact to true whenever your suggestion names a specific real organization, program, award, competition tier, or contact the student would need to independently verify — otherwise false. Do not guess whether something is "probably fine to skip" — if in doubt, set it true.
 - Never propose anything that edits, removes, or replaces an existing task — only ever one new, additional task.
@@ -112,50 +101,19 @@ Rules you must follow:
 // Structural validation only — Shared by both providers, run AFTER either one returns its own raw
 // proposal — this is the one place the two implementations converge back onto a single code path,
 // which is what guarantees the client-facing contract stays identical regardless of provider.
-//
-// Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — branches on whether
-// relatedOpportunityId was set. A chain-related proposal requires a real insertRelativeToStepTitle
-// + a valid insertPosition, and `date` is ignored entirely (always returned as null — the actual
-// date is computed client-side, against LIVE roadmap data this server-side function has no access
-// to; see suggestionResolver.js). A standalone proposal requires a real, parseable YYYY-MM-DD
-// date, exactly as before this fix. This function does not try to police "is this date/step
-// reference reasonable" beyond structural shape — that's suggestionResolver.js's job, since only
-// the client has the real chain/date data needed to judge that.
 function validateProposal(input) {
   if (!input || typeof input !== 'object') return null;
-  const {
-    title, date, rationale, referencesExternalFact,
-    relatedOpportunityId, insertRelativeToStepTitle, insertPosition,
-  } = input;
+  const { title, rationale, referencesExternalFact, relatedOpportunityId } = input;
   if (typeof title !== 'string' || !title.trim() || title.length > 150) return null;
   if (typeof rationale !== 'string' || !rationale.trim() || rationale.length > 500) return null;
   if (typeof referencesExternalFact !== 'boolean') return null;
 
   const hasRelatedChain = typeof relatedOpportunityId === 'string' && relatedOpportunityId.trim().length > 0;
-
-  if (hasRelatedChain) {
-    if (typeof insertRelativeToStepTitle !== 'string' || !insertRelativeToStepTitle.trim()) return null;
-    if (insertPosition !== 'before' && insertPosition !== 'after') return null;
-    return {
-      title: title.trim(),
-      date: null,
-      rationale: rationale.trim(),
-      referencesExternalFact,
-      relatedOpportunityId: relatedOpportunityId.trim(),
-      insertRelativeToStepTitle: insertRelativeToStepTitle.trim(),
-      insertPosition,
-    };
-  }
-
-  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(date).getTime())) return null;
   return {
     title: title.trim(),
-    date,
     rationale: rationale.trim(),
     referencesExternalFact,
-    relatedOpportunityId: null,
-    insertRelativeToStepTitle: null,
-    insertPosition: null,
+    relatedOpportunityId: hasRelatedChain ? relatedOpportunityId.trim() : null,
   };
 }
 

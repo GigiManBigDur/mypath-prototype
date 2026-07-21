@@ -5,6 +5,8 @@ import MascotIcon from './MascotIcon';
 import { useApp } from '../context/AppContext';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { makeTaskId } from '../utils/ids';
+import { parseDateInputValue, formatDateWithYear } from '../utils/dates';
+import { chainExistsFor } from '../utils/suggestionResolver';
 
 // Dashboard/Guide feature, Stage 5 — the in-flow mascot widget, appearing on every real screen
 // after the hub (not the hub itself, which already has its own larger mascot + pointer + greeting
@@ -48,15 +50,37 @@ export default function MascotWidget({ text }) {
   const { state, patch } = useApp();
   const [dismissed, setDismissed] = useState(false);
 
+  // Fix: Replace Automatic Date Computation with a Manual, Constrained Date Step (see CLAUDE.md),
+  // Task 1 — a second sub-view of this same widget, entered once the student clicks Accept: a
+  // plain date picker asking "When should this happen?" instead of the app silently computing a
+  // date itself. All three are local, ephemeral UI state (not persisted) — matching this app's own
+  // "buffer locally, commit once" convention elsewhere (AddTaskModal, etc.) rather than writing to
+  // `state` on every keystroke.
+  const [pickingDate, setPickingDate] = useState(false);
+  const [dateInput, setDateInput] = useState('');
+  const [dateError, setDateError] = useState(null);
+
   const suggestion = state.pendingSuggestion;
   const effectiveText = suggestion
-    ? `${suggestion.rationale} Want to add "${suggestion.title}" to your plan?`
+    ? pickingDate
+      ? `When should "${suggestion.title}" happen?`
+      : `${suggestion.rationale} Want to add "${suggestion.title}" to your plan?`
     : text;
 
+  // A genuinely NEW suggestion (a different sourceTaskId, including one replacing another, or the
+  // pending suggestion clearing entirely) always resets the date-picker sub-view back to its
+  // starting point — a leftover picked date/error from a PREVIOUS suggestion should never bleed
+  // into the next one.
+  useEffect(() => {
+    setPickingDate(false);
+    setDateInput('');
+    setDateError(null);
+  }, [suggestion?.sourceTaskId]);
+
   // A NEW piece of dialogue (the `text` prop changing — including from null to a real line, or
-  // from one real line to the next, OR a suggestion appearing/resolving) always starts
-  // undismissed. Dismissing one line only ever hides THAT line; it never permanently silences the
-  // widget for the rest of the screen.
+  // from one real line to the next, OR a suggestion appearing/resolving/moving into its
+  // date-picker step) always starts undismissed. Dismissing one line only ever hides THAT line; it
+  // never permanently silences the widget for the rest of the screen.
   useEffect(() => {
     setDismissed(false);
   }, [effectiveText]);
@@ -71,29 +95,47 @@ export default function MascotWidget({ text }) {
 
   if (!effectiveText || dismissed) return null;
 
-  // Task 4 — Accept either appends a real, permanent STANDALONE roadmap task (its own
-  // `category: 'ai-suggested'` spine item, see roadmapGenerator.js/Roadmap.jsx), or — Fix: AI
-  // Suggestions Related to Existing Chains (see CLAUDE.md) — if `suggestion.chainOpportunityId`
-  // is set (this suggestion was resolved against a real existing chain by suggestionResolver.js),
-  // appends it to `aiChainInsertions[opportunityId]` instead, so roadmapGenerator.js splices it
-  // into that opportunity's own chain as one more dated step rather than a disconnected standalone
-  // one. `suggestion.date` was already computed and validated at resolve time either way — this
-  // handler never picks or checks a date itself. "Not now" just clears the pending suggestion with
-  // nothing added. Neither branch ever touches `suggestionSourceTaskIds` — that was already set
-  // the moment the request was triggered (see Roadmap.jsx's `maybeTriggerSuggestion`), which is
-  // what actually prevents an immediate re-suggestion for the same source task, not anything
-  // decided here.
-  const acceptSuggestion = () => {
-    if (suggestion.chainOpportunityId) {
+  // Task 2 — the one enforced rule: the picked date must fall strictly AFTER the real date of the
+  // task that triggered this suggestion (`suggestion.triggerTaskDate`, carried straight through
+  // from `profileSummary.triggeringTask.date` by Roadmap.jsx's own `maybeTriggerSuggestion` — no
+  // extra lookup needed here). A missing/unresolvable trigger date (shouldn't happen in practice,
+  // since a suggestion is never triggered without a real completed task, but defensive regardless)
+  // simply skips the check rather than blocking on it.
+  const confirmDate = () => {
+    if (!dateInput) { setDateError('Pick a date to continue.'); return; }
+    const picked = parseDateInputValue(dateInput);
+    const triggerDate = suggestion.triggerTaskDate ? parseDateInputValue(suggestion.triggerTaskDate) : null;
+    if (triggerDate && picked.getTime() <= triggerDate.getTime()) {
+      setDateError(`This needs to be after ${suggestion.triggerTaskTitle || 'the task you just completed'}'s date (${formatDateWithYear(triggerDate)}).`);
+      return;
+    }
+    commitSuggestion(dateInput);
+  };
+
+  // Task 3/4 — Task 3: still identify and attach to an existing chain when one applies, so this
+  // is never treated as a plain new custom task; `chainExistsFor` (suggestionResolver.js)
+  // re-checks against the LIVE roadmap (an opportunity referenced when the suggestion was first
+  // generated could have since been removed from the plan) rather than trusting the model's own
+  // `relatedOpportunityId` blindly. If it resolves, this appends to `aiChainInsertions[opportunityId]`
+  // — roadmapGenerator.js splices it into that opportunity's own existing chain as one more dated
+  // step (sorted into place alongside its real neighbors), never a disconnected standalone item.
+  // Task 4 — if no chain is identified (null, or one that no longer resolves), this instead
+  // appends a real, permanent STANDALONE roadmap task (its own `category: 'ai-suggested'` spine
+  // item, unchanged fallback behavior). Neither branch ever touches `suggestionSourceTaskIds` —
+  // that was already set the moment the request was triggered (see Roadmap.jsx's
+  // `maybeTriggerSuggestion`), which is what actually prevents an immediate re-suggestion for the
+  // same source task, not anything decided here.
+  const commitSuggestion = (date) => {
+    if (suggestion.relatedOpportunityId && chainExistsFor(state, suggestion.relatedOpportunityId)) {
       const existing = state.aiChainInsertions || {};
-      const forOpportunity = existing[suggestion.chainOpportunityId] || [];
+      const forOpportunity = existing[suggestion.relatedOpportunityId] || [];
       patch({
         aiChainInsertions: {
           ...existing,
-          [suggestion.chainOpportunityId]: [...forOpportunity, {
+          [suggestion.relatedOpportunityId]: [...forOpportunity, {
             id: makeTaskId('ai-chain-step'),
             title: suggestion.title,
-            date: suggestion.date,
+            date,
             desc: suggestion.rationale,
           }],
         },
@@ -105,7 +147,7 @@ export default function MascotWidget({ text }) {
       aiSuggestedTasks: [...(state.aiSuggestedTasks || []), {
         id: makeTaskId('ai-suggestion'),
         title: suggestion.title,
-        date: suggestion.date,
+        date,
         desc: suggestion.rationale,
         sourceTaskId: suggestion.sourceTaskId,
       }],
@@ -127,10 +169,25 @@ export default function MascotWidget({ text }) {
       <MascotIcon size={52} />
       <div className="mascot-widget-bubble">
         <p className="mascot-widget-text">{effectiveText}</p>
-        {suggestion && (
+        {suggestion && !pickingDate && (
           <div className="mascot-suggestion-actions">
-            <button type="button" className="mascot-suggestion-accept" onClick={acceptSuggestion}>Accept</button>
+            <button type="button" className="mascot-suggestion-accept" onClick={() => setPickingDate(true)}>Accept</button>
             <button type="button" className="mascot-suggestion-dismiss" onClick={dismissSuggestion}>Not now</button>
+          </div>
+        )}
+        {suggestion && pickingDate && (
+          <div className="mascot-suggestion-datepick">
+            <input
+              type="date"
+              className="mascot-suggestion-date-input"
+              value={dateInput}
+              onChange={(e) => { setDateInput(e.target.value); setDateError(null); }}
+            />
+            {dateError && <p className="mascot-suggestion-date-error">{dateError}</p>}
+            <div className="mascot-suggestion-actions">
+              <button type="button" className="mascot-suggestion-accept" onClick={confirmDate}>Confirm</button>
+              <button type="button" className="mascot-suggestion-dismiss" onClick={dismissSuggestion}>Cancel</button>
+            </div>
           </div>
         )}
       </div>

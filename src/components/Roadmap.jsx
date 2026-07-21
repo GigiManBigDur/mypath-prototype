@@ -18,7 +18,6 @@ import { useModalExit } from '../hooks/useModalExit';
 import { getTrackColor } from './TrackVisuals';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestSuggestion } from '../utils/suggestions';
-import { resolveSuggestion } from '../utils/suggestionResolver';
 import MascotWidget from './MascotWidget';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
@@ -373,14 +372,26 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     requestSuggestion(
       { today, profileSummary, triggeringTask: profileSummary.triggeringTask },
       {
-        // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — the raw proposal is
-        // resolved (chain lookup + real-date computation + validation) BEFORE ever becoming a
-        // pendingSuggestion; an unresolvable/invalid one (Task 3) resolves to `null` and is
-        // silently skipped — the student never sees a suggestion that would insert somewhere
-        // chronologically nonsensical, or that references a chain/step that doesn't really exist.
+        // Fix: Replace Automatic Date Computation with a Manual, Constrained Date Step (see
+        // CLAUDE.md) — the model no longer supplies a date or a chain-relative position at all
+        // (see api/suggest.js); `pendingSuggestion` carries the triggering task's own real
+        // title/date alongside the proposal so MascotWidget's date-picker step can enforce "must
+        // be after the trigger task" without needing to look anything else up. A light structural
+        // check (real title/rationale strings) guards against a malformed proxy response; the
+        // server's own `validateProposal` already did the real validation.
         onResult: (proposal) => {
-          const resolved = resolveSuggestion(proposal, effectiveState, id);
-          if (resolved) patch({ pendingSuggestion: resolved });
+          if (!proposal || typeof proposal.title !== 'string' || !proposal.title.trim()) return;
+          if (typeof proposal.rationale !== 'string' || !proposal.rationale.trim()) return;
+          patch({
+            pendingSuggestion: {
+              sourceTaskId: id,
+              title: proposal.title,
+              rationale: proposal.rationale,
+              relatedOpportunityId: proposal.relatedOpportunityId || null,
+              triggerTaskDate: profileSummary.triggeringTask?.date || null,
+              triggerTaskTitle: profileSummary.triggeringTask?.title || null,
+            },
+          });
         },
         onError: () => {}, // graceful no-op — no suggestion this time, nothing else changes
       },

@@ -3737,6 +3737,80 @@ that chain's own diagonal branch. Four pieces, matching the bug's own 4-task fix
   `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix never
   opens `roadmapLayout.js` at all, only reuses its existing date-driven positioning.
 
+**Replace Automatic Date Computation with a Manual, Constrained Date Step — supersedes the
+automatic date-computation half of the fix immediately above.** The "insert before/after a real
+step by title" mechanism (that fix's own Task 2) turned out to still be unreliable in practice;
+this simplifies it by handing date-picking to the student instead, with one enforced rule, while
+keeping chain detection/attachment (that fix's Tasks 1/3/4) intact.
+- **Task 1 — the model no longer picks a date, or a chain-relative position, at all.**
+  `api/suggest.js`'s shared `TASK_SCHEMA` dropped `date`, `insertRelativeToStepTitle`, and
+  `insertPosition` entirely — down to just `title`/`rationale`/`referencesExternalFact`/
+  `relatedOpportunityId` (nullable). `SYSTEM_PROMPT` was simplified to match: check
+  `profileSummary.activities.opportunities` and set `relatedOpportunityId` to a real match's own
+  `id` if one clearly applies, otherwise leave it null — with an explicit "do NOT propose a date...
+  the student picks their own date for it afterward" rule replacing the old date/insert-position
+  instructions. `validateProposal` shrank to match (no more date-format or insert-position
+  branching) — both `callAnthropic`/`callOpenAI` needed zero changes, since neither ever touches
+  `TASK_SCHEMA`/`SYSTEM_PROMPT`/`validateProposal` directly, only passes them through.
+  `MascotWidget.jsx` now gets a real "When should `[this task]` happen?" step
+  (`.mascot-suggestion-datepick`, a plain `<input type="date">` reusing
+  `.modal-edit-date input[type="date"]`'s own established look) the moment the student clicks
+  Accept — local, ephemeral component state (`pickingDate`/`dateInput`/`dateError`), not
+  persisted, matching this codebase's own "buffer locally, commit once" convention
+  (`AddTaskModal`, etc.). Accept no longer commits anything by itself anymore; it only reveals
+  this step. `Roadmap.jsx`'s `maybeTriggerSuggestion` no longer resolves anything before showing
+  the suggestion — the raw (server-validated) proposal becomes `pendingSuggestion` directly, with
+  the triggering task's own real `date`/`title` (already available from `profileSummary.
+  triggeringTask`, computed for the request itself) carried alongside it so the date-picker step
+  can enforce Task 2 with no extra lookup.
+- **Task 2 — the one enforced rule.** `MascotWidget.jsx`'s `confirmDate()` parses the picked date
+  and the triggering task's own real date (`parseDateInputValue`, the same date-input parser every
+  other date-editing UI in this app already uses) and rejects anything not STRICTLY after it,
+  showing `` `This needs to be after ${triggerTaskTitle}'s date (${formatDateWithYear(...)}).` ``
+  inline (`.mascot-suggestion-date-error`) without clearing the pending suggestion — the student
+  can just try again, same date-picker still open. A blank date shows its own "Pick a date to
+  continue." message rather than silently doing nothing.
+- **Task 3 — chain detection/attachment still works, re-verified rather than assumed carried
+  over.** `src/utils/suggestionResolver.js` was rewritten down from its old "compute a midpoint
+  date between two real chain steps" logic (deleted entirely, along with the step-title lookup it
+  depended on) to one small function, `chainExistsFor(state, opportunityId)` — checks whether the
+  referenced opportunity resolves to a real, CURRENTLY-selected chain via the same
+  `sourceOpportunityId` field the previous fix already added to `roadmapGenerator.js`'s chain
+  items (untouched by this pass). This runs at CONFIRM time (once a valid date is picked), not
+  before — a suggestion generated against a chain the student has since removed from their plan is
+  re-checked against the LIVE roadmap, not trusted from whenever the suggestion was first
+  generated. `roadmapGenerator.js`'s `buildFirstYearChain`/`buildOpportunityItems` (the
+  `aiInsertedSteps` merge-then-resort mechanism) needed ZERO changes for this whole feature — it
+  was already date-driven, never position-driven, so a manually-picked date splices in exactly the
+  same way an automatically-computed one used to.
+- **Task 4 — the no-related-chain fallback is unchanged, PLUS a new graceful-degradation case.**
+  Zero `relatedOpportunityId` still becomes a standalone `category: 'ai-suggested'` spine item,
+  exactly as before. New: an opportunity id that's SET but doesn't resolve (`chainExistsFor`
+  returns false — e.g. the referenced opportunity was removed from the plan between when the
+  suggestion was generated and when the student confirmed a date) now ALSO falls back to
+  standalone, rather than being silently dropped the way an unresolvable reference was under the
+  previous fix's stricter "skip entirely" rule — a real behavior change, deliberate: since the
+  student is now the one supplying the date (there's no computed value that could be
+  "chronologically nonsensical" anymore), there's no correctness reason left to reject a
+  suggestion outright just because its chain reference didn't pan out; treating it the same as "no
+  chain identified" is the more forgiving, still-correct choice.
+- Verified with two dedicated Playwright suites. The first (30 checks, updated from the previous
+  fix's own 26) confirms the full standalone flow end-to-end under the new mechanics: Accept opens
+  the date picker without committing anything; an earlier-than-trigger date is blocked with the
+  exact real trigger-task title/date named in the message, and commits nothing; a valid,
+  later date correctly commits, and the resulting node/sparkle-badge/completability checks all
+  still pass exactly as before. The second (15 checks) drives all three of this feature's own
+  stated test scenarios directly: a chain-related suggestion (referencing the real DECA
+  opportunity) shows the date picker, blocks an earlier-than-"Register for DECA" date with a clear
+  message, and a valid later date correctly splices the new step into the real DECA branch (found
+  by its own title, carrying the sparkle badge); an unresolvable `relatedOpportunityId` gracefully
+  falls back to a standalone task rather than vanishing; and a suggestion with no related chain at
+  all still works correctly as a standalone spine task with the picked date. The pre-existing
+  graceful-live-failure suite (6 checks) passes unchanged, since it never reaches the Accept UI at
+  all. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this pass
+  never opens `roadmapLayout.js`, only reuses its existing date-driven positioning, exactly like
+  the fix it supersedes.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
