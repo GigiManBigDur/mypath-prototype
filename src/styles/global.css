@@ -1549,22 +1549,11 @@ button.card.passed:hover {
   color: var(--ink-soft);
 }
 .mascot-suggestion-dismiss:hover { color: var(--ink); border-color: var(--stone); }
-/* Fix: Replace Automatic Date Computation with a Manual, Constrained Date Step (see CLAUDE.md) —
-   the date-picker sub-view shown after Accept. Matches `.modal-edit-date input[type="date"]`'s
-   own established look rather than inventing a new date-input style. */
-.mascot-suggestion-datepick { display: flex; flex-direction: column; gap: 6px; }
-.mascot-suggestion-date-input {
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 13px;
-  color: var(--ink);
-  border: 1px solid var(--paper-line);
-  border-radius: 4px;
-  padding: 7px 10px;
-  background: var(--paper);
-}
-.mascot-suggestion-date-input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+/* Fix: Fix Calendar Positioning (see CLAUDE.md) — the date-picker step is now a real, centered
+   `.overlay`/`.modal` (see MascotWidget.jsx) reusing `.task-form-field input[type="date"]`'s own
+   established styling for the input itself; only this error message is still bespoke. */
 .mascot-suggestion-date-error {
-  margin: 0;
+  margin: 8px 0 0;
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 12px;
   font-weight: 600;

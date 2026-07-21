@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { makeTaskId } from '../utils/ids';
 import { parseDateInputValue, formatDateWithYear } from '../utils/dates';
-import { chainExistsFor } from '../utils/suggestionResolver';
+import { chainExistsFor, findChainAnchor } from '../utils/suggestionResolver';
 
 // Dashboard/Guide feature, Stage 5 — the in-flow mascot widget, appearing on every real screen
 // after the hub (not the hub itself, which already has its own larger mascot + pointer + greeting
@@ -51,11 +51,24 @@ export default function MascotWidget({ text }) {
   const [dismissed, setDismissed] = useState(false);
 
   // Fix: Replace Automatic Date Computation with a Manual, Constrained Date Step (see CLAUDE.md),
-  // Task 1 — a second sub-view of this same widget, entered once the student clicks Accept: a
-  // plain date picker asking "When should this happen?" instead of the app silently computing a
-  // date itself. All three are local, ephemeral UI state (not persisted) — matching this app's own
-  // "buffer locally, commit once" convention elsewhere (AddTaskModal, etc.) rather than writing to
-  // `state` on every keystroke.
+  // Task 1 — a second sub-view entered once the student clicks Accept: a date picker asking "When
+  // should this happen?" instead of the app silently computing a date itself. Local, ephemeral UI
+  // state (not persisted) — matching this app's own "buffer locally, commit once" convention
+  // elsewhere (AddTaskModal, etc.).
+  //
+  // Fix: Fix Calendar Positioning (see CLAUDE.md) — this step is now rendered as its own real,
+  // centered `.overlay`/`.modal` (portaled, same shared classes/CSS `AddTaskModal`/Roadmap.jsx's
+  // own detail modal already use) instead of a small `<input type="date">` embedded inside the
+  // corner `.mascot-widget` bubble. That embedded version was the actual bug: `.mascot-widget` is
+  // pinned near the BOTTOM of the viewport (`.mascot-widget { position: fixed; bottom: ... }`), so
+  // a date input sitting inside it had little to no room below for the browser's own native
+  // calendar popup to render into — confirmed directly via `getBoundingClientRect()` that the
+  // input's own bottom edge routinely sat within ~40-60px of the real viewport bottom, nowhere
+  // near enough room for a native date-picker popup (which several browsers render as tall as
+  // ~300px) to fit without being clipped below the fold. `.overlay`'s own CSS (`position: fixed;
+  // inset: 0; display:flex; align-items:center; justify-content:center;`) plus `.modal`'s own
+  // `max-height: 85vh; overflow-y: auto;` are what actually guarantee full visibility now,
+  // regardless of viewport size or scroll position — not a fix specific to this one input.
   const [pickingDate, setPickingDate] = useState(false);
   const [dateInput, setDateInput] = useState('');
   const [dateError, setDateError] = useState(null);
@@ -95,20 +108,39 @@ export default function MascotWidget({ text }) {
 
   if (!effectiveText || dismissed) return null;
 
-  // Task 2 — the one enforced rule: the picked date must fall strictly AFTER the real date of the
-  // task that triggered this suggestion (`suggestion.triggerTaskDate`, carried straight through
-  // from `profileSummary.triggeringTask.date` by Roadmap.jsx's own `maybeTriggerSuggestion` — no
-  // extra lookup needed here). A missing/unresolvable trigger date (shouldn't happen in practice,
-  // since a suggestion is never triggered without a real completed task, but defensive regardless)
-  // simply skips the check rather than blocking on it.
+  // Fix: Properly Diagnose the Persistent Chain-Attachment Bug (see CLAUDE.md) — root cause,
+  // confirmed by reproducing it against the real chain data before this fix: `confirmDate` used
+  // to check the picked date ONLY against `suggestion.triggerTaskDate` (the date of whatever task
+  // the student just completed). But the AI can relate a suggestion to ANY existing chain, not
+  // just the one containing the trigger task — so a date that's genuinely after the trigger task
+  // could still land BEFORE the target chain's own real first step. `buildFirstYearChain`
+  // (roadmapGenerator.js) merges every step into one array and re-sorts by date, promoting
+  // WHICHEVER STEP SORTS EARLIEST onto the spine as the chain's anchor — with no protection against
+  // a newly-inserted step displacing the chain's real first step. A date that passed the old
+  // "after the trigger task" check alone could still sort earliest, silently promoting the
+  // ai-suggested step onto the spine (and demoting the chain's real first step into the branch)
+  // instead of landing in the branch itself. Fixed by ALSO checking the picked date against the
+  // target chain's own CURRENT anchor date (`findChainAnchor`, suggestionResolver.js) whenever
+  // `relatedOpportunityId` resolves to a real chain — guaranteeing a confirmed date can never sort
+  // earlier than that chain's real first step, so it can never become the new anchor.
   const confirmDate = () => {
     if (!dateInput) { setDateError('Pick a date to continue.'); return; }
     const picked = parseDateInputValue(dateInput);
+
     const triggerDate = suggestion.triggerTaskDate ? parseDateInputValue(suggestion.triggerTaskDate) : null;
     if (triggerDate && picked.getTime() <= triggerDate.getTime()) {
       setDateError(`This needs to be after ${suggestion.triggerTaskTitle || 'the task you just completed'}'s date (${formatDateWithYear(triggerDate)}).`);
       return;
     }
+
+    if (suggestion.relatedOpportunityId) {
+      const anchor = findChainAnchor(state, suggestion.relatedOpportunityId);
+      if (anchor && picked.getTime() <= anchor.date.getTime()) {
+        setDateError(`This needs to be after ${anchor.title}'s date (${formatDateWithYear(anchor.date)}), so it attaches after that chain's own first step.`);
+        return;
+      }
+    }
+
     commitSuggestion(dateInput);
   };
 
@@ -118,13 +150,14 @@ export default function MascotWidget({ text }) {
   // generated could have since been removed from the plan) rather than trusting the model's own
   // `relatedOpportunityId` blindly. If it resolves, this appends to `aiChainInsertions[opportunityId]`
   // — roadmapGenerator.js splices it into that opportunity's own existing chain as one more dated
-  // step (sorted into place alongside its real neighbors), never a disconnected standalone item.
-  // Task 4 — if no chain is identified (null, or one that no longer resolves), this instead
-  // appends a real, permanent STANDALONE roadmap task (its own `category: 'ai-suggested'` spine
-  // item, unchanged fallback behavior). Neither branch ever touches `suggestionSourceTaskIds` —
-  // that was already set the moment the request was triggered (see Roadmap.jsx's
-  // `maybeTriggerSuggestion`), which is what actually prevents an immediate re-suggestion for the
-  // same source task, not anything decided here.
+  // step (sorted into place alongside its real neighbors, and — as of the fix above — always dated
+  // after that chain's own current anchor, so it lands in the branch, never on the spine). Task 4
+  // — if no chain is identified (null, or one that no longer resolves), this instead appends a
+  // real, permanent STANDALONE roadmap task (its own `category: 'ai-suggested'` spine item,
+  // unchanged fallback behavior). Neither branch ever touches `suggestionSourceTaskIds` — that was
+  // already set the moment the request was triggered (see Roadmap.jsx's `maybeTriggerSuggestion`),
+  // which is what actually prevents an immediate re-suggestion for the same source task, not
+  // anything decided here.
   const commitSuggestion = (date) => {
     if (suggestion.relatedOpportunityId && chainExistsFor(state, suggestion.relatedOpportunityId)) {
       const existing = state.aiChainInsertions || {};
@@ -156,42 +189,55 @@ export default function MascotWidget({ text }) {
   };
   const dismissSuggestion = () => patch({ pendingSuggestion: null });
 
-  return createPortal(
-    <div className="mascot-widget">
-      <button
-        type="button"
-        className="mascot-widget-dismiss"
-        onClick={() => (suggestion ? dismissSuggestion() : setDismissed(true))}
-        aria-label="Dismiss"
-      >
-        <X size={13} />
-      </button>
-      <MascotIcon size={52} />
-      <div className="mascot-widget-bubble">
-        <p className="mascot-widget-text">{effectiveText}</p>
-        {suggestion && !pickingDate && (
-          <div className="mascot-suggestion-actions">
-            <button type="button" className="mascot-suggestion-accept" onClick={() => setPickingDate(true)}>Accept</button>
-            <button type="button" className="mascot-suggestion-dismiss" onClick={dismissSuggestion}>Not now</button>
+  return (
+    <>
+      {createPortal(
+        <div className="mascot-widget">
+          <button
+            type="button"
+            className="mascot-widget-dismiss"
+            onClick={() => (suggestion ? dismissSuggestion() : setDismissed(true))}
+            aria-label="Dismiss"
+          >
+            <X size={13} />
+          </button>
+          <MascotIcon size={52} />
+          <div className="mascot-widget-bubble">
+            <p className="mascot-widget-text">{effectiveText}</p>
+            {suggestion && !pickingDate && (
+              <div className="mascot-suggestion-actions">
+                <button type="button" className="mascot-suggestion-accept" onClick={() => setPickingDate(true)}>Accept</button>
+                <button type="button" className="mascot-suggestion-dismiss" onClick={dismissSuggestion}>Not now</button>
+              </div>
+            )}
           </div>
-        )}
-        {suggestion && pickingDate && (
-          <div className="mascot-suggestion-datepick">
-            <input
-              type="date"
-              className="mascot-suggestion-date-input"
-              value={dateInput}
-              onChange={(e) => { setDateInput(e.target.value); setDateError(null); }}
-            />
+        </div>,
+        document.body,
+      )}
+      {suggestion && pickingDate && createPortal(
+        <div className="overlay" onClick={dismissSuggestion}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={dismissSuggestion} aria-label="Cancel"><X size={18} /></button>
+            <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)' }}>AI Suggestion</div>
+            <h2 className="modal-title">When should this happen?</h2>
+            <label className="task-form-field">
+              <span className="label">Date</span>
+              <input
+                type="date"
+                autoFocus
+                value={dateInput}
+                onChange={(e) => { setDateInput(e.target.value); setDateError(null); }}
+              />
+            </label>
             {dateError && <p className="mascot-suggestion-date-error">{dateError}</p>}
-            <div className="mascot-suggestion-actions">
-              <button type="button" className="mascot-suggestion-accept" onClick={confirmDate}>Confirm</button>
-              <button type="button" className="mascot-suggestion-dismiss" onClick={dismissSuggestion}>Cancel</button>
+            <div className="task-form-actions">
+              <button type="button" className="btn btn-ghost" onClick={dismissSuggestion}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={confirmDate} disabled={!dateInput}>Confirm</button>
             </div>
           </div>
-        )}
-      </div>
-    </div>,
-    document.body,
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }

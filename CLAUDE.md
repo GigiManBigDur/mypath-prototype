@@ -3811,6 +3811,86 @@ keeping chain detection/attachment (that fix's Tasks 1/3/4) intact.
   never opens `roadmapLayout.js`, only reuses its existing date-driven positioning, exactly like
   the fix it supersedes.
 
+**Fix Calendar Positioning + Properly Diagnose the Persistent Chain-Attachment Bug — the third
+attempt at the chain-attachment bug, this time preceded by an actual reproduction of the failure
+against the real chain data before any code was touched, per the task's own explicit demand.**
+- **The diagnosis, in plain language.** Walking the real path step by step: a student marks a task
+  complete and writes an outcome → `Roadmap.jsx`'s `maybeTriggerSuggestion` calls the AI and stores
+  the raw proposal as `state.pendingSuggestion` (including `relatedOpportunityId` if the AI tied it
+  to an existing chain) → the student clicks Accept, `MascotWidget.jsx`'s date-picker step opens →
+  `confirmDate()` validates the picked date against `suggestion.triggerTaskDate` (the date of the
+  task that TRIGGERED the suggestion) → on success, `commitSuggestion()` checks whether
+  `relatedOpportunityId` resolves to a real chain (`chainExistsFor`) and, if so, appends the step to
+  `state.aiChainInsertions[opportunityId]` → `roadmapGenerator.js`'s `buildFirstYearChain` merges
+  that step into the chain's own step array, re-sorts everything by real date, then does
+  `const [anchor, ...branchSteps] = steps` — WHICHEVER STEP SORTS EARLIEST becomes the promoted
+  spine node, and everything else becomes the diagonal branch. **The actual point of failure**:
+  `confirmDate()`'s ONLY date check was against the TRIGGERING task's own date — but the AI can
+  relate a suggestion to ANY existing chain, not necessarily the one containing the task that was
+  just completed. Whenever the trigger task's date is earlier than the target chain's own real
+  first step (e.g. the student completes an unrelated custom task dated Aug 1, writes an outcome,
+  and the AI relates the suggestion to DECA — whose own real first step, "Register for DECA", is
+  dated Sep 2), a date that legitimately passes "after the trigger task" (say Aug 15) can still be
+  EARLIER than the target chain's own anchor. Once merged and sorted, that earlier date makes the
+  AI-suggested step sort FIRST — so it gets promoted onto the spine (with the chain's real first
+  step demoted into the branch instead), never the diagonal sub-branch. This was NOT a broken
+  chain-detection check (`chainExistsFor` correctly found the chain every time) and NOT a
+  fallback-path bug (the code correctly wrote to `aiChainInsertions`, not `aiSuggestedTasks`) — the
+  chain-attachment MECHANISM was already working; the missing piece was validating the picked date
+  against the right reference point. **Confirmed by direct reproduction before writing any fix**: a
+  scratch script fed `roadmapGenerator.js` a state with `aiChainInsertions.deca` containing a step
+  dated Aug 15 (earlier than DECA's real Sep 2 anchor) and printed the resulting chain — the
+  ai-inserted step came back as the promoted spine anchor, with "Register for DECA" demoted into
+  `branchSteps`, reproducing the exact reported symptom on the real code path.
+- **The fix**: `src/utils/suggestionResolver.js` gained `findChainAnchor(state, opportunityId)`
+  (returning the target chain's own current anchor item, or `null`) — `chainExistsFor` is now a
+  thin wrapper around it, so both checks share one lookup rather than two independently-written
+  ones. `MascotWidget.jsx`'s `confirmDate()` now ALSO validates the picked date against this
+  anchor's own real date whenever `relatedOpportunityId` resolves to a real chain, showing
+  `` `This needs to be after ${anchor.title}'s date (${date}), so it attaches after that chain's
+  own first step.` `` if violated — guaranteeing a confirmed date can never sort earlier than the
+  chain's real first step, so it can never displace it as the new anchor. `roadmapGenerator.js`
+  needed zero changes — the merge/sort/promote mechanism was already correct; it just needed to
+  never be handed a date that could legitimately win that sort.
+- **Task 1 — the calendar's own viewport-overflow bug, fixed by no longer relying on the browser's
+  native date-picker popup at all.** The date field previously lived inside `.mascot-widget` — a
+  small corner widget pinned near the BOTTOM of the viewport
+  (`.mascot-widget { position: fixed; bottom: ... }`) — so a native `<input type="date">` sitting
+  inside it had little to no room below for the browser's own calendar popup (which several
+  browsers render up to ~300px tall) to open into without being clipped below the fold; confirmed
+  directly via `getBoundingClientRect()` that the input's own bottom edge routinely sat within
+  ~40-60px of the real viewport bottom. Fixed by moving the whole date-picking step out of
+  `.mascot-widget` entirely and into its own REAL, portaled `.overlay`/`.modal` — the exact same
+  shared classes/CSS `AddTaskModal` and Roadmap.jsx's own detail modal already use
+  (`.overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  }`, `.modal { max-height:85vh; overflow-y:auto; }`) — which centers itself and is capped well
+  within the viewport by construction, regardless of screen size or scroll position, rather than a
+  fix specific to this one input. Now-dead CSS (`.mascot-suggestion-datepick`/
+  `.mascot-suggestion-date-input`, the old inline sub-view's own styling) was removed;
+  `.mascot-suggestion-date-error` is kept, now shown inside the new modal instead.
+- Verified with a dedicated 13-check Playwright suite, deliberately reproducing the EXACT mismatch
+  scenario that caused the bug (a custom task dated Aug 1 triggers a suggestion the AI relates to
+  DECA, whose own real anchor is Sep 2) at a small 640px-tall viewport to genuinely stress-test the
+  old bottom-anchored input's lack of room: the date-picker renders as a real `.overlay`/`.modal`
+  fully within the viewport's top/bottom/left/right bounds and roughly horizontally centered; a
+  date after the trigger task (Aug 15) but before the target chain's own anchor (Sep 2) is now
+  correctly blocked with a message naming "Register for DECA" and its real date, committing
+  nothing; and a genuinely valid, later date (Sep 16) correctly renders the new step as a real
+  BRANCH STEP (`r="13"` ring, matching every other step in that chain) — not a spine node — with
+  "Register for DECA" still correctly the promoted anchor, and the new step still carrying its
+  persistent AI sparkle badge. The two pre-existing suites from the previous fix (30 + 15 checks)
+  were updated to target the new modal's own selectors (`.modal input[type="date"]`/
+  `.modal .btn-primary` in place of the old inline `.mascot-suggestion-date-input`/repeated
+  `.mascot-suggestion-accept`) and pass unchanged otherwise — the same "update a pre-existing test
+  after an intentional, expected change" pattern this codebase's suite has needed many times
+  before, not a regression; note neither of those two suites' own trigger-task scenarios happened
+  to expose the real bug (their trigger task always WAS the target chain's own anchor, so "after
+  the trigger" and "after the anchor" were accidentally the same check) — which is exactly why a
+  dedicated, deliberately-mismatched reproduction was necessary before this fix could be trusted.
+  The graceful-live-failure suite (6 checks) passes unchanged, since it never reaches the Accept
+  UI. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix
+  never opens `roadmapLayout.js`, only reuses its existing date-driven positioning.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

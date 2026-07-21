@@ -1,20 +1,31 @@
-// Fix: Replace Automatic Date Computation with a Manual, Constrained Date Step (see CLAUDE.md).
+// Fix: Fix Calendar Positioning + Properly Diagnose the Persistent Chain-Attachment Bug
+// (see CLAUDE.md).
 //
-// This file used to compute a suggested date automatically — a midpoint between two real chain
-// steps, resolved from the model's own "insert before/after step X" instruction (see the
-// superseded "AI Suggestions Related to Existing Chains" fix). That auto-computation has been
-// replaced entirely: the student now picks their own date (MascotWidget's date-picker step,
-// constrained only to fall after the triggering task's own date). All that's left for this module
-// to do is the one thing only the app can check — whether a chain-related proposal's
-// `relatedOpportunityId` actually resolves to a real, currently-selected opportunity chain — since
-// the model can reference an id that's since been removed from the plan, or (rarely) hallucinate
-// one that never existed. `chainExistsFor` is called at ACCEPT time (after the student confirms a
-// valid date), not before — Task 3 still needs chain detection/attachment to work; Task 4's
-// "falls back to a standalone task" is simply what happens whenever this returns false.
+// Root cause of the chain-attachment bug (confirmed by reproducing it against a real chain before
+// writing this fix, not assumed): `roadmapGenerator.js`'s `buildFirstYearChain` merges an accepted
+// ai-inserted step into the chain's own step array, re-sorts by real date, and PROMOTES WHICHEVER
+// STEP SORTS EARLIEST onto the spine as the chain's "anchor" (`const [anchor, ...branchSteps] =
+// steps`) — this is the same mechanism that already promotes an opportunity's own real first prep
+// step, and it has no concept of "never let something dated earlier than the current anchor
+// become the new anchor." The only date validation that existed (MascotWidget's `confirmDate`)
+// checked the picked date against the TRIGGERING task's own date — but the triggering task (the
+// one the student just completed and wrote an outcome about) is very often NOT the same task as
+// the target chain's own first step: the AI can relate a suggestion to any existing chain, not
+// just the one the trigger task happens to belong to. So a picked date could easily satisfy
+// "after the trigger task" while still landing BEFORE the target chain's real anchor date — which
+// silently promotes the new step onto the spine (displacing the chain's real first step into the
+// branch instead) rather than adding it as a branch step. `findChainAnchor` is what closes this:
+// it exposes the target chain's own CURRENT anchor (id + real date) so the date-picker can also
+// validate against it directly, guaranteeing a confirmed date can never sort earlier than the
+// chain's real first step.
 import { generateRoadmap } from './roadmapGenerator';
 
-export function chainExistsFor(state, opportunityId) {
-  if (!opportunityId) return false;
+export function findChainAnchor(state, opportunityId) {
+  if (!opportunityId) return null;
   const roadmap = generateRoadmap(state);
-  return roadmap.spine.some((item) => item.category === 'opportunity' && item.sourceOpportunityId === opportunityId);
+  return roadmap.spine.find((item) => item.category === 'opportunity' && item.sourceOpportunityId === opportunityId) || null;
+}
+
+export function chainExistsFor(state, opportunityId) {
+  return !!findChainAnchor(state, opportunityId);
 }
