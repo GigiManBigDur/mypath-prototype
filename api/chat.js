@@ -71,7 +71,7 @@ const CHAT_SCHEMA = {
     },
     mentionsSpecificEntity: {
       type: 'boolean',
-      description: 'True if your own reply names or implies a SPECIFIC real organization, program, contact, statistic, or fact about the outside world that the student might mistake for something you have verified. False otherwise — accurate statements about how MyPath itself actually works are NOT external facts and do not need this. If in doubt about an outside-world claim, set this true.',
+      description: 'True ONLY if your reply introduces a genuinely NEW, specific real organization, program, contact, statistic, or outside-world fact that is NOT already confirmed by the student\'s own profile data (their own reported activities/opportunities, or something they themselves just told you). False otherwise — accurate statements about how MyPath itself works are NOT external facts; neither is referencing something already listed in the student\'s own profile (even a real club/program by name), or purely generic advice with no new named entity. Only set this true when you introduce a genuinely new, specific claim the student would need to independently verify.',
     },
   },
   required: ['reply', 'intent', 'taskTitle', 'mentionsSpecificEntity'],
@@ -90,7 +90,7 @@ Rules you must follow:
 - If the student is explicitly asking you to add/create a task or reminder to their plan, set intent to "propose_task", set taskTitle to a short specific title, and phrase your reply as a clear proposal — never claim you've already added it.
 - If the student is asking for a project idea or creative brainstorming, set intent to "redirect_build_your_own" and point them to Project Builder's "Build Your Own" feature in your reply, rather than inventing a project idea yourself.
 - For everything else, set intent to "chat" and just answer naturally and helpfully.
-- CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly, and set mentionsSpecificEntity to true.
+- CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly. Set mentionsSpecificEntity to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by the student's own profile data — referencing the student's own reported activities/opportunities (even by real name), or giving purely generic advice, is NOT a new claim and should be set false.
 - Call the respond_to_student tool exactly once with your response, and nothing else.`;
 
 // Client-controlled input, sanitized defensively (this is a real system boundary, unlike internal

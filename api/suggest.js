@@ -74,7 +74,7 @@ const TASK_SCHEMA = {
     rationale: { type: 'string', description: 'Exactly one sentence connecting this suggestion to what the student just reported.' },
     referencesExternalFact: {
       type: 'boolean',
-      description: 'True if this suggestion names a specific real organization, program, award, competition tier, or contact the student would need to independently verify. False otherwise.',
+      description: 'True ONLY if this suggestion introduces a genuinely NEW, specific, external claim — a real organization, program, award, competition tier, or contact — that is NOT already confirmed by the student\'s own data (their own reported outcome note, or an activity/opportunity/club already listed in profileSummary). False for a suggestion that only builds on the student\'s own reported data, references something already listed in their profile (even if it names a real club or program by name), or gives purely generic skill-building advice with no new named entity.',
     },
     relatedOpportunityId: {
       type: ['string', 'null'],
@@ -94,7 +94,7 @@ Rules you must follow:
 - Check profileSummary.activities.opportunities first. If your suggestion is clearly a natural next step within one of the opportunities/chains already listed there (it references the same club, competition, or activity by name), set relatedOpportunityId to that opportunity's exact "id" field. Otherwise leave it null.
 - Do NOT propose a date for this task, and do not reason about timing or scheduling at all — the student picks their own date for it afterward, in the app.
 - The rationale must be exactly one sentence, directly connecting the suggestion to what the student just reported (e.g. referencing their outcome note).
-- Set referencesExternalFact to true whenever your suggestion names a specific real organization, program, award, competition tier, or contact the student would need to independently verify — otherwise false. Do not guess whether something is "probably fine to skip" — if in doubt, set it true.
+- Set referencesExternalFact to true ONLY when your suggestion introduces a genuinely NEW, specific, external claim — a real organization, program, award, competition tier, or contact — that isn't already confirmed by the student's own data. Referencing the student's own reported outcome, or an activity/opportunity/club ALREADY listed in profileSummary.activities (even by its real name), is NOT a new unverified claim — set this false in those cases; there's nothing new for the student to independently check. Only set it true when you name something specific the student would genuinely need to go verify themselves because it isn't already confirmed anywhere in their profile.
 - Never propose anything that edits, removes, or replaces an existing task — only ever one new, additional task.
 - Call the propose_task tool exactly once with your proposal, and nothing else.`;
 
