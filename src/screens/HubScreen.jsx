@@ -10,6 +10,7 @@ import { isSurveyComplete } from './SurveyScreen';
 import { AVATAR_OPTIONS } from './SignUpScreen';
 import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
+import AiChatModal from '../components/AiChatModal';
 import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
@@ -508,16 +509,18 @@ export default function HubScreen() {
     setProfileDebugData(profile);
   };
 
-  // Move: Build Your Own (see CLAUDE.md) — "Ask MyPath AI anything" briefly opened
-  // CreativeConnectionModal (AI Personalization, Stage 3), but that feature has since moved
-  // entirely into Project Builder as "Build Your Own" (scoped per category, which this general
-  // hub-level entry point had no natural equivalent of). This button is back to a UI mockup only,
-  // pending its own separate rebuild as something different — not wired to any model right now.
+  // Build the Real "Ask MyPath AI Anything" Conversational Chat (see CLAUDE.md) — this button
+  // previously opened CreativeConnectionModal (AI Personalization, Stage 3, single-shot), which
+  // then moved entirely into Project Builder as "Build Your Own"; after that it briefly reverted
+  // to a plain "Coming soon" placeholder pending its own real rebuild. This IS that rebuild: a
+  // real, open-ended, multi-turn conversation (AiChatModal), genuinely distinct from Build Your
+  // Own's single-shot project ideation. Submitting just opens the chat, seeded with whatever was
+  // already typed (if anything) as the conversation's own first draft message.
   const [askAiValue, setAskAiValue] = useState('');
-  const [askAiSubmitted, setAskAiSubmitted] = useState(false);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
   const submitAskAi = (e) => {
     e.preventDefault();
-    setAskAiSubmitted(true);
+    setChatModalOpen(true);
   };
 
   const avatarOption = AVATAR_OPTIONS.find((a) => a.id === state.avatarIcon);
@@ -699,13 +702,12 @@ export default function HubScreen() {
               type="text"
               placeholder="Ask MyPath AI anything"
               value={askAiValue}
-              onChange={(e) => { setAskAiValue(e.target.value); setAskAiSubmitted(false); }}
+              onChange={(e) => setAskAiValue(e.target.value)}
             />
             <button type="submit" className="hub-ask-ai-submit" aria-label="Ask">
               <Send size={15} />
             </button>
           </form>
-          {askAiSubmitted && <p className="hub-ask-ai-note">Coming soon!</p>}
         </div>
 
         <div className="hub-quick-actions">
@@ -720,6 +722,11 @@ export default function HubScreen() {
       </div>
 
       <AddTaskModal isOpen={addTaskOpen} onCancel={() => setAddTaskOpen(false)} onSubmit={addTask} />
+      <AiChatModal
+        isOpen={chatModalOpen}
+        initialPrompt={askAiValue}
+        onClose={() => { setChatModalOpen(false); setAskAiValue(''); }}
+      />
 
       <div className="hub-debug-row">
         <button type="button" className="hub-reset-btn" onClick={handleReset}>

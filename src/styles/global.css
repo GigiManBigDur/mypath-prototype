@@ -1908,14 +1908,6 @@ button.card.passed:hover {
   flex-shrink: 0;
 }
 .hub-ask-ai-wrap { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
-.hub-ask-ai-note {
-  margin: 0;
-  padding: 0 6px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--hub-accent);
-  text-align: center;
-}
 
 /* Move: Build Your Own (see CLAUDE.md) — preset-prompt buttons and the standing honesty note,
    originally built for the Hub's own CreativeConnectionModal (AI Personalization, Stage 3, since
@@ -1943,6 +1935,88 @@ button.card.passed:hover {
    to the same fuchsia every other AI-suggested marker in this app already uses, so it reads as
    "AI-related" at a glance. */
 .creative-honesty-note { border-left-color: var(--bloom-ai); font-style: italic; }
+
+/* Build the Real "Ask MyPath AI Anything" Conversational Chat (see CLAUDE.md) — AiChatModal's own
+   message list/bubbles/input row. Reuses the shared .overlay/.modal/.modal-close/.modal-eyebrow/
+   .modal-title/.task-form-field/.task-form-actions/.btn-* classes for everything else. A taller,
+   wider modal than the default 420px — a real back-and-forth conversation needs real room. */
+.chat-modal { max-width: 520px; max-height: 80vh; display: flex; flex-direction: column; }
+.chat-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.chat-messages {
+  flex: 1;
+  min-height: 260px;
+  max-height: 46vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+  margin-bottom: 14px;
+}
+.chat-empty-hint { font-size: 13px; color: var(--ink-soft); font-style: italic; margin: 20px 0; }
+.chat-bubble {
+  max-width: 82%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.chat-bubble-user {
+  align-self: flex-end;
+  background: var(--teal);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.chat-bubble-assistant {
+  align-self: flex-start;
+  background: var(--paper);
+  border: 1px solid var(--paper-line);
+  color: var(--ink);
+  border-bottom-left-radius: 3px;
+}
+.chat-bubble-loading { font-style: italic; color: var(--ink-soft); }
+.chat-redirect-action { margin-top: 8px; }
+/* The one-action-at-a-time task-confirm card (Task 3/4) — same --bloom-ai left-border language
+   the honesty note/Build Your Own card already use, so it reads as "AI-related" at a glance. */
+.chat-task-confirm {
+  align-self: stretch;
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-left: 3px solid var(--bloom-ai);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.chat-task-confirm p { margin: 0 0 10px; font-size: 13.5px; color: var(--ink); }
+.chat-input-row { display: flex; gap: 8px; }
+.chat-input-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--paper-line);
+  border-radius: 999px;
+  padding: 9px 16px;
+  font: inherit;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.chat-input-row input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+.chat-send-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bloom-ai);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chat-send-btn:disabled { opacity: 0.5; cursor: default; }
 
 .hub-quick-actions {
   background: var(--hub-card);

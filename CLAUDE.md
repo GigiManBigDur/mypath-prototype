@@ -4166,6 +4166,113 @@ this move, still just a documented "entirely out of scope" placeholder — see b
   superseded mechanisms elsewhere (e.g. `test-chain-start-bug.js`/`test-chain-lifecycle.js`).
   `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**Build the Real "Ask MyPath AI Anything" Conversational Chat — replaces the Hub's own AI button's
+"Coming soon" placeholder (reverted back to that when Build Your Own moved away) with a genuine,
+open-ended, MULTI-TURN conversation — the third and most general of this app's three real AI
+integrations, deliberately distinct from Stage 2's auto-triggered single suggestions and Project
+Builder's own single-shot "Build Your Own" ideation.**
+- **Task 1 — a real chat.** `AiChatModal.jsx` (new component) holds the conversation as local,
+  ephemeral component state (`messages: [{role, content, intent?}]`) — NOT `AppContext`/
+  `localStorage`, matching this app's own established "session-only UI convenience" precedent for
+  browse-state elsewhere (Project Builder's own sub-view state). Closing and reopening always
+  starts a fresh conversation; there's no requirement anywhere in the build spec for it to survive
+  a close or reload, and persisting it would be new state complexity beyond what was asked for.
+  `api/chat.js` (new, standalone Vercel serverless function — the THIRD sibling alongside
+  `api/suggest.js`/`api/creative-suggest.js`, none of them importing each other, matching that
+  precedent) has **no server-side conversation store** (this app has no backend/database outside
+  these narrow exceptions) — the CLIENT resends the full prior-turn history on every request, and
+  the server builds a REAL multi-turn `messages` array from it (Anthropic) / a real multi-turn
+  `input` array (OpenAI's Responses API also accepts an array of role/content turns, not just a
+  plain string) rather than cramming the whole conversation into one opaque JSON blob. Confirmed
+  directly via a dedicated test: the SECOND request in a conversation carries the first user turn
+  and the first assistant reply as real, separate `{role, content}` messages, not just the latest
+  question in isolation — this is what "holds context across multiple turns" actually means here,
+  not simulated by re-sending a transcript as one string. **The mascot delivers each reply using
+  its EXISTING speaking animation and voiceover** — `useMascotSpeech(text, muted)`, the exact same
+  shared hook `MascotWidget.jsx`/`HubScreen.jsx` already use, fed the latest reply text; a real
+  `/api/tts` request was confirmed firing for a chat reply in testing, and `MascotIcon`'s own
+  `speaking` prop (unchanged) drives the same mouth/body animation every other mascot dialogue
+  moment already uses. No new speech mechanism was built.
+- **Task 2 — general app help, grounded in real knowledge.** `api/chat.js`'s own `SYSTEM_PROMPT`
+  includes a concise, accurate `APP_KNOWLEDGE` block describing MyPath's real features (the Hub's
+  own tile-unlock order, Discovery's 3 steps, Reach/Match/Safety's real GPA-comparison rule,
+  Transcript & GPA/Course Selection's partner-school gating, Opportunity Finder, Project Builder
+  including Build Your Own, and the Academic Plan's own solid/hollow/sparkle-badge ring language)
+  — written directly from this app's own real, documented behavior, not invented. The client sends
+  the FULL Stage 1 profile (`compileStudentProfile(state)`, not the bounded `compileSuggestionProfile`
+  variant) on every turn, matching Build Your Own's own "student-initiated and infrequent, so
+  Stage 2's cost-bounding concern doesn't apply the same way" reasoning — "what should I do next"
+  is answered from the student's own real progress data, not a generic script.
+- **Task 3 — recognizing action requests, one shared schema, no free-text intent parsing.** Every
+  reply is a single forced tool call (`respond_to_student`) returning `{reply, intent, taskTitle,
+  mentionsSpecificEntity}` — `intent` is `'chat' | 'propose_task' | 'redirect_build_your_own'`, the
+  same "one schema, a discriminator field picks the behavior" pattern the chain-attachment fix's
+  own `relatedOpportunityId` already established, not a second, brittle free-text classification
+  step layered on top.
+  - **Adding a task**: `propose_task` requires a non-null `taskTitle`; the reply text itself must
+    read as a proposal ("Want me to add this?"), never a claim that it's already done — enforced
+    structurally (`validateProposal` rejects `propose_task` with a null `taskTitle`) AND by
+    instruction. `AiChatModal.jsx` shows a real, explicit confirm card (`.chat-task-confirm`) —
+    "Add it" only ever opens a date picker (student picks the date, the same "student picks the
+    date, not the AI" convention the last two chain-suggestion/Build-Your-Own fixes already
+    established, validated against `getEffectiveToday()`, never in the past); nothing is written to
+    state until "Confirm." Confirmed nothing lands in `state.aiSuggestedTasks` before that explicit
+    step. This is the SAME confirm-first rule held since Stage 2, not a new one invented for chat.
+  - **Project/creative requests — `redirect_build_your_own`, a real redirect, not a duplicated
+    implementation.** Task 3's own explicit instruction ("don't duplicate two different
+    implementations of the same underlying logic") is satisfied literally: the chat NEVER
+    generates a project idea itself — `redirect_build_your_own` renders a plain "Go to Project
+    Builder" button (`patch({screen: 'projectBuilder'})`) and nothing else. There is exactly ONE
+    real creative-connection implementation in this app (`api/creative-suggest.js` + Project
+    Builder's own "Build Your Own" UI); the chat only ever points to it. Confirmed directly: no
+    `.creative-preset-list`/Build-Your-Own-specific UI is ever rendered inside the chat itself.
+- **Task 4 — same guardrails as everywhere else.** `mentionsSpecificEntity` mirrors
+  `api/suggest.js`'s `referencesExternalFact`/`api/creative-suggest.js`'s own field exactly — the
+  model self-reports, and `applyGuardrails` deterministically appends a "double-check this
+  yourself" correction to the reply text whenever it's true, never trusted to the model's own
+  prose alone. Deliberately narrower in scope than Build Your Own's own BLANKET, always-visible
+  honesty banner (appropriate there since every response IS a speculative creative idea) — here,
+  the schema's own description explicitly clarifies that accurate statements about how MyPath
+  ITSELF works are not "external facts" and don't need the disclaimer, so a correct answer about
+  Reach/Match/Safety doesn't get an unnecessary "verify this yourself" note attached to it; only
+  claims about the outside world do. A task added through this chat writes to the EXISTING
+  `state.aiSuggestedTasks` array — `roadmapGenerator.js`/`Roadmap.jsx` already render this
+  `category: 'ai-suggested'` shape with its sparkle badge, so "the same distinct AI visual marker
+  used elsewhere" needed zero new rendering code.
+- **`src/utils/chatRequest.js`** (new file) mirrors `suggestions.js`/`creativeSuggestions.js`'s
+  exact "fire-and-forget fetch to this app's own Vercel proxy, `onResult`/`onError` callbacks,
+  hardcoded absolute cross-origin URL" shape — same reasoning as those files: neither the Vite dev
+  server nor GitHub Pages can run a serverless function, so every environment calls the live
+  Vercel deployment directly. Unlike Stage 2's own silent-failure `requestSuggestion`, `onError`
+  here is handled with a real, honest in-chat error message (matching Build Your Own's own
+  precedent) rather than failing invisibly, since this is a direct response to something the
+  student just typed.
+- Verified with a dedicated 23-check Node-level test (mocking `global.fetch` directly, the same
+  technique used for every prior stage's own dual-provider tests) confirming: a normal chat intent
+  round-trips correctly; a SECOND request in a simulated conversation carries the first turn's own
+  real user/assistant messages as separate, correctly-ordered entries (not a single blob) —
+  the core proof of genuine multi-turn context; `propose_task` requires a real `taskTitle` and is
+  rejected as structurally invalid without one; `redirect_build_your_own` passes through cleanly;
+  the guardrail note is appended only when `mentionsSpecificEntity` is true; malformed input
+  (a non-array `history`, missing fields) fails cleanly with 400, never a crash; and malformed
+  individual history entries are sanitized out rather than breaking the request. A dedicated
+  16-check Playwright suite then drives the real UI end-to-end: opening the chat, asking a general
+  app-help question and getting a real (mocked) accurate answer, a genuine follow-up question whose
+  own outgoing request is confirmed to carry the full prior turn as real history, the mascot's own
+  speaking animation activating, asking to add a task and confirming nothing is added until the
+  explicit "Add it" → date-picker → "Confirm" sequence completes (with the real title/date landing
+  in `state.aiSuggestedTasks`), and asking for a project idea correctly showing a "Go to Project
+  Builder" action that navigates there with zero Build-Your-Own UI ever rendered inside the chat
+  itself. A separate check confirms a real `/api/tts` request is genuinely attempted for a chat
+  reply (voiceover wiring, not just the animation). The full pre-existing AI-suggestion regression
+  suite (98 checks) all still pass; the ONE test needing an update was `test-build-your-own.js`'s
+  own "hub shows the old Coming-soon placeholder" assertion — now correctly updated to confirm the
+  hub opens the real chat instead, the same "update a pre-existing test after an intentional,
+  expected change" pattern this codebase's own suite has already needed many times before, not a
+  regression. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+- Deployed live immediately after this was built (`api/chat.js` on Vercel), per this app's own
+  standing "Vercel deploys are automatic alongside every push" policy.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
