@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getBuiltTracks, BUILT_TRACKS } from '../data/interests';
 import { getCareerPool, getCareerGroups, getMajorGroups } from '../data/careers';
-import { getMergedPrograms } from '../data/programs';
+import { getMergedPrograms, getProgramApplicationSentence } from '../data/programs';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
 import ProgramsStep from './discovery/ProgramsStep';
@@ -35,7 +35,11 @@ const SUB_STEP_COPY = {
   },
   programs: {
     title: 'Recommended programs',
-    sub: 'Well-known programs known for strength in your selected majors.',
+    // Clarify "Recommended Programs" Copy by Education Level (see CLAUDE.md) — a function of
+    // `level`, not a plain string, the same "resolve per-caller instead of a fixed string"
+    // convention HubScreen.jsx's own function-valued `intro` entries already established for the
+    // identical reason (varies by education level).
+    sub: (level) => `${getProgramApplicationSentence(level)} Well-known programs known for strength in your selected majors.`,
   },
 };
 
@@ -155,7 +159,9 @@ export default function DiscoveryScreen() {
       <BackBar onBack={() => patch({ screen: 'hub' })} />
       <StepProgress step={2} total={8} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
-      <p className="page-sub">{SUB_STEP_COPY[subStep].sub}</p>
+      <p className="page-sub">
+        {typeof SUB_STEP_COPY[subStep].sub === 'function' ? SUB_STEP_COPY[subStep].sub(level) : SUB_STEP_COPY[subStep].sub}
+      </p>
 
       <div className="step-track">
         {SUB_STEPS.map((s, i) => (

@@ -1,6 +1,6 @@
 import { ArrowLeft, Flame, CheckCircle2, ShieldCheck, HelpCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getMergedPrograms, reachMatchSafetyTag, gpaBenchmarkText } from '../data/programs';
+import { getMergedPrograms, reachMatchSafetyTag, gpaBenchmarkText, getProgramApplicationSentence } from '../data/programs';
 import { MAJORS } from '../data/majors';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
@@ -109,8 +109,9 @@ export default function ProgramSummaryScreen() {
       <StepProgress step={5} total={8} />
       <h1 className="page-title">Your Reach, Match &amp; Safety List</h1>
       <p className="page-sub">
-        Every program you selected in Discovery, grouped by how your current GPA compares to its
-        typical benchmark — the same comparison used throughout your plan, pulled into one view.
+        {getProgramApplicationSentence(state.educationLevel)} Every one you selected in Discovery,
+        grouped by how your current GPA compares to its typical benchmark — the same comparison
+        used throughout your plan, pulled into one view.
       </p>
 
       {selectedPrograms.length === 0 ? (

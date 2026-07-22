@@ -4395,6 +4395,38 @@ pointing choreography — not a routine UI tweak.
   automatic alongside every push" policy — this feature is a pure client-side/CSS change plus one
   new `AppContext` field, so it needed no new server-side function of its own.
 
+**Clarify "Recommended Programs" Copy by Education Level — a pure content fix, no logic changes.**
+The word "program" alone reads ambiguously across this app's 3 education levels (a High School
+student's own "program" is a COLLEGE they're applying to; an Undergraduate's is a GRADUATE program;
+a Transfer student's is a TRANSFER destination school) — nothing on either screen that shows these
+previously said so explicitly.
+- **`getProgramApplicationSentence(educationLevel)`** (new export, `src/data/programs.js`, right
+  after `gpaBenchmarkText` — the same "extract once, every caller reads the identical value"
+  precedent that function and `getStage0TargetLabel` already established) returns one of 3 fixed
+  sentences keyed by level (`"These are the colleges you're applying to."` / `"...the graduate
+  programs you're applying to."` / `"...the schools you're considering transferring to."`),
+  falling back to the highschool wording for a defensive/unexpected value (never actually reachable
+  once the survey requires picking a real level).
+- **`DiscoveryScreen.jsx`'s `SUB_STEP_COPY.programs.sub`** became a function of `level` (`(level) =>
+  \`${getProgramApplicationSentence(level)} Well-known programs known for strength in your
+  selected majors.\``) instead of a plain string — the same "function vs. plain string, resolved
+  generically at render time" convention `HubScreen.jsx`'s own `GUIDED_SEQUENCE` careers-step
+  `intro` already established for the identical reason (varies by education level). The render
+  site (`typeof SUB_STEP_COPY[subStep].sub === 'function' ? ...sub(level) : ...sub`) only branches
+  for the one entry that needs it — `careers`/`majors` stay plain strings, untouched. Because this
+  header sits ABOVE the "Recommended for you" / "Browse all programs" toggle and is shared by
+  both views, both automatically show the correct sentence with no separate Browse-mode copy
+  needed.
+- **`ProgramSummaryScreen.jsx`'s ("Your School List") own `page-sub`** now leads with the same
+  `getProgramApplicationSentence(state.educationLevel)` call before its existing "grouped by how
+  your GPA compares..." sentence — the identical shared function, not a second copy of the wording,
+  so the two screens can never independently drift on this framing.
+- Verified with a dedicated 10-check Playwright suite: all 3 education levels show their correct
+  sentence on Discovery's Recommended Programs sub-step, in BOTH the Recommended and Browse views;
+  all 3 show the correct sentence on "Your School List" too; and the Careers sub-step's own
+  copy is confirmed completely untouched (no wording bleeding into an unrelated sub-step).
+  `npm run build`/`npm run lint` both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

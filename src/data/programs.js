@@ -529,3 +529,20 @@ export function gpaBenchmarkText(p) {
   }
   return `${p.gpaValue}+${p.gpaWeighted ? ` (${p.gpaWeighted} also weighed)` : ''}`;
 }
+
+// Clarify "Recommended Programs" Copy by Education Level (see CLAUDE.md) — a plain sentence
+// naming exactly what kind of application these "programs" represent, since the word alone reads
+// ambiguously (college admission vs. a graduate program vs. a transfer destination) depending on
+// the student's own education level. Extracted once here — the same "extract once, every caller
+// reads the identical value" precedent `gpaBenchmarkText`/`getStage0TargetLabel` already
+// established — so DiscoveryScreen's own Recommended Programs sub-step (both its Recommended and
+// Browse views, which share the same header) and ProgramSummaryScreen's "Your School List" can
+// never independently drift on this wording.
+const PROGRAM_APPLICATION_SENTENCE = {
+  highschool: "These are the colleges you're applying to.",
+  undergraduate: "These are the graduate programs you're applying to.",
+  transfer: "These are the schools you're considering transferring to.",
+};
+export function getProgramApplicationSentence(educationLevel) {
+  return PROGRAM_APPLICATION_SENTENCE[educationLevel] || PROGRAM_APPLICATION_SENTENCE.highschool;
+}
