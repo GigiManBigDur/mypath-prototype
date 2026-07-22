@@ -4621,12 +4621,49 @@ unrelated Task 1 addition to the Survey.**
   (`test-hub-chat-transition.js`, `test-ai-chat.js`, `test-program-copy-by-level.js`) all still
   pass unmodified, confirming `ChatConversation`'s extraction didn't change HubChatPanel's own
   behavior at all; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
-- **What still needs to happen before this is live**: same as every other real AI endpoint in this
-  app — `api/build-your-own-chat.js` needs to actually be deployed via `vercel deploy --prod`
-  (the real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` env vars are already shared across every endpoint
-  in this project, nothing new to configure). Until then, the graceful-failure behavior verified
-  above is exactly what a real student sees: the conversation UI works, presets/free-text send
-  correctly, and a request simply comes back with an honest "something went wrong" message.
+- **Deployed live** (`api/build-your-own-chat.js` on Vercel) shortly after this was built.
+
+**Bug fix: real conversations in Build Your Own reliably broke after 2-3 turns, every follow-up
+failing with a bare "Sorry, something went wrong" — confirmed live, not assumed, and root-caused
+before any fix was attempted.** Reproducing the exact reported conversation directly against the
+live endpoint (not mocked) returned a real `502 { error: 'Model did not return a valid response' }`
+— `validateProposal` was rejecting the model's own real, substantive reply. Root cause: the
+`reply.length > 1500` cap (copied from `api/chat.js`'s own general-assistant conversation, which
+genuinely doesn't need long replies) was never right-sized for THIS feature — a real brainstorming/
+consulting exchange ("which of these is strongest for a college application, and why") routinely
+produces a multi-paragraph, reasoned reply. Confirmed directly: the exact same live request,
+re-sent 5 times, came back at 1442, 1564, 1692, 1838, and 1931 characters — several comfortably
+past the old 1500 cap — meaning a genuinely good, on-topic reply was being silently discarded
+roughly at random, exactly matching the reported "worked once, then failed on every follow-up"
+pattern (LLM output length varies run to run around a threshold, not deterministically).
+- **Fixed by raising the reply cap to 4000** (real headroom above the longest observed real reply,
+  not a razor-thin fit) and raising both providers' own token budgets (`max_tokens`/
+  `max_output_tokens`, 900 → 1600) so a longer reply PLUS a full milestones list in the same
+  response has enough room to complete without risking truncation. OpenAI's own `reasoning.effort`
+  was also lowered from `'medium'` back to `'low'` (matching Stage 2's own established choice) —
+  reasoning tokens for a reasoning-tuned model draw from the SAME output budget invisibly, before
+  any visible text, so a lower effort leaves more of the now-larger budget available for the
+  actual reply/milestones; a truncated, failed response is strictly worse than a slightly less
+  deeply-reasoned one.
+- **A real, temporary diagnostic was used to confirm this rather than guessed at**: before fixing
+  anything, the 502 response was extended to include the raw, unvalidated model proposal and each
+  provider's own real stop/finish reason, redeployed, and re-queried against the exact failing
+  request — this is what confirmed the failure was a genuine length-cap rejection of an otherwise
+  well-formed reply, not a truncated/malformed one. The raw-proposal dump was removed once the real
+  cause was confirmed; the stop-reason field was kept in the error body going forward (harmless —
+  just the provider's own completion-status string — and a more useful signal than a bare
+  "invalid" if a genuine truncation ever needs debugging again).
+- Verified two ways: 5 repeated real (unmocked) calls against the live endpoint with the exact
+  request that used to fail, all 5 now succeeding; and a full real UI walkthrough reproducing the
+  user's own reported conversation verbatim ("what you think I should build? Help me to
+  brainstorm" → "which one is strongest for my profile or college application?" → "how about
+  film?") against the live deployment, confirmed complete with 3 real user turns and 3 real
+  replies, zero error bubbles. The full pre-existing regression suite
+  (`test-passion-buildyourown.js`, `test-hub-chat-transition.js`, `test-ai-chat.js`) all still pass
+  unmodified — this fix only touches validation thresholds and token budgets inside
+  `api/build-your-own-chat.js`, no schema/client-side changes. `npm run lint` stays clean.
+- Deployed live immediately, per this app's own standing "Vercel deploys are automatic alongside
+  every push" policy — every verification above was run directly against that live deployment.
 
 ## Design tokens
 

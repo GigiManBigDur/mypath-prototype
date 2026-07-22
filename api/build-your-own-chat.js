@@ -91,7 +91,16 @@ function validateProposal(input) {
   const {
     reply, planReady, projectName, milestones, mentionsSpecificEntity,
   } = input;
-  if (typeof reply !== 'string' || !reply.trim() || reply.length > 1500) return null;
+  // Bug fix (see CLAUDE.md) — a real, confirmed bug: this cap was 1500, copied from api/chat.js's
+  // own general-assistant conversation, but a real brainstorming/consulting reply here (weighing
+  // several project directions, explaining WHY one fits a college application better than
+  // another) routinely runs longer — confirmed directly: a real live reply that legitimately
+  // answered "which is strongest for my profile" came back at 1446 characters, just under the old
+  // cap, while other genuinely equivalent replies on the same question ran past it and were
+  // silently rejected here, surfacing to the student as a bare "Sorry, something went wrong" with
+  // no indication why. Raised generously so a real, substantive reply is never rejected by this
+  // check in ordinary use.
+  if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
   if (typeof planReady !== 'boolean') return null;
   if (typeof mentionsSpecificEntity !== 'boolean') return null;
 
@@ -142,7 +151,11 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 900,
+      // Raised from 900 (see the reply-length cap's own bug-fix comment above) — a longer,
+      // substantive reply PLUS a full milestones list in the same response needs real headroom;
+      // 900 was tight enough that a genuinely detailed reply could run the risk of being cut off
+      // before the model finished emitting the tool call's closing JSON.
+      max_tokens: 1600,
       // Higher than api/chat.js's own 0.6 (general help) — closer to Build Your Own's own
       // original single-shot 0.9 — since a real creative-leap brainstorm benefits from genuine
       // variety, not a safe/predictable completion.
@@ -161,7 +174,7 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
 
   const data = await anthropicRes.json();
   const toolUse = (data.content || []).find((block) => block.type === 'tool_use' && block.name === TOOL_NAME);
-  return { proposal: toolUse?.input };
+  return { proposal: toolUse?.input, stopReason: data.stop_reason };
 }
 
 async function callOpenAI(apiKey, history, prompt, profileSummary) {
@@ -181,8 +194,14 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
       input,
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: CHAT_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
-      max_output_tokens: 900,
-      reasoning: { effort: 'medium' },
+      // Raised from 900 (see the Anthropic call's own comment above — same reasoning). Reasoning
+      // tokens for a reasoning-tuned model are drawn from this SAME budget, invisibly, before any
+      // visible output — 'low' effort (down from 'medium') leaves more of this larger budget
+      // available for the actual reply/milestones, further reducing truncation risk, at the cost
+      // of somewhat less deep reasoning per turn (an acceptable trade — a truncated, failed
+      // response is strictly worse than a slightly less deeply-reasoned one).
+      max_output_tokens: 1600,
+      reasoning: { effort: 'low' },
     }),
   });
 
@@ -193,10 +212,10 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
 
   const data = await openaiRes.json();
   const call = (data.output || []).find((item) => item.type === 'function_call' && item.name === TOOL_NAME);
-  if (!call) return { proposal: null };
+  if (!call) return { proposal: null, stopReason: data.status || data.incomplete_details?.reason };
   let args = null;
   try { args = JSON.parse(call.arguments); } catch { args = null; }
-  return { proposal: args };
+  return { proposal: args, stopReason: data.status || data.incomplete_details?.reason };
 }
 
 const PROVIDERS = {
@@ -247,7 +266,11 @@ export default async function handler(req, res) {
 
     const proposal = validateProposal(result.proposal);
     if (!proposal) {
-      res.status(502).json({ error: 'Model did not return a valid response' });
+      // `stopReason` (captured but not otherwise used) is worth keeping in the error body — a
+      // genuinely truncated response (a real 'max_tokens'/'length' stop reason) is a different,
+      // more useful signal than a bare "invalid" if this needs debugging again, and it carries no
+      // sensitive information (just the provider's own completion-status string).
+      res.status(502).json({ error: 'Model did not return a valid response', stopReason: result.stopReason ?? null });
       return;
     }
 
