@@ -4,43 +4,50 @@ import {
   Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart, Circle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PROJECT_CATEGORIES, findCategory, findProjectType } from '../data/projects';
+import { PROJECT_CATEGORIES, findCategory, findProjectType, BUILD_YOUR_OWN_CATEGORY_ID } from '../data/projects';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
-import { requestCreativeConnection } from '../utils/creativeSuggestions';
+import { requestBuildYourOwnChatReply } from '../utils/buildYourOwnChatRequest';
 import { parseDateInputValue, realDaysBetween, formatDate } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
+import MascotIcon from '../components/MascotIcon';
+import ChatConversation from '../components/ChatConversation';
+import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 
 // Move: Build Your Own (see CLAUDE.md) — the real, AI-powered feature originally built as AI
 // Personalization Stage 3 (a general "creative connection" behind the Hub's own "Ask MyPath AI
-// anything" button) now lives here instead, scoped per Project Builder category and reframed
-// specifically toward project ideation. `BUILD_YOUR_OWN_PROJECT_TYPE_ID` is a synthetic sentinel
-// — it never matches a real `projectType.id` in any category's own curated `projectTypes` array
-// (confirmed: no curated id looks like this), so `findProjectType`'s own real lookup can never
-// accidentally collide with it. `HONESTY_NOTE` is the one standing, ALWAYS-VISIBLE disclaimer
-// (never conditional on what the model itself reports) — baked verbatim into a started project's
-// own first step description at creation time, matching the exact honesty framing Task 3/4
-// require: never presenting a specific unverified organization/contact as confirmed.
+// anything" button). `BUILD_YOUR_OWN_PROJECT_TYPE_ID` is a synthetic sentinel — it never matches a
+// real `projectType.id` in any category's own curated `projectTypes` array (confirmed: no curated
+// id looks like this), so `findProjectType`'s own real lookup can never accidentally collide with
+// it. `HONESTY_NOTE` is the one standing, ALWAYS-VISIBLE disclaimer (never conditional on what the
+// model itself reports) — baked verbatim into a started project's own first step description at
+// creation time, matching the exact honesty framing this feature has required since it was first
+// built: never presenting a specific unverified organization/contact as confirmed.
+//
+// Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md) — Consolidate "Build
+// Your Own" to One Top-Level Entry (Task 2): this no longer lives inside each of the 6 categories
+// — it's its own top-level option, alongside them, with no real category behind it at all. A
+// started project from it now carries the synthetic `BUILD_YOUR_OWN_CATEGORY_ID` (data/projects.js
+// — exported once there so this screen and profileCompiler.js both read the identical string).
 const BUILD_YOUR_OWN_PROJECT_TYPE_ID = 'build-your-own';
 const HONESTY_NOTE = 'This is a direction to explore — specific organizations or contacts are for you to find and verify yourself.';
 
-// Category-scoped preset prompts (Task 1's own "scope the prompt/framing specifically to project
-// ideation now") — replaces the old, more general Hub-level presets ("Help me find a unique
-// angle," "What's distinctive about my profile so far?") with ones that name the actual category
-// the student is currently browsing.
-function buildPresetPrompts(category) {
-  return [
-    `Help me find a unique ${category.label.toLowerCase()} project idea`,
-    `What's a project idea that combines my interests with ${category.label}?`,
-    `Suggest a ${category.label.toLowerCase()} project based on my own profile`,
-  ];
-}
+// Task 3's own starter prompts, spanning different project types rather than assuming one
+// category (there IS no category context anymore — see Task 2 above) — reduces the blank-page
+// problem without pre-committing to a subject area the way the old category-scoped presets did.
+const BUILD_YOUR_OWN_PRESETS = [
+  'Get a genuinely creative project idea based on my own real profile — not a generic suggestion',
+  'Help me find a unique project idea combining my interests',
+  'Suggest a project based on my own profile',
+];
 
-const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
+const CATEGORY_ICONS = {
+  Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette, Sparkles,
+};
 // Palette repaint, Opportunity Finder/Project Builder batch (see CLAUDE.md) — Task 2's own
 // "give each of the 6 project categories a distinct color" requirement. Plain index-cycling
 // through 6 of the 7 "bloom" accent tokens (the same set TrackVisuals.jsx cycles through for
@@ -59,11 +66,21 @@ const CATEGORY_COLORS = [
 // Shared by every view (category grid, a category's own detail page, a project type's detail
 // page) so the SAME category always shows the SAME color everywhere it appears, rather than the
 // category grid alone knowing about `CATEGORY_COLORS` and every other view falling back to a
-// single hardcoded teal the way this screen did before this batch.
+// single hardcoded teal the way this screen did before this batch. Build Your Own (now top-level,
+// see Task 2 above) gets its own fixed `--bloom-ai` identity instead of falling into the 6-color
+// cycle — it isn't one of the real `PROJECT_CATEGORIES` entries, and giving it a genuinely
+// different, reserved-for-AI-markers color keeps it visually distinct from all 6 real categories
+// rather than coincidentally reusing one of their colors (index -1 % 6 would otherwise silently
+// collide with index 0's own color).
 function getCategoryColor(categoryId) {
+  if (categoryId === BUILD_YOUR_OWN_CATEGORY_ID) return 'var(--bloom-ai)';
   const i = PROJECT_CATEGORIES.findIndex((c) => c.id === categoryId);
   return CATEGORY_COLORS[(i < 0 ? 0 : i) % CATEGORY_COLORS.length];
 }
+// The pseudo-category ProjectTypeView's header reads when rendering a Build Your Own project —
+// there's no real PROJECT_CATEGORIES entry to look up (Task 2), so this stands in for it, carrying
+// just the two fields that view actually reads (`label`, `icon`).
+const BUILD_YOUR_OWN_PSEUDO_CATEGORY = { id: BUILD_YOUR_OWN_CATEGORY_ID, label: 'Build Your Own', icon: 'Sparkles' };
 
 // How close (in days) a chosen project start date has to land to an existing roadmap commitment
 // before we surface a heads-up. Soft only — never blocks confirming the start date.
@@ -79,14 +96,17 @@ export default function ProjectBuilderScreen() {
   const [projectTypeId, setProjectTypeId] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [startDate, setStartDate] = useState('');
-  // Move: Build Your Own (see CLAUDE.md) — the AI's own proposal once generated (`{title,
-  // response, mentionsSpecificEntity}`), and the just-created project once the student confirms a
-  // start date for it. `startedBuildYourOwnProject` is tracked directly here (NOT derived by
-  // looking up `state.startedProjects` via `projectTypeId`) because every "Build Your Own" idea
-  // shares the SAME synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` across every category and every
-  // question asked — unlike a real curated projectType, that id can't uniquely identify "this
-  // one specific generated idea," so the just-created project object is kept directly instead.
-  const [buildYourOwnResult, setBuildYourOwnResult] = useState(null);
+  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6 —
+  // `buildYourOwnPlan` is the plan (`{ projectName, milestones }`) the student explicitly chose to
+  // start from by clicking "Start This Project" inside the conversation — NOT just the latest
+  // plan the AI happens to have proposed (the conversation can keep evolving the plan turn to
+  // turn; this freezes the exact one the student committed to). `startedBuildYourOwnProject` is
+  // the just-created project once a start date is confirmed, tracked directly here (NOT derived
+  // by looking up `state.startedProjects` via `projectTypeId`) because every "Build Your Own"
+  // project shares the SAME synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` — unlike a real curated
+  // projectType, that id can't uniquely identify "this one specific project," so the just-created
+  // project object is kept directly instead.
+  const [buildYourOwnPlan, setBuildYourOwnPlan] = useState(null);
   const [startedBuildYourOwnProject, setStartedBuildYourOwnProject] = useState(null);
 
   const roadmap = useMemo(() => generateRoadmap(state), [state]);
@@ -109,8 +129,10 @@ export default function ProjectBuilderScreen() {
 
   const openCategory = (id) => { setCategoryId(id); setProjectTypeId(null); setView('category'); };
   const openProjectType = (id) => { setProjectTypeId(id); setShowStartPicker(false); setStartDate(''); setView('projectType'); };
+  // Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md), Task 2 — reachable
+  // directly from the top-level category grid now, with no category to remember/reset.
   const openBuildYourOwn = () => {
-    setBuildYourOwnResult(null);
+    setBuildYourOwnPlan(null);
     setStartedBuildYourOwnProject(null);
     setShowStartPicker(false);
     setStartDate('');
@@ -118,7 +140,16 @@ export default function ProjectBuilderScreen() {
   };
   const goBack = () => {
     if (view === 'projectType') { setShowStartPicker(false); setView('category'); return; }
-    if (view === 'buildYourOwn') { setShowStartPicker(false); setView('category'); return; }
+    if (view === 'buildYourOwn') {
+      // If the student clicked "Start This Project" (a plan is locked in) but hasn't actually
+      // confirmed a start date yet, Back returns to the live conversation instead of leaving it
+      // entirely — the same "one level at a time" granularity a curated project type's own Back
+      // (project type -> category, not project type -> categories) already has.
+      if (buildYourOwnPlan && !startedBuildYourOwnProject) { setBuildYourOwnPlan(null); setShowStartPicker(false); return; }
+      setShowStartPicker(false);
+      setView('categories');
+      return;
+    }
     if (view === 'category') { setCategoryId(null); setView('categories'); return; }
     patch({ screen: 'hub' });
   };
@@ -143,33 +174,38 @@ export default function ProjectBuilderScreen() {
   // pre-populated. `guideStepsUsed: 1` reflects that this first slot is already spent; every
   // later step is revealed one at a time from Roadmap.jsx as the previous one is completed.
   //
-  // Move: Build Your Own (see CLAUDE.md), Task 3 — a "Build Your Own" idea flows into this EXACT
-  // SAME mechanism, not a parallel one: the `view === 'buildYourOwn'` branch below still writes
-  // to the same `state.startedProjects` array, still one node at a time, still through
-  // `Roadmap.jsx`'s own unmodified reveal-next-step flow afterward. It differs only in three
-  // fields: `projectTypeId` is the synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` (no real curated
-  // `projectType` exists to reference), `guideStepsUsed: 0` (there's no curated guide list to
-  // count against — `Roadmap.jsx`'s own `openNextStepPrompt` already knows to skip straight to
-  // the open-ended choice whenever `aiSuggested` is true), and `aiSuggested: true` (the same
-  // sparkle-badge marker every other AI-originated node in this app already carries, propagated
-  // onto every step of this project by `buildProjectChain` with zero new rendering logic needed).
+  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6 — a
+  // conversation-developed plan flows into this EXACT SAME mechanism, not a parallel one: the
+  // `view === 'buildYourOwn'` branch below still writes to the same `state.startedProjects`
+  // array, still one node at a time, still through `Roadmap.jsx`'s own reveal-next-step flow
+  // afterward. `guideSteps` stores the FULL `buildYourOwnPlan.milestones` array (not just the
+  // remainder after the first) — deliberately parallel to a curated projectType's own `steps`
+  // array, which also holds every step including the one already consumed at start. Real,
+  // confirmed off-by-one bug caught building this: an earlier version stored only the milestones
+  // AFTER the first here, but `Roadmap.jsx`'s `openNextStepPrompt` indexes into this array using
+  // the SAME `guideStepsUsed` (1 after start) a curated project type uses to index its own FULL
+  // `steps` array — indexing a shortened array with that same value skipped straight to the
+  // THIRD milestone instead of the second, confirmed directly via a real completed-step test
+  // before this fix. Storing the full array here is what makes `guideSteps[guideStepsUsed]`
+  // resolve correctly, exactly like a curated project type's `projectType.steps[guideStepsUsed]`.
   const confirmStart = () => {
-    if (!startDate || !category) return;
+    if (!startDate) return;
     if (view === 'buildYourOwn') {
-      if (!buildYourOwnResult) return;
+      if (!buildYourOwnPlan) return;
       const newProject = {
         id: makeTaskId('project'),
-        categoryId: category.id,
+        categoryId: BUILD_YOUR_OWN_CATEGORY_ID,
         projectTypeId: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
-        projectName: buildYourOwnResult.title,
+        projectName: buildYourOwnPlan.projectName,
         status: 'active',
-        guideStepsUsed: 0,
+        guideStepsUsed: 1,
         aiSuggested: true,
+        guideSteps: buildYourOwnPlan.milestones,
         steps: [{
           id: makeTaskId('project-step'),
-          title: buildYourOwnResult.title,
+          title: buildYourOwnPlan.milestones[0],
           date: startDate,
-          desc: `${buildYourOwnResult.response} ${HONESTY_NOTE}`,
+          desc: `Developed through a conversation with MyPath AI. ${HONESTY_NOTE}`,
         }],
       };
       patch({ startedProjects: [...(state.startedProjects || []), newProject] });
@@ -178,7 +214,7 @@ export default function ProjectBuilderScreen() {
       setStartDate('');
       return;
     }
-    if (!projectType) return;
+    if (!category || !projectType) return;
     const newProject = {
       id: makeTaskId('project'),
       categoryId: category.id,
@@ -225,13 +261,12 @@ export default function ProjectBuilderScreen() {
 
       <StepProgress step={7} total={8} />
 
-      {view === 'categories' && <CategoriesView onOpenCategory={openCategory} />}
+      {view === 'categories' && <CategoriesView onOpenCategory={openCategory} onOpenBuildYourOwn={openBuildYourOwn} />}
 
       {view === 'category' && category && (
         <CategoryView
           category={category}
           onOpenProjectType={openProjectType}
-          onOpenBuildYourOwn={openBuildYourOwn}
           startedProjects={state.startedProjects || []}
         />
       )}
@@ -253,12 +288,12 @@ export default function ProjectBuilderScreen() {
         />
       )}
 
-      {view === 'buildYourOwn' && category && (
+      {view === 'buildYourOwn' && (
         <BuildYourOwnView
-          category={category}
           state={state}
-          buildYourOwnResult={buildYourOwnResult}
-          onResult={setBuildYourOwnResult}
+          patch={patch}
+          plan={buildYourOwnPlan}
+          onChoosePlan={setBuildYourOwnPlan}
           startedProject={startedProject}
           completedNodes={state.completedNodes}
           showStartPicker={showStartPicker}
@@ -275,16 +310,36 @@ export default function ProjectBuilderScreen() {
   );
 }
 
-function CategoriesView({ onOpenCategory }) {
+function CategoriesView({ onOpenCategory, onOpenBuildYourOwn }) {
   return (
     <>
       <h1 className="page-title">Build a Project</h1>
       <p className="page-sub">
-        Ready to build something of your own? Browse real project ideas across six areas — pick
-        one that sparks something, or skip straight to your plan. Nothing here is required.
+        Ready to build something of your own? Browse real project ideas across six areas, or build
+        your own from scratch with a real AI brainstorming partner — pick one that sparks
+        something, or skip straight to your plan. Nothing here is required.
       </p>
 
       <div className="pb-category-grid">
+        {/* Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md), Task 2 — a 7th
+            option sitting alongside the 6 real categories, not nested inside any one of them.
+            Reuses `.pb-category-card` wholesale (same size/layout/hover as every real category)
+            with its own reserved `--bloom-ai` accent (see `getCategoryColor`'s own comment) plus a
+            small dashed-border modifier so it still reads as a genuinely different KIND of
+            capability, not one more subject area. */}
+        <button
+          type="button"
+          className="pb-category-card pb-build-your-own-category-card"
+          onClick={onOpenBuildYourOwn}
+          style={{ '--pb-accent': getCategoryColor(BUILD_YOUR_OWN_CATEGORY_ID) }}
+        >
+          <div className="pb-icon-badge"><Sparkles size={26} /></div>
+          <div className="pb-category-label">Build Your Own</div>
+          <p className="pb-category-desc">
+            Develop a genuinely original project idea with a real AI brainstorming partner, based
+            on your own profile — not a generic suggestion.
+          </p>
+        </button>
         {PROJECT_CATEGORIES.map((cat) => {
           const Icon = CATEGORY_ICONS[cat.icon];
           const color = getCategoryColor(cat.id);
@@ -318,7 +373,7 @@ const AVATAR_COLORS = [
   'var(--bloom-orange)', 'var(--bloom-purple)', 'var(--bloom-yellow)',
 ];
 
-function CategoryView({ category, onOpenProjectType, onOpenBuildYourOwn, startedProjects }) {
+function CategoryView({ category, onOpenProjectType, startedProjects }) {
   const Icon = CATEGORY_ICONS[category.icon];
   const color = getCategoryColor(category.id);
   return (
@@ -366,20 +421,6 @@ function CategoryView({ category, onOpenProjectType, onOpenBuildYourOwn, started
 
       <div className="field-label" style={{ marginTop: 28 }}>Pick a project type</div>
       <div className="pb-projecttype-grid">
-        {/* Move: Build Your Own (see CLAUDE.md), Task 1 — the real, AI-powered ideation feature,
-            placed first so it reads as a distinct, inviting capability rather than one more
-            static option — styled like every other card here but with its own sparkle accent to
-            signal it's genuinely different from the curated project types below it. */}
-        <button
-          type="button"
-          className="pb-projecttype-card pb-build-your-own-card"
-          onClick={onOpenBuildYourOwn}
-        >
-          <div className="pb-projecttype-name"><Sparkles size={14} color="var(--bloom-ai)" /> Build Your Own</div>
-          <p className="pb-projecttype-teaser">
-            Get a genuinely creative project idea based on YOUR real profile — not a generic one.
-          </p>
-        </button>
         {category.projectTypes.map((pt) => {
           const started = startedProjects.some((p) => p.projectTypeId === pt.id);
           return (
@@ -526,133 +567,173 @@ function ProjectTypeView({
   );
 }
 
-// Move: Build Your Own (see CLAUDE.md) — the real, AI-powered ideation feature moved here from
-// the Hub's own "Ask MyPath AI anything" (AI Personalization, Stage 3, removed). Two phases in
-// one component: BEFORE a result exists, a prompt interface (category-scoped presets + free
-// text, Task 1); AFTER one exists, this reuses `ProjectTypeView` WHOLESALE via a synthetic
-// `projectType`-shaped object built from the AI's own `{title, response}` — Task 3's own explicit
-// "same existing mechanism... unchanged" requirement, satisfied literally rather than by
-// reimplementing a parallel date-picker/conflict-check/start-button flow. `steps: [result.title]`
-// is deliberately a single-item array (not a fabricated multi-step guide) — there IS no real
-// curated guide for a freeform AI idea, and inventing one would misrepresent it as more
-// pre-planned than it honestly is.
+// Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md) — replaces the old
+// single-question/single-answer flow entirely with a real, ongoing brainstorming conversation
+// (Tasks 3-5), reusing the shared `ChatConversation` UI (Task 4's own "do not build a third,
+// separate chat implementation"). Once the conversation has developed a plan the student commits
+// to (Task 6, `plan` prop — set by the parent's `onChoosePlan` the moment "Start This Project" is
+// clicked), this reuses `ProjectTypeView` WHOLESALE via a synthetic `projectType`-shaped object
+// built from that plan's own AI-generated milestones — the same "same existing mechanism,
+// unchanged" requirement this feature has always held, satisfied literally rather than
+// reimplementing a parallel date-picker/conflict-check/start-button flow.
 function BuildYourOwnView({
-  category, state, buildYourOwnResult, onResult, startedProject, completedNodes,
+  state, patch, plan, onChoosePlan, startedProject, completedNodes,
   showStartPicker, startDate, conflict, onStartClick, onCancelStart, onChangeStartDate,
   onConfirmStart, onGoToPlan,
 }) {
-  const [step, setStep] = useState('prompt'); // 'prompt' | 'loading' | 'error'
-  const [promptText, setPromptText] = useState('');
+  const chatHistory = state.buildYourOwnChatHistory || [];
+  const [loading, setLoading] = useState(false);
+  // The latest reply's text, fed to useMascotSpeech below — kept separate from `chatHistory` so
+  // speech only ever triggers on a genuinely NEW reply arriving, matching HubChatPanel's own
+  // identical convention (see its own comment).
+  const [speakingText, setSpeakingText] = useState(null);
+  const isSpeaking = useMascotSpeech(speakingText, state.voiceMuted);
 
-  // Task 2 — the full Stage 1 profile (not the bounded Stage-2-only variant), same reasoning as
-  // the feature's original Hub-level version: this is student-initiated and infrequent, so
-  // Stage 2's own cost-bounding concern for auto-triggered suggestions doesn't apply here.
-  // The category context is embedded directly into the plain `prompt` string sent to the
-  // server (rather than a new dedicated request field) — api/creative-suggest.js's own
-  // SYSTEM_PROMPT already knows to look for and honor a named category if the prompt states one.
-  const submitPrompt = (promptValue) => {
-    const trimmed = promptValue.trim();
-    if (!trimmed) return;
-    setStep('loading');
+  // Task 6 — scans the persisted conversation for the MOST RECENT assistant turn that reported a
+  // genuinely complete plan, so "Start This Project" always reflects the latest thinking even if
+  // the student keeps refining after an earlier turn already reached planReady. This is derived
+  // straight from `chatHistory` (no separate state to keep in sync) — since each message's own
+  // `planReady`/`projectName`/`milestones` fields are persisted right alongside its `content`,
+  // this survives a reload exactly like the rest of the conversation does.
+  const latestReadyPlan = useMemo(() => {
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+      const m = chatHistory[i];
+      if (m.role === 'assistant' && m.planReady && m.projectName && m.milestones?.length) {
+        return { projectName: m.projectName, milestones: m.milestones };
+      }
+    }
+    return null;
+  }, [chatHistory]);
+
+  const sendMessage = (trimmed) => {
+    const history = chatHistory.map((m) => ({ role: m.role, content: m.content }));
+    const afterUser = [...chatHistory, { role: 'user', content: trimmed }];
+    patch({ buildYourOwnChatHistory: afterUser });
+    setLoading(true);
+    // Task 2 — the full Stage 1 profile (not the bounded Stage-2-only variant), same reasoning
+    // this feature has always used: student-initiated and infrequent, so Stage 2's own
+    // cost-bounding concern for auto-triggered suggestions doesn't apply here. Includes the
+    // Survey's own optional `passionText` field verbatim (Task 1), giving the brainstorm
+    // something more specific/personal than a tag list alone to ground ideas in.
     const profileSummary = compileStudentProfile(state);
-    const contextualPrompt = `The student wants a project idea specifically for the "${category.label}" project category (${category.description}). ${trimmed}`;
-    requestCreativeConnection(
-      { prompt: contextualPrompt, profileSummary },
+    requestBuildYourOwnChatReply(
+      { history, prompt: trimmed, profileSummary },
       {
         onResult: (proposal) => {
-          if (!proposal || typeof proposal.title !== 'string' || !proposal.title.trim() || typeof proposal.response !== 'string' || !proposal.response.trim()) {
-            setStep('error');
+          setLoading(false);
+          if (!proposal || typeof proposal.reply !== 'string' || !proposal.reply.trim()) {
+            patch({ buildYourOwnChatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't think of anything just now — try again." }] });
             return;
           }
-          onResult(proposal);
+          patch({
+            buildYourOwnChatHistory: [...afterUser, {
+              role: 'assistant',
+              content: proposal.reply,
+              planReady: proposal.planReady,
+              projectName: proposal.projectName,
+              milestones: proposal.milestones,
+            }],
+          });
+          setSpeakingText(proposal.reply);
         },
-        onError: () => setStep('error'),
+        onError: () => {
+          setLoading(false);
+          patch({ buildYourOwnChatHistory: [...afterUser, { role: 'assistant', content: 'Sorry, something went wrong — try again in a moment.' }] });
+        },
       },
     );
   };
 
-  if (buildYourOwnResult) {
+  // Once the student has explicitly committed to a plan (clicked "Start This Project"), this
+  // reuses ProjectTypeView exactly like every other project type/the old single-idea flow did —
+  // `resources: []` since there's no curated tool list for a freeform conversational idea, and
+  // `steps: plan.milestones` shows the FULL developed arc as the "Step-by-Step Guide" preview,
+  // same as a curated project type's own full guide shows before starting.
+  if (plan) {
     const aiProjectType = {
       id: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
-      name: buildYourOwnResult.title,
-      overview: buildYourOwnResult.response,
-      timeCommitment: 'Up to you — this idea is yours to shape.',
-      steps: [buildYourOwnResult.title],
+      name: plan.projectName,
+      overview: 'Developed through a real conversation with MyPath AI, grounded in your own profile.',
+      timeCommitment: 'Up to you — shaped by your own conversation.',
+      steps: plan.milestones,
       resources: [],
     };
     return (
-      <>
-        <p className="caveat-banner creative-honesty-note" style={{ marginBottom: 20 }}>{HONESTY_NOTE}</p>
-        <ProjectTypeView
-          category={category}
-          projectType={aiProjectType}
-          startedProject={startedProject}
-          completedNodes={completedNodes}
-          showStartPicker={showStartPicker}
-          startDate={startDate}
-          conflict={conflict}
-          onStartClick={onStartClick}
-          onCancelStart={onCancelStart}
-          onChangeStartDate={onChangeStartDate}
-          onConfirmStart={onConfirmStart}
-          onGoToPlan={onGoToPlan}
-        />
-      </>
+      <ProjectTypeView
+        category={BUILD_YOUR_OWN_PSEUDO_CATEGORY}
+        projectType={aiProjectType}
+        startedProject={startedProject}
+        completedNodes={completedNodes}
+        showStartPicker={showStartPicker}
+        startDate={startDate}
+        conflict={conflict}
+        onStartClick={onStartClick}
+        onCancelStart={onCancelStart}
+        onChangeStartDate={onChangeStartDate}
+        onConfirmStart={onConfirmStart}
+        onGoToPlan={onGoToPlan}
+      />
     );
   }
 
-  const color = getCategoryColor(category.id);
   return (
     <>
-      <div className="pb-category-chip" style={{ '--pb-accent': color }}>
-        <Sparkles size={14} /> {category.label}
+      <div className="pb-category-chip" style={{ '--pb-accent': 'var(--bloom-ai)' }}>
+        <Sparkles size={14} /> Build Your Own
       </div>
-      <h1 className="page-title">Build Your Own</h1>
+      <h1 className="page-title">Let&rsquo;s build something together</h1>
       <p className="page-sub">
-        Get a genuinely creative {category.label.toLowerCase()} project idea based on your own
-        real profile — not a generic suggestion.
+        A real back-and-forth with MyPath AI to develop a genuinely original project idea based on
+        your own profile — not a single generic suggestion. Keep talking until it feels like a
+        real plan, then start it whenever you're ready.
       </p>
 
-      {step === 'prompt' && (
-        <>
-          <div className="creative-preset-list">
-            {buildPresetPrompts(category).map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                className="creative-preset-btn"
-                onClick={() => { setPromptText(preset); submitPrompt(preset); }}
-              >
-                {preset}
+      <div className="chat-header" style={{ marginBottom: 16 }}>
+        <MascotIcon size={44} speaking={isSpeaking} />
+        <div>
+          <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)', margin: 0 }}>MyPath AI</div>
+          <h2 className="hub-chat-title" style={{ fontSize: 16 }}>Brainstorming partner</h2>
+        </div>
+      </div>
+
+      {/* Task 3 — starter prompts spanning different project types (there's no category to scope
+          them to anymore, see Task 2), shown only before the very first message so they don't
+          clutter an already-ongoing conversation. */}
+      {chatHistory.length === 0 && (
+        <div className="creative-preset-list">
+          {BUILD_YOUR_OWN_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className="creative-preset-btn"
+              onClick={() => sendMessage(preset)}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ChatConversation
+        messages={chatHistory}
+        loading={loading}
+        onSend={sendMessage}
+        emptyHint={chatHistory.length === 0 ? 'Or ask your own question below to get started.' : undefined}
+        placeholder="Describe your own idea, or ask a question…"
+        footer={latestReadyPlan && (
+          <div className="chat-task-confirm">
+            <p>
+              <strong>{latestReadyPlan.projectName}</strong> — {latestReadyPlan.milestones.length} milestones
+              developed so far. Keep talking to refine it, or start it whenever you're ready.
+            </p>
+            <div className="task-form-actions">
+              <button type="button" className="btn btn-primary" onClick={() => onChoosePlan(latestReadyPlan)}>
+                <Rocket size={14} /> Start This Project
               </button>
-            ))}
-          </div>
-          <form onSubmit={(e) => { e.preventDefault(); submitPrompt(promptText); }}>
-            <label className="task-form-field">
-              <span className="label">Or ask your own question</span>
-              <textarea
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                placeholder={`e.g. What's a ${category.label.toLowerCase()} project idea for me?`}
-              />
-            </label>
-            <div className="task-form-actions" style={{ justifyContent: 'flex-start' }}>
-              <button type="submit" className="btn btn-primary" disabled={!promptText.trim()}>Ask</button>
             </div>
-          </form>
-        </>
-      )}
-
-      {step === 'loading' && (
-        <p className="modal-desc">Thinking of a genuinely creative idea based on your real profile&hellip;</p>
-      )}
-
-      {step === 'error' && (
-        <>
-          <p className="modal-desc">Couldn&rsquo;t get an idea just now — try again in a moment.</p>
-          <button type="button" className="btn btn-primary" onClick={() => setStep('prompt')}>Try again</button>
-        </>
-      )}
+          </div>
+        )}
+      />
     </>
   );
 }

@@ -47,6 +47,12 @@ const DEFAULT_STATE = {
   // on every subsequent visit, so tracking them would only add bookkeeping with no real benefit.
   mascotSeenKeys: [],
   interestTags: [],
+  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 1 — a free-text
+  // complement to `interestTags` above, entered on the Survey. '' means not written (optional,
+  // same "blank means unset" convention every other optional text field in this app already uses).
+  // Included verbatim in `compileStudentProfile`'s `basicProfile` so both the Stage 2 suggestion
+  // feature and Build Your Own's conversation can read it.
+  passionText: '',
   educationLevel: null, // highschool | undergraduate | transfer
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
   currentSchool: '', // survey's school search/select field — only 'Roslyn High School' is real
@@ -216,6 +222,18 @@ const DEFAULT_STATE = {
   // starting fresh — persisted to localStorage exactly like every other field, and cleared only
   // by `reset()` wiping the whole state back to DEFAULT_STATE, same as everything else.
   chatHistory: [],
+  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Tasks 4/5 — the
+  // real, ongoing project-brainstorming conversation behind Project Builder's single top-level
+  // "Build Your Own" entry. Same shape/persistence contract as `chatHistory` above (`[{ role,
+  // content, ...extra fields the caller cares about }]`, persisted, cleared only by Reset) but a
+  // deliberately SEPARATE field — this is a genuinely different conversation topic (developing one
+  // project idea) from the hub's own general-assistant thread, and mixing the two into one thread
+  // would be both confusing to read back and semantically wrong (different system prompts/
+  // endpoints, different per-message fields — `planReady`/`projectName`/`milestones` here instead
+  // of `intent`/`taskTitle`). The "reuse, don't rebuild" requirement is satisfied by sharing the
+  // same underlying chat UI/mascot-speech mechanism (`ChatConversation.jsx`,
+  // `useMascotSpeech`), not by forcing two unrelated conversations into one array.
+  buildYourOwnChatHistory: [],
   accountCreatedAt: null, // Hub redesign, radial-layout pass (see CLAUDE.md) — set once, by
   // SignUpScreen's own submit handler, to a plain 'YYYY-MM-DD' string the first time a student
   // ever completes sign-up (never overwritten afterward, so a defensive re-submit can't reset

@@ -1,0 +1,62 @@
+import { useEffect, useRef, useState } from 'react';
+import { Send } from 'lucide-react';
+
+// Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 4 — the one
+// shared chat UI implementation this app now has, extracted out of `HubChatPanel.jsx` so Project
+// Builder's own "Build Your Own" conversation can reuse it too instead of a second, near-identical
+// copy (which the build spec's own "do not build a third, separate chat implementation" explicitly
+// rules out). Purely presentational: message list + input row, nothing about WHAT a message means
+// or how a reply gets fetched — every caller supplies its own `messages`/`onSend`/`loading` and
+// decides what its own messages/history mean (a hub general-assistant turn, a project-brainstorm
+// turn, etc.). `renderMessageExtra`/`footer` are the two extension points each caller uses for its
+// own per-feature UI (the hub's redirect-to-Build-Your-Own button; a "Start This Project" button
+// once a plan is ready) without this component needing to know anything about either one.
+export default function ChatConversation({
+  messages, loading, onSend, emptyHint, placeholder = 'Type a message…', renderMessageExtra, footer,
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages.length, loading]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    onSend(trimmed);
+    setInputValue('');
+  };
+
+  return (
+    <>
+      <div className="chat-messages" ref={listRef}>
+        {messages.length === 0 && !loading && emptyHint && (
+          <p className="chat-empty-hint">{emptyHint}</p>
+        )}
+        {messages.map((m, i) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <div key={i} className={`chat-bubble chat-bubble-${m.role}`}>
+            {m.content}
+            {renderMessageExtra && renderMessageExtra(m)}
+          </div>
+        ))}
+        {loading && <div className="chat-bubble chat-bubble-assistant chat-bubble-loading">Thinking&hellip;</div>}
+        {footer}
+      </div>
+
+      <form className="chat-input-row" onSubmit={handleSubmit}>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder={placeholder}
+        />
+        <button type="submit" className="chat-send-btn" disabled={!inputValue.trim() || loading} aria-label="Send">
+          <Send size={16} />
+        </button>
+      </form>
+    </>
+  );
+}

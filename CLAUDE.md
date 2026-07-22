@@ -4484,6 +4484,150 @@ correction, not a logic change.
   "Vercel deploys are automatic alongside every push" policy — the verification above was run
   directly against that live deployment.
 
+**Passion Field + Enhanced Conversational "Build Your Own" — the fourth real AI integration in
+this app (`api/build-your-own-chat.js`), replacing Project Builder's old single-question/
+single-answer "Build Your Own" with a genuine, ongoing brainstorming conversation, plus a small,
+unrelated Task 1 addition to the Survey.**
+- **Task 1 — `state.passionText`** (`AppContext.jsx`, `''` default) is a new optional free-text
+  field on the Survey, right below the interest-tag picker — uncontrolled (`defaultValue` +
+  `onBlur`, matching Roadmap.jsx's own task-outcome textarea precedent) so it doesn't re-patch
+  state on every keystroke. Included verbatim in `compileStudentProfile`'s `basicProfile`
+  (`profileCompiler.js`) — `null` when blank, matching this profile's own "don't guess/fabricate,
+  just omit" convention — so both the existing Stage 2 auto-suggestion feature and the new Build
+  Your Own conversation below can ground ideas in something more specific/personal than a tag
+  selection alone, with zero changes needed to either consumer (both already read `basicProfile`
+  verbatim).
+- **Task 2 — "Build Your Own" is now ONE top-level option, not nested per-category.** The old
+  per-category entry (a card inside each of the 6 categories' own `CategoryView`) is gone
+  entirely; a 7th card sits alongside the 6 real ones in `CategoriesView`'s own grid, styled via
+  the exact same `.pb-category-card` class (same size/hover/layout) with a dedicated, reserved
+  `--bloom-ai` accent (`getCategoryColor(BUILD_YOUR_OWN_CATEGORY_ID)` — a real special case, not
+  falling into the 6-color cycle, since index `-1 % 6` would otherwise silently collide with a
+  real category's own color) plus a dashed border so it still reads as a genuinely different KIND
+  of capability. `BUILD_YOUR_OWN_CATEGORY_ID` (`'build-your-own'`, exported once from
+  `data/projects.js` so `ProjectBuilderScreen.jsx` and `profileCompiler.js` read the identical
+  string) is the synthetic sentinel a started project now carries as its `categoryId` — there's no
+  real category behind it anymore, so `findCategory` correctly returns `null` for it;
+  `BUILD_YOUR_OWN_PSEUDO_CATEGORY` (`{ id, label: 'Build Your Own', icon: 'Sparkles' }`) stands in
+  for `ProjectTypeView`'s own header, which only ever reads `.label`/`.icon`. `resolveProjects`
+  (`profileCompiler.js`) reports this cleanly as plain "Build Your Own" instead of the old
+  "(raw synthetic id) (Build Your Own)" fallback string that would otherwise leak into the
+  compiled profile.
+- **Task 3 — 3 generic starter presets** (`BUILD_YOUR_OWN_PRESETS`), spanning different project
+  types rather than assuming one category (there's no category context left to scope them to,
+  per Task 2) — "Get a genuinely creative project idea...", "Help me find a unique project idea
+  combining my interests", "Suggest a project based on my own profile" — shown only before the
+  very first message, alongside a free-text input, matching the build spec's own explicit
+  wording. Clicking one just sends it as the conversation's own first real message — no separate
+  "submit and see one static idea" step exists anymore.
+- **Tasks 4/5 — a real, ongoing, multi-turn conversation, reusing the EXACT chat UI already built
+  for the hub's own "Ask MyPath AI anything" feature, not a third implementation.**
+  `src/components/ChatConversation.jsx` (new) is the shared presentational piece extracted out of
+  `HubChatPanel.jsx` — message list + input row + loading indicator + empty-hint, with two
+  extension points (`renderMessageExtra`, `footer`) each caller uses for its own per-feature UI
+  (the hub's own Build-Your-Own redirect button; here, the "Start This Project" button once a plan
+  is ready) — nothing about WHAT a message means lives in this component, only how a conversation
+  renders. `HubChatPanel.jsx` was refactored to use it (byte-identical resulting UI, confirmed via
+  the pre-existing `test-hub-chat-transition.js`/`test-ai-chat.js` suites passing unmodified); the
+  new `BuildYourOwnView` (`ProjectBuilderScreen.jsx`, fully rewritten) uses it too — this is the one
+  real chat UI implementation in the app now, not two independently-styled copies.
+  - **`state.buildYourOwnChatHistory`** (`AppContext.jsx`, same `[{role, content, ...extra
+    fields}]` shape/persistence contract as the hub's own `chatHistory`) is a deliberately
+    SEPARATE field, not the same thread — this is a genuinely different conversation topic (one
+    specific project idea) with its own system prompt/schema (`planReady`/`projectName`/
+    `milestones` instead of `intent`/`taskTitle`), and mixing the two into one thread would be
+    both confusing to read back and semantically wrong. "Reuse, don't rebuild" is satisfied by
+    sharing the UI/mascot-speech mechanism, not by forcing unrelated conversations into one array.
+  - **`api/build-your-own-chat.js`** (new, standalone Vercel function, mirroring `api/chat.js`'s
+    own dual-provider Anthropic/OpenAI structure — same `AI_SUGGESTION_PROVIDER` env var, same
+    forced-tool-call reliability, same code-enforced honesty guardrail already sharpened by the
+    "Make the Verify This Yourself Disclaimer Conditional" fix) has ONE job: act like a real
+    brainstorming partner (ask genuine follow-up questions, build on the student's answers,
+    explicitly modeled on "are you interested in that?"-style consultant framing) developing ONE
+    project idea over multiple turns, using the student's real profile (interests, Task 1's own
+    `passionText`, activities) to ground ideas in something genuinely personal. `temperature: 0.85`
+    (Anthropic) / `reasoning: { effort: 'medium' }` (OpenAI) — closer to the original single-shot
+    Build Your Own's own creative 0.9 than Stage 2's conservative 0.4 or the hub chat's 0.6, since
+    a real creative brainstorm benefits from genuine variety.
+  - **The mascot speaks here too, via its own small `MascotIcon` in this view's own header**
+    (`speaking={isSpeaking}`, fed by `useMascotSpeech(speakingText, state.voiceMuted)`) — a
+    deliberate, different placement from `HubChatPanel` (which relies on the Hub's own large,
+    always-present mascot instance and never renders a second one): Project Builder has no
+    always-visible mascot the way the Hub does, so this view renders its own, the same way the
+    original (pre-hub-redesign) `AiChatModal` always did. Still the identical shared
+    `useMascotSpeech` mechanism/voiceover either way — only which mascot instance visually carries
+    it differs, matching each screen's own real layout.
+- **Task 6 — "Start This Project" generates real, conversation-specific milestones, feeding into
+  the EXACT SAME "Start This Project!" mechanism every other project type already uses.** The
+  schema's `planReady`/`projectName`/`milestones` fields are set by the model in the SAME response
+  that reports the plan is ready — no second round-trip/endpoint needed to "translate" the
+  conversation afterward; the model does that translation as part of a normal reply the moment it
+  decides the plan is genuinely complete (a real start, progression through concrete stages, and
+  conclusion — not just a one-line idea). `latestReadyPlan` (`BuildYourOwnView`, a `useMemo` over
+  `chatHistory`) scans for the MOST RECENT assistant turn with `planReady: true`, so "Start This
+  Project" always reflects the latest thinking even if the student keeps refining after an earlier
+  turn already reached readiness — derived straight from the persisted conversation, no separate
+  state to keep in sync, and correctly survives a reload the same way the rest of the conversation
+  does. Clicking it (`onChoosePlan`) freezes that exact plan into `buildYourOwnPlan` (parent state)
+  — the conversation can keep evolving after this without changing what's about to be started.
+  - **Reuses `ProjectTypeView` wholesale**, via a synthetic `projectType`-shaped object
+    (`{ steps: plan.milestones, resources: [], timeCommitment: 'Up to you — shaped by your own
+    conversation.' }`) — the exact same date-picker/conflict-check/"Confirm Start" flow, showing
+    the FULL milestone list as the "Step-by-Step Guide" preview before starting, same as any
+    curated project type's own full guide preview.
+  - **`Roadmap.jsx`'s `openNextStepPrompt` was extended, not reworked**: an `aiSuggested` project
+    now checks for its own `project.guideSteps` array BEFORE falling through to the open-ended
+    "guide exhausted" choice — if present and not yet exhausted (`guideStepsUsed <
+    guideSteps.length`), it reveals the next milestone through the SAME 'guide' mode (pre-filled,
+    editable `AddTaskModal`) a curated project type already uses, via a synthetic
+    `{ steps: guideSteps }` projectType object; only once that list truly runs out (or there never
+    was one — the old single-idea/chat-redirect Build Your Own cases, which have no `guideSteps`
+    array at all) does it fall to the open-ended choice, unchanged.
+  - **`confirmStart`'s build-your-own branch stores `guideSteps` as the plan's FULL milestone
+    array** (not just the milestones after the first) — deliberately parallel to a curated
+    `projectType.steps` array, which also holds every step including the one already consumed at
+    start. **A real, confirmed off-by-one bug was caught building this**: an earlier version
+    stored only the milestones AFTER the first, but `openNextStepPrompt` indexes into this array
+    using the SAME `guideStepsUsed` (1, right after starting) a curated project type uses to index
+    its own FULL `steps` array — indexing a shortened array with that same value skipped straight
+    to the THIRD milestone instead of the second, confirmed directly via a real completed-step
+    test showing the wrong pre-filled title before this was caught and fixed. Storing the full
+    array is what makes `guideSteps[guideStepsUsed]` resolve correctly, exactly like a curated
+    project type's own `projectType.steps[guideStepsUsed]` already does.
+- **The old, now-fully-superseded single-question flow is gone**: `requestCreativeConnection`/
+  `api/creative-suggest.js` are no longer called from Project Builder at all (that endpoint and
+  its own honesty-note UI language remain defined/exported, since nothing else in this app calls
+  them right now, but Build Your Own itself no longer does) — the always-visible `HONESTY_NOTE`
+  banner that used to sit above every generated idea is also gone from the live UI, replaced by the
+  SAME conditional, code-enforced guardrail (`mentionsSpecificEntity`) every other AI surface in
+  this app already uses post-fix; a short, permanent one-line reminder still gets baked into the
+  STARTED project's own first step description (`desc`), since that's read later fully divorced
+  from the original conversation context, where a one-time reminder still earns its place.
+- Verified with a dedicated 31-check Playwright suite covering every task: the passion field
+  renders, is optional, saves on blur, and shows up verbatim in the compiled Stage 1 profile (the
+  Hub's own "View AI Profile" debug viewer); exactly one top-level Build Your Own card exists
+  (never nested inside a real category); a real multi-turn conversation correctly builds turn to
+  turn (confirmed via genuinely different, context-building mocked replies, not a repeated static
+  one); "Start This Project" is absent until a plan is genuinely ready, then shows the real
+  conversation-specific project name; clicking it previews the REAL 5 conversation-specific
+  milestones (not a generic template) through the literal same `.pb-start-btn`/`.pb-start-panel`
+  UI; confirming a start date produces a project with the correct synthetic `categoryId`, the
+  first real milestone as step 1, and the full milestone list as `guideSteps`; and — the deepest
+  check — completing that first step on the real Academic Plan opens the SAME guide-suggestion
+  modal (not the open-ended choice), correctly pre-filled with the real SECOND milestone, and
+  completing it correctly appends a node carrying the AI-suggested sparkle badge. Also verified:
+  the graceful, unfaked failure path against the currently-live (not-yet-redeployed) endpoint shows
+  a real, honest error message with zero crash. The full pre-existing regression suite
+  (`test-hub-chat-transition.js`, `test-ai-chat.js`, `test-program-copy-by-level.js`) all still
+  pass unmodified, confirming `ChatConversation`'s extraction didn't change HubChatPanel's own
+  behavior at all; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+- **What still needs to happen before this is live**: same as every other real AI endpoint in this
+  app — `api/build-your-own-chat.js` needs to actually be deployed via `vercel deploy --prod`
+  (the real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` env vars are already shared across every endpoint
+  in this project, nothing new to configure). Until then, the graceful-failure behavior verified
+  above is exactly what a real student sees: the conversation UI works, presets/free-text send
+  correctly, and a request simply comes back with an honest "something went wrong" message.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

@@ -398,6 +398,14 @@ export function findCategory(categoryId) {
   return PROJECT_CATEGORIES.find((c) => c.id === categoryId) || null;
 }
 
+// Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md) — a synthetic sentinel, not
+// a real entry in PROJECT_CATEGORIES: Build Your Own now sits alongside the 6 real categories
+// (not nested inside one of them), so a project started from its conversation has no real
+// category to reference at all. `findCategory`/`findProjectType` correctly return `null` for it
+// (confirmed: no real category uses this id) — exported once here so ProjectBuilderScreen.jsx and
+// profileCompiler.js both read the identical string rather than each hardcoding their own copy.
+export const BUILD_YOUR_OWN_CATEGORY_ID = 'build-your-own';
+
 export function findProjectType(categoryId, projectTypeId) {
   const category = findCategory(categoryId);
   if (!category) return null;

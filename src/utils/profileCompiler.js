@@ -8,7 +8,7 @@ import { getCareerPool } from '../data/careers';
 import { MAJORS } from '../data/majors';
 import { getMergedPrograms, reachMatchSafetyTag } from '../data/programs';
 import { findOpportunity } from '../data/opportunities';
-import { findProjectType, findCategory } from '../data/projects';
+import { findProjectType, findCategory, BUILD_YOUR_OWN_CATEGORY_ID } from '../data/projects';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getCourseById } from '../data/courses';
 import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
@@ -115,11 +115,19 @@ function resolveProjects(state) {
     // "Build Your Own" framing instead of the raw synthetic id string — this profile is what a
     // LATER AI request reads back, so accurate category context still matters here.
     const resolved = project.aiSuggested ? null : findProjectType(project.categoryId, project.projectTypeId);
+    // Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md) — a project started
+    // from the new top-level conversation carries the synthetic `BUILD_YOUR_OWN_CATEGORY_ID`
+    // (no real category was ever picked), so `findCategory` correctly returns `null` for it —
+    // reported as a plain "Build Your Own" rather than the old "(raw id) (Build Your Own)"
+    // fallback, which would otherwise leak the synthetic id string into this profile.
+    const categoryLabel = project.categoryId === BUILD_YOUR_OWN_CATEGORY_ID
+      ? 'Build Your Own'
+      : `${findCategory(project.categoryId)?.label || project.categoryId} (Build Your Own)`;
     const totalSteps = project.steps.length;
     const completedSteps = project.steps.filter((s) => state.completedNodes[s.id]).length;
     return {
       id: project.id,
-      category: project.aiSuggested ? `${findCategory(project.categoryId)?.label || project.categoryId} (Build Your Own)` : (resolved?.category?.label || project.categoryId),
+      category: project.aiSuggested ? categoryLabel : (resolved?.category?.label || project.categoryId),
       projectType: project.aiSuggested ? 'AI-generated idea' : (resolved?.projectType?.name || project.projectTypeId),
       projectName: project.projectName,
       status: project.status,
@@ -239,6 +247,13 @@ export function compileStudentProfile(state) {
     generatedAt: new Date().toISOString(),
     basicProfile: {
       interests: state.interestTags || [],
+      // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 1 — the
+      // Survey's own optional free-text field, included verbatim (not summarized) so both the
+      // Stage 2 suggestion feature and Build Your Own's conversation can ground ideas in
+      // something more specific/personal than a tag selection alone. `null` (not `''`) when
+      // blank, matching this profile's own "don't guess/fabricate, just omit" convention
+      // elsewhere (e.g. `currentSchool` below).
+      passionText: state.passionText || null,
       educationLevel: state.educationLevel || null,
       schoolYear: state.schoolYear ?? null,
       currentSchool: state.currentSchool || null,

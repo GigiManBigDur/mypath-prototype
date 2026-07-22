@@ -2034,28 +2034,33 @@ button.card.passed:hover {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(10px); }
 }
+/* Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md) — these target the
+   PLAIN `.chat-messages`/`.chat-input-row` classes now (not hub-specific modifier classes), since
+   that JSX moved into the shared `ChatConversation.jsx` component and no longer carries a
+   hub-only class name at all — still scoped under `.hub-chat-panel` as the ancestor, so this stays
+   exclusively a hub effect either way. */
 .hub-chat-panel .hub-chat-header,
-.hub-chat-panel .hub-chat-messages,
-.hub-chat-panel .hub-chat-input-row {
+.hub-chat-panel .chat-messages,
+.hub-chat-panel .chat-input-row {
   animation: hub-chat-fade-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.hub-chat-panel .hub-chat-messages { animation-delay: 70ms; }
-.hub-chat-panel .hub-chat-input-row { animation-delay: 140ms; }
+.hub-chat-panel .chat-messages { animation-delay: 70ms; }
+.hub-chat-panel .chat-input-row { animation-delay: 140ms; }
 .hub-chat-panel.hub-chat-exit .hub-chat-header,
-.hub-chat-panel.hub-chat-exit .hub-chat-messages,
-.hub-chat-panel.hub-chat-exit .hub-chat-input-row {
+.hub-chat-panel.hub-chat-exit .chat-messages,
+.hub-chat-panel.hub-chat-exit .chat-input-row {
   animation: hub-chat-fade-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 .hub-chat-panel.hub-chat-exit .hub-chat-header { animation-delay: 90ms; }
-.hub-chat-panel.hub-chat-exit .hub-chat-messages { animation-delay: 40ms; }
-.hub-chat-panel.hub-chat-exit .hub-chat-input-row { animation-delay: 0ms; }
+.hub-chat-panel.hub-chat-exit .chat-messages { animation-delay: 40ms; }
+.hub-chat-panel.hub-chat-exit .chat-input-row { animation-delay: 0ms; }
 @media (prefers-reduced-motion: reduce) {
   .hub-chat-panel .hub-chat-header,
-  .hub-chat-panel .hub-chat-messages,
-  .hub-chat-panel .hub-chat-input-row,
+  .hub-chat-panel .chat-messages,
+  .hub-chat-panel .chat-input-row,
   .hub-chat-panel.hub-chat-exit .hub-chat-header,
-  .hub-chat-panel.hub-chat-exit .hub-chat-messages,
-  .hub-chat-panel.hub-chat-exit .hub-chat-input-row {
+  .hub-chat-panel.hub-chat-exit .chat-messages,
+  .hub-chat-panel.hub-chat-exit .chat-input-row {
     animation: none;
   }
 }
@@ -3672,14 +3677,40 @@ button.card.passed:hover {
   border-color: var(--bloom-accent);
   box-shadow: var(--bloom-shadow-hover);
 }
-/* Move: Build Your Own (see CLAUDE.md) — a distinct left-edge accent so this one card reads as a
-   genuinely different capability from the curated project-type cards next to it, matching this
-   app's own established "left border = AI/verified marker" language elsewhere (opportunity
-   cards' own verified-badge border, School-Specific Requirements). */
-.app-shell.app-shell-bloom .pb-build-your-own-card {
-  border-left: 3px solid var(--bloom-ai);
+/* Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md) — a distinct dashed
+   top-edge accent (the card's own `::before` bar already reads `--pb-accent`, set inline to
+   `--bloom-ai`) plus a dashed border so this one card reads as a genuinely different KIND of
+   capability from the 6 real subject-area categories next to it, matching this app's own
+   established "left/top border = AI/verified marker" language elsewhere (opportunity cards' own
+   verified-badge border, School-Specific Requirements). */
+.app-shell.app-shell-bloom .pb-build-your-own-category-card {
+  border-style: dashed;
+  border-color: var(--bloom-ai);
 }
 .app-shell.app-shell-bloom .pb-started-tag { color: var(--bloom-accent); }
+
+/* Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md) — the shared
+   .chat-messages / .chat-bubble / .chat-input-row / .chat-send-btn classes (originally styled for
+   the old retired AiChatModal's own default/non-bloom palette) now also render directly inside Build
+   Your Own's own conversation, which — unlike the Hub's HubChatPanel (scoped under `.app-shell-
+   hub`, its own separate token set) — sits on a genuinely `.app-shell-bloom` screen. Recolored
+   onto the bloom token set the same way every other bloom-repainted element on this screen
+   already is, so the conversation doesn't visually clash with its own surroundings. */
+.app-shell.app-shell-bloom .chat-bubble-user { background: var(--bloom-accent); }
+.app-shell.app-shell-bloom .chat-bubble-assistant {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .chat-empty-hint,
+.app-shell.app-shell-bloom .chat-bubble-loading { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .chat-input-row input {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.app-shell.app-shell-bloom .chat-input-row input:focus { outline-color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .chat-send-btn { background: var(--bloom-ai); }
 
 .app-shell.app-shell-bloom .pb-category-chip { color: var(--pb-accent); }
 .app-shell.app-shell-bloom .pb-stat { color: var(--bloom-ink); }

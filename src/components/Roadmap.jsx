@@ -297,14 +297,26 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
 
   const openNextStepPrompt = (project) => {
     // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — a project born from
-    // an accepted creative connection has no real curated PROJECT_CATEGORIES entry behind it
-    // (`categoryId`/`projectTypeId: 'ai-creative'` are synthetic, `findProjectType` would
-    // correctly return `null` for them), so there's no curated guide-step list to suggest from at
-    // all. Skips straight to the same open-ended "mark complete / add another step" choice a
-    // normal project reaches once its own real guide is exhausted — `appendProjectStep`/
-    // `markProjectComplete` and the choice modal's own JSX only ever read `projectPrompt.project`,
-    // never `.projectType`, so `projectType: null` here is safe.
+    // an accepted creative connection (or the OLD single-question Build Your Own flow) has no
+    // real curated PROJECT_CATEGORIES entry behind it (`categoryId`/`projectTypeId: 'ai-creative'`
+    // or `'build-your-own'` are synthetic, `findProjectType` would correctly return `null` for
+    // them), so there's no curated guide-step list to suggest from at all in that case.
+    //
+    // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6 — a project
+    // started from a DEVELOPED conversation carries its own real `project.guideSteps` (the ordered
+    // milestone titles the AI translated from that conversation, parallel to a curated
+    // `projectType.steps` array) — reveal those ONE AT A TIME exactly like any other curated
+    // project's own guide, via the SAME 'guide' mode below, rather than skipping straight to the
+    // open-ended choice. Only once that list is exhausted (or there never was one at all — the
+    // single-idea/chat-redirect cases) does this fall through to 'choice', matching how a
+    // curated project's own guide exhausting works today.
     if (project.aiSuggested) {
+      const guideSteps = project.guideSteps || [];
+      if (project.guideStepsUsed < guideSteps.length) {
+        setSelected(null);
+        setProjectPrompt({ project, projectType: { steps: guideSteps }, mode: 'guide' });
+        return;
+      }
       setSelected(null);
       setProjectPrompt({ project, projectType: null, mode: 'choice' });
       return;

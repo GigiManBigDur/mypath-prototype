@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import ChatConversation from './ChatConversation';
 import { compileStudentProfile } from '../utils/profileCompiler';
 import { requestChatReply } from '../utils/chatRequest';
 import { makeTaskId } from '../utils/ids';
@@ -12,10 +13,15 @@ import { getEffectiveToday, parseDateInputValue } from '../utils/dates';
 // not rebuilding the underlying chat logic"), every piece of the actual conversation mechanics —
 // general app-help answers, task-add confirm-first, the Build-Your-Own redirect, the mascot
 // speaking/voiceover hookup, the honesty guardrail already enforced server-side — is byte-for-byte
-// the same as the original AiChatModal build. The one real change beyond presentation: `messages`
-// moved from local, ephemeral `useState` into `state.chatHistory` (AppContext), so the
-// conversation now survives a close/reopen or a full reload — Task 4's own persistence
+// the same as the original AiChatModal build. `messages` lives in `state.chatHistory` (AppContext),
+// so the conversation now survives a close/reopen or a full reload — Task 4's own persistence
 // requirement — cleared only by the hub's own Reset button, same as every other piece of state.
+//
+// Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md) — the actual message-
+// list/input-row rendering now comes from the shared `ChatConversation` component (extracted here
+// so Project Builder's own "Build Your Own" conversation can reuse the identical UI instead of a
+// third, separate implementation); this component keeps only what's genuinely specific to the hub
+// assistant (the task-add confirm/date-picker flow, the Build-Your-Own redirect action).
 //
 // The mascot itself is NOT rendered here — it stays put in HubScreen's own `.hub-mascot-area` so
 // it visually "stays anchored" across the whole transition (Task 2). This component only reports
@@ -24,30 +30,21 @@ import { getEffectiveToday, parseDateInputValue } from '../utils/dates';
 export default function HubChatPanel({ onBack, exiting, onAssistantReply }) {
   const { state, patch } = useApp();
   const chatHistory = state.chatHistory || [];
-  const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingTask, setPendingTask] = useState(null);
   const [pickingDate, setPickingDate] = useState(false);
   const [dateInput, setDateInput] = useState('');
   const [dateError, setDateError] = useState(null);
-  const listRef = useRef(null);
-
-  useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
-  }, [chatHistory.length, loading]);
 
   // Stopping speech the instant the panel starts exiting (Task 5's own reverse transition) is the
   // same "dismissing is just an ordinary 'the current line went away' change" contract every other
   // caller of useMascotSpeech already relies on — HubScreen clears its own speakingText the moment
   // it kicks off the exit transition, so there's nothing extra to do here.
 
-  const sendMessage = (text) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+  const sendMessage = (trimmed) => {
     const history = chatHistory.map((m) => ({ role: m.role, content: m.content }));
     const afterUser = [...chatHistory, { role: 'user', content: trimmed }];
     patch({ chatHistory: afterUser });
-    setInputValue('');
     setLoading(true);
     setPendingTask(null);
     const profileSummary = compileStudentProfile(state);
@@ -115,73 +112,49 @@ export default function HubChatPanel({ onBack, exiting, onAssistantReply }) {
         </button>
       </div>
 
-      <div className="chat-messages hub-chat-messages" ref={listRef}>
-        {chatHistory.length === 0 && !loading && (
-          <p className="chat-empty-hint">
-            Ask how something in MyPath works, what to do next, or have me add a task to your plan.
-          </p>
+      <ChatConversation
+        messages={chatHistory}
+        loading={loading}
+        onSend={sendMessage}
+        emptyHint="Ask how something in MyPath works, what to do next, or have me add a task to your plan."
+        renderMessageExtra={(m) => m.intent === 'redirect_build_your_own' && (
+          <div className="chat-redirect-action">
+            <button type="button" className="btn btn-primary" onClick={goToBuildYourOwn}>Go to Project Builder</button>
+          </div>
         )}
-        {chatHistory.map((m, i) => (
-          // eslint-disable-next-line react/no-array-index-key
-          <div key={i} className={`chat-bubble chat-bubble-${m.role}`}>
-            {m.content}
-            {m.intent === 'redirect_build_your_own' && (
-              <div className="chat-redirect-action">
-                <button type="button" className="btn btn-primary" onClick={goToBuildYourOwn}>Go to Project Builder</button>
+        footer={(
+          <>
+            {pendingTask && !pickingDate && (
+              <div className="chat-task-confirm">
+                <p>Want me to add &ldquo;{pendingTask.title}&rdquo; to your plan?</p>
+                <div className="task-form-actions">
+                  <button type="button" className="btn btn-ghost" onClick={dismissPendingTask}>Not now</button>
+                  <button type="button" className="btn btn-primary" onClick={() => { setPickingDate(true); setDateError(null); }}>Add it</button>
+                </div>
               </div>
             )}
-          </div>
-        ))}
-        {loading && <div className="chat-bubble chat-bubble-assistant chat-bubble-loading">Thinking&hellip;</div>}
 
-        {pendingTask && !pickingDate && (
-          <div className="chat-task-confirm">
-            <p>Want me to add &ldquo;{pendingTask.title}&rdquo; to your plan?</p>
-            <div className="task-form-actions">
-              <button type="button" className="btn btn-ghost" onClick={dismissPendingTask}>Not now</button>
-              <button type="button" className="btn btn-primary" onClick={() => { setPickingDate(true); setDateError(null); }}>Add it</button>
-            </div>
-          </div>
+            {pendingTask && pickingDate && (
+              <div className="chat-task-confirm">
+                <label className="task-form-field">
+                  <span className="label">Date</span>
+                  <input
+                    type="date"
+                    value={dateInput}
+                    onChange={(e) => { setDateInput(e.target.value); setDateError(null); }}
+                    autoFocus
+                  />
+                </label>
+                {dateError && <p className="mascot-suggestion-date-error">{dateError}</p>}
+                <div className="task-form-actions">
+                  <button type="button" className="btn btn-ghost" onClick={dismissPendingTask}>Cancel</button>
+                  <button type="button" className="btn btn-primary" onClick={finalizeAddTask} disabled={!dateInput}>Confirm</button>
+                </div>
+              </div>
+            )}
+          </>
         )}
-
-        {pendingTask && pickingDate && (
-          <div className="chat-task-confirm">
-            <label className="task-form-field">
-              <span className="label">Date</span>
-              <input
-                type="date"
-                value={dateInput}
-                onChange={(e) => { setDateInput(e.target.value); setDateError(null); }}
-                autoFocus
-              />
-            </label>
-            {dateError && <p className="mascot-suggestion-date-error">{dateError}</p>}
-            <div className="task-form-actions">
-              <button type="button" className="btn btn-ghost" onClick={dismissPendingTask}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={finalizeAddTask} disabled={!dateInput}>Confirm</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Deliberately no `autoFocus` here, unlike the old AiChatModal's own input — that was a
-          small, portaled overlay always fully within the viewport, so autofocusing it was
-          harmless; this panel is embedded inline, lower on the hub page, and autofocusing a
-          below-the-fold input would make the browser's own native scroll-into-view yank the whole
-          page (mascot included) the instant the panel finished entering — confirmed directly via
-          getBoundingClientRect() before removing it — which reads as a jarring jump, exactly what
-          this transition's own "one fluid transformation, not a hard cut" goal exists to avoid. */}
-      <form className="chat-input-row hub-chat-input-row" onSubmit={(e) => { e.preventDefault(); sendMessage(inputValue); }}>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type a message…"
-        />
-        <button type="submit" className="chat-send-btn" disabled={!inputValue.trim() || loading} aria-label="Send">
-          <Send size={16} />
-        </button>
-      </form>
+      />
     </div>
   );
 }

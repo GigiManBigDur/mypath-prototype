@@ -235,6 +235,31 @@ export default function SurveyScreen() {
         })}
       </div>
 
+      {/* Passion Field + Enhanced Conversational "Build Your Own", Task 1 (see CLAUDE.md) — a
+          richer, free-text complement to the tag picker above: tags alone can't capture something
+          specific/personal the way a sentence or two can. Optional, matching this app's own
+          established "optional-badge pill next to the field label" convention (Sign-Up's country/
+          avatar/voice fields). Uncontrolled (defaultValue + onBlur, not value + onChange) — the
+          same "buffer locally, commit once" trade Roadmap.jsx's own task-outcome textarea already
+          established, so this doesn't re-patch state (and re-persist to localStorage) on every
+          keystroke. Included verbatim in the Stage 1 compiled profile (profileCompiler.js) so both
+          the Stage 2 suggestion feature and Build Your Own's conversation can read it. */}
+      <div className="field-block">
+        <div className="field-label">
+          Want to describe your own passion in your own words? <span className="optional-badge">Optional</span>
+        </div>
+        <p className="field-hint">
+          Tags are a start — if there's something more specific that excites you, tell us about it here.
+        </p>
+        <label className="task-form-field">
+          <textarea
+            defaultValue={state.passionText}
+            onBlur={(e) => patch({ passionText: e.target.value.trim() })}
+            placeholder="e.g. I've spent the last year restoring an old motorcycle with my dad, and I keep wondering if there's a way to combine that with my interest in engineering..."
+          />
+        </label>
+      </div>
+
       <div className="field-block">
         <div className="field-label">What is your current education level?</div>
         <p className="field-hint">This shapes everything else in your plan.</p>
