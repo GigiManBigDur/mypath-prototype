@@ -4442,6 +4442,48 @@ Verified with a dedicated 6-check Playwright suite: the input is no longer `read
 accepts typed text; no note shows before a submit; pressing Enter shows the note; editing the text
 again clears it; and submitting again re-shows it. `npm run build`/`npm run lint` both stay clean.
 
+**Bug fix: the "double-check this yourself" disclaimer was showing on nearly every AI suggestion,
+regardless of whether it actually introduced anything unverified — a real, confirmed regression in
+how the guardrail flag was being decided, not the guardrail-enforcement code itself.** The reported
+example: a suggestion referencing the student's own reported outcome (their Snare Drum placement)
+and a real, already-verified Roslyn club (Marching Bulldogs, `rhs-roslyn-marching-bulldogs` —
+already in `state.selectedOpportunityIds`/`profileSummary.activities.opportunities` by the time
+this fires) still carried the disclaimer, even though nothing in it was actually unverified. Root
+cause, confirmed by reading the exact prompt wording rather than assumed: both
+`api/suggest.js`'s `referencesExternalFact` and `api/chat.js`'s `mentionsSpecificEntity` field
+descriptions told the model to flag "any specific real organization... the student would need to
+independently verify," AND separately said "if in doubt, set it true" — together, this made the
+model flag nearly anything naming a real entity, including one the app itself had already
+confirmed (an opportunity already listed in the student's own profile data) or one the STUDENT
+themselves had just reported. **This is enforced entirely via code-level, deterministic guardrail
+APPLICATION (`applyGuardrails` in both files, unchanged) — the actual bug was upstream, in what the
+MODEL was told counts as "needs verification" in the first place**, so the fix is a pure prompt
+correction, not a logic change.
+- **Both files' schema field description and `SYSTEM_PROMPT` rule were sharpened to the same
+  standard**: the flag is now true ONLY when a suggestion/reply introduces a genuinely NEW,
+  specific, external claim NOT already confirmed by the student's own profile data — explicitly
+  calling out that referencing the student's own reported outcome, or an activity/opportunity/club
+  ALREADY LISTED in `profileSummary.activities` (even by its real name), is NOT a new unverified
+  claim and should be false. The old "if in doubt, set it true" line (the actual source of the
+  over-triggering) was removed from both files, replaced with guidance that only applies to a
+  genuinely new claim the student would need to go verify themselves.
+- **Verified against the REAL, LIVE deployed endpoints, not mocked** — a prompt-driven fix like
+  this can't be validated by mocking the model's response, since the whole point is confirming the
+  model's OWN real behavior changed; a dedicated test script (`test-conditional-disclaimer.js`)
+  hits `/api/suggest` and `/api/chat` directly with realistic payloads, 3 independent real calls per
+  scenario (a single sample isn't reliable evidence for LLM-driven behavior either way): the
+  reported bug scenario (own data + Marching Bulldogs, already in profile) returns
+  `referencesExternalFact: false` (no disclaimer) in every real attempt; a genuinely new claim
+  scenario (a business student wanting to compete, with no matching club in their profile) reliably
+  returns `referencesExternalFact: true` with the real disclaimer text correctly appended, the model
+  naming DECA (a real org NOT already in that student's own profile) consistently across repeated
+  real attempts; and a chat spot-check confirms the identical fix in `api/chat.js` too. `npm run
+  build`/`npm run lint` both stay clean (this touches only prompt text inside both serverless
+  functions, no schema/logic/client-side changes).
+- Deployed live immediately (`api/suggest.js`/`api/chat.js` on Vercel), per this app's own standing
+  "Vercel deploys are automatic alongside every push" policy — the verification above was run
+  directly against that live deployment.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
