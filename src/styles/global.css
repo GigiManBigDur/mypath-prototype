@@ -1381,6 +1381,14 @@ button.card.passed:hover {
   .mascot-greeting p.mascot-dialogue { animation: none; }
 }
 
+/* Polished Hub-to-Chat Transition, bug fix (see CLAUDE.md and HubScreen.jsx's own comment on this
+   class) — `visibility: hidden`, not `display: none`, specifically because this element still
+   needs to occupy its normal layout space while "hidden": `.hub-mascot-area`'s own
+   `transform: translate(-50%, -50%)` centers on that area's OWN total flex-column height, so
+   removing this bubble's height entirely (the earlier, buggy approach) shifted where that -50%
+   landed, moving the mascot by a few real pixels the instant chat mode was entered. */
+.mascot-greeting.mascot-greeting-hidden { visibility: hidden; pointer-events: none; }
+
 /* Pointing-animation overhaul (see CLAUDE.md) — replaces the old separate arrow element
    (`.mascot-pointer`, HubScreen.jsx's former `PointerArrow`) with a real, full-body wand-based
    pointing gesture built directly into the mascot's own SVG (see MascotIcon.jsx's own header
@@ -1835,18 +1843,34 @@ button.card.passed:hover {
     z-index: auto;
   }
   .hub-particle { display: none; }
+  /* Polished Hub-to-Chat Transition (see CLAUDE.md) — the chat panel gets the same "pull out of
+     absolute positioning, become a full-width row" treatment `.hub-mascot-area` already uses at
+     this width, for the same reason: a fixed-height absolutely-positioned box only makes sense
+     against the wide desktop radial layout above it. */
+  .hub-chat-panel {
+    position: static;
+    transform: none;
+    grid-column: 1 / -1;
+    width: auto;
+    max-height: none;
+    margin-top: 8px;
+  }
 }
 @media (max-width: 720px) { .hub-radial-wrap { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 480px) { .hub-radial-wrap { grid-template-columns: 1fr; } }
 
 /* Radial-layout pass, Task 3 (see CLAUDE.md) — the reference image's own bottom row: a decorative
-   quote card, the "Ask MyPath AI anything" input, and a real Quick Actions panel, side by side.
-   Plain document flow (not fixed/absolute page corners like the reference's own mockup) so it
-   scrolls naturally with a tall tile ring and reflows cleanly on a narrow viewport, instead of
-   fighting fixed positioning across this app's own already-tested variable viewport range. */
+   quote card and a real Quick Actions panel, side by side. Plain document flow (not fixed/absolute
+   page corners like the reference's own mockup) so it scrolls naturally with a tall tile ring and
+   reflows cleanly on a narrow viewport, instead of fighting fixed positioning across this app's
+   own already-tested variable viewport range.
+   Polished Hub-to-Chat Transition (see CLAUDE.md), Task 1 — this row used to be 3 columns (quote /
+   "Ask MyPath AI anything" input / Quick Actions); that middle column moved into the mascot's own
+   greeting-bubble position (`.hub-ask-ai-bubble-btn`, below) and the row is back to the 2 columns
+   it would otherwise have, not 3 stretched across 2 real items. */
 .hub-bottom-row {
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 18px;
   align-items: stretch;
   margin: 12px 0 8px;
@@ -1868,46 +1892,149 @@ button.card.passed:hover {
 .hub-quote-text { font-family: 'Fraunces', serif; font-size: 15px; color: var(--hub-ink); margin: 0 0 8px; line-height: 1.4; }
 .hub-quote-author { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; color: var(--hub-ink-soft); margin: 0; }
 
-/* Task 3's "Ask MyPath AI anything" — explicitly a UI mockup only, per this app's own hard "no
-   AI/LLM calls anywhere" constraint (see CLAUDE.md): there is no model behind this input at all,
-   submitting only ever reveals a plain, honest "Coming soon" message (HubScreen.jsx). The literal
-   copy/branding is kept as the reference specifies, since displaying that label is not itself an
-   AI call — only wiring one up would be. */
-.hub-ask-ai {
-  background: var(--hub-card);
-  border: 1px solid var(--hub-card-border);
+/* Polished Hub-to-Chat Transition (see CLAUDE.md), Task 1 — the real trigger for the chat, now
+   living where the mascot's own dialogue bubble sat (HubScreen.jsx, gated on `sequenceComplete &&
+   guidedStepAlreadySeen`), styled as a small pill button rather than an input bar — there's
+   nothing to type here before opening anymore, clicking it is the whole action. Reuses the
+   existing `hub-dialogue-in` pop-in keyframe for its own first appearance, the same "feel alive"
+   entrance every other greeting-bubble content already gets. */
+.hub-ask-ai-bubble-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 9px 18px;
   border-radius: 999px;
-  box-shadow: var(--hub-shadow);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 8px 8px 20px;
-}
-.hub-ask-ai input {
-  flex: 1;
-  min-width: 0;
   border: none;
-  outline: none;
-  background: none;
-  font: inherit;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 13.5px;
-  color: var(--hub-ink);
-}
-.hub-ask-ai-submit {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: var(--hub-accent);
   color: #fff;
-  border: none;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
-  flex-shrink: 0;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+  animation: hub-dialogue-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.hub-ask-ai-wrap { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.hub-ask-ai-bubble-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: var(--hub-shadow-hover); }
+.hub-ask-ai-bubble-btn:active { transform: translateY(0) scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  .hub-ask-ai-bubble-btn { animation: none; }
+}
+
+/* Polished Hub-to-Chat Transition, Task 2 (see CLAUDE.md) — the tile-exit half of the transition.
+   A compound selector on the SAME `.hub-tile` element that already carries the unconditional
+   `hub-tile-pop-in` entrance animation (above) — compound selectors beat a plain single-class rule
+   regardless of source order (the same precedent `.mascot-bob.mascot-speaking` already
+   established), so this cleanly swaps the running/settled entrance animation out for a fade/
+   scale-out one the instant `chatPhase` becomes `'tiles-exiting'`, with zero risk of the two
+   animations fighting over the same `transform`/`opacity` values. `pointer-events: none` so a
+   half-faded tile can't still be clicked mid-exit. */
+.hub-tile.hub-tile-exiting {
+  animation: hub-tile-fade-out 320ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+@keyframes hub-tile-fade-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-10px) scale(0.94); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-tile.hub-tile-exiting { animation: none; opacity: 0; }
+}
+
+/* Polished Hub-to-Chat Transition, Tasks 2/3/5 (see CLAUDE.md) — the chat's own inline container,
+   absolutely positioned within `.hub-radial-wrap` (same fixed-height box the tile ring already
+   uses) rather than a portaled overlay — this is what lets the mascot sit directly above it in the
+   exact same DOM/layout it already occupied, instead of a route change or a modal stacking on top.
+   Positioned well below `.hub-mascot-area`'s own vertical center (40%) so it never overlaps the
+   mascot figure even though the greeting bubble above it is hidden while in chat mode. */
+.hub-chat-panel {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, 0);
+  width: min(94%, 620px);
+  max-height: 440px;
+  display: flex;
+  flex-direction: column;
+  z-index: 6;
+  background: var(--hub-card);
+  border: 1px solid var(--hub-card-border);
+  border-radius: 20px;
+  box-shadow: var(--hub-shadow);
+  padding: 20px 22px;
+}
+.hub-chat-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 17px; font-weight: 700; color: var(--hub-ink); margin: 0; }
+.hub-chat-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.hub-chat-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hub-card-border);
+  background: none;
+  color: var(--hub-ink-soft);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.hub-chat-back-btn:hover { background: var(--hub-bg); color: var(--hub-ink); }
+/* Reuses the shared .chat-messages / .chat-bubble / .chat-empty-hint / .chat-task-confirm /
+   .chat-input-row / .chat-send-btn structure (originally AiChatModal's own, now retired) — these
+   overrides recolor onto the hub's own token set (--hub-*) instead of the shared/default palette
+   those classes were originally styled with, scoped under `.hub-chat-panel` so nothing leaks onto
+   any other screen that might reuse the base `.chat-*` classes later. */
+.hub-chat-panel .chat-messages { min-height: 200px; max-height: 260px; }
+.hub-chat-panel .chat-bubble-user { background: var(--hub-accent); }
+.hub-chat-panel .chat-bubble-assistant { background: var(--hub-bg); border-color: var(--hub-card-border); color: var(--hub-ink); }
+.hub-chat-panel .chat-empty-hint { color: var(--hub-ink-soft); }
+.hub-chat-panel .chat-bubble-loading { color: var(--hub-ink-soft); }
+.hub-chat-panel .chat-input-row input {
+  background: var(--hub-bg);
+  border-color: var(--hub-card-border);
+  color: var(--hub-ink);
+}
+.hub-chat-panel .chat-send-btn { background: var(--hub-accent); }
+
+/* Task 2's own staggered entrance/exit — header, then messages, then input row fade/slide in on
+   the way IN; the reverse order (input first, header last) on the way OUT, so both directions read
+   as a genuine cascade rather than one flat fade. */
+@keyframes hub-chat-fade-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes hub-chat-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+.hub-chat-panel .hub-chat-header,
+.hub-chat-panel .hub-chat-messages,
+.hub-chat-panel .hub-chat-input-row {
+  animation: hub-chat-fade-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hub-chat-panel .hub-chat-messages { animation-delay: 70ms; }
+.hub-chat-panel .hub-chat-input-row { animation-delay: 140ms; }
+.hub-chat-panel.hub-chat-exit .hub-chat-header,
+.hub-chat-panel.hub-chat-exit .hub-chat-messages,
+.hub-chat-panel.hub-chat-exit .hub-chat-input-row {
+  animation: hub-chat-fade-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+.hub-chat-panel.hub-chat-exit .hub-chat-header { animation-delay: 90ms; }
+.hub-chat-panel.hub-chat-exit .hub-chat-messages { animation-delay: 40ms; }
+.hub-chat-panel.hub-chat-exit .hub-chat-input-row { animation-delay: 0ms; }
+@media (prefers-reduced-motion: reduce) {
+  .hub-chat-panel .hub-chat-header,
+  .hub-chat-panel .hub-chat-messages,
+  .hub-chat-panel .hub-chat-input-row,
+  .hub-chat-panel.hub-chat-exit .hub-chat-header,
+  .hub-chat-panel.hub-chat-exit .hub-chat-messages,
+  .hub-chat-panel.hub-chat-exit .hub-chat-input-row {
+    animation: none;
+  }
+}
 
 /* Move: Build Your Own (see CLAUDE.md) — preset-prompt buttons and the standing honesty note,
    originally built for the Hub's own CreativeConnectionModal (AI Personalization, Stage 3, since

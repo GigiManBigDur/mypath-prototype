@@ -1,16 +1,16 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User,
-  Volume2, VolumeX, TrendingUp, Zap, Plus, Send, Bug, X,
+  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
 import { AVATAR_OPTIONS } from './SignUpScreen';
 import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
-import AiChatModal from '../components/AiChatModal';
+import HubChatPanel from '../components/HubChatPanel';
 import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
@@ -18,6 +18,7 @@ import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dat
 import { ADMISSIONS_CONTEXT_LINES, getMascotLine } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -403,6 +404,16 @@ export default function HubScreen() {
   // drives the mascot's distinct "speaking" animation state.
   const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted);
 
+  // Polished Hub-to-Chat Transition (see CLAUDE.md) — the chat's own replies also speak through
+  // the SAME single mascot instance (it "stays anchored," never duplicated), via a second,
+  // independent useMascotSpeech call fed by whatever HubChatPanel reports up through
+  // `onAssistantReply`. The two never fire at once in practice — guided-sequence dialogue only
+  // ever renders while `chatPhase === 'hidden'`, chat replies only ever arrive while in chat mode
+  // — so ORing their two `isSpeaking` booleans together for MascotIcon's own `speaking` prop below
+  // is safe, not a race.
+  const [chatSpeakingText, setChatSpeakingText] = useState(null);
+  const isChatSpeaking = useMascotSpeech(chatSpeakingText, state.voiceMuted);
+
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it
     // once (as its initial subStep) and clears it right back to null on mount, the same
@@ -509,18 +520,45 @@ export default function HubScreen() {
     setProfileDebugData(profile);
   };
 
-  // Build the Real "Ask MyPath AI Anything" Conversational Chat (see CLAUDE.md) — this button
-  // previously opened CreativeConnectionModal (AI Personalization, Stage 3, single-shot), which
-  // then moved entirely into Project Builder as "Build Your Own"; after that it briefly reverted
-  // to a plain "Coming soon" placeholder pending its own real rebuild. This IS that rebuild: a
-  // real, open-ended, multi-turn conversation (AiChatModal), genuinely distinct from Build Your
-  // Own's single-shot project ideation. Submitting just opens the chat, seeded with whatever was
-  // already typed (if anything) as the conversation's own first draft message.
-  const [askAiValue, setAskAiValue] = useState('');
-  const [chatModalOpen, setChatModalOpen] = useState(false);
-  const submitAskAi = (e) => {
-    e.preventDefault();
-    setChatModalOpen(true);
+  // Polished Hub-to-Chat Transition (see CLAUDE.md) — replaces the old bottom-of-screen input bar
+  // + portaled overlay modal entirely. The "Ask MyPath AI anything" trigger now lives where the
+  // mascot's own dialogue bubble sits (rendered further down, gated on `sequenceComplete &&
+  // guidedStepAlreadySeen` — i.e. only once the guided sequence's one-time completion message has
+  // already been delivered, matching the spec's own "once the mascot has delivered its final
+  // completion dialogue, replace that dialogue bubble's position with the button" instruction
+  // literally: `guidedStepAlreadySeen` is exactly "has this hub visit's ENDPOINT_STEP message
+  // already played in a PRIOR visit" — see its own derivation above — so the very visit where the
+  // completion line is genuinely new still shows that line in full, and the button only takes its
+  // place starting the next visit, never flickering mid-read within the same one thanks to the
+  // snapshot hook's own anti-flicker freeze).
+  //
+  // `chatPhase` drives a same-screen state transition, not a navigation — no route/screen change:
+  //   'hidden'        — normal hub (tiles + mascot bubble), the default and end state either way.
+  //   'tiles-exiting' — tiles play their staggered fade/scale-out; mascot NEVER moves/unmounts.
+  //   'chat'          — tiles unmounted, HubChatPanel mounted (plays its own staggered entrance).
+  //   'chat-exiting'  — HubChatPanel plays its own staggered exit; tiles still unmounted.
+  // Returning to 'hidden' remounts the tile block fresh, which is what makes the EXISTING
+  // `hub-tile-pop-in` entrance keyframe (already unconditional on `.hub-tile`) replay for free —
+  // "reversing the same transition" (Task 5) needs no separate re-entrance animation of its own.
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const TILE_EXIT_MS = reducedMotion ? 0 : 560;
+  const CHAT_EXIT_MS = reducedMotion ? 0 : 380;
+  const [chatPhase, setChatPhase] = useState('hidden');
+  const chatTransitionTimer = useRef(null);
+  useEffect(() => () => {
+    if (chatTransitionTimer.current) clearTimeout(chatTransitionTimer.current);
+  }, []);
+  const openChat = () => {
+    setChatPhase('tiles-exiting');
+    chatTransitionTimer.current = setTimeout(() => setChatPhase('chat'), TILE_EXIT_MS);
+  };
+  const closeChat = () => {
+    // Stopping speech the instant the reverse transition starts — the same "dismissing is just an
+    // ordinary 'the current line went away' change" contract useMascotSpeech already relies on
+    // everywhere else in this app.
+    setChatSpeakingText(null);
+    setChatPhase('chat-exiting');
+    chatTransitionTimer.current = setTimeout(() => setChatPhase('hidden'), CHAT_EXIT_MS);
   };
 
   const avatarOption = AVATAR_OPTIONS.find((a) => a.id === state.avatarIcon);
@@ -593,8 +631,8 @@ export default function HubScreen() {
         )}
       </div>
 
-      <div className="hub-radial-wrap">
-        {PARTICLES.map((p, i) => (
+      <div className={`hub-radial-wrap${chatPhase !== 'hidden' ? ' chat-mode' : ''}`}>
+        {chatPhase === 'hidden' && PARTICLES.map((p, i) => (
           <span
             // eslint-disable-next-line react/no-array-index-key
             key={i}
@@ -611,37 +649,65 @@ export default function HubScreen() {
           {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
               .hub-mascot-area (which also contains the greeting bubble stacked below). `pointAngle`
               (below) measures against THIS ref, so it's computed from the mascot's real center, not
-              from further down past the bubble. */}
+              from further down past the bubble. Polished Hub-to-Chat Transition (see CLAUDE.md) —
+              this element (and its containing `.hub-mascot-area`) renders completely unconditionally
+              across every `chatPhase` value: the mascot never moves, never unmounts, never
+              re-measures — it's the one visual anchor the whole transition reads as continuous
+              around. */}
           <div className="hub-mascot-figure" ref={mascotRef}>
             {/* Adjustment (see CLAUDE.md) — `pointing` reads `pointingTargetId` (above) rather
                 than a plain `!sequenceComplete` gate now, so the ONE visit where the completion
                 line is genuinely new still gets a real paired pointing gesture at Academic Plan;
                 every visit after that (once `pointingTargetId` is `null`) keeps the mascot's
                 mouth/body animating (the SEPARATE `speaking` prop, untouched) without raising the
-                arm/wand toward a target that no longer means anything. */}
-            <MascotIcon size={150} speaking={isSpeaking} pointing={pointingTargetId !== null && isSpeaking} pointAngle={pointAngle} />
+                arm/wand toward a target that no longer means anything. Polished Hub-to-Chat
+                Transition — `speaking` now also ORs in `isChatSpeaking`, so the SAME mascot
+                instance animates for a chat reply too, without a second icon ever being rendered. */}
+            <MascotIcon size={150} speaking={isSpeaking || isChatSpeaking} pointing={pointingTargetId !== null && isSpeaking} pointAngle={pointAngle} />
           </div>
-          <div className="mascot-greeting">
-            {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
-                to a new guided step), which is what makes .mascot-dialogue's CSS entrance
-                animation replay on every new line instead of only once ever — see global.css's
-                own comment. Bug fix (see CLAUDE.md) — `nextStepIntro` is now genuinely `null` once
-                the one-time completion acknowledgment has already been shown, so this renders
-                nothing rather than an empty paragraph — the hub "just sits quietly available." */}
-            {nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>}
-            {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
-                (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
-            <div className="hub-progress-dots">
-              {Array.from({ length: guidedProgress.total }).map((_, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
-              ))}
-              <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
-            </div>
+          {/* Bug fix, found while building the Polished Hub-to-Chat Transition (see CLAUDE.md):
+              conditionally NOT rendering this bubble at all while in chat mode (an earlier version
+              of this code) shrank `.hub-mascot-area`'s own flex column height — and since that
+              area is positioned via `top: 40%; transform: translate(-50%, -50%)`, a shorter box
+              shifts WHERE that -50% vertical center lands, moving the mascot by a few real pixels
+              the instant chat mode was entered, confirmed directly via
+              `getBoundingClientRect()` before/after — a real, if small, violation of "the mascot
+              stays anchored... doesn't move." Fixed by always mounting this bubble (so its own
+              real height never changes across `chatPhase` values) and hiding it via
+              `visibility: hidden` (which reserves its layout space, unlike `display: none`) rather
+              than conditional rendering. */}
+          <div className={`mascot-greeting${chatPhase !== 'hidden' ? ' mascot-greeting-hidden' : ''}`}>
+              {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
+                  to a new guided step), which is what makes .mascot-dialogue's CSS entrance
+                  animation replay on every new line instead of only once ever — see global.css's
+                  own comment. Bug fix (see CLAUDE.md) — `nextStepIntro` is now genuinely `null`
+                  once the one-time completion acknowledgment has already been shown. Polished
+                  Hub-to-Chat Transition (Task 1) — that's exactly when this bubble's own spot now
+                  hosts the "Ask MyPath AI anything" button instead of sitting empty: `guidedStepAlreadySeen`
+                  is precisely "has this ENDPOINT_STEP message already played in a PRIOR visit," so
+                  the very visit the completion line is genuinely new still shows the real text in
+                  full (the snapshot hook freezes that read for the whole visit — see its own
+                  comment), and only a LATER visit shows the button here instead. */}
+              {sequenceComplete && guidedStepAlreadySeen ? (
+                <button type="button" className="hub-ask-ai-bubble-btn" onClick={openChat}>
+                  <Sparkles size={14} /> Ask MyPath AI anything
+                </button>
+              ) : (
+                nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>
+              )}
+              {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
+                  (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
+              <div className="hub-progress-dots">
+                {Array.from({ length: guidedProgress.total }).map((_, i) => (
+                  // eslint-disable-next-line react/no-array-index-key
+                  <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
+                ))}
+                <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
+              </div>
           </div>
         </div>
 
-        {tiles.map((tile, i) => {
+        {(chatPhase === 'hidden' || chatPhase === 'tiles-exiting') && tiles.map((tile, i) => {
           const unlocked = tile.unlock(state, hasPartnerSchool);
           // Adjustment (see CLAUDE.md) — reads `pointingTargetId` (above) instead of a plain
           // `!sequenceComplete` gate, so the Academic Plan tile correctly glows for the one visit
@@ -651,6 +717,7 @@ export default function HubScreen() {
           const isPointingTarget = tile.id === pointingTargetId;
           const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
           const pos = RADIAL_POSITIONS[i % RADIAL_POSITIONS.length];
+          const isExiting = chatPhase === 'tiles-exiting';
           return (
             // `.hub-tile-slot` is a plain, never-animated wrapper doing only the {x%, y%}
             // centering (translate(-50%, -50%)) — kept on a SEPARATE element from `.hub-tile`
@@ -665,12 +732,17 @@ export default function HubScreen() {
                   if (el) tileRefs.current.set(tile.id, el);
                   else tileRefs.current.delete(tile.id);
                 }}
-                className={`hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}`}
+                className={`hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}${isExiting ? ' hub-tile-exiting' : ''}`}
                 disabled={!unlocked}
                 onClick={() => goTo(tile)}
                 style={{
                   '--tile-accent-bg': accent.bg, '--tile-accent-fg': accent.fg,
-                  animationDelay: `${i * 40}ms`,
+                  // Polished Hub-to-Chat Transition (Task 2) — the SAME per-tile stagger the
+                  // entrance already uses, reused for the exit too (a slightly tighter interval,
+                  // since exiting reads better a touch faster than the original settle-in pace),
+                  // so tiles cascade away with a natural, non-simultaneous feel rather than all
+                  // vanishing at once.
+                  animationDelay: `${i * (isExiting ? 30 : 40)}ms`,
                 }}
               >
                 <div className="hub-tile-icon-box">
@@ -687,6 +759,14 @@ export default function HubScreen() {
             </div>
           );
         })}
+
+        {(chatPhase === 'chat' || chatPhase === 'chat-exiting') && (
+          <HubChatPanel
+            exiting={chatPhase === 'chat-exiting'}
+            onBack={closeChat}
+            onAssistantReply={setChatSpeakingText}
+          />
+        )}
       </div>
 
       <div className="hub-bottom-row">
@@ -694,20 +774,6 @@ export default function HubScreen() {
           <p className="hub-quote-mark">&ldquo;</p>
           <p className="hub-quote-text">{QUOTE.text}</p>
           <p className="hub-quote-author">— {QUOTE.author}</p>
-        </div>
-
-        <div className="hub-ask-ai-wrap">
-          <form className="hub-ask-ai" onSubmit={submitAskAi}>
-            <input
-              type="text"
-              placeholder="Ask MyPath AI anything"
-              value={askAiValue}
-              onChange={(e) => setAskAiValue(e.target.value)}
-            />
-            <button type="submit" className="hub-ask-ai-submit" aria-label="Ask">
-              <Send size={15} />
-            </button>
-          </form>
         </div>
 
         <div className="hub-quick-actions">
@@ -722,11 +788,6 @@ export default function HubScreen() {
       </div>
 
       <AddTaskModal isOpen={addTaskOpen} onCancel={() => setAddTaskOpen(false)} onSubmit={addTask} />
-      <AiChatModal
-        isOpen={chatModalOpen}
-        initialPrompt={askAiValue}
-        onClose={() => { setChatModalOpen(false); setAskAiValue(''); }}
-      />
 
       <div className="hub-debug-row">
         <button type="button" className="hub-reset-btn" onClick={handleReset}>

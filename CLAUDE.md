@@ -4273,6 +4273,128 @@ Builder's own single-shot "Build Your Own" ideation.**
 - Deployed live immediately after this was built (`api/chat.js` on Vercel), per this app's own
   standing "Vercel deploys are automatic alongside every push" policy.
 
+**Polished Hub-to-Chat Transition + Persistent Chat History — the real chat built above is now
+reached through a same-screen animated transition instead of a portaled overlay modal, and its
+conversation survives a close/reopen or a full reload.** Explicitly framed by its own build spec as
+a high-visibility design moment, on par with the hub's own entrance sequence and the mascot's
+pointing choreography — not a routine UI tweak.
+- **Task 1 — the trigger moved from an always-visible bottom-of-screen input bar into the mascot's
+  own greeting bubble, reusing the EXISTING `sequenceComplete`/`guidedStepAlreadySeen` derivation
+  (`HubScreen.jsx`) rather than a new persisted flag.** `guidedStepAlreadySeen` is already precisely
+  "has this hub visit's `ENDPOINT_STEP` completion message already played in a PRIOR visit" (see the
+  earlier "hub-guided-revisit" bug-fix section) — so gating the button on `sequenceComplete &&
+  guidedStepAlreadySeen` matches the spec's own "once the mascot has delivered its final completion
+  dialogue, replace that dialogue bubble's position with the button" literally: the very visit the
+  completion line is genuinely new still shows that real text in full (the snapshot hook's own
+  anti-flicker freeze guarantees it can't flip mid-read within that same visit), and only a LATER
+  visit shows the button there instead. `.hub-ask-ai`/`.hub-ask-ai-input`/`.hub-ask-ai-submit`/
+  `.hub-ask-ai-wrap` (the old bottom-row input bar) and `.hub-bottom-row`'s 3-column layout are
+  gone entirely — the row is back to 2 real columns (quote card + Quick Actions), not 3 stretched
+  across 2 items.
+- **Task 2 — `chatPhase` (`HubScreen.jsx`, local `useState`, deliberately NOT persisted — this is
+  ephemeral same-screen UI state, not a durable navigation field) drives a 4-value state machine,
+  not a screen/route change**: `'hidden'` (normal hub) → `'tiles-exiting'` (tiles play a staggered
+  fade/scale-out) → `'chat'` (tiles unmounted, `HubChatPanel` mounted) → `'chat-exiting'` (the
+  reverse, Task 5) → back to `'hidden'`. Two plain `setTimeout`s (`TILE_EXIT_MS`/`CHAT_EXIT_MS`,
+  cleared on unmount) advance the phase once each animation's own duration elapses — `0` under
+  `prefers-reduced-motion` (via the shared `useMediaQuery` hook), so a reduced-motion user still
+  gets the correct end states with no animation ever playing.
+  - **Tile exit** reuses the EXACT `.hub-tile` element that already carries the unconditional
+    `hub-tile-pop-in` entrance animation — a NEW compound selector, `.hub-tile.hub-tile-exiting`,
+    cleanly swaps in a `hub-tile-fade-out` keyframe instead (compound selectors beat a plain
+    single-class rule regardless of source order, the same precedent `.mascot-bob.mascot-speaking`
+    already established), with the SAME per-tile `animationDelay` stagger the entrance already uses
+    (a touch tighter — 30ms vs 40ms — since exiting reads better a little faster than the original
+    settle-in pace). `pointer-events: none` stops a half-faded tile from still being clickable.
+  - **The mascot never moves**: `.hub-mascot-area`/`.hub-mascot-figure` render completely
+    unconditionally across every `chatPhase` value — no gating, no remount, no re-measurement. **A
+    real, confirmed bug was found and fixed while verifying this**: an earlier version conditionally
+    did NOT render the greeting bubble at all while in chat mode, which shrank `.hub-mascot-area`'s
+    own flex-column height — and since that area is positioned via `top: 40%; transform:
+    translate(-50%, -50%)`, a shorter box shifts WHERE that `-50%` vertical center lands, moving the
+    mascot by real pixels the instant chat mode was entered (confirmed directly via
+    `getBoundingClientRect()`). Fixed by always mounting the bubble and hiding it via
+    `visibility: hidden` (`.mascot-greeting-hidden`) instead of conditional rendering — `visibility:
+    hidden` reserves the element's normal layout space (unlike `display: none`), so the bubble's own
+    already-resolved content (button or dialogue text — unchanged by chat mode) keeps the area's
+    total height, and therefore the mascot's real position, constant.
+  - **The chat panel is absolutely positioned INSIDE `.hub-radial-wrap`** (the same fixed-height box
+    the tile ring already uses), not a portaled overlay — this is what lets the mascot sit directly
+    above it in the exact same layout it already occupied, rather than a route change or a modal
+    stacking on top. Positioned well below the mascot's own vertical center (`top: 58%`) so it never
+    overlaps the mascot figure. Its own 3 rows (header, messages, input) each fade/slide in with a
+    small stagger (header first) on the way in, and the reverse order (input first, header last) on
+    the way out — a genuine cascade in both directions, not one flat fade.
+- **Task 3 — the chat interface itself is a genuine container/presentation change, not a rebuilt
+  chat logic.** `AiChatModal.jsx` (the old portaled overlay) is deleted outright; its ENTIRE
+  conversation logic — `sendMessage`'s real multi-turn request, the task-add confirm-first/
+  date-picker flow, the Build-Your-Own redirect, the server-side honesty guardrail already enforced
+  in `api/chat.js` — is reproduced byte-for-byte in the new `src/components/HubChatPanel.jsx`,
+  just re-hosted inline instead of behind `createPortal`/`.overlay`/`useModalExit`. The ONE real
+  change beyond presentation is Task 4's own persistence (below). **The mascot is deliberately NOT
+  rendered inside `HubChatPanel` at all** — it stays the single shared `MascotIcon` instance in
+  `HubScreen`'s own `.hub-mascot-area`, so "the mascot stays anchored" (Task 2) and "the mascot
+  speaks for a chat reply" (Task 3) are the same real instance, never two. `HubChatPanel` only
+  reports the latest reply's text upward via an `onAssistantReply` callback prop; `HubScreen` keeps
+  its own `chatSpeakingText`/`useMascotSpeech` pair and ORs the resulting `isChatSpeaking` boolean
+  together with the pre-existing guided-sequence `isSpeaking` for `MascotIcon`'s `speaking` prop —
+  safe because the two never fire at once in practice (guided dialogue only renders in `'hidden'`
+  phase; chat replies only arrive in `'chat'` phase). Message bubbles are visually distinct by role
+  (`.chat-bubble-user`/`.chat-bubble-assistant`, recolored onto the hub's own `--hub-*` token set,
+  scoped under `.hub-chat-panel` so nothing leaks onto any other screen that might reuse the shared
+  base `.chat-*` classes later — the old modal used the plain/default palette, since it sat outside
+  any screen's own color scope).
+  - **A real, confirmed UX bug was found and fixed here**: the old modal's input carried
+    `autoFocus`, harmless there since it was a small portaled overlay always fully within the
+    viewport. Reused verbatim on the new inline panel, autofocusing a now below-the-fold input made
+    the BROWSER's own native scroll-into-view yank the whole page (mascot included) the instant the
+    panel finished entering — confirmed directly via `getBoundingClientRect()` (`rect.top +
+    window.scrollY` staying constant, but the plain viewport-relative rect jumping by ~470px)
+    before removing `autoFocus` — exactly the kind of jarring jump this transition's own "one fluid
+    transformation, not a hard cut" goal exists to avoid. Removed; a student can click into the
+    input themselves, and the panel's own entrance animation already draws the eye there.
+- **Task 4 — `state.chatHistory` (`AppContext.jsx` `DEFAULT_STATE`, `[]` default) replaces the old
+  modal's local, ephemeral `messages` `useState`.** Same `[{ role, content, intent? }]` shape,
+  persisted to `localStorage` exactly like every other field (so a close/reopen or a full reload
+  restores the same conversation instead of starting fresh) and cleared only by `reset()` wiping
+  the whole app state back to `DEFAULT_STATE`, same as everything else — no special-casing needed.
+  `sendMessage`/`finalizeAddTask` both `patch({ chatHistory: [...] })` using a plain local const
+  captured once at send time (`afterUser`), not a live re-read of `state.chatHistory` inside the
+  async `onResult`/`onError` callbacks — safe since only one send is ever in flight at a time (the
+  send button disables while `loading`), avoiding any race with a stale closure.
+- **Task 5 — a "Back to Hub" button inside `HubChatPanel`'s own header calls `closeChat`**
+  (`HubScreen.jsx`), which clears `chatSpeakingText` to `null` first (stopping any in-progress
+  speech immediately — the same "dismissing is just an ordinary 'the current line went away'
+  change" contract `useMascotSpeech` already relies on everywhere else), then plays the chat panel's
+  own exit animation before flipping `chatPhase` back to `'hidden'`. Returning to `'hidden'`
+  REMOUNTS the tile block fresh — since `hub-tile-pop-in` is already unconditional on `.hub-tile`,
+  this is what makes "reversing the same transition" (tiles re-entering) fall out for free, with no
+  separate re-entrance animation needed.
+- Verified with a dedicated 22-check Playwright suite: the button renders in the greeting bubble
+  and the old bottom bar is fully gone; clicking it shows tiles carrying the exiting class before
+  the chat panel appears (never simultaneously); the mascot's own real DOCUMENT position (`rect.top
+  + window.scrollY`, not a plain viewport-relative rect — see the autoFocus bug above for why that
+  distinction matters) never changes across the tile-exit phase, once the chat UI has fully
+  entered, or across the whole round trip back to the hub; once settled, every tile is genuinely
+  unmounted (not just hidden) and the chat panel shows a real empty-conversation hint; a real
+  (mocked) message exchange renders in visually distinct role-colored bubbles and activates the
+  shared mascot's speaking animation; a plain reload preserves the full `chatHistory` in
+  `localStorage` even without reopening chat, and reopening afterward shows the identical
+  conversation, not a blank slate; "Back to Hub" plays the exit animation before tiles reappear,
+  and tiles genuinely remount (matching the original tile count) with the button visible again
+  once settled; and Reset clears `chatHistory` back to `[]` alongside returning all the way to the
+  welcome screen. Three pre-existing test files from the chat feature's own prior build pass
+  (`test-build-your-own.js`, `test-ai-chat.js`, a scratch `verify-chat-tts.js`) needed their own
+  `.hub-ask-ai`/`.chat-modal` selectors updated to the new `.hub-ask-ai-bubble-btn`/
+  `.hub-chat-panel` ones (plus seeding the guided-sequence-complete state the new gated button now
+  requires) — the same "update a pre-existing test after an intentional, expected change" pattern
+  this codebase's own suite has already needed many times before, not a regression; all three (19,
+  17, and a 1-request TTS-attempt check respectively) pass in full afterward. `npm run build`/
+  `npm run lint` both stay clean.
+- Deployed live immediately after this was built, per this app's own standing "Vercel deploys are
+  automatic alongside every push" policy — this feature is a pure client-side/CSS change plus one
+  new `AppContext` field, so it needed no new server-side function of its own.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

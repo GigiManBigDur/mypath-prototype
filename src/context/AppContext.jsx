@@ -209,6 +209,13 @@ const DEFAULT_STATE = {
   // `voiceURI` (the old "Show Available Voice Options" browser-voice picker's own pick) was
   // removed entirely once ElevenLabs Voice replaced the old SpeechSynthesis system — there's now
   // exactly one fixed voice for every mascot line, so there's nothing left to persist a pick for.
+  // Polished Hub-to-Chat Transition + Persistent Chat History (see CLAUDE.md) — the real,
+  // multi-turn "Ask MyPath AI anything" conversation, `[{ role: 'user'|'assistant', content,
+  // intent? }]`. Originally local, ephemeral state inside a modal component (reset on every
+  // open); moved here so closing/reopening the app restores the same conversation instead of
+  // starting fresh — persisted to localStorage exactly like every other field, and cleared only
+  // by `reset()` wiping the whole state back to DEFAULT_STATE, same as everything else.
+  chatHistory: [],
   accountCreatedAt: null, // Hub redesign, radial-layout pass (see CLAUDE.md) — set once, by
   // SignUpScreen's own submit handler, to a plain 'YYYY-MM-DD' string the first time a student
   // ever completes sign-up (never overwritten afterward, so a defensive re-submit can't reset
