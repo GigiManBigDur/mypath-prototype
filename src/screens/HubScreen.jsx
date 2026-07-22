@@ -563,6 +563,18 @@ export default function HubScreen() {
 
   const avatarOption = AVATAR_OPTIONS.find((a) => a.id === state.avatarIcon);
 
+  // Small fix — the topbar search bar (see CLAUDE.md). It used to be `readOnly` (couldn't be
+  // typed into at all); now it's a real, typeable field that honestly reveals "Coming soon" on
+  // submit instead of silently doing nothing — there's still no real search feature behind this
+  // app's own content, matching every other explicitly-placeholder control in this app (the old
+  // ask-ai bar's own "Coming soon!" note, before it became the real chat).
+  const [searchValue, setSearchValue] = useState('');
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
+  const submitSearch = (e) => {
+    e.preventDefault();
+    setSearchSubmitted(true);
+  };
+
   return (
     <div className="hub-screen">
       <div className="hub-topbar">
@@ -570,12 +582,21 @@ export default function HubScreen() {
           <Leaf size={22} color="var(--hub-accent)" />
           MyPath
         </div>
-        <div className="hub-topbar-search">
+        <form className="hub-topbar-search" onSubmit={submitSearch}>
           <Search size={15} />
-          {/* Explicitly non-functional/placeholder, per this pass's own scope — no real search
-              feature exists behind this app's own content yet. */}
-          <input type="text" placeholder="Search anything..." readOnly />
-        </div>
+          <input
+            type="text"
+            placeholder="Search anything..."
+            value={searchValue}
+            onChange={(e) => {
+              setSearchValue(e.target.value);
+              // A fresh edit clears any previously-shown note — re-submitting (even the same
+              // text) is what reveals it again, not leaving a stale note up while typing.
+              setSearchSubmitted(false);
+            }}
+          />
+          {searchSubmitted && <span className="hub-topbar-search-note">Coming soon!</span>}
+        </form>
         <div className="hub-topbar-actions">
           {/* Purely decorative, matching the search field's own "placeholder is fine" scope — this
               app has no real notifications feature to back a live badge count with, and inventing

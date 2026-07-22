@@ -4427,6 +4427,21 @@ previously said so explicitly.
   copy is confirmed completely untouched (no wording bleeding into an unrelated sub-step).
   `npm run build`/`npm run lint` both stay clean.
 
+**Small fix: the hub topbar's search bar is now real enough to type into and honestly reveals
+"Coming soon" on submit, instead of being `readOnly` (couldn't be typed into at all) with no
+feedback of any kind.** `HubScreen.jsx`'s `searchValue`/`searchSubmitted` (local, unpersisted
+`useState`) back a real controlled input; the wrapping `.hub-topbar-search` div became a `<form>`
+so pressing Enter (or, incidentally, a future submit button) fires `submitSearch`, which reveals a
+small `.hub-topbar-search-note` popover ("Coming soon!") absolutely positioned just below the bar
+— matching every other explicitly-placeholder control in this app (the old ask-ai bar's own
+"Coming soon!" note, before it became the real chat) rather than silently doing nothing. Editing
+the text again (`onChange`) clears the note, so it only ever reflects the MOST RECENT submit, not a
+stale message left over from an earlier one. There's still no real search feature behind this —
+the fix is purely "typing works and submitting gives honest feedback," not a new search capability.
+Verified with a dedicated 6-check Playwright suite: the input is no longer `readOnly` and genuinely
+accepts typed text; no note shows before a submit; pressing Enter shows the note; editing the text
+again clears it; and submitting again re-shows it. `npm run build`/`npm run lint` both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
