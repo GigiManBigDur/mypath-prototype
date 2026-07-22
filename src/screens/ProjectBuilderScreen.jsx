@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ArrowLeft, ArrowRight, Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette,
   Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart, Circle,
@@ -6,12 +6,39 @@ import {
 import { useApp } from '../context/AppContext';
 import { PROJECT_CATEGORIES, findCategory, findProjectType } from '../data/projects';
 import { generateRoadmap } from '../utils/roadmapGenerator';
+import { compileStudentProfile } from '../utils/profileCompiler';
+import { requestCreativeConnection } from '../utils/creativeSuggestions';
 import { parseDateInputValue, realDaysBetween, formatDate } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
+
+// Move: Build Your Own (see CLAUDE.md) — the real, AI-powered feature originally built as AI
+// Personalization Stage 3 (a general "creative connection" behind the Hub's own "Ask MyPath AI
+// anything" button) now lives here instead, scoped per Project Builder category and reframed
+// specifically toward project ideation. `BUILD_YOUR_OWN_PROJECT_TYPE_ID` is a synthetic sentinel
+// — it never matches a real `projectType.id` in any category's own curated `projectTypes` array
+// (confirmed: no curated id looks like this), so `findProjectType`'s own real lookup can never
+// accidentally collide with it. `HONESTY_NOTE` is the one standing, ALWAYS-VISIBLE disclaimer
+// (never conditional on what the model itself reports) — baked verbatim into a started project's
+// own first step description at creation time, matching the exact honesty framing Task 3/4
+// require: never presenting a specific unverified organization/contact as confirmed.
+const BUILD_YOUR_OWN_PROJECT_TYPE_ID = 'build-your-own';
+const HONESTY_NOTE = 'This is a direction to explore — specific organizations or contacts are for you to find and verify yourself.';
+
+// Category-scoped preset prompts (Task 1's own "scope the prompt/framing specifically to project
+// ideation now") — replaces the old, more general Hub-level presets ("Help me find a unique
+// angle," "What's distinctive about my profile so far?") with ones that name the actual category
+// the student is currently browsing.
+function buildPresetPrompts(category) {
+  return [
+    `Help me find a unique ${category.label.toLowerCase()} project idea`,
+    `What's a project idea that combines my interests with ${category.label}?`,
+    `Suggest a ${category.label.toLowerCase()} project based on my own profile`,
+  ];
+}
 
 const CATEGORY_ICONS = { Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette };
 // Palette repaint, Opportunity Finder/Project Builder batch (see CLAUDE.md) — Task 2's own
@@ -47,11 +74,20 @@ export default function ProjectBuilderScreen() {
   // Local, unpersisted browse state — refreshing mid-browse just lands back on the category
   // grid, which is an acceptable reset for a "browse and explore" screen (unlike survey answers
   // or selections elsewhere, nothing here is lost if you re-pick your path).
-  const [view, setView] = useState('categories'); // 'categories' | 'category' | 'projectType'
+  const [view, setView] = useState('categories'); // 'categories' | 'category' | 'projectType' | 'buildYourOwn'
   const [categoryId, setCategoryId] = useState(null);
   const [projectTypeId, setProjectTypeId] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [startDate, setStartDate] = useState('');
+  // Move: Build Your Own (see CLAUDE.md) — the AI's own proposal once generated (`{title,
+  // response, mentionsSpecificEntity}`), and the just-created project once the student confirms a
+  // start date for it. `startedBuildYourOwnProject` is tracked directly here (NOT derived by
+  // looking up `state.startedProjects` via `projectTypeId`) because every "Build Your Own" idea
+  // shares the SAME synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` across every category and every
+  // question asked — unlike a real curated projectType, that id can't uniquely identify "this
+  // one specific generated idea," so the just-created project object is kept directly instead.
+  const [buildYourOwnResult, setBuildYourOwnResult] = useState(null);
+  const [startedBuildYourOwnProject, setStartedBuildYourOwnProject] = useState(null);
 
   const roadmap = useMemo(() => generateRoadmap(state), [state]);
   const allNodes = useMemo(() => {
@@ -73,8 +109,16 @@ export default function ProjectBuilderScreen() {
 
   const openCategory = (id) => { setCategoryId(id); setProjectTypeId(null); setView('category'); };
   const openProjectType = (id) => { setProjectTypeId(id); setShowStartPicker(false); setStartDate(''); setView('projectType'); };
+  const openBuildYourOwn = () => {
+    setBuildYourOwnResult(null);
+    setStartedBuildYourOwnProject(null);
+    setShowStartPicker(false);
+    setStartDate('');
+    setView('buildYourOwn');
+  };
   const goBack = () => {
     if (view === 'projectType') { setShowStartPicker(false); setView('category'); return; }
+    if (view === 'buildYourOwn') { setShowStartPicker(false); setView('category'); return; }
     if (view === 'category') { setCategoryId(null); setView('categories'); return; }
     patch({ screen: 'hub' });
   };
@@ -83,9 +127,9 @@ export default function ProjectBuilderScreen() {
   const found = categoryId && projectTypeId ? findProjectType(categoryId, projectTypeId) : null;
   const projectType = found?.projectType || null;
 
-  const startedProject = projectType
-    ? (state.startedProjects || []).find((p) => p.projectTypeId === projectType.id)
-    : null;
+  const startedProject = view === 'buildYourOwn'
+    ? startedBuildYourOwnProject
+    : (projectType ? (state.startedProjects || []).find((p) => p.projectTypeId === projectType.id) : null);
 
   const findNearbyConflict = (dateStr) => {
     if (!dateStr) return null;
@@ -98,8 +142,43 @@ export default function ProjectBuilderScreen() {
   // dated to the chosen Start Date (Task 1/2 of the growing-chain spec) — not the whole guide
   // pre-populated. `guideStepsUsed: 1` reflects that this first slot is already spent; every
   // later step is revealed one at a time from Roadmap.jsx as the previous one is completed.
+  //
+  // Move: Build Your Own (see CLAUDE.md), Task 3 — a "Build Your Own" idea flows into this EXACT
+  // SAME mechanism, not a parallel one: the `view === 'buildYourOwn'` branch below still writes
+  // to the same `state.startedProjects` array, still one node at a time, still through
+  // `Roadmap.jsx`'s own unmodified reveal-next-step flow afterward. It differs only in three
+  // fields: `projectTypeId` is the synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` (no real curated
+  // `projectType` exists to reference), `guideStepsUsed: 0` (there's no curated guide list to
+  // count against — `Roadmap.jsx`'s own `openNextStepPrompt` already knows to skip straight to
+  // the open-ended choice whenever `aiSuggested` is true), and `aiSuggested: true` (the same
+  // sparkle-badge marker every other AI-originated node in this app already carries, propagated
+  // onto every step of this project by `buildProjectChain` with zero new rendering logic needed).
   const confirmStart = () => {
-    if (!startDate || !category || !projectType) return;
+    if (!startDate || !category) return;
+    if (view === 'buildYourOwn') {
+      if (!buildYourOwnResult) return;
+      const newProject = {
+        id: makeTaskId('project'),
+        categoryId: category.id,
+        projectTypeId: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
+        projectName: buildYourOwnResult.title,
+        status: 'active',
+        guideStepsUsed: 0,
+        aiSuggested: true,
+        steps: [{
+          id: makeTaskId('project-step'),
+          title: buildYourOwnResult.title,
+          date: startDate,
+          desc: `${buildYourOwnResult.response} ${HONESTY_NOTE}`,
+        }],
+      };
+      patch({ startedProjects: [...(state.startedProjects || []), newProject] });
+      setStartedBuildYourOwnProject(newProject);
+      setShowStartPicker(false);
+      setStartDate('');
+      return;
+    }
+    if (!projectType) return;
     const newProject = {
       id: makeTaskId('project'),
       categoryId: category.id,
@@ -152,6 +231,7 @@ export default function ProjectBuilderScreen() {
         <CategoryView
           category={category}
           onOpenProjectType={openProjectType}
+          onOpenBuildYourOwn={openBuildYourOwn}
           startedProjects={state.startedProjects || []}
         />
       )}
@@ -160,6 +240,25 @@ export default function ProjectBuilderScreen() {
         <ProjectTypeView
           category={category}
           projectType={projectType}
+          startedProject={startedProject}
+          completedNodes={state.completedNodes}
+          showStartPicker={showStartPicker}
+          startDate={startDate}
+          conflict={conflict}
+          onStartClick={() => setShowStartPicker(true)}
+          onCancelStart={() => { setShowStartPicker(false); setStartDate(''); }}
+          onChangeStartDate={setStartDate}
+          onConfirmStart={confirmStart}
+          onGoToPlan={() => patch({ screen: 'plan' })}
+        />
+      )}
+
+      {view === 'buildYourOwn' && category && (
+        <BuildYourOwnView
+          category={category}
+          state={state}
+          buildYourOwnResult={buildYourOwnResult}
+          onResult={setBuildYourOwnResult}
           startedProject={startedProject}
           completedNodes={state.completedNodes}
           showStartPicker={showStartPicker}
@@ -219,7 +318,7 @@ const AVATAR_COLORS = [
   'var(--bloom-orange)', 'var(--bloom-purple)', 'var(--bloom-yellow)',
 ];
 
-function CategoryView({ category, onOpenProjectType, startedProjects }) {
+function CategoryView({ category, onOpenProjectType, onOpenBuildYourOwn, startedProjects }) {
   const Icon = CATEGORY_ICONS[category.icon];
   const color = getCategoryColor(category.id);
   return (
@@ -267,6 +366,20 @@ function CategoryView({ category, onOpenProjectType, startedProjects }) {
 
       <div className="field-label" style={{ marginTop: 28 }}>Pick a project type</div>
       <div className="pb-projecttype-grid">
+        {/* Move: Build Your Own (see CLAUDE.md), Task 1 — the real, AI-powered ideation feature,
+            placed first so it reads as a distinct, inviting capability rather than one more
+            static option — styled like every other card here but with its own sparkle accent to
+            signal it's genuinely different from the curated project types below it. */}
+        <button
+          type="button"
+          className="pb-projecttype-card pb-build-your-own-card"
+          onClick={onOpenBuildYourOwn}
+        >
+          <div className="pb-projecttype-name"><Sparkles size={14} color="var(--bloom-ai)" /> Build Your Own</div>
+          <p className="pb-projecttype-teaser">
+            Get a genuinely creative project idea based on YOUR real profile — not a generic one.
+          </p>
+        </button>
         {category.projectTypes.map((pt) => {
           const started = startedProjects.some((p) => p.projectTypeId === pt.id);
           return (
@@ -408,6 +521,137 @@ function ProjectTypeView({
             <button type="button" className="btn btn-primary" onClick={onGoToPlan}>Go to my Academic Plan</button>
           </div>
         </div>
+      )}
+    </>
+  );
+}
+
+// Move: Build Your Own (see CLAUDE.md) — the real, AI-powered ideation feature moved here from
+// the Hub's own "Ask MyPath AI anything" (AI Personalization, Stage 3, removed). Two phases in
+// one component: BEFORE a result exists, a prompt interface (category-scoped presets + free
+// text, Task 1); AFTER one exists, this reuses `ProjectTypeView` WHOLESALE via a synthetic
+// `projectType`-shaped object built from the AI's own `{title, response}` — Task 3's own explicit
+// "same existing mechanism... unchanged" requirement, satisfied literally rather than by
+// reimplementing a parallel date-picker/conflict-check/start-button flow. `steps: [result.title]`
+// is deliberately a single-item array (not a fabricated multi-step guide) — there IS no real
+// curated guide for a freeform AI idea, and inventing one would misrepresent it as more
+// pre-planned than it honestly is.
+function BuildYourOwnView({
+  category, state, buildYourOwnResult, onResult, startedProject, completedNodes,
+  showStartPicker, startDate, conflict, onStartClick, onCancelStart, onChangeStartDate,
+  onConfirmStart, onGoToPlan,
+}) {
+  const [step, setStep] = useState('prompt'); // 'prompt' | 'loading' | 'error'
+  const [promptText, setPromptText] = useState('');
+
+  // Task 2 — the full Stage 1 profile (not the bounded Stage-2-only variant), same reasoning as
+  // the feature's original Hub-level version: this is student-initiated and infrequent, so
+  // Stage 2's own cost-bounding concern for auto-triggered suggestions doesn't apply here.
+  // The category context is embedded directly into the plain `prompt` string sent to the
+  // server (rather than a new dedicated request field) — api/creative-suggest.js's own
+  // SYSTEM_PROMPT already knows to look for and honor a named category if the prompt states one.
+  const submitPrompt = (promptValue) => {
+    const trimmed = promptValue.trim();
+    if (!trimmed) return;
+    setStep('loading');
+    const profileSummary = compileStudentProfile(state);
+    const contextualPrompt = `The student wants a project idea specifically for the "${category.label}" project category (${category.description}). ${trimmed}`;
+    requestCreativeConnection(
+      { prompt: contextualPrompt, profileSummary },
+      {
+        onResult: (proposal) => {
+          if (!proposal || typeof proposal.title !== 'string' || !proposal.title.trim() || typeof proposal.response !== 'string' || !proposal.response.trim()) {
+            setStep('error');
+            return;
+          }
+          onResult(proposal);
+        },
+        onError: () => setStep('error'),
+      },
+    );
+  };
+
+  if (buildYourOwnResult) {
+    const aiProjectType = {
+      id: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
+      name: buildYourOwnResult.title,
+      overview: buildYourOwnResult.response,
+      timeCommitment: 'Up to you — this idea is yours to shape.',
+      steps: [buildYourOwnResult.title],
+      resources: [],
+    };
+    return (
+      <>
+        <p className="caveat-banner creative-honesty-note" style={{ marginBottom: 20 }}>{HONESTY_NOTE}</p>
+        <ProjectTypeView
+          category={category}
+          projectType={aiProjectType}
+          startedProject={startedProject}
+          completedNodes={completedNodes}
+          showStartPicker={showStartPicker}
+          startDate={startDate}
+          conflict={conflict}
+          onStartClick={onStartClick}
+          onCancelStart={onCancelStart}
+          onChangeStartDate={onChangeStartDate}
+          onConfirmStart={onConfirmStart}
+          onGoToPlan={onGoToPlan}
+        />
+      </>
+    );
+  }
+
+  const color = getCategoryColor(category.id);
+  return (
+    <>
+      <div className="pb-category-chip" style={{ '--pb-accent': color }}>
+        <Sparkles size={14} /> {category.label}
+      </div>
+      <h1 className="page-title">Build Your Own</h1>
+      <p className="page-sub">
+        Get a genuinely creative {category.label.toLowerCase()} project idea based on your own
+        real profile — not a generic suggestion.
+      </p>
+
+      {step === 'prompt' && (
+        <>
+          <div className="creative-preset-list">
+            {buildPresetPrompts(category).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className="creative-preset-btn"
+                onClick={() => { setPromptText(preset); submitPrompt(preset); }}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+          <form onSubmit={(e) => { e.preventDefault(); submitPrompt(promptText); }}>
+            <label className="task-form-field">
+              <span className="label">Or ask your own question</span>
+              <textarea
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                placeholder={`e.g. What's a ${category.label.toLowerCase()} project idea for me?`}
+              />
+            </label>
+            <div className="task-form-actions" style={{ justifyContent: 'flex-start' }}>
+              <button type="submit" className="btn btn-primary" disabled={!promptText.trim()}>Ask</button>
+            </div>
+          </form>
+        </>
+      )}
+
+      {step === 'loading' && (
+        <p className="modal-desc">Thinking of a genuinely creative idea based on your real profile&hellip;</p>
+      )}
+
+      {step === 'error' && (
+        <>
+          <p className="modal-desc">Couldn&rsquo;t get an idea just now — try again in a moment.</p>
+          <button type="button" className="btn btn-primary" onClick={() => setStep('prompt')}>Try again</button>
+        </>
       )}
     </>
   );

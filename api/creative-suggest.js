@@ -1,16 +1,26 @@
 // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — a SEPARATE Vercel
 // serverless function from api/suggest.js, not a mode flag on it (each Vercel function stays
 // standalone, matching that file's own established "never import from a sibling under api/"
-// precedent). This is genuinely a different kind of request: student-initiated (via the Hub's own
-// "Ask MyPath AI anything" button, not auto-triggered on task completion) and DELIBERATELY
+// precedent). This is genuinely a different kind of request: student-initiated and DELIBERATELY
 // creative/exploratory rather than "grounded and conservative" — the exact ambitious, non-obvious
 // connection-making api/suggest.js's own SYSTEM_PROMPT explicitly deferred to "a later, separate
 // feature." This is that feature.
 //
+// Move: Build Your Own (see CLAUDE.md) — this endpoint originally sat behind the Hub's own
+// general "Ask MyPath AI anything" button; that entry point has been removed entirely (a
+// different, separate rebuild is planned for it) and this feature now lives ONLY inside Project
+// Builder, as "Build Your Own" within each category. The endpoint itself, its URL, and its
+// request/response contract (`{prompt, profileSummary}` in, `{title, response,
+// mentionsSpecificEntity}` out) are UNCHANGED — only `SYSTEM_PROMPT`/the tool's own
+// name/description were re-scoped from a general "creative connection" to a genuine, actionable
+// PROJECT IDEA, since every caller now wants exactly that. The client (ProjectBuilderScreen.jsx)
+// embeds which category the student is browsing directly into the `prompt` string it sends,
+// rather than this endpoint needing a new dedicated field for it.
+//
 // Reuses the identical security/cost/provider patterns Stage 2 already established (Task 5): same
 // CORS allowlist shape, same dual-provider (Anthropic/OpenAI) dispatch via the SAME
 // AI_SUGGESTION_PROVIDER env var — whichever provider is currently active for Stage 2's
-// auto-triggered suggestions is also what answers a student's creative question, with zero
+// auto-triggered suggestions is also what answers a student's project-idea request, with zero
 // separate configuration. Same forced-tool-call reliability approach as Stage 2. Since this is
 // student-initiated (not fired automatically on every task completion), no special rate-limiting
 // is needed beyond ordinary usage, per the build spec's own Task 5.
@@ -43,11 +53,11 @@ const CONNECTION_SCHEMA = {
   properties: {
     title: {
       type: 'string',
-      description: 'A short, punchy name for this idea/connection (not a full sentence) — used as the project name if the student decides to act on it.',
+      description: 'A short, punchy name for this project idea (not a full sentence) — used directly as the project name if the student decides to start it.',
     },
     response: {
       type: 'string',
-      description: 'The genuine, non-obvious connection itself, written directly to the student in 2-4 sentences: name the specific, real parts of THEIR OWN profile it draws from, then suggest a concrete direction or TYPE of action — never a specific named organization, contact, or program presented as if you have confirmed it exists or is reachable.',
+      description: 'The genuine, non-obvious PROJECT IDEA itself, written directly to the student in 2-4 sentences: name the specific, real parts of THEIR OWN profile it draws from, then describe what the project actually is and a concrete direction or TYPE of action to get started — never a specific named organization, contact, or program presented as if you have confirmed it exists or is reachable.',
     },
     mentionsSpecificEntity: {
       type: 'boolean',
@@ -57,17 +67,18 @@ const CONNECTION_SCHEMA = {
   required: ['title', 'response', 'mentionsSpecificEntity'],
   additionalProperties: false,
 };
-const TOOL_NAME = 'propose_creative_connection';
-const TOOL_DESCRIPTION = "Propose one genuine, non-obvious creative connection across the student's own real profile, honestly bounded.";
+const TOOL_NAME = 'propose_project_idea';
+const TOOL_DESCRIPTION = "Propose one genuine, non-obvious PROJECT IDEA based on the student's own real profile, honestly bounded.";
 
-const SYSTEM_PROMPT = `You are a thoughtful, imaginative academic and career mentor embedded in a student's personalized roadmap app. The student has asked you a question (or picked a starting prompt) and wants a genuinely creative, non-obvious connection based on their OWN real profile — not generic advice that could apply to anyone.
+const SYSTEM_PROMPT = `You are a thoughtful, imaginative project mentor embedded in a student's personalized roadmap app, helping them find a genuinely creative, non-obvious PROJECT IDEA based on their OWN real profile — not a generic idea that could apply to anyone.
 
 Rules you must follow:
-- Actually use the student's real profile: reference specific real interests, careers/majors, activities, projects, and (especially) any outcome notes they wrote about completed tasks. A connection that could apply to any random student is a failure — it must be clearly rooted in THIS student's own specific combination of things.
-- Aim for a genuinely "less obvious angle" — the kind of connection a thoughtful mentor points out that the student might not have considered themselves. For example: "you're into soccer and exploring business — here's a less obvious angle: youth sports leagues need help with the business side, and few students combine soccer knowledge with real operations experience."
-- CRITICAL HONESTY RULE: you may suggest a direction or TYPE of action (e.g. "reach out to a local youth soccer league about their business/operations side") but you must NEVER claim to have found or verified that a SPECIFIC real organization, contact, or program exists or is reachable. Point toward what the student should go find and verify themselves — never invent or imply a specific confirmed name.
+- Actually use the student's real profile: reference specific real interests, careers/majors, activities, projects, and (especially) any outcome notes they wrote about completed tasks. A project idea that could apply to any random student is a failure — it must be clearly rooted in THIS student's own specific combination of things.
+- Aim for a genuinely "less obvious angle" for the project — the kind of connection a thoughtful mentor points out that the student might not have considered themselves. For example: "you're into soccer and exploring business — here's a less obvious project idea: build a mini business case study or budget guide for a youth soccer league, combining your soccer knowledge with real business/operations thinking."
+- The prompt may tell you which project CATEGORY the student is currently browsing (e.g. STEM, Entrepreneurship, Nonprofit/Community Impact) — if so, make sure your idea genuinely fits that category, while still connecting to their own specific profile. If no category is given, propose whatever genuinely fits their profile best.
+- CRITICAL HONESTY RULE: you may suggest a direction or TYPE of action/resource (e.g. "look into how local youth sports leagues handle their budgets and sponsorships") but you must NEVER claim to have found or verified that a SPECIFIC real organization, contact, or program exists or is reachable. Point toward what the student should go find and verify themselves — never invent or imply a specific confirmed name.
 - Set mentionsSpecificEntity to true if your own response names or implies anything specific enough that the student might mistake it for something you've actually verified — otherwise false. If in doubt, set it true.
-- Call the propose_creative_connection tool exactly once with your proposal, and nothing else.`;
+- Call the propose_project_idea tool exactly once with your proposal, and nothing else.`;
 
 // Structural validation only, shared by both providers — the one place the two implementations
 // converge back onto a single code path, matching api/suggest.js's own precedent.

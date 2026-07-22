@@ -1908,11 +1908,20 @@ button.card.passed:hover {
   flex-shrink: 0;
 }
 .hub-ask-ai-wrap { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.hub-ask-ai-note {
+  margin: 0;
+  padding: 0 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--hub-accent);
+  text-align: center;
+}
 
-/* AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — CreativeConnectionModal's
-   own preset-prompt buttons and honesty note. Everything else in that modal reuses the shared
-   .overlay/.modal/.modal-eyebrow/.modal-title/.modal-desc/.task-form-field/.task-form-actions/
-   .btn-* classes wholesale. */
+/* Move: Build Your Own (see CLAUDE.md) — preset-prompt buttons and the standing honesty note,
+   originally built for the Hub's own CreativeConnectionModal (AI Personalization, Stage 3, since
+   removed) and now reused by ProjectBuilderScreen.jsx's "Build Your Own" view. Everything else
+   there reuses the shared .overlay/.modal/.modal-eyebrow/.modal-title/.modal-desc/
+   .task-form-field/.task-form-actions/.btn-* classes wholesale. */
 .creative-preset-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .creative-preset-btn {
   text-align: left;
@@ -3437,6 +3446,13 @@ button.card.passed:hover {
 .app-shell.app-shell-bloom .pb-projecttype-card:hover {
   border-color: var(--bloom-accent);
   box-shadow: var(--bloom-shadow-hover);
+}
+/* Move: Build Your Own (see CLAUDE.md) — a distinct left-edge accent so this one card reads as a
+   genuinely different capability from the curated project-type cards next to it, matching this
+   app's own established "left border = AI/verified marker" language elsewhere (opportunity
+   cards' own verified-badge border, School-Specific Requirements). */
+.app-shell.app-shell-bloom .pb-build-your-own-card {
+  border-left: 3px solid var(--bloom-ai);
 }
 .app-shell.app-shell-bloom .pb-started-tag { color: var(--bloom-accent); }
 

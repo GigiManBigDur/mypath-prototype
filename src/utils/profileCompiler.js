@@ -8,7 +8,7 @@ import { getCareerPool } from '../data/careers';
 import { MAJORS } from '../data/majors';
 import { getMergedPrograms, reachMatchSafetyTag } from '../data/programs';
 import { findOpportunity } from '../data/opportunities';
-import { findProjectType } from '../data/projects';
+import { findProjectType, findCategory } from '../data/projects';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getCourseById } from '../data/courses';
 import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
@@ -107,19 +107,20 @@ function toISODate(date) {
 
 function resolveProjects(state) {
   return (state.startedProjects || []).map((project) => {
-    // AI Personalization, Stage 3: The Creative-Leap Layer (see CLAUDE.md) — a project born from
-    // an accepted creative connection has no real curated PROJECT_CATEGORIES entry
-    // (`categoryId`/`projectTypeId: 'ai-creative'` are synthetic), so `findProjectType` would
-    // correctly return `null` and this would otherwise fall back to showing the raw synthetic id
-    // string here. Reporting an honest, readable label instead — this profile is what a LATER
-    // Stage 2/3 request reads back, so a raw `'ai-creative'` string would be confusing there too.
+    // Move: Build Your Own (see CLAUDE.md) — a "Build Your Own" project carries a REAL
+    // `categoryId` (unlike the fully-synthetic 'ai-creative' sentinel this used before the
+    // feature moved into Project Builder) but a synthetic `projectTypeId`
+    // (BUILD_YOUR_OWN_PROJECT_TYPE_ID in ProjectBuilderScreen.jsx), so `findProjectType` still
+    // correctly returns `null` for it. Reporting the REAL category label alongside an honest
+    // "Build Your Own" framing instead of the raw synthetic id string — this profile is what a
+    // LATER AI request reads back, so accurate category context still matters here.
     const resolved = project.aiSuggested ? null : findProjectType(project.categoryId, project.projectTypeId);
     const totalSteps = project.steps.length;
     const completedSteps = project.steps.filter((s) => state.completedNodes[s.id]).length;
     return {
       id: project.id,
-      category: project.aiSuggested ? 'AI-suggested creative idea' : (resolved?.category?.label || project.categoryId),
-      projectType: project.aiSuggested ? 'Creative connection' : (resolved?.projectType?.name || project.projectTypeId),
+      category: project.aiSuggested ? `${findCategory(project.categoryId)?.label || project.categoryId} (Build Your Own)` : (resolved?.category?.label || project.categoryId),
+      projectType: project.aiSuggested ? 'AI-generated idea' : (resolved?.projectType?.name || project.projectTypeId),
       projectName: project.projectName,
       status: project.status,
       totalSteps,

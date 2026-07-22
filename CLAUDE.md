@@ -4079,11 +4079,92 @@ stay "grounded and conservative... not an ambitious creative leap."**
   unrecognized provider, or a missing API key. The full pre-existing AI-suggestion regression suite
   (the 30+6+15+13+3 checks from Stage 2 and the two prior chain-suggestion fixes) all still pass
   unchanged; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
-- **What still needs to happen before this is live**: per this file's own standing "deploys are
-  opt-in only" rule, `api/creative-suggest.js` needs an actual `vercel deploy --prod` before the
-  live Hub button calls real, working code — until then, the client's own graceful error state
-  ("Something went wrong... try again") is exactly what a student would see, the same honest
-  degradation Stage 2's own not-yet-deployed window already demonstrated.
+- Deployed live shortly after this was built (`api/creative-suggest.js` on Vercel, confirmed via a
+  real curl call producing a genuine, specific, honestly-bounded profile connection) — this was
+  also the occasion that prompted the "Vercel deploys are now standing/automatic" policy change
+  documented in the Git & deployment section above.
+
+**Move: Build Your Own — relocates the feature immediately above out of the Hub entirely, into
+Project Builder, as a real "Build Your Own" option inside each category (replacing what was, until
+this move, still just a documented "entirely out of scope" placeholder — see below).**
+- **Task 1 — move and rename, scoped to project ideation.** `CreativeConnectionModal.jsx` (the
+  Hub-level modal) is deleted outright — its logic isn't reused via import, it's reimplemented
+  directly inside `ProjectBuilderScreen.jsx` as a 4th sub-view (`'buildYourOwn'`, alongside the
+  existing `'categories' | 'category' | 'projectType'`), entered from a new "Build Your Own" card
+  placed FIRST in `CategoryView`'s own `.pb-projecttype-grid` — deliberately before the curated
+  project-type cards, with its own `--bloom-ai`-colored left-edge accent (`.pb-build-your-own-card`)
+  so it reads as a genuinely different capability, not one more static option. Confirmed via direct
+  research before starting this move: no "Create Your Own" UI/data ever actually existed anywhere
+  in this screen before now — only a header comment in `data/projects.js` documenting it as
+  out-of-scope, which this move finally addresses for real. `api/creative-suggest.js` itself
+  (same URL, same `{prompt, profileSummary}` → `{title, response, mentionsSpecificEntity}`
+  contract) needed no request-shape changes — only its `SYSTEM_PROMPT`/tool naming were re-scoped
+  from a general "creative connection" to a genuine, actionable PROJECT IDEA (`TOOL_NAME` renamed
+  `propose_project_idea`), since every remaining caller now wants exactly that. Category context
+  (Task 1's own "scope the prompt... to project ideation") is embedded directly into the plain
+  `prompt` STRING the client sends (`"The student wants a project idea specifically for the
+  '${category.label}' project category (${category.description}). ${question}"`) rather than a new
+  dedicated request field — the system prompt already knows to look for and honor a named category
+  if one is stated. `buildPresetPrompts(category)` replaces the old, more general Hub-level presets
+  with category-scoped ones (e.g. `"Help me find a unique ${category.label.toLowerCase()} project
+  idea"`).
+- **Task 2 — removed from the Hub entirely.** `HubScreen.jsx`'s "Ask MyPath AI anything" reverted
+  to its ORIGINAL pre-Stage-3 behavior byte-for-byte (a plain `askAiSubmitted` flag showing "Coming
+  soon!") rather than being redesigned into something new — the build spec's own "that button is
+  being rebuilt as something different (a separate task)" explicitly deferred that redesign, so
+  reverting to the last known-good placeholder (rather than guessing at the eventual replacement)
+  is the correct interim state. `.hub-ask-ai-note`'s CSS (removed when Stage 3 first shipped) was
+  restored; `.creative-preset-list`/`.creative-preset-btn`/`.creative-honesty-note` (still very
+  much in active use, just by Project Builder now) were kept and their own comments updated to
+  reflect the new caller.
+- **Task 3 — the exact existing "Start This Project!" mechanism, reused literally, not
+  reimplemented in parallel.** Once a "Build Your Own" idea is generated, `BuildYourOwnView`
+  builds a synthetic `projectType`-shaped object from the AI's own `{title, response}`
+  (`{id: BUILD_YOUR_OWN_PROJECT_TYPE_ID, name: title, overview: response, steps: [title],
+  resources: []}`) and renders the EXISTING `ProjectTypeView` component with it — the same real
+  date picker, the same non-blocking `CONFLICT_WINDOW_DAYS` conflict check, the same "Confirm
+  Start" button, the same started-banner/timeline once active. `steps: [result.title]` is
+  deliberately a single-item array, never a fabricated multi-step guide — there genuinely is no
+  curated guide behind a freeform AI idea, and inventing extra steps would misrepresent it as more
+  pre-planned than it honestly is. `ProjectBuilderScreen.jsx`'s own `confirmStart` gained one new
+  branch (`if (view === 'buildYourOwn')`) that writes the SAME `state.startedProjects` shape every
+  other project already uses, differing only in `projectTypeId: BUILD_YOUR_OWN_PROJECT_TYPE_ID`
+  (a synthetic sentinel, confirmed to never collide with any real curated `projectType.id`),
+  `guideStepsUsed: 0` (no curated guide to count against), and `aiSuggested: true` — the exact same
+  flag `Roadmap.jsx`'s own `openNextStepPrompt` (built for the Hub-level version, UNCHANGED by
+  this move) already knows to skip straight to the open-ended "mark complete / add another step"
+  choice for, and the same flag `buildProjectChain` already propagates onto every step to show the
+  AI-suggested sparkle badge — zero rendering-logic changes needed for either. **A real, deliberate
+  design decision**: since every "Build Your Own" idea across every category shares the SAME
+  synthetic `projectTypeId`, it can't uniquely identify "this one specific generated idea" the way
+  a real curated id can — so `startedBuildYourOwnProject` (the just-created project, once
+  confirmed) is tracked directly in local state rather than derived by looking it up in
+  `state.startedProjects` via that shared id, sidestepping the ambiguity entirely rather than
+  trying to force a lookup-based design onto data that's fundamentally one-off per generation.
+- `profileCompiler.js`'s `resolveProjects` was updated to match: since a "Build Your Own" project
+  now carries a REAL `categoryId` (unlike the old fully-synthetic `'ai-creative'` this used before
+  the move), it reports the genuine category label alongside an honest "(Build Your Own)" suffix
+  (via a newly-imported `findCategory`) instead of the old generic "AI-suggested creative idea"
+  string — more accurate context for any LATER AI request that reads this same profile back.
+- Verified with a dedicated 19-check Playwright suite covering the build spec's own explicit test
+  criteria: "Build Your Own" appears first in a category's own project-type grid with its own
+  distinct styling; opening it shows exactly 3 category-scoped presets plus a free-text option;
+  a preset click produces a real, mocked profile-specific idea (not generic); the honesty note
+  always renders; the EXACT SAME "Start This Project!" button/date-picker/conflict-check flow
+  works and produces a `startedProjects` entry with the real category id, `guideStepsUsed: 0`, and
+  `aiSuggested: true`; the same started-banner/timeline UI renders; the Hub's own AI button no
+  longer opens any AI UI at all and shows its old plain "Coming soon!" placeholder instead; and
+  completing the resulting project's one step on the real Academic Plan correctly opens the
+  open-ended choice prompt (confirming `Roadmap.jsx`'s pre-existing `aiSuggested` handling still
+  works unmodified). A dedicated 12-check Node-level test confirms `api/creative-suggest.js`'s own
+  server-side logic still works correctly under its renamed tool (`propose_project_idea`) — same
+  guardrail behavior, same error handling, same request shape. The full pre-existing AI-suggestion
+  regression suite (98 checks across every prior Stage 2/3 fix) all still pass; the ONE test
+  that now correctly fails is the old Hub-level `CreativeConnectionModal` suite, retired outright
+  (not patched) since it tested a mechanism that no longer exists by design — the same "delete an
+  obsolete test rather than patch it" precedent this codebase's suite has already established for
+  superseded mechanisms elsewhere (e.g. `test-chain-start-bug.js`/`test-chain-lifecycle.js`).
+  `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
 
 ## Design tokens
 
