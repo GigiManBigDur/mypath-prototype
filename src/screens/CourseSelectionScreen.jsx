@@ -967,7 +967,16 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
       if (isLabCourse(course)) courseAttrs.push('lab');
       if (!attrFilter.some((a) => courseAttrs.includes(a))) return false;
     }
-    if (search.trim() && !course.name.toLowerCase().includes(search.trim().toLowerCase())) return false;
+    // Bug fix: the search box only ever matched a course's own NAME, never its subject code
+    // (e.g. "PSC 001") — so searching a real subject code like "PSC" (which students naturally
+    // search by, same as searching "MATH" would on Roslyn's own catalog if it had codes) found
+    // nothing, even though real matching courses exist. Roslyn's own COURSES entries have no
+    // separate `code` field at all (just a Title Case `name`), so that catalog's own search
+    // (matchesFilters above, line ~318) is correctly name-only and untouched by this fix — this
+    // is UC Davis-specific, since only these course objects carry a real `code` (courseTrackMap.js/
+    // ucdavisCourses.js's own `c()` helper).
+    if (search.trim() && !course.name.toLowerCase().includes(search.trim().toLowerCase())
+      && !course.code.toLowerCase().includes(search.trim().toLowerCase())) return false;
     return true;
   };
 

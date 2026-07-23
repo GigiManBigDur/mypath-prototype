@@ -5063,6 +5063,27 @@ school) path into the Stage 1 compiled profile.**
   `test-hub-search-coming-soon.js`) all still pass with zero regressions; `npm run build`/`npm run
   lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**Bug fix: UC Davis Course Selection's "Browse all courses" search box only matched a course's own
+NAME, never its subject code — so searching a real subject code like "PSC" found nothing, even
+though real courses named e.g. "PSC 001" exist.** Root cause, confirmed directly:
+`UCDavisCourseSelectionScreen`'s own `matchesFilters` (`CourseSelectionScreen.jsx`) only checked
+`course.name.toLowerCase().includes(search)` — UC Davis course objects (`ucdavisCourses.js`'s own
+`c()` helper) carry a real, separate `code` field (e.g. `'PSC 001'`) that this filter never
+consulted at all, unlike `searchUCDavisCourses()` (the transcript-entry search used by
+`TranscriptScreen.jsx`/`TransferHighSchoolTranscript.jsx`), which already correctly checks
+`name`/`code`/`department` together. **Roslyn's own equivalent filter (same file, the plain
+`CourseSelectionScreen`'s `matchesFilters`) is correctly untouched** — Roslyn's `COURSES` entries
+have no separate `code` field at all (just a Title Case `name`), so name-only search was never
+wrong there; this bug was UC-Davis-specific, tied to that catalog's own real subject-code naming.
+Fixed by widening the UC Davis branch's search check to also match `course.code`.
+- Verified with a dedicated 7-check Playwright suite: searching a real subject code ("PSC," also
+  tried lowercase and with a course number, "psc 001") now returns real matching courses (e.g.
+  "General Psychology"); a second real subject code ("ECN") also works; searching by course NAME
+  still works exactly as before; a genuinely nonexistent search term still correctly returns zero
+  results; and Roslyn's own name-based catalog search is confirmed completely unaffected. `npm run
+  build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this is a pure one-line
+  filter-logic fix, touching neither `roadmapLayout.js` nor any data file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
