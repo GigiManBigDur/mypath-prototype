@@ -4864,6 +4864,72 @@ conversation, reached from the Academic Plan, alongside the roadmap rather than 
   refactor didn't change its own behavior at all; `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) all stay clean.
 
+**"Current Major" field for College Students — a small, Survey-level addition, deliberately
+separate from Discovery's own career/major/program selection flow.** Task 1: an optional field
+asking an Undergraduate/Transfer student's real, CURRENTLY-declared major at their current partner
+school — Discovery's own `selectedCareerIds`/`selectedMajorIds`/`selectedProgramKeys` represent
+FUTURE goals (grad school, or a transfer destination), never what the student is already studying
+right now; this field exists precisely to capture that different concept without the two ever
+being conflated. Task 2: fold it into the Stage 1 compiled profile so the existing AI features
+(Stage 2 suggestions, the general chat, Build Your Own) can read it — richer, more specific context
+like this (the build spec's own example: "first cohort of a newly-launched program") is exactly
+what lets those features generate a genuinely personal suggestion instead of a generic one.
+- **`state.currentMajor`** (`AppContext.jsx` `DEFAULT_STATE`, `''` default) follows the exact same
+  optional-field shape `state.passionText` already established: a plain string, blank means "not
+  entered," no separate "has this been asked yet" flag needed.
+- **`SurveyScreen.jsx`** renders the field right after the existing "What school do you currently
+  attend?" block, gated on `isCollege && !!state.currentSchool` — `isCollege` is the same
+  `educationLevel === 'undergraduate' || 'transfer'` check this screen's own `hasSchoolField` logic
+  already computes; requiring a real `currentSchool` first (not just `isCollege` alone) is
+  deliberate, since "what's your CURRENT major" has no honest meaning for a student with no current
+  college on file yet — a college student who leaves the (also optional) school field blank never
+  sees this field at all. Free-text (`<input type="text">`), not a dropdown of this app's own
+  curated `MAJORS` dataset (`majors.js`) — that dataset is scoped to Discovery's FUTURE-major
+  selection use case and its ~47 entries don't necessarily cover every real current major a college
+  student might already be declared in, so forcing a pick from that list here would risk silently
+  misrepresenting a real student's actual major; free-text avoids that guess entirely. Uses the
+  same established optional-field UI convention as `passionText`/Sign-Up's country/avatar/voice
+  fields: a `.field-label` + `.optional-badge` pill, a `.field-hint` (naming the selected school
+  directly, e.g. "This is what you're already studying now at UC Davis..."), and an uncontrolled
+  input (`defaultValue` + `onBlur`, not `value`+`onChange`) so it doesn't re-patch state (and
+  re-persist to `localStorage`) on every keystroke. The education-level pill's own `onClick`
+  handler — which already resets `schoolYear`/`currentSchool` back to blank whenever the level
+  changes — now also resets `currentMajor: ''` alongside them, so a stale major entered under one
+  education level (or one school) can never silently carry over to a different one.
+- **`profileCompiler.js`'s `compileStudentProfile`** adds `currentMajor: state.currentMajor ||
+  null` to `basicProfile`, right alongside `currentSchool` — `null` (not `''`) when blank, matching
+  this profile's own established "don't guess/fabricate, just omit" convention every other optional
+  field there already follows. **`compileSuggestionProfile` needed zero additional wiring** — it
+  already spreads `...full` (the complete `compileStudentProfile` result) and only replaces
+  `planHistory` with its own bounded summary, so `basicProfile.currentMajor` flows through to Stage
+  2 suggestions/the general chat/Build Your Own automatically, the exact same "add it once at the
+  source, every downstream consumer inherits it for free" precedent `passionText` already
+  established when IT was added.
+- **Confirmed, not just assumed, that this never touches Discovery's own selection logic**: a
+  direct grep across `src/` for `currentMajor` outside `SurveyScreen.jsx`/`AppContext.jsx`/
+  `profileCompiler.js` turns up nothing — `careers.js`/`majors.js`/`programs.js` and Discovery's own
+  `selectedCareerIds`/`selectedMajorIds`/`selectedProgramKeys` state fields are completely
+  unaffected, exactly matching the build spec's own explicit "separate from and doesn't interfere
+  with" requirement.
+- Verified with a dedicated 17-check Playwright suite: the field is absent with no education level
+  picked, absent for Undergraduate with no school selected yet, and absent for High School students
+  even once a real school (Roslyn) is selected — this is a college-only field; once UC Davis is
+  selected as the current school it appears with a visible "Optional" badge, a real text input, and
+  a hint naming the selected school; Continue stays enabled with the field left blank (genuinely
+  optional); a real entered value round-trips correctly into `state.currentMajor` while
+  `state.currentSchool`/`state.selectedMajorIds` (Discovery) stay completely unaffected; switching
+  education level resets it back to blank alongside `currentSchool`; and the compiled profile
+  (`compileStudentProfile`) carries the real entered value under `basicProfile.currentMajor`,
+  compiles to `null` (not `''`) when blank, and `compileSuggestionProfile` — the variant Stage
+  2/chat/Build Your Own actually read — carries it through too. The full pre-existing regression
+  suite (`test-hub-chat-transition.js`, `test-hub-profile-tile-layout.js`,
+  `test-map-chat-widget.js`, `test-passion-buildyourown.js`, `test-prior-experience-profile.js`,
+  `test-program-copy-by-level.js`, `test-ai-chat.js`, `test-ai-profile-edge.js`,
+  `test-ai-profile-stage1.js`, `test-chat-visuals-mascot-scale.js`,
+  `test-conditional-disclaimer.js`, `test-hub-search-coming-soon.js`) all still pass with zero
+  regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this
+  feature never touches `Roadmap.jsx`/`roadmapLayout.js` at all.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

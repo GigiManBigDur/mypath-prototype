@@ -257,6 +257,13 @@ export function compileStudentProfile(state) {
       educationLevel: state.educationLevel || null,
       schoolYear: state.schoolYear ?? null,
       currentSchool: state.currentSchool || null,
+      // "Current Major" field for College Students (see CLAUDE.md) — an Undergraduate/Transfer
+      // student's real, CURRENT declared major at currentSchool above, deliberately distinct from
+      // `goals.majors` below (Discovery's own selections, which represent FUTURE goals). Richer,
+      // more specific context like this (e.g. "first cohort of a newly-launched program") is
+      // exactly what enables a genuinely creative, personal AI suggestion rather than a generic
+      // one. `null` when blank, matching this profile's own "don't guess/fabricate" convention.
+      currentMajor: state.currentMajor || null,
     },
     academic: resolveAcademic(state),
     goals: {

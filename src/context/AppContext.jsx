@@ -57,6 +57,13 @@ const DEFAULT_STATE = {
   schoolYear: null, // 9-12 for highschool, 1-4 for undergraduate, 1-3 for transfer
   currentSchool: '', // survey's school search/select field — only 'Roslyn High School' is real
   // for now (src/data/schools.js); '' means unselected.
+  // "Current Major" field for College Students (see CLAUDE.md) — an Undergraduate/Transfer
+  // student's real, currently-declared major at their current partner school (currentSchool
+  // above), NOT a Discovery selection (selectedCareerIds/selectedMajorIds/selectedProgramKeys
+  // below, which represent FUTURE goals). Free-text, optional, '' means not entered — same
+  // "blank means unset" convention passionText already uses. Included verbatim in
+  // compileStudentProfile's basicProfile so Stage 2 suggestions/chat/Build Your Own can read it.
+  currentMajor: '',
   gpa: '', // Stage 1 self-reported this directly; Stage 2 (Transcript & GPA) now calculates it
   // instead — TranscriptScreen writes the converted 4.0-scale equivalent here as a string (e.g.
   // '3.7'), the exact same format/field the old input produced, so ProgramsStep/roadmapGenerator

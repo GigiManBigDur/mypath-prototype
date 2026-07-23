@@ -269,7 +269,7 @@ export default function SurveyScreen() {
               type="button"
               key={lvl.id}
               className={`pill${state.educationLevel === lvl.id ? ' selected' : ''}`}
-              onClick={() => patch({ educationLevel: lvl.id, schoolYear: null, currentSchool: '' })}
+              onClick={() => patch({ educationLevel: lvl.id, schoolYear: null, currentSchool: '', currentMajor: '' })}
             >
               {lvl.label}
             </button>
@@ -322,6 +322,39 @@ export default function SurveyScreen() {
             value={state.currentSchool}
             onChange={(school) => patch({ currentSchool: school })}
           />
+        </div>
+      )}
+
+      {/* "Current Major" field for College Students (see CLAUDE.md) — deliberately separate from
+          the Discovery flow's own career/major/program selections (state.selectedCareerIds/
+          selectedMajorIds/selectedProgramKeys), which are about FUTURE goals (grad school or a
+          transfer destination). This is about what an Undergraduate/Transfer student is ALREADY
+          studying right now at their current college — only shown once a real partner school
+          (currently just UC Davis) is actually selected, since "current major" has no honest
+          meaning for a student with no current college on file yet. Free-text, matching the same
+          optional-field convention passionText already established above (uncontrolled,
+          defaultValue + onBlur, an .optional-badge pill) rather than a dropdown — this app's own
+          curated `MAJORS` dataset (majors.js) is scoped to Discovery's FUTURE-major selection use
+          case, and its ~47 entries don't necessarily cover every real current major a college
+          student might already be declared in, so forcing a pick from that list here would risk
+          silently misrepresenting a real student's actual major. */}
+      {isCollege && !!state.currentSchool && (
+        <div className="field-block">
+          <div className="field-label">
+            What's your current major? <span className="optional-badge">Optional</span>
+          </div>
+          <p className="field-hint">
+            This is what you're already studying now at {state.currentSchool} — separate from any future
+            career/major goals you'll explore later in Discovery.
+          </p>
+          <label className="task-form-field">
+            <input
+              type="text"
+              defaultValue={state.currentMajor}
+              onBlur={(e) => patch({ currentMajor: e.target.value.trim() })}
+              placeholder="e.g. Managerial Economics"
+            />
+          </label>
         </div>
       )}
 
