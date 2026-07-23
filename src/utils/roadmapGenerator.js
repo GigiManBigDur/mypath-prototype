@@ -131,7 +131,7 @@ export function generateRoadmap(state, yearWindow = null) {
   );
 
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
-  const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed);
+  const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed, state.completedNodes || {});
   const aiSuggestedItems = buildAiSuggestedItems(state.aiSuggestedTasks || [], dateOverrides, removed);
 
   // Course Selection Stage 4 — highschool-only, same gating as every Course Selection screen
@@ -372,10 +372,17 @@ function buildAiSuggestedItems(aiSuggestedTasks, dateOverrides, removed) {
 // as anchor) carries a `projectLabel` ("Name · Step X of Y") so Roadmap.jsx can show project
 // context under the title without overwriting it — recomputed after the date-sort below so the
 // numbering always matches what's actually rendered in order.
-function buildProjectItems(startedProjects, dateOverrides, removed) {
-  return startedProjects
-    .map((project) => buildProjectChain(project, dateOverrides, removed))
-    .filter(Boolean);
+// Two-Phase Generation (see CLAUDE.md) — a Build Your Own project started under the NEW
+// overview-milestone shape (`project.overviewMilestones` present) is expanded into MULTIPLE spine
+// items, one per overview phase, instead of the single chain `buildProjectChain` below produces —
+// see `buildOverviewMilestoneChains`'s own header comment for the full shape. A curated (non-Build-
+// Your-Own) project, or an OLD-shape Build Your Own project from before this restructure (plain
+// `project.steps`/`guideSteps`), is completely unaffected — it still goes through
+// `buildProjectChain` exactly as it always has.
+function buildProjectItems(startedProjects, dateOverrides, removed, completedNodes) {
+  return startedProjects.flatMap((project) => (project.overviewMilestones
+    ? buildOverviewMilestoneChains(project, dateOverrides, removed, completedNodes)
+    : [buildProjectChain(project, dateOverrides, removed)].filter(Boolean)));
 }
 
 function buildProjectChain(project, dateOverrides, removed) {
@@ -427,6 +434,113 @@ function buildProjectChain(project, dateOverrides, removed) {
     aiSuggested: !!project.aiSuggested,
     steps: branchSteps.length ? branchSteps : null,
   };
+}
+
+// A rough, HONESTLY-ESTIMATED gap between one overview phase and the next, used only until the
+// earlier phase's own granular steps have actually been planned (see below) — the same "clearly-
+// labeled estimate, refined once the real thing is known" posture ESTIMATED_COURSE_REQUEST_WINDOW
+// (courses.js) already takes for a different kind of unknowable-in-advance date.
+const ESTIMATED_MILESTONE_SPACING_DAYS = 21;
+
+// Two-Phase Generation (see CLAUDE.md), Tasks 2/5 — each overview phase becomes its OWN spine
+// item, in sequence, mirroring an opportunity chain's own shape exactly: the phase's own title/id
+// IS the promoted anchor node (playing the same role an opportunity's own first prep step plays —
+// e.g. "Register for DECA" is never a separate summary node either), with its later-generated
+// granular `subSteps` (Task 4) becoming its diagonal branch once they exist. A phase with no
+// subSteps yet renders as a plain point, exactly like a freshly-started curated project — the
+// moment its steps are generated, it becomes a real branch, same connector/isLast machinery as
+// everywhere else in this file.
+//
+// Locking (Task 2's own "only the first overview milestone is unlocked; every subsequent one is
+// locked until the one before it is marked complete") is computed FRESH every time this runs, from
+// `completedNodes` — the exact same "unlock is just a function of current real state, never a
+// separately-stored flag that could drift out of sync" precedent this app's own hub tiles
+// (`unlock: (state) => ...`, HubScreen.jsx) already established, extended here to spine nodes
+// instead of hub tiles. A phase counts as done when EITHER its own anchor is marked complete
+// directly (the same generic `toggleDone` every other node already supports — useful for a phase
+// with no subSteps yet, or one the student considers done regardless of subStep completion) OR,
+// once it has real subSteps, all of them are complete — matching Task 5's own explicit "or the
+// milestone itself" wording.
+//
+// Dating: milestone 0 always has a REAL date — `project.startDate`, the date picked when "Start
+// This Project" was confirmed. Every later phase's date is computed by a running cursor, never
+// separately stored (so there's nothing to keep in sync as earlier phases get planned): once a
+// phase's own granular steps exist, the cursor advances to the day after its own real, student-
+// picked `targetDate` (see MilestonePlanningPanel.jsx); until then, it advances by the fixed
+// ESTIMATED_MILESTONE_SPACING_DAYS placeholder above — an honest, clearly-a-guess gap for a phase
+// nobody has actually thought through the timing of yet (this is also literally why later phases
+// read as more loosely positioned before they're reached — "later phases get planned once earlier
+// ones are actually done," per this feature's own stated rationale, not a bug in the spacing).
+function buildOverviewMilestoneChains(project, dateOverrides, removed, completedNodes) {
+  const milestones = project.overviewMilestones || [];
+  if (milestones.length === 0) return [];
+
+  const items = [];
+  let cursor = parseDateInputValue(project.startDate);
+  let previousDone = true; // milestone 0 is always unlocked, regardless of any "previous" concept
+
+  milestones.forEach((m, i) => {
+    const anchorDate = cursor;
+
+    let branchSteps = [];
+    if (m.subSteps && m.subSteps.length) {
+      branchSteps = m.subSteps
+        .filter((s) => !removed[s.id])
+        .map((s) => {
+          const real = dateOverrides[s.id] ? parseDateInputValue(dateOverrides[s.id]) : parseDateInputValue(s.date);
+          return { id: s.id, title: s.title, date: real, due: formatDate(real), desc: s.desc || '', resources: [] };
+        });
+      branchSteps.sort((a, b) => a.date.getTime() - b.date.getTime());
+      branchSteps = branchSteps.map((s, idx) => ({
+        ...s,
+        category: 'project',
+        isLast: idx === branchSteps.length - 1,
+        aiSuggested: true,
+        projectLabel: `${project.projectName} · ${m.title}`,
+      }));
+    }
+
+    const milestoneDone = !!completedNodes[m.id]
+      || (branchSteps.length > 0 && branchSteps.every((s) => !!completedNodes[s.id]));
+    const isLocked = !previousDone;
+    const realAnchorDate = dateOverrides[m.id] ? parseDateInputValue(dateOverrides[m.id]) : anchorDate;
+
+    if (!removed[m.id]) {
+      items.push({
+        id: m.id,
+        title: m.title,
+        category: 'project',
+        required: false,
+        coreType: 'project',
+        date: realAnchorDate,
+        due: formatDate(realAnchorDate),
+        desc: m.desc || `Part of your ${project.projectName} project.`,
+        resources: [],
+        projectLabel: `${project.projectName} · Phase ${i + 1} of ${milestones.length}`,
+        aiSuggested: true,
+        locked: isLocked,
+        lockedReason: isLocked ? `Complete "${milestones[i - 1].title}" first` : null,
+        milestoneMeta: { projectId: project.id, milestoneId: m.id },
+        steps: branchSteps.length ? branchSteps : null,
+      });
+    }
+
+    // Advance the cursor for the NEXT phase — see this function's own header comment for why this
+    // is computed fresh every time rather than stored.
+    if (m.targetDate) {
+      cursor = realAddDays(parseDateInputValue(m.targetDate), 1);
+    } else if (branchSteps.length) {
+      cursor = realAddDays(branchSteps[branchSteps.length - 1].date, 1);
+    } else {
+      cursor = realAddDays(anchorDate, ESTIMATED_MILESTONE_SPACING_DAYS);
+    }
+    // A removed phase doesn't block the sequence forever — treat it as "resolved" so the next one
+    // can still unlock, the same way a removed required trunk task doesn't get to permanently gate
+    // anything else either.
+    previousDone = milestoneDone || !!removed[m.id];
+  });
+
+  return items;
 }
 
 // Course Selection Stage 4 — wires Stage 3's course selections into real, dated, single-step

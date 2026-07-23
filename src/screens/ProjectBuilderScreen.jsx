@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ArrowLeft, ArrowRight, Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette,
-  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart, Circle,
+  Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart, Circle, Lock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PROJECT_CATEGORIES, findCategory, findProjectType, BUILD_YOUR_OWN_CATEGORY_ID } from '../data/projects';
@@ -81,6 +81,15 @@ function getCategoryColor(categoryId) {
 // there's no real PROJECT_CATEGORIES entry to look up (Task 2), so this stands in for it, carrying
 // just the two fields that view actually reads (`label`, `icon`).
 const BUILD_YOUR_OWN_PSEUDO_CATEGORY = { id: BUILD_YOUR_OWN_CATEGORY_ID, label: 'Build Your Own', icon: 'Sparkles' };
+
+// Two-Phase Generation (see CLAUDE.md) — the same "done" rule buildOverviewMilestoneChains
+// (roadmapGenerator.js) uses to decide locking: a phase counts as done if its own anchor is
+// marked complete directly, OR (once it has real granular substeps) every one of them is.
+function isMilestoneDone(milestone, completedNodes) {
+  if (completedNodes?.[milestone.id]) return true;
+  const subSteps = milestone.subSteps || [];
+  return subSteps.length > 0 && subSteps.every((s) => completedNodes?.[s.id]);
+}
 
 // How close (in days) a chosen project start date has to land to an existing roadmap commitment
 // before we surface a heads-up. Soft only — never blocks confirming the start date.
@@ -169,25 +178,24 @@ export default function ProjectBuilderScreen() {
   };
   const conflict = findNearbyConflict(startDate);
 
-  // Starting a project creates just its first node — the project type's own first guide step,
-  // dated to the chosen Start Date (Task 1/2 of the growing-chain spec) — not the whole guide
-  // pre-populated. `guideStepsUsed: 1` reflects that this first slot is already spent; every
-  // later step is revealed one at a time from Roadmap.jsx as the previous one is completed.
+  // Two-Phase Generation (see CLAUDE.md) — starting a Build Your Own project now creates ALL of
+  // its small set of overview PHASES up front (Task 1's own `buildYourOwnPlan.milestones`, now a
+  // short 4-7-item overview list, not a granular plan) as `overviewMilestones`, each with empty
+  // `subSteps`/`chatHistory` — only the FIRST phase is reachable/unlockable at this point (real
+  // locking is computed fresh from `completedNodes` every time the roadmap regenerates, see
+  // roadmapGenerator.js's `buildOverviewMilestoneChains`, not stored here). `startDate` (the
+  // picked Project Start Date) becomes `project.startDate`, milestone 0's own real anchor date —
+  // every later phase's own date is likewise computed fresh, never stored. This REPLACES the old
+  // `guideSteps`/flat `steps` shape entirely for Build Your Own projects (a curated, non-Build-
+  // Your-Own project type still uses that original shape completely unchanged, via the `steps`
+  // param below this branch).
   //
-  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6 — a
-  // conversation-developed plan flows into this EXACT SAME mechanism, not a parallel one: the
-  // `view === 'buildYourOwn'` branch below still writes to the same `state.startedProjects`
-  // array, still one node at a time, still through `Roadmap.jsx`'s own reveal-next-step flow
-  // afterward. `guideSteps` stores the FULL `buildYourOwnPlan.milestones` array (not just the
-  // remainder after the first) — deliberately parallel to a curated projectType's own `steps`
-  // array, which also holds every step including the one already consumed at start. Real,
-  // confirmed off-by-one bug caught building this: an earlier version stored only the milestones
-  // AFTER the first here, but `Roadmap.jsx`'s `openNextStepPrompt` indexes into this array using
-  // the SAME `guideStepsUsed` (1 after start) a curated project type uses to index its own FULL
-  // `steps` array — indexing a shortened array with that same value skipped straight to the
-  // THIRD milestone instead of the second, confirmed directly via a real completed-step test
-  // before this fix. Storing the full array here is what makes `guideSteps[guideStepsUsed]`
-  // resolve correctly, exactly like a curated project type's `projectType.steps[guideStepsUsed]`.
+  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6's own
+  // original "flows into the EXACT SAME mechanism" precedent still holds in spirit — this still
+  // writes to the same `state.startedProjects` array and Roadmap.jsx still reuses the same ring/
+  // branch rendering (see buildOverviewMilestoneChains's own header comment) — it's the internal
+  // shape of a Build Your Own project's own steps that's restructured here, not which state field
+  // or which rendering system it flows into.
   const confirmStart = () => {
     if (!startDate) return;
     if (view === 'buildYourOwn') {
@@ -198,15 +206,16 @@ export default function ProjectBuilderScreen() {
         projectTypeId: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
         projectName: buildYourOwnPlan.projectName,
         status: 'active',
-        guideStepsUsed: 1,
         aiSuggested: true,
-        guideSteps: buildYourOwnPlan.milestones,
-        steps: [{
-          id: makeTaskId('project-step'),
-          title: buildYourOwnPlan.milestones[0],
-          date: startDate,
-          desc: `Developed through a conversation with MyPath AI. ${HONESTY_NOTE}`,
-        }],
+        startDate,
+        overviewMilestones: buildYourOwnPlan.milestones.map((title) => ({
+          id: makeTaskId('milestone'),
+          title,
+          desc: `Part of your ${buildYourOwnPlan.projectName} project, developed through a conversation with MyPath AI. ${HONESTY_NOTE}`,
+          targetDate: null,
+          subSteps: [],
+          chatHistory: [],
+        })),
       };
       patch({ startedProjects: [...(state.startedProjects || []), newProject] });
       setStartedBuildYourOwnProject(newProject);
@@ -528,8 +537,37 @@ function ProjectTypeView({
               new node = the CSS animation just replays" pattern this codebase already uses for
               every other reveal (hub tiles, transcript rows, Program-Specific sections) — no extra
               JS state needed to detect "which step is new." */}
+          {/* Two-Phase Generation (see CLAUDE.md) — a NEW-style Build Your Own project has no flat
+              `steps` array at all (see roadmapGenerator.js's `buildOverviewMilestoneChains`); its
+              real, dated, lock-aware timeline lives on the Academic Plan itself (each phase a
+              spine item with its own scoped planning chat), so this preview is deliberately a
+              simpler, date-free overview list — just which phases exist and their current
+              done/locked/active state, using the exact same `isMilestoneDone` rule the real
+              roadmap generator uses for locking, not a second concept. */}
           <ol className="pb-timeline">
-            {startedProject.steps.map((step, i) => {
+            {startedProject.overviewMilestones ? (
+              startedProject.overviewMilestones.map((m, i) => {
+                const done = isMilestoneDone(m, completedNodes);
+                const locked = i > 0 && !isMilestoneDone(startedProject.overviewMilestones[i - 1], completedNodes);
+                const isCurrent = !done && !locked;
+                return (
+                  <li
+                    key={m.id}
+                    className={`pb-timeline-step${done ? ' done' : ''}${isCurrent ? ' current' : ''}`}
+                  >
+                    <span className="pb-timeline-marker">
+                      {done ? <CheckCircle2 size={16} /> : locked ? <Lock size={14} /> : <Circle size={16} />}
+                    </span>
+                    <div className="pb-timeline-body">
+                      <div className="pb-timeline-title">{m.title}</div>
+                      <div className="pb-timeline-date">
+                        {done ? 'Complete' : locked ? 'Locked' : 'Plan this phase on your Academic Plan'}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })
+            ) : startedProject.steps.map((step, i) => {
               const done = !!completedNodes?.[step.id];
               const isCurrent = !done && i === startedProject.steps.length - 1;
               return (
@@ -551,7 +589,13 @@ function ProjectTypeView({
             })}
           </ol>
 
-          {startedProject.status !== 'completed' && (
+          {startedProject.status !== 'completed' && startedProject.overviewMilestones && (
+            <p className="field-hint" style={{ margin: '10px 0 0' }}>
+              Open the currently unlocked phase on your Academic Plan to plan its concrete steps —
+              finishing it unlocks the next one.
+            </p>
+          )}
+          {startedProject.status !== 'completed' && !startedProject.overviewMilestones && (
             <p className="field-hint" style={{ margin: '10px 0 0' }}>
               Mark the current step complete on your Academic Plan to reveal what's next — this
               project has no fixed end date, so it only grows one step at a time.

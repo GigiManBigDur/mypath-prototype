@@ -2783,6 +2783,26 @@ button.card.passed:hover {
    the single full-width .complete-btn every other node gets. */
 .checkpoint-actions { display: flex; flex-direction: column; gap: 10px; }
 
+/* Two-Phase Generation (see CLAUDE.md), Tasks 2-4 — a locked overview milestone's own modal
+   content (a plain "why" message, matching this app's own established locked-state language —
+   dimmed, a Lock icon, the real reason visible) and the scoped planning-chat panel shown for an
+   unlocked-but-not-yet-planned one. Exclusive to Roadmap.jsx's own modal (no other screen renders
+   these classes), so styled directly rather than needing `.app-shell-bloom` scoping. */
+.milestone-locked-notice {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px; margin: 8px 0 4px;
+  background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 6px;
+  color: var(--bloom-ink-soft); font-size: 13.5px;
+}
+.milestone-planning-panel { margin-top: 8px; }
+.milestone-planning-panel .chat-messages { max-height: 240px; min-height: 140px; }
+.milestone-ready-preview {
+  margin-top: 12px; padding: 14px 16px; background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border); border-radius: 6px;
+}
+.milestone-ready-preview ol { margin: 8px 0 12px; padding-left: 20px; font-size: 13.5px; color: var(--bloom-ink); }
+.milestone-ready-preview li { margin-bottom: 4px; }
+.milestone-date-picker { margin-top: 12px; padding: 14px 16px; background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 6px; }
+
 .win-banner { margin-top:22px; background: var(--bloom-card); border:1px solid var(--bloom-card-border); border-left:4px solid var(--bloom-accent); border-radius:4px; padding:18px 20px; font-size:14px; color: var(--bloom-ink); box-shadow: var(--bloom-shadow); }
 
 /* Palette repaint, Academic Plan batch (see CLAUDE.md) — `.remove-btn`/`.modal-edit-date` ARE

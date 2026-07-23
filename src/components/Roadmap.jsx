@@ -9,7 +9,9 @@ import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
 import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
-import { formatDateWithYear, toDateInputValue, realDaysBetween, getEffectiveToday } from '../utils/dates';
+import {
+  formatDateWithYear, toDateInputValue, realDaysBetween, getEffectiveToday, realAddDays, parseDateInputValue,
+} from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
 import DigestList from './DigestList';
 import { makeTaskId } from '../utils/ids';
@@ -20,6 +22,7 @@ import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestSuggestion } from '../utils/suggestions';
 import MascotWidget from './MascotWidget';
 import MapChatWidget from './MapChatWidget';
+import MilestonePlanningPanel from './MilestonePlanningPanel';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
 // "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
@@ -284,13 +287,20 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   // untouched by the chronological re-sort used only for display) opens the reveal-next-step
   // prompt instead of just toggling — a project's chain never pre-populates future steps, so
   // finishing the one visible step is the trigger to reveal the next.
+  //
+  // Two-Phase Generation (see CLAUDE.md) — a project under the NEW `overviewMilestones` shape has
+  // no `steps` array at all (see buildOverviewMilestoneChains in roadmapGenerator.js), so it's
+  // explicitly excluded from this lookup (`!p.overviewMilestones`) rather than just guarding
+  // `p.steps` defensively — this old reveal-next-step prompt has no equivalent role for a
+  // milestone-based project at all; unlocking the next overview phase is computed automatically
+  // from `completedNodes` every time the roadmap regenerates, no reveal prompt needed.
   const toggleDone = (id) => {
     const newValue = !state.completedNodes[id];
     const nextCompletedNodes = { ...state.completedNodes, [id]: newValue };
     patch({ completedNodes: nextCompletedNodes });
     if (!newValue) return;
     const project = (state.startedProjects || []).find(
-      (p) => p.status !== 'completed' && p.steps.length && p.steps[p.steps.length - 1].id === id,
+      (p) => p.status !== 'completed' && !p.overviewMilestones && p.steps.length && p.steps[p.steps.length - 1].id === id,
     );
     if (project) openNextStepPrompt(project);
     maybeTriggerSuggestion(id, true, state.taskOutcomes[id], { ...state, completedNodes: nextCompletedNodes });
@@ -350,6 +360,36 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
       startedProjects: state.startedProjects.map((p) => (p.id === project.id ? { ...p, status: 'completed' } : p)),
     });
     setProjectPrompt(null);
+  };
+
+  // Two-Phase Generation (see CLAUDE.md), Task 4 — commits a milestone's own scoped-chat-generated
+  // granular steps as real, dated sub-tasks. `subStepTitles` is the plain ordered title list the
+  // scoped conversation produced; `anchorDate` is the milestone's OWN current real position on the
+  // spine (passed down from the modal's own `modalNode.date` at the moment the panel opened, since
+  // that's the exact same date `buildOverviewMilestoneChains` would otherwise have to recompute) —
+  // steps are spread evenly across the real window from the day after that anchor through the
+  // student's own picked `targetDateStr` (validated in MilestonePlanningPanel.jsx before this is
+  // ever called), the same "spread evenly across a real window ending at a real date" shape
+  // buildStepsChain already uses for opportunity prep steps, just computed inline here since this
+  // one caller doesn't need that function's own opportunity-specific plumbing.
+  const attachMilestoneSubSteps = (projectId, milestoneId, subStepTitles, anchorDate, targetDateStr) => {
+    const targetDate = parseDateInputValue(targetDateStr);
+    const windowStart = realAddDays(anchorDate, 1);
+    const totalDays = realDaysBetween(targetDate, windowStart);
+    const count = subStepTitles.length;
+    const subSteps = subStepTitles.map((title, i) => {
+      const offsetDays = count > 1 ? Math.round((totalDays * i) / (count - 1)) : totalDays;
+      return { id: makeTaskId('milestone-step'), title, date: toDateInputValue(realAddDays(windowStart, offsetDays)), desc: '' };
+    });
+    patch({
+      startedProjects: state.startedProjects.map((p) => (p.id !== projectId ? p : {
+        ...p,
+        overviewMilestones: p.overviewMilestones.map((m) => (m.id !== milestoneId ? m : {
+          ...m, subSteps, targetDate: targetDateStr,
+        })),
+      })),
+    });
+    setSelected(null);
   };
 
   // Changing a date only ever writes an override string — roadmapGenerator.js re-derives that
@@ -719,6 +759,26 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     : null;
   const ucdavisCheckpointPart1Done = !!ucdavisCheckpointProgress?.part1Done;
 
+  // Two-Phase Generation (see CLAUDE.md), Tasks 2-4 — an overview-milestone anchor's own detail
+  // modal branches three ways, mirroring the checkpoint pattern just above (a spine node whose
+  // real interaction is something other than the plain generic modal): LOCKED shows only a plain
+  // "why" message; unlocked-but-not-yet-planned shows the scoped planning chat
+  // (MilestonePlanningPanel); already-planned (or done) falls through to the ordinary generic
+  // modal content, same as any other spine node. `liveMilestone` is read directly from
+  // `state.startedProjects` (not from `modalNode` itself) since the spine item is a freshly
+  // computed snapshot every render — the milestone's own real `chatHistory`/`subSteps` only exist
+  // on the actual persisted project object.
+  const selectedIsMilestone = !!modalNode?.milestoneMeta;
+  const milestoneOwnerProject = selectedIsMilestone
+    ? (state.startedProjects || []).find((p) => p.id === modalNode.milestoneMeta.projectId)
+    : null;
+  const liveMilestone = milestoneOwnerProject
+    ? (milestoneOwnerProject.overviewMilestones || []).find((m) => m.id === modalNode.milestoneMeta.milestoneId)
+    : null;
+  const milestoneNeedsPlanning = selectedIsMilestone && !modalNode.locked && !!liveMilestone
+    && (liveMilestone.subSteps || []).length === 0 && !isDone(modalNode.id);
+  const selectedIsMilestoneSpecial = selectedIsMilestone && (modalNode.locked || milestoneNeedsPlanning);
+
   // Layout-restructure-only state: the paired first-visit callouts (below) share the exact same
   // "stay mounted through an exit animation" need as every modal, so they reuse useModalExit
   // rather than a bespoke fade mechanism.
@@ -912,7 +972,20 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         rather than only reaching it mid-animation. */}
                     <circle className="hit-target" r={n.required ? 22 : 20} fill="none" pointerEvents="all" />
                     <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
-                      {n.required ? (
+                      {n.locked ? (
+                        // Two-Phase Generation (see CLAUDE.md), Task 2 — a locked overview
+                        // milestone renders dimmed (matching this app's own established
+                        // "locked" visual language — the hub's own locked tiles at 0.55 opacity)
+                        // with a Lock icon standing in for its real icon, never filled (a locked
+                        // node can never be "done"). Takes priority over every other branch below
+                        // regardless of category, since locked is a state any project milestone
+                        // can be in, not a category of its own.
+                        <g opacity="0.5">
+                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.1" />
+                          <circle className="ring" r="16" fill="none" stroke={cfg.color} strokeWidth="2.5" strokeDasharray="4 4" pointerEvents="all" />
+                          <Lock x="-7" y="-7" size={14} color={cfg.color} />
+                        </g>
+                      ) : n.required ? (
                         <>
                           <circle className="node-halo" r="24" fill={cfg.color} opacity="0.16" />
                           <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
@@ -1268,23 +1341,23 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 actual <ul>, same "structured array, not a run-on paragraph" pattern the
                 pre-existing `resources` block below already established, not squeezed into
                 `desc` as a comma-joined sentence. */}
-            {modalNode.courseList && modalNode.courseList.length > 0 && (
+            {!selectedIsMilestoneSpecial && modalNode.courseList && modalNode.courseList.length > 0 && (
               <div className="modal-course-list">
                 Your selected courses:
                 <ul>{modalNode.courseList.map((c) => <li key={c}>{c}</li>)}</ul>
               </div>
             )}
 
-            <p className="modal-desc">{modalNode.desc}</p>
+            {!selectedIsMilestoneSpecial && <p className="modal-desc">{modalNode.desc}</p>}
 
-            {modalNode.resources && modalNode.resources.length > 0 && (
+            {!selectedIsMilestoneSpecial && modalNode.resources && modalNode.resources.length > 0 && (
               <div className="modal-resources">
                 Recommended resources:
                 <ul>{modalNode.resources.map((r) => <li key={r}>{r}</li>)}</ul>
               </div>
             )}
 
-            {modalNode.type !== 'today' && (
+            {!selectedIsMilestoneSpecial && modalNode.type !== 'today' && (
               <div className="modal-edit-row">
                 <label className="modal-edit-date">
                   <span className="label">Due date</span>
@@ -1312,7 +1385,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 locally, commit once" trade this codebase's other text-entry forms already make,
                 just via a remount instead of local useState since there's no separate submit
                 action here to hang the commit on. */}
-            {modalNode.type !== 'today' && (
+            {!selectedIsMilestoneSpecial && modalNode.type !== 'today' && (
               <label className="task-form-field modal-outcome-field">
                 <span className="label">
                   How did it go? <span className="optional-badge">Optional</span>
@@ -1324,6 +1397,34 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                   placeholder={'e.g. "I won 2nd place at Regionals" or "I missed this because I was sick"'}
                 />
               </label>
+            )}
+
+            {/* Two-Phase Generation (see CLAUDE.md), Task 2 — a LOCKED overview milestone shows
+                only this plain, honest "why" message — no desc/resources/edit/outcome/complete
+                controls, matching this file's own established "a locked thing is visible, but not
+                interactive in the normal way" posture (Course Selection's own locked prerequisite
+                cards use the identical spirit). */}
+            {selectedIsMilestone && modalNode.locked && (
+              <div className="milestone-locked-notice">
+                <Lock size={16} /> {modalNode.lockedReason}
+              </div>
+            )}
+
+            {/* Two-Phase Generation (see CLAUDE.md), Task 3/4 — an unlocked overview milestone
+                with no granular steps planned yet gets the scoped planning chat instead of the
+                generic modal content. `modalNode.date` is this milestone's own CURRENT real
+                anchor date — passed down so the panel's date-picker can validate the student's
+                picked target date against it without recomputing anything roadmapGenerator.js
+                already resolved. */}
+            {milestoneNeedsPlanning && (
+              <MilestonePlanningPanel
+                project={milestoneOwnerProject}
+                milestone={liveMilestone}
+                anchorDate={modalNode.date}
+                onAttach={(subStepTitles, targetDateStr) => attachMilestoneSubSteps(
+                  milestoneOwnerProject.id, liveMilestone.id, subStepTitles, modalNode.date, targetDateStr,
+                )}
+              />
             )}
 
             {selectedIsCourseCheckpoint && (
@@ -1378,7 +1479,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               </div>
             )}
 
-            {modalNode.type !== 'today' && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && (
+            {modalNode.type !== 'today' && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && !selectedIsMilestoneSpecial && (
               <button
                 className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
                 onClick={() => toggleDone(modalNode.id)}

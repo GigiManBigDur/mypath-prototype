@@ -5192,6 +5192,168 @@ generic message a real network hiccup would.
   no client-side code at all, so the built `dist/` output (and therefore the GitHub Pages deploy)
   is byte-for-byte unaffected; only the Vercel-hosted serverless functions needed a new deploy.
 
+**Build Your Own: Two-Phase Generation — replaces one large, all-at-once granular-plan generation
+with a small overview pass plus separate, smaller, on-demand detail passes per phase, likely fixing
+the generation errors the prior all-granular approach hit and making the plan more realistic (later
+phases genuinely can't be usefully detailed until earlier ones are actually done).**
+- **Task 1 — `api/build-your-own-chat.js` now has TWO system prompts sharing one schema/tool/
+  validation/guardrail pipeline.** `OVERVIEW_SYSTEM_PROMPT` (the original, top-level conversation)
+  reverts the milestone-count guidance from the prior fix's 15-25+ granular items back down to a
+  small 4-7-item OVERVIEW of high-level PHASES (e.g. "Get recognized as Campus Director by Hult
+  official," "Recruit a founding team," "Seek a partnership," "Run the first venture cycle," "Host
+  the showcase") — explicitly instructing the model NOT to break any phase into its own granular
+  sub-actions here, deferring that to a later, separate, narrower conversation once the student
+  actually reaches that phase. The judgment (official-affiliation fairness) and proactive-
+  differentiator-suggestion rules from the immediately-preceding "Improve Build Your Own" fix carry
+  over unchanged, just re-scoped to phase-level thinking. `buildMilestoneDetailPrompt(
+  milestoneContext)` is the NEW scoped prompt (Task 3) — told explicitly which project, which full
+  sequence of phases, and which ONE phase it's planning right now (with an instruction not to plan
+  any other phase), asking for a genuinely GRANULAR 3-10-item step list for just that phase —
+  this is where the prior fix's own granular-specificity guidance correctly lives now, scoped down
+  so each call is naturally much smaller (3-10 steps for one phase vs. 15-45 for an entire project),
+  which is what actually fixes the timeout-prone generations, not just a bigger token budget (the
+  immediately-preceding "Fix Build Your Own milestones request intermittently timing out" entry's
+  own `maxDuration: 60` config stays in place regardless, as a second layer of protection).
+  `handler()` picks between the two prompts based on a new, optional `milestoneContext` field in
+  the request body (`null`/absent → overview mode) — same schema, same `/api/build-your-own-chat`
+  endpoint either way, so there's no new endpoint and no new client-facing contract, just a
+  different context passed to the one that already exists ("reusing the existing chat system," per
+  Task 3's own explicit instruction). `src/utils/buildYourOwnChatRequest.js` gained the matching
+  optional `milestoneContext` parameter, passed straight through.
+- **Task 2 — each overview phase becomes its own spine item, in sequence, mirroring an opportunity
+  chain's exact shape.** `roadmapGenerator.js`'s new `buildOverviewMilestoneChains(project,
+  dateOverrides, removed, completedNodes)` treats a Build Your Own project's own
+  `overviewMilestones` array (a NEW, parallel shape to the original single-chain
+  `steps`/`guideSteps` — a curated, non-Build-Your-Own project type is completely unaffected,
+  still going through the original `buildProjectChain`) the same way `buildFirstYearChain` treats
+  an opportunity's own `prepSteps`: the phase's own title/id IS the promoted anchor node (playing
+  the same role an opportunity's first prep step already plays — e.g. "Register for DECA" is never
+  a separate summary node either), with its later-generated granular `subSteps` (Task 4) becoming
+  its diagonal branch once they exist. `buildProjectItems` now `flatMap`s across `startedProjects`,
+  dispatching per-project on whether `overviewMilestones` is present, and `generateRoadmap` now
+  threads `state.completedNodes` through to it (previously unused by this builder). **Locking
+  (Task 2's own "only the first overview milestone is unlocked; every subsequent one is locked
+  until the one before it is marked complete") is computed FRESH every time this runs, from
+  `completedNodes`** — the exact same "unlock is just a function of current real state, never a
+  separately-stored flag that could drift" precedent this app's own hub tiles (`unlock: (state) =>
+  ...`) already established, extended to spine nodes. A phase counts as done when EITHER its own
+  anchor is marked complete directly (useful for a phase with no subSteps yet, or one the student
+  considers done regardless of subStep completion) OR, once it has real subSteps, all of them are
+  — matching Task 5's own explicit "or the milestone itself" wording. **Dating**: milestone 0
+  always has a REAL date (`project.startDate`, the picked Project Start Date); every later phase's
+  date is a running cursor, never separately stored — once a phase's own granular steps exist, the
+  cursor advances to the day after its own real, student-picked `targetDate`; until then, it
+  advances by a fixed, honestly-estimated `ESTIMATED_MILESTONE_SPACING_DAYS` (21) placeholder, the
+  same "clearly-labeled estimate, refined once the real thing is known" posture
+  `ESTIMATED_COURSE_REQUEST_WINDOW` already established for a different unknowable-in-advance date
+  — this is also why a not-yet-reached phase reads as more loosely positioned: "later phases get
+  planned once earlier ones are actually done" is the feature's own stated rationale, not a bug in
+  the spacing. A removed milestone doesn't block the sequence forever (treated as "resolved" for
+  unlock purposes, same as a removed required trunk task never permanently gates anything else).
+  **`Roadmap.jsx`'s ring rendering gained a `n.locked` branch, checked FIRST, ahead of every other
+  category** — a dimmed (0.5 opacity, matching the hub's own 0.55-opacity locked-tile precedent),
+  never-filled, dashed ring with a `Lock` icon standing in for the real one, since a locked node
+  can never be "done." `toggleDone`'s own old reveal-next-step lookup (`p.steps[p.steps.length -
+  1].id === id`) now explicitly excludes `p.overviewMilestones` projects — that old mechanism has
+  no equivalent role for a milestone-based project; unlocking the next phase is automatic, computed
+  fresh on every regeneration, no reveal prompt needed.
+- **Task 3 — `src/components/MilestonePlanningPanel.jsx`** is the small embedded chat shown inside
+  an unlocked-but-not-yet-planned overview milestone's own detail modal. Reuses `ChatConversation`
+  (the one shared chat UI this app already has) and the exact same `requestBuildYourOwnChatReply`
+  client function as the original project-level conversation, just with `milestoneContext` set —
+  its own conversation history lives on `milestone.chatHistory` (nested inside
+  `state.startedProjects[i].overviewMilestones[j]`), a genuinely SEPARATE thread from
+  `state.buildYourOwnChatHistory`, since it's about one specific phase, not the whole project.
+  `Roadmap.jsx`'s modal now derives `selectedIsMilestone`/`milestoneOwnerProject`/`liveMilestone`
+  (read directly from `state.startedProjects`, not from the ephemeral spine snapshot, since the
+  milestone's own real `chatHistory`/`subSteps` only exist on the persisted project object) and
+  branches the modal body three ways, mirroring the course-checkpoint pattern already established
+  for "a spine node whose real interaction is something other than the plain generic modal":
+  **locked** → a plain `.milestone-locked-notice` message (icon + `lockedReason`) and nothing else;
+  **unlocked, no subSteps yet, not done** → `MilestonePlanningPanel` in place of the generic desc/
+  resources/edit/outcome/complete-toggle content; **already planned (or done)** → falls straight
+  through to the ordinary generic modal, unchanged, since at that point it's just a normal spine
+  node like any other.
+- **Task 4 — `attachMilestoneSubSteps` (Roadmap.jsx)** commits the scoped conversation's granular
+  step titles as real, dated sub-tasks once the student picks a target completion date (validated
+  against the milestone's own current real anchor date, `modalNode.date`, the same "student picks
+  the date, must be after X" convention this app's chain-attachment AI features already
+  established) — steps are spread evenly across the real window from the day after that anchor
+  through the picked target date, the same "spread evenly across a real window ending at a real
+  date" shape `buildStepsChain` already uses for opportunity prep steps, computed inline here since
+  this one caller doesn't need that function's own opportunity-specific plumbing. Writes `subSteps`
+  and `targetDate` onto the live milestone object; the next `generateRoadmap()` run picks it up
+  automatically and renders it as a real branch — same connector/`isLast` machinery as everywhere
+  else in this file, zero new rendering logic needed for "a milestone that now has real steps."
+- **Task 5 falls out of Tasks 2/4 with no extra code**: since locking is recomputed fresh from
+  `completedNodes` on every roadmap regeneration, completing a phase's own anchor or all of its
+  subSteps automatically unlocks the next phase the moment the student returns to the map — no
+  separate "unlock" action or stored flag anywhere.
+- **`profileCompiler.js`'s `resolveProjects` gained a `roadmap` parameter** (the same
+  already-computed roadmap `resolveOpportunities`/`resolvePlanHistory` already reuse rather than
+  recomputing) so a NEW-style project's own flattened step list can report each phase's REAL,
+  live-resolved date/lock state via a direct spine lookup by id — the identical value
+  `buildOverviewMilestoneChains` already computed, not a second, possibly-drifting reimplementation
+  of that rule. A curated (old-shape) project's own `project.steps` reporting is completely
+  unchanged.
+- **`ProjectBuilderScreen.jsx`'s `confirmStart`** (Build Your Own branch) now builds
+  `overviewMilestones` (each `{ id, title, desc, targetDate: null, subSteps: [], chatHistory: [] }`)
+  plus a top-level `project.startDate` (the picked Project Start Date, milestone 0's own real
+  anchor) instead of the old flat `steps`/`guideSteps` shape — a curated project type's own
+  `confirmStart` branch is untouched. `ProjectTypeView`'s own "already started" preview timeline
+  now branches on `startedProject.overviewMilestones`: a NEW-style project gets a simpler, date-
+  free overview list (done/locked/active state only, via the same `isMilestoneDone` rule the real
+  roadmap generator uses, duplicated here since this preview has no live roadmap to look up
+  positions from) instead of the original per-step date timeline, which stays exactly as it was
+  for a curated project.
+- Verified two ways. A dedicated 14-check Node-level test (mocking `global.fetch`, loading the real
+  `api/build-your-own-chat.js`) confirms the overview prompt asks for 4-7 phases and still carries
+  the judgment/proactive rules, the milestone-detail prompt correctly names the current project/
+  phase and excludes the other phases while asking for 3-10 granular steps, a malformed
+  `milestoneContext` is rejected cleanly (400, not a crash), and the guardrail still fires
+  correctly in milestone-detail mode. A dedicated 17-check Node-level test (loading the real
+  `generateRoadmap` through Vite's own module loader, the same technique `scripts/verify-
+  spacing.mjs` already uses) confirms the roadmap-generation logic directly: a fresh 5-phase
+  project renders all 5 as spine items with only phase 0 unlocked and the rest locked with a real
+  `lockedReason`; completing phase 0's own anchor directly unlocks phase 1; giving phase 1 real
+  subSteps + a real targetDate turns it into a genuine branch AND shifts phase 2's own date to the
+  day after that real target (not the flat estimate); completing all of phase 1's substeps (without
+  touching its own anchor) also correctly unlocks phase 2; a removed locked phase doesn't
+  permanently block the sequence; and a curated (non-Build-Your-Own) project renders through the
+  completely unmodified original `buildProjectChain` path. A dedicated 14-check Playwright suite
+  then drives the full real UI end-to-end: a mocked overview conversation produces a real 5-item
+  "Start This Project" preview (not the old 15-45-item granular one) with zero generation errors;
+  the started project has exactly 5 `overviewMilestones` and none of the old `steps`/`guideSteps`
+  fields; only phase 0 renders unlocked (no Lock icon) with phases 1-4 all showing one; opening
+  phase 0 shows the real scoped planning chat; a mocked milestone-detail reply produces a real
+  4-item granular proposed-steps preview; picking a target date attaches those 4 steps as real
+  `subSteps` with the real picked `targetDate`, and phase 0 now renders as a genuine branch (step-
+  count subtitle); reopening phase 0 (now planned) shows the ordinary generic modal, not the
+  planning chat again; completing all 4 real substeps correctly unlocks phase 1; and opening phase
+  1 shows its own genuinely fresh scoped chat (zero messages), confirming each phase's
+  conversation is independent. **`test-passion-buildyourown.js` (the pre-existing suite for the
+  original single-phase/all-granular flow) was retired outright, not patched** — it tests a data
+  shape (`project.steps`/`guideSteps`) this restructure deliberately replaces for Build Your Own
+  projects, the same "delete an obsolete test rather than patch it" precedent this codebase's own
+  suite already established for other superseded mechanisms (e.g. `test-chain-start-bug.js`/
+  `test-chain-lifecycle.js`); everything in it that's still actually true (conversation mechanics,
+  "Start This Project" appearing once ready, the real conversation-specific name/milestones showing
+  in the preview, the exact same start mechanism being reused, the synthetic category sentinel) is
+  independently re-covered by the new Playwright suite's own overview-flow assertions. The full
+  remaining pre-existing regression suite (`test-ai-chat.js`, `test-ai-profile-stage1.js`,
+  `test-ai-profile-edge.js`, `test-ai-suggestions.js`, `test-ai-suggestions-live-fail.js`,
+  `test-chain-anchor-fix.js`, `test-chain-suggestions.js`, `test-branch-fan-position.js`,
+  `test-conditional-disclaimer.js`, `test-current-major.js`, `test-major-copy-by-level.js`,
+  `test-program-copy-by-level.js`, `test-hub-chat-transition.js`, `test-map-chat-widget.js`,
+  `test-prior-experience-profile.js`, `test-transfer-hs-transcript.js`,
+  `test-ucdavis-code-search.js`, `test-chat-visuals-mascot-scale.js`,
+  `test-hub-search-coming-soon.js`, `test-hub-profile-tile-layout.js`) all still pass with zero
+  regressions — including every opportunity-chain/AI-chain-suggestion test, confirming this
+  restructure (scoped specifically to Build Your Own projects) never touched that completely
+  separate mechanism. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20, re-confirmed
+  both immediately after the `roadmapGenerator.js` changes and again at the very end) all stay
+  clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

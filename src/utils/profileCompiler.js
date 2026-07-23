@@ -105,7 +105,13 @@ function toISODate(date) {
   return date instanceof Date ? date.toISOString().slice(0, 10) : date;
 }
 
-function resolveProjects(state) {
+// Two-Phase Generation (see CLAUDE.md) — a NEW-style Build Your Own project (`overviewMilestones`
+// present) has no flat `steps` array at all; `roadmap` (the same already-computed roadmap
+// resolveOpportunities/resolvePlanHistory already reuse rather than recomputing a second time) is
+// what supplies each phase's own REAL, live-resolved date/lock state, via a direct spine lookup by
+// id — the identical value buildOverviewMilestoneChains already computed, not a second, possibly-
+// drifting reimplementation of that rule.
+function resolveProjects(state, roadmap) {
   return (state.startedProjects || []).map((project) => {
     // Move: Build Your Own (see CLAUDE.md) — a "Build Your Own" project carries a REAL
     // `categoryId` (unlike the fully-synthetic 'ai-creative' sentinel this used before the
@@ -123,22 +129,46 @@ function resolveProjects(state) {
     const categoryLabel = project.categoryId === BUILD_YOUR_OWN_CATEGORY_ID
       ? 'Build Your Own'
       : `${findCategory(project.categoryId)?.label || project.categoryId} (Build Your Own)`;
-    const totalSteps = project.steps.length;
-    const completedSteps = project.steps.filter((s) => state.completedNodes[s.id]).length;
+
+    const flatSteps = project.overviewMilestones
+      ? project.overviewMilestones.flatMap((m) => {
+        const spineItem = roadmap.spine.find((item) => item.id === m.id);
+        const milestoneDone = !!state.completedNodes[m.id]
+          || ((m.subSteps || []).length > 0 && (m.subSteps || []).every((s) => state.completedNodes[s.id]));
+        return [
+          {
+            title: m.title,
+            date: spineItem ? toISODate(spineItem.date) : null,
+            complete: milestoneDone,
+            locked: spineItem ? !!spineItem.locked : false,
+            outcomeNote: state.taskOutcomes[m.id] || null,
+          },
+          ...(m.subSteps || []).map((s) => ({
+            title: s.title,
+            date: s.date,
+            complete: !!state.completedNodes[s.id],
+            locked: false,
+            outcomeNote: state.taskOutcomes[s.id] || null,
+          })),
+        ];
+      })
+      : project.steps.map((s) => ({
+        title: s.title,
+        date: s.date,
+        complete: !!state.completedNodes[s.id],
+        locked: false,
+        outcomeNote: state.taskOutcomes[s.id] || null,
+      }));
+
     return {
       id: project.id,
       category: project.aiSuggested ? categoryLabel : (resolved?.category?.label || project.categoryId),
       projectType: project.aiSuggested ? 'AI-generated idea' : (resolved?.projectType?.name || project.projectTypeId),
       projectName: project.projectName,
       status: project.status,
-      totalSteps,
-      completedSteps,
-      steps: project.steps.map((s) => ({
-        title: s.title,
-        date: s.date,
-        complete: !!state.completedNodes[s.id],
-        outcomeNote: state.taskOutcomes[s.id] || null,
-      })),
+      totalSteps: flatSteps.length,
+      completedSteps: flatSteps.filter((s) => s.complete).length,
+      steps: flatSteps,
     };
   });
 }
@@ -316,7 +346,7 @@ export function compileStudentProfile(state) {
     },
     activities: {
       opportunities: resolveOpportunities(state, roadmap),
-      projects: resolveProjects(state),
+      projects: resolveProjects(state, roadmap),
       // Prior Experience Collection + New Profile Page (see CLAUDE.md), Task 2 — real prior
       // experiences/ECs the student entered (Opportunity Finder's own one-time prompt, or the
       // Profile screen afterward), included verbatim. `compileSuggestionProfile` below reuses
