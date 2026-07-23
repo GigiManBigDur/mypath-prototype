@@ -1646,36 +1646,6 @@ button.card.passed:hover {
   height: 1080px;
 }
 
-/* Enhance AI Chat Page Visuals (see CLAUDE.md), Task 1 — a soft, slowly drifting multi-color
-   ambient glow behind the chat view, using the same "bloom" accent palette every other colorful
-   element in this app already draws from, rather than a flat/plain background. `z-index: 0` keeps
-   it behind every real element in the wrap (particles at 1, the mascot area at 5, the chat panel
-   at 6); `pointer-events: none` so it can never intercept a click. Low opacity (0.14-0.18) and a
-   slow (18s), gentle drift — "subtle ambient motion," not something that competes for attention
-   with the actual conversation. */
-.hub-radial-wrap.chat-mode::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 20% 25%, rgba(139, 92, 246, 0.18), transparent 42%),
-    radial-gradient(circle at 82% 20%, rgba(20, 184, 166, 0.16), transparent 42%),
-    radial-gradient(circle at 24% 78%, rgba(236, 111, 160, 0.15), transparent 42%),
-    radial-gradient(circle at 78% 82%, rgba(59, 130, 246, 0.15), transparent 42%);
-  background-repeat: no-repeat;
-  background-size: 160% 160%;
-  animation: hub-chat-bg-drift 18s ease-in-out infinite;
-}
-@keyframes hub-chat-bg-drift {
-  0%, 100% { background-position: 0% 0%, 100% 0%, 0% 100%, 100% 100%; }
-  50% { background-position: 12% 18%, 88% 12%, 10% 88%, 90% 84%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hub-radial-wrap.chat-mode::before { animation: none; }
-}
-
 .hub-tile {
   display: flex;
   flex-direction: column;

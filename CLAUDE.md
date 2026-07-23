@@ -4744,20 +4744,20 @@ changes.**
   `PARTICLES` (12 colored floating dots, previously hidden the instant `chatPhase !== 'hidden'`)
   now render in every phase — the simplest, zero-new-code way to give the chat view the same
   "gentle floating dots" ambient motion the hub itself already has, reusing the identical elements
-  rather than a second, chat-specific particle set. `.hub-radial-wrap.chat-mode::before` (new) is
-  a soft, slowly drifting multi-color radial-gradient glow (the same "bloom" accent palette —
-  purple/teal/pink/blue — every other colorful element in this app already draws from), animated
-  via `background-position` over an 18s loop (`hub-chat-bg-drift`) — low opacity (0.15-0.18) and
-  slow, deliberately "subtle ambient motion," not something that competes with the actual
-  conversation. `z-index: 0` keeps it behind every real element in the wrap (particles at 1, the
-  mascot area at 5, the chat panel at 6). `.hub-chat-panel` itself gained a thin (4px), animated
-  multi-color shimmer bar along its top edge (`.hub-chat-panel::before`, `hub-chat-panel-shimmer`,
-  a `linear-gradient` whose `background-position` slides sideways over a 6s loop) — "richer visual
-  elements" for a card that otherwise reads as a plain white box — with `overflow: hidden` added to
-  the panel itself so the bar clips cleanly to the card's own rounded corners (the same
-  "overflow:hidden on the card" precedent `.pb-category-card`'s own top accent bar already
-  established). `.chat-mode` itself had carried zero CSS at all before this pass (applied in JSX,
-  unused) — this is the first real use of that hook.
+  rather than a second, chat-specific particle set. `.hub-chat-panel` itself gained a thin (4px),
+  animated multi-color shimmer bar along its top edge (`.hub-chat-panel::before`,
+  `hub-chat-panel-shimmer`, a `linear-gradient` whose `background-position` slides sideways over a
+  6s loop) — "richer visual elements" for a card that otherwise reads as a plain white box — with
+  `overflow: hidden` added to the panel itself so the bar clips cleanly to the card's own rounded
+  corners (the same "overflow:hidden on the card" precedent `.pb-category-card`'s own top accent
+  bar already established).
+  - **A first pass also added an animated multi-color radial-gradient glow behind the whole chat
+    view (`.hub-radial-wrap.chat-mode::before`) — removed outright per direct follow-up feedback
+    ("remove the purple background, keep those colorful particles").** The floating particles and
+    the chat panel's own shimmer accent are the pieces of Task 1 that stayed; `.chat-mode` itself
+    (applied in JSX, still otherwise unused) is back to carrying zero CSS, exactly as it was
+    before this feature — a plain, neutral hub background behind the chat view, colorful
+    accents on top of it rather than a colorful backdrop underneath everything.
 - **Tasks 2/3 — the mascot grows on entering chat, shrinks back on exit, as part of the SAME
   existing transition, not a separate one.** Deliberately implemented as a CSS `transform: scale()`
   transition on the WRAPPER (`.hub-mascot-figure`), not a change to `MascotIcon`'s own `size` prop
@@ -4790,15 +4790,15 @@ changes.**
   after an intentional, expected change" pattern this codebase's own suite has already needed many
   times before, not a regression; two NEW checks were added alongside it confirming the mascot
   genuinely reaches a >1.2× scale in chat mode and genuinely returns to exactly 1× afterward.
-- Verified with a dedicated 15-check Playwright suite: the ambient background/particles/panel
-  shimmer are all absent before entering chat and present (with real, active CSS animations) once
-  in it; the grow is driven by a real class + CSS transform (not an inline one-off style) with a
-  real, non-zero transition duration; leaving chat removes the class and the mascot's own computed
-  transform genuinely returns to scale(1); and — checked in a SEPARATE page context with
-  `prefers-reduced-motion: reduce` forced — every new animation (`hub-chat-bg-drift`,
-  `hub-chat-panel-shimmer`, and the mascot's own scale transition) is confirmed disabled while
-  still landing on the correct end state (grown, just instantly rather than smoothly), matching
-  this codebase's own established `prefers-reduced-motion` convention throughout. The updated
+- Verified with a dedicated 14-check Playwright suite: particles/panel shimmer are present (with
+  real, active CSS animations) once in chat mode, and the wrap's own `::before` is confirmed to
+  render no content at all (the removed background); the grow is driven by a real class + CSS
+  transform (not an inline one-off style) with a real, non-zero transition duration; leaving chat
+  removes the class and the mascot's own computed transform genuinely returns to scale(1); and —
+  checked in a SEPARATE page context with `prefers-reduced-motion: reduce` forced — the panel
+  shimmer animation and the mascot's own scale transition are both confirmed disabled while still
+  landing on the correct end state (grown, just instantly rather than smoothly), matching this
+  codebase's own established `prefers-reduced-motion` convention throughout. The updated
   `test-hub-chat-transition.js` (24 checks, 2 of the original assertions corrected +2 new ones) and
   the full remaining pre-existing regression suite (`test-passion-buildyourown.js`,
   `test-ai-chat.js`, `test-program-copy-by-level.js`, `test-prior-experience-profile.js`,
