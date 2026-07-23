@@ -55,7 +55,7 @@ const CHAT_SCHEMA = {
     milestones: {
       type: ['array', 'null'],
       items: { type: 'string' },
-      description: 'An ORDERED list of 3-7 short, specific milestone titles capturing the REAL arc of the project as actually discussed (from kickoff through to completion) — not a generic template. Required (non-null, non-empty) when planReady is true. Must be null otherwise. Do not include dates or timing — just the titles, in the order they\'d happen.',
+      description: 'An ORDERED list of short, specific milestone titles capturing the REAL arc of the project as actually discussed (from kickoff through to completion) — not a generic template, and GENUINELY GRANULAR, not broad phases. Scale the count to the real complexity described: a small, narrow project might only need a handful, but a substantial, multi-month organizational project (e.g. founding an official chapter, running a competition, building a multi-person team) should produce 15-25+ distinct, concrete, operational milestones — one per real action (e.g. applying for official recognition, recruiting each individual leadership role separately, securing a specific partnership, planning actual event logistics, recruiting judges/participants), matching the level of specificity this app\'s own real opportunity chains already use (e.g. Register -> Prepare -> Practice -> Compete) as the reference point. Required (non-null, non-empty) when planReady is true. Must be null otherwise. Do not include dates or timing — just the titles, in the order they\'d happen.',
     },
     mentionsSpecificEntity: {
       type: 'boolean',
@@ -73,10 +73,12 @@ const SYSTEM_PROMPT = `You are a genuinely creative, collaborative brainstorming
 Rules you must follow:
 - Act like a thoughtful consultant: ask genuine follow-up questions to understand what actually interests the student, and build on their answers rather than jumping straight to a final idea (for example: "Are you interested in that?" then developing the idea further based on their answer). Keep the conversation going across multiple turns.
 - Ground ideas in the student's own real profile (their interests, passion text if provided, courses, activities) — connect to something genuinely personal, not a generic suggestion anyone could get.
+- DON'T DEFAULT TO ASSUMING INDEPENDENT IS MORE IMPRESSIVE: when the idea could plausibly be built either as a fully independent, unaffiliated project OR as an official chapter/campus affiliate of an established, well-structured external program (e.g. Hult Prize, DECA, Model UN, and similar), weigh BOTH paths fairly and explicitly raise the question with the student — do not steer them toward "independent" as if it were automatically the stronger or more impressive option. For a genuinely well-established, competitive, structured program, official affiliation is FREQUENTLY THE STRONGER choice, not the weaker one: it provides real organizational structure, external credibility, and (for competitive programs) a genuine path to real competition/recognition that a from-scratch independent project usually can't replicate on its own. Reason about this case by case, based on what the student is actually describing — never apply a blanket bias toward either path.
+- PROACTIVELY SUGGEST CONCRETE DIFFERENTIATORS: don't just wait to be asked. Actively pitch specific ideas that would make the project more distinctive and evidenced — for example, a particular type of partnership (a relevant course, department, or organization) that would create a real, checkable outcome. Bring these up yourself as part of the natural conversation, not only in response to a direct question about it.
 - The goal is a COMPLETE project concept, not just a one-line idea: a real sense of how it would start, what it would actually involve as it progresses through a few concrete stages, and how it would conclude.
-- Only once that's genuinely been developed together, set planReady to true, and in that SAME response set projectName (a short, specific name) and milestones (an ordered list of 3-7 short, specific milestone titles reflecting EXACTLY what was actually discussed — not a generic template, and not tied to any specific dates). Don't set planReady prematurely — a single idea with no real arc yet is not ready.
+- Only once that's genuinely been developed together, set planReady to true, and in that SAME response set projectName (a short, specific name) and milestones (see the milestones field's own description for how granular this needs to be — a substantial, multi-month project needs many distinct, concrete milestones, not a handful of broad phases). Don't set planReady prematurely — a single idea with no real arc yet is not ready.
 - Even after planReady is true, keep talking naturally if the student wants to keep refining — you can update projectName/milestones again on a later turn if the plan changes.
-- CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly. Set mentionsSpecificEntity to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by the student's own profile data — referencing something already in their profile (even by real name), or giving purely generic advice, is NOT a new claim and should be false.
+- CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly. This applies equally to anything you proactively suggest under the "concrete differentiators" rule above, not just to things the student asks about directly. Set mentionsSpecificEntity to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by the student's own profile data — referencing something already in their profile (even by real name), or giving purely generic advice, is NOT a new claim and should be false.
 - Call the respond_to_brainstorm tool exactly once with your response, and nothing else.`;
 
 function sanitizeHistory(history) {
@@ -151,11 +153,13 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      // Raised from 900 (see the reply-length cap's own bug-fix comment above) — a longer,
-      // substantive reply PLUS a full milestones list in the same response needs real headroom;
-      // 900 was tight enough that a genuinely detailed reply could run the risk of being cut off
-      // before the model finished emitting the tool call's closing JSON.
-      max_tokens: 1600,
+      // Raised from 900, then again from 1600 (see the reply-length cap's own bug-fix comment
+      // above, and Improve Build Your Own's own Task 2 — CLAUDE.md) — a longer, substantive reply
+      // PLUS a genuinely granular milestones list (now scaled up to 15-25+ items for a substantial
+      // project, not the original 3-7) needs real headroom; a tighter budget risks the tool call's
+      // closing JSON getting cut off mid-array on exactly the dense, multi-month projects this
+      // fix was meant to serve better.
+      max_tokens: 2600,
       // Higher than api/chat.js's own 0.6 (general help) — closer to Build Your Own's own
       // original single-shot 0.9 — since a real creative-leap brainstorm benefits from genuine
       // variety, not a safe/predictable completion.
@@ -194,13 +198,14 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
       input,
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: CHAT_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
-      // Raised from 900 (see the Anthropic call's own comment above — same reasoning). Reasoning
-      // tokens for a reasoning-tuned model are drawn from this SAME budget, invisibly, before any
-      // visible output — 'low' effort (down from 'medium') leaves more of this larger budget
-      // available for the actual reply/milestones, further reducing truncation risk, at the cost
-      // of somewhat less deep reasoning per turn (an acceptable trade — a truncated, failed
-      // response is strictly worse than a slightly less deeply-reasoned one).
-      max_output_tokens: 1600,
+      // Raised from 900, then again from 1600 (see the Anthropic call's own comment above — same
+      // reasoning, now also covering Improve Build Your Own's own Task 2 granular-milestones
+      // scale-up). Reasoning tokens for a reasoning-tuned model are drawn from this SAME budget,
+      // invisibly, before any visible output — 'low' effort (down from 'medium') leaves more of
+      // this larger budget available for the actual reply/milestones, further reducing truncation
+      // risk, at the cost of somewhat less deep reasoning per turn (an acceptable trade — a
+      // truncated, failed response is strictly worse than a slightly less deeply-reasoned one).
+      max_output_tokens: 2600,
       reasoning: { effort: 'low' },
     }),
   });

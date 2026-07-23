@@ -5084,6 +5084,74 @@ Fixed by widening the UC Davis branch's search check to also match `course.code`
   build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this is a pure one-line
   filter-logic fix, touching neither `roadmapLayout.js` nor any data file.
 
+**Improve Build Your Own: Judgment, Granularity, Proactive Suggestions — three real reasoning
+gaps found by comparing an actual Build Your Own conversation against a real, successful
+real-world outcome for the same project type (founding an official Hult Prize campus chapter).
+This is a pure prompt-engineering pass on `api/build-your-own-chat.js` — no schema shape, client
+code, or validation logic changed beyond what the larger milestone lists require.**
+- **Task 1 — the affiliation-bias fix.** The old bias toward "independent is more impressive" was
+  never a line anywhere in this codebase's own prompt text (confirmed via grep before touching
+  anything) — it was the model's own emergent default when reasoning about "should I do this
+  independently or join an established program," so the fix is a new, explicit `SYSTEM_PROMPT`
+  rule correcting it directly: `SYSTEM_PROMPT` now has a dedicated
+  "DON'T DEFAULT TO ASSUMING INDEPENDENT IS MORE IMPRESSIVE" rule naming Hult Prize/DECA/Model UN
+  as reference examples, stating official affiliation with a well-established, structured program
+  is FREQUENTLY THE STRONGER choice (not the weaker one) for the real structure/credibility/
+  competition pathway it provides, and instructing case-by-case reasoning with no blanket bias
+  either direction.
+- **Task 2 — granular milestones, scaled to real complexity.** The `milestones` schema field's own
+  description (and the matching `SYSTEM_PROMPT` bullet) no longer caps guidance at "3-7 short
+  milestone titles" — it now asks for milestones scaled to the real complexity described: a small
+  project might still only need a handful, but a substantial, multi-month organizational project
+  (founding an official chapter, running a competition, building a multi-person team) should
+  produce 15-25+ distinct, concrete, operational milestones — one per real action (applying for
+  official recognition, recruiting each leadership role separately, securing a specific
+  partnership, planning actual event logistics, recruiting judges/participants), explicitly
+  pointing at this app's own real opportunity-chain granularity (Register -> Prepare -> Practice ->
+  Compete) as the reference point. No client-side code needed any changes for this — `guideSteps`/
+  the "Step-by-Step Guide" preview (`ProjectBuilderScreen.jsx`) already renders a plain, uncapped
+  `<ol>`/`<li>` list and `openNextStepPrompt`'s guide-reveal mechanism already indexes through
+  `guideStepsUsed` one at a time regardless of total length — nothing anywhere assumed a small
+  milestone count. `max_tokens`/`max_output_tokens` were raised from 1600 to 2600 on both providers
+  (mirroring this same file's own prior 900→1600 bug-fix precedent) so a genuinely large milestones
+  array in the same response as a substantive reply has real headroom, rather than risking the
+  tool call's closing JSON getting cut off mid-array on exactly the dense projects this fix targets.
+- **Task 3 — proactive differentiator suggestions.** A new `SYSTEM_PROMPT` rule,
+  "PROACTIVELY SUGGEST CONCRETE DIFFERENTIATORS," instructs the model to actively pitch ideas (e.g.
+  a specific type of partnership with a relevant course/department/organization) that would make
+  the project more distinctive and evidenced, rather than only responding to what the student
+  explicitly asks about. The existing honesty guardrail (`mentionsSpecificEntity`/
+  `applyGuardrails`, untouched code-wise, per this task's own explicit "keep it as it is") now has
+  one added sentence making clear it applies equally to anything proactively suggested this way,
+  not just to direct answers.
+- Verified two ways. A dedicated 13-check Node-level test (mocking `global.fetch`, the same
+  technique this file's own dual-provider tests already use) confirms the actual outgoing system
+  prompt/schema carry all of the above verbatim, that `max_tokens`/`max_output_tokens` were raised
+  to 2600, and that a genuinely large (20-item) mocked `milestones` array round-trips cleanly
+  through `validateProposal`/`applyGuardrails` with no hidden count cap anywhere in this file. Then,
+  since this is fundamentally a change to the MODEL's real reasoning (not testable by mocking),
+  3 independent real, unmocked conversations were run directly against the LIVE deployed endpoint
+  for each scenario, matching this codebase's own established "verify a prompt-only fix against
+  real repeated live calls" precedent (see "Make the Verify This Yourself Disclaimer Conditional"):
+  asking directly whether to build a business/social-impact club independently or as an official
+  Hult Prize chapter got all 3/3 real replies explicitly recommending exploring the official
+  Hult Prize route FIRST, citing real structure/credibility/competition-pathway reasoning, rather
+  than defaulting to independent; a full multi-turn conversation building out an official Hult
+  Prize chapter (recruit an exec board, partner with a business department, run a real judged
+  spring competition) reached `planReady: true` with a real, live-generated **29-milestone** list —
+  genuinely granular, individually distinct operational steps (separately recruiting each exec
+  board role, identifying a faculty sponsor, securing business-department sponsorship, booking an
+  event space, recruiting an approved judging panel, running the actual event, publishing an
+  impact summary), closely mirroring the real reference case's own described gaps; asking an
+  open-ended "what would make my club stand out" question got a real, unprompted, proactive
+  differentiator suggestion (partnering with a specific school course/department so teams build
+  and test real products) with `mentionsSpecificEntity: false` correctly, since nothing in that
+  particular reply named a real specific external entity; and a separate, deliberately
+  fact-eliciting follow-up ("tell me specifically about Hult Prize eligibility requirements...")
+  correctly triggered `mentionsSpecificEntity: true` with the real "double-check it yourself"
+  guardrail note appended, in all 3/3 real attempts — confirming the existing guardrail still
+  fires correctly on a genuinely new named-entity claim, unaffected by any of the above changes.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
