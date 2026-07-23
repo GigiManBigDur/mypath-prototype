@@ -112,6 +112,14 @@ const TILES = [
     title: 'Transcript & GPA',
     desc: 'Log your grades and see your calculated GPA.',
     requiresPartnerSchool: true,
+    // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — this tile also
+    // stays visible for ANY Transfer student post-survey, not just one who selected a real partner
+    // school, since TranscriptScreen.jsx now has a real, reachable branch for them too (the shared
+    // high school transcript section, TransferOnlyTranscriptScreen). Read by the `tiles` filter
+    // below, alongside `requiresPartnerSchool`/`hasPartnerSchool`. `courseSelection`'s own tile is
+    // deliberately NOT given this same treatment — Course Selection still has no real content for
+    // a non-UC-Davis transfer student (no course catalog to pick from).
+    visibleForTransfer: true,
     ...partnerSchoolGate(
       (state) => state.selectedProgramKeys.length > 0,
       () => 'Select at least one program first',
@@ -202,6 +210,12 @@ const GUIDED_SEQUENCE = [
   },
   {
     id: 'transcript', requiresPartnerSchool: true,
+    // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — same widened
+    // reachability as the tile's own `visibleForTransfer` (TILES above): the mascot's guided
+    // walkthrough now also includes this step for a Transfer student with no partner school, since
+    // TranscriptScreen.jsx's own TransferOnlyTranscriptScreen branch is real, reachable content for
+    // them now, not just a locked/hidden tile.
+    visibleForTransfer: true,
     isDone: (state) => state.transcriptCompleted,
     intro: "Let's log your grades and calculate your GPA.",
   },
@@ -248,7 +262,8 @@ const ENDPOINT_STEP = { id: 'plan', intro: "You've made it through the whole gui
 // so returning to the hub after finishing a step always reflects the CURRENT next incomplete step,
 // per this stage's own explicit requirement.
 function getNextGuidedStep(state, hasPartnerSchool) {
-  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool);
+  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool
+    || (s.visibleForTransfer && state.educationLevel === 'transfer'));
   return relevant.find((s) => !s.isDone(state)) || ENDPOINT_STEP;
 }
 
@@ -259,7 +274,8 @@ function getNextGuidedStep(state, hasPartnerSchool) {
 // GUIDED_SEQUENCE, the same real data `getNextGuidedStep` already derives. Also reused as-is by
 // the radial-layout pass's "Your Progress" card for the real "Milestones reached" stat below.
 function getGuidedProgress(state, hasPartnerSchool) {
-  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool);
+  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool
+    || (s.visibleForTransfer && state.educationLevel === 'transfer'));
   const doneCount = relevant.filter((s) => s.isDone(state)).length;
   const currentIndex = Math.min(doneCount, relevant.length - 1);
   return { total: relevant.length, currentIndex, doneCount };
@@ -377,7 +393,12 @@ export default function HubScreen() {
   // KNOWN (survey complete) and turned out to be "no partner school." Before the survey, it's
   // simply unknown, so the tile stays visible-but-locked instead of disappearing — see
   // `partnerSchoolGate` above for the matching `unlock`/`lockedReason` half of this fix.
-  const tiles = TILES.filter((t) => !t.requiresPartnerSchool || !isSurveyComplete(state) || hasPartnerSchool);
+  // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — `visibleForTransfer`
+  // keeps the Transcript & GPA tile visible for any Transfer student too, alongside the existing
+  // `hasPartnerSchool` case — see that tile's own comment in TILES above for why (real, reachable
+  // content now exists for them). No other `requiresPartnerSchool` tile carries this flag.
+  const tiles = TILES.filter((t) => !t.requiresPartnerSchool || !isSurveyComplete(state) || hasPartnerSchool
+    || (t.visibleForTransfer && state.educationLevel === 'transfer'));
   const nextStep = getNextGuidedStep(state, hasPartnerSchool);
   // Bug fix (see CLAUDE.md) — `getNextGuidedStep` returns the literal `ENDPOINT_STEP` constant
   // once every real GUIDED_SEQUENCE step is done, rather than a step actually IN that sequence —

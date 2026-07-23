@@ -64,6 +64,30 @@ const DEFAULT_STATE = {
   // "blank means unset" convention passionText already uses. Included verbatim in
   // compileStudentProfile's basicProfile so Stage 2 suggestions/chat/Build Your Own can read it.
   currentMajor: '',
+  // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — Transfer-track-only
+  // (never shown/read for High School or general Undergraduate). `transferHighSchool` is the
+  // Survey's own "Which high school did you attend?" answer: '' unselected, 'Roslyn High School'
+  // (real course-catalog data behind it), or 'Other' (an honest placeholder for a school we don't
+  // have real data for yet — src/data/schools.js's TRANSFER_HS_SCHOOLS). `transferHsTranscript`
+  // (Roslyn path only) is the SAME `{ id, courseId, gradeEarned, yearTaken }` shape `transcript`
+  // below uses, against the identical real Roslyn course catalog/weighted-GPA math — a deliberately
+  // SEPARATE field rather than reusing `transcript` itself, matching this app's own established
+  // "separate field per concept" convention (see `ucdavisTranscript`'s own comment) even though the
+  // entry shape happens to coincide here; `transcript` stays reserved for an actual current High
+  // School student's own transcript. `transferHsOtherCourses` (Other path only) is a plain
+  // `{ id, name }` array — free-text course names, no grades, since there's no real per-course
+  // grading data for an unmapped school to enter against. `transferHsOtherGpa` (Other path only) is
+  // a plain self-reported GPA string, the same "simple text box" shape the Survey's own GPA field
+  // used before the real Transcript & GPA feature replaced it for Roslyn/UC Davis — kept here only
+  // as the honest fallback for a school with no real data behind it. None of these three ever feed
+  // `state.gpa` (which stays scoped to the student's CURRENT school/program, per the existing
+  // Reach/Match/Safety contract) — they're a secondary, display/AI-context-only data set, included
+  // verbatim in compileStudentProfile's `academic.transferHighSchool` (Task 3) so the AI features
+  // have richer context on a transfer student's full academic history, not just their current one.
+  transferHighSchool: '',
+  transferHsTranscript: [],
+  transferHsOtherCourses: [],
+  transferHsOtherGpa: '',
   gpa: '', // Stage 1 self-reported this directly; Stage 2 (Transcript & GPA) now calculates it
   // instead — TranscriptScreen writes the converted 4.0-scale equivalent here as a string (e.g.
   // '3.7'), the exact same format/field the old input produced, so ProgramsStep/roadmapGenerator

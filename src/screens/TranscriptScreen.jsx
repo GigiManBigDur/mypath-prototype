@@ -11,25 +11,10 @@ import { LETTER_GRADE_OPTIONS, calculateUCDavisGpa } from '../utils/ucdavisGpa';
 import StepProgress from '../components/StepProgress';
 import CourseSearchField from '../components/CourseSearchField';
 import MascotWidget from '../components/MascotWidget';
+import GpaBox from '../components/GpaBox';
+import TransferHighSchoolTranscript from '../components/TransferHighSchoolTranscript';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
-import { useCountUp } from '../hooks/useCountUp';
-
-// Palette repaint, Transcript/Course Selection batch (see CLAUDE.md) — Task 1's own "count-up
-// effect... rather than an instant static update" for the GPA summary boxes, shared by both the
-// Roslyn (3 boxes) and UC Davis (1 box) variants below. Purely a display wrapper around
-// `useCountUp` — the REAL value (already computed by calculateUnweightedGpa/calculateWeightedGpa/
-// calculate4ScaleGpa/calculateUCDavisGpa, none of which this pass touches) is what's passed in;
-// this only decides how the transition to a new value is shown, never recomputes anything.
-function GpaBox({ value, label }) {
-  const displayed = useCountUp(value);
-  return (
-    <div className="gpa-summary-box">
-      <div className="gpa-summary-value">{displayed != null ? displayed.toFixed(2) : '—'}</div>
-      <div className="gpa-summary-label">{label}</div>
-    </div>
-  );
-}
 
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
@@ -49,7 +34,16 @@ export default function TranscriptScreen() {
   // quarter system rather than semesters); everyone else is completely unaffected.
   const isCollegeAtUCDavis = (state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer')
     && state.currentSchool === 'UC Davis';
-  const hasCourseFlow = isHighSchool || isCollegeAtUCDavis;
+  // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — widened so this
+  // screen is reachable for ANY Transfer student, not just one who also happens to have selected
+  // UC Davis as their current school. Real transfer admissions typically considers a student's
+  // high school record regardless of which (if any) partner college they're currently attending,
+  // so limiting this to Transfer+UC-Davis students only would leave the vast majority of transfer
+  // students — who have no real current-college data behind them in this prototype at all — with
+  // no way to ever add that context. Undergraduate (non-transfer) students are unaffected: they
+  // still need a real partner school (UC Davis) to reach this screen at all, same as before.
+  const isTransfer = state.educationLevel === 'transfer';
+  const hasCourseFlow = isHighSchool || isCollegeAtUCDavis || isTransfer;
 
   // Course Selection Stage 4's "revisit" checkpoint (Part 1) reuses this exact screen rather than
   // rebuilding the transcript-entry mechanism — set by Roadmap.jsx right before navigating here.
@@ -71,7 +65,12 @@ export default function TranscriptScreen() {
   if (!hasCourseFlow) return null;
 
   if (!isHighSchool) {
-    return <UCDavisTranscriptScreen state={state} patch={patch} />;
+    // hasCourseFlow already guarantees one of isCollegeAtUCDavis/isTransfer is true here (since
+    // !isHighSchool && hasCourseFlow means at least one of the two widened conditions above held).
+    if (isCollegeAtUCDavis) {
+      return <UCDavisTranscriptScreen state={state} patch={patch} />;
+    }
+    return <TransferOnlyTranscriptScreen state={state} patch={patch} />;
   }
 
   // The "add a course" form is a few fields staged locally before becoming one real
@@ -338,6 +337,13 @@ function UCDavisTranscriptScreen({ state, patch }) {
   const [letterGrade, setLetterGrade] = useState('');
   const [classYear, setClassYear] = useState(null);
   const [quarter, setQuarter] = useState(null);
+
+  // High School Selection + Transcript for Transfer Students (see CLAUDE.md), Task 2 — a Transfer
+  // student who ALSO happens to attend UC Davis gets both sections: their real current-college
+  // (UC Davis) transcript below, AND the shared TransferHighSchoolTranscript section appended near
+  // the bottom of this screen. An actual Undergraduate (non-transfer) UC Davis student never sees
+  // the extra section, since `state.transferHighSchool` is Transfer-only and stays blank for them.
+  const isTransfer = state.educationLevel === 'transfer';
 
   // UC Davis Course Selection Stage 4's own two-part checkpoint (see CLAUDE.md) reuses this exact
   // screen for its Part 1, same reuse principle Roslyn's own checkpoint already established. Every
@@ -617,9 +623,81 @@ function UCDavisTranscriptScreen({ state, patch }) {
         </>
       )}
 
+      {/* High School Selection + Transcript for Transfer Students (see CLAUDE.md), Task 2 —
+          shown for a Transfer student regardless of whether their UC Davis transcript above is
+          empty or not; hidden in checkpoint mode (a future-quarter revisit, not the one-time
+          onboarding visit this one-time section belongs to). */}
+      {!checkpoint && isTransfer && <TransferHighSchoolTranscript state={state} patch={patch} />}
+
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
           {checkpoint ? 'Save & Continue to Part 2' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// High School Selection + Transcript for Transfer Students (see CLAUDE.md) — the third real branch
+// of this screen: a Transfer student who has NOT selected UC Davis as their current school (or
+// left it blank) has no current-college transcript system to speak of in this prototype — the
+// partner-school course/grading data built so far only covers UC Davis for college-level students —
+// but Task 2's own "add a high school transcript section... since real transfer admissions
+// typically requires this too" applies to them just as much as it does to a UC-Davis-selecting
+// transfer student. This screen exists specifically so that requirement isn't limited to the one
+// subset of transfer students who also happen to attend UC Davis. It shows ONLY the shared
+// TransferHighSchoolTranscript section (Task 2) plus Continue/Back — there is no current-college
+// course catalog to search against for an unset/unmapped current school, so nothing here is
+// guessed or invented in its place. There's no checkpoint mode for this branch (Course Selection's
+// own per-year/per-quarter revisit mechanism is scoped to highschool/UC-Davis students only, and
+// this branch is neither), so it's always the plain one-time onboarding visit.
+function TransferOnlyTranscriptScreen({ state, patch }) {
+  const hasHsSection = !!state.transferHighSchool;
+  // Same shared 'transcript-empty'/'transcript-intro'/'transcript-revisit' dialogue keys the
+  // Roslyn and UC Davis variants above already reuse for the identical reason documented on
+  // UCDavisTranscriptScreen — a student who somehow encounters more than one of these three
+  // variants shouldn't see an "intro" line replayed under a different name each time.
+  const transcriptIntroKey = hasHsSection ? 'transcript-intro' : 'transcript-empty';
+  const transcriptIntroSeen = useMascotSeenSnapshot(transcriptIntroKey);
+  useMarkMascotSeen(!transcriptIntroSeen ? transcriptIntroKey : null);
+  const transcriptRevisitText = useMascotRevisitOnce(transcriptIntroSeen, 'transcript-revisit');
+  const mascotText = transcriptIntroSeen ? transcriptRevisitText : getMascotLine(transcriptIntroKey);
+
+  // Continue only ever sets `transcriptCompleted: true` (the hub's own real "is this step done"
+  // signal, unlocking Opportunity Finder/Course Selection for a partner-school student the same
+  // way it always has) — it deliberately never writes `state.gpa`, since there's no current-college
+  // transcript here to derive one from, and guessing one from the high school section alone would
+  // misrepresent what that number means everywhere else it's read (Reach/Match/Safety,
+  // ProgramsStep's curated program list) — the same "don't guess" contract every other blank-GPA
+  // consumer in this app already honors.
+  const advance = () => patch({ transcriptCompleted: true, screen: 'hub' });
+
+  return (
+    <div>
+      <MascotWidget text={mascotText} />
+      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
+        <ArrowLeft size={14} /> Back
+      </button>
+
+      <StepProgress step={3} total={8} />
+      <h1 className="page-title">Transcript & GPA</h1>
+      <p className="page-sub">
+        We don't have your current school's course catalog on file yet, but since transfer
+        applications typically also consider your high school record, you can add that here.
+      </p>
+
+      {!hasHsSection && (
+        <p className="field-hint">
+          Add your high school on the Survey (optional) to fill in this section below — or just
+          continue if you'd rather skip it for now.
+        </p>
+      )}
+
+      <TransferHighSchoolTranscript state={state} patch={patch} />
+
+      <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn btn-primary" onClick={advance}>
+          Continue
         </button>
       </div>
     </div>

@@ -7,7 +7,7 @@ import { CATEGORIES } from '../data/interests';
 import { useApp } from '../context/AppContext';
 import StepProgress from '../components/StepProgress';
 import SchoolSearchField from '../components/SchoolSearchField';
-import { SCHOOLS, COLLEGE_SCHOOLS } from '../data/schools';
+import { SCHOOLS, COLLEGE_SCHOOLS, TRANSFER_HS_SCHOOLS } from '../data/schools';
 import MascotWidget from '../components/MascotWidget';
 import { useMarkMascotSeen, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
@@ -116,6 +116,7 @@ export default function SurveyScreen() {
   // the hard requirement.
   const isHighSchool = state.educationLevel === 'highschool';
   const isCollege = state.educationLevel === 'undergraduate' || state.educationLevel === 'transfer';
+  const isTransfer = state.educationLevel === 'transfer';
   const hasSchoolField = isHighSchool || isCollege;
   const canContinue = isSurveyComplete(state);
 
@@ -269,7 +270,10 @@ export default function SurveyScreen() {
               type="button"
               key={lvl.id}
               className={`pill${state.educationLevel === lvl.id ? ' selected' : ''}`}
-              onClick={() => patch({ educationLevel: lvl.id, schoolYear: null, currentSchool: '', currentMajor: '' })}
+              onClick={() => patch({
+                educationLevel: lvl.id, schoolYear: null, currentSchool: '', currentMajor: '',
+                transferHighSchool: '',
+              })}
             >
               {lvl.label}
             </button>
@@ -355,6 +359,32 @@ export default function SurveyScreen() {
               placeholder="e.g. Managerial Economics"
             />
           </label>
+        </div>
+      )}
+
+      {/* High School Selection + Transcript for Transfer Students (see CLAUDE.md), Task 1 — Transfer
+          track specifically, NOT general Undergraduate: a transfer applicant's admissions file
+          typically still includes their high school record, which the general Undergraduate flow
+          (already several years removed from high school for most of that cohort) has no
+          equivalent need for. Same search/select pattern SchoolSearchField already established for
+          "What school do you currently attend?" above, reused directly rather than a different
+          control. Optional, matching that same field's own precedent (most transfer students won't
+          have attended Roslyn specifically) — Continue is never gated on this. */}
+      {isTransfer && (
+        <div className="field-block">
+          <div className="field-label">
+            Which high school did you attend? <span className="optional-badge">Optional</span>
+          </div>
+          <p className="field-hint">
+            Roslyn High School is the only school we have real course/grading data for right now —
+            select "Other" if yours isn't listed. This helps give your plan richer context, since
+            transfer applications typically consider your high school record too.
+          </p>
+          <SchoolSearchField
+            schools={TRANSFER_HS_SCHOOLS}
+            value={state.transferHighSchool}
+            onChange={(school) => patch({ transferHighSchool: school })}
+          />
         </div>
       )}
 

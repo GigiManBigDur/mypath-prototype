@@ -12,7 +12,7 @@ import { findProjectType, findCategory, BUILD_YOUR_OWN_CATEGORY_ID } from '../da
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getCourseById } from '../data/courses';
 import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
-import { calculateUnweightedGpa, calculateWeightedGpa } from './gpa';
+import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from './gpa';
 import { calculateUCDavisGpa } from './ucdavisGpa';
 import { getEffectiveToday, realDaysBetween } from './dates';
 import { generateRoadmap } from './roadmapGenerator';
@@ -193,7 +193,50 @@ function resolveAcademic(state) {
       ? state.selectedUCDavisCourseIds.map((id) => getUCDavisCourseById(id)?.name || id)
       : [];
 
-  return { gpa, transcript, currentCourses };
+  return { gpa, transcript, currentCourses, transferHighSchool: resolveTransferHighSchool(state) };
+}
+
+// High School Selection + Transcript for Transfer Students (see CLAUDE.md), Task 3 — a Transfer
+// student's high school record, whichever of the two data paths (Task 2) was actually used,
+// included so the AI features have richer context on the student's FULL academic history, not just
+// their current one. `null` (not an empty object) for a non-Transfer student, or a Transfer student
+// who left the Survey's own "Which high school did you attend?" question blank — same "don't
+// guess/fabricate, just omit" convention every other optional field in this profile already
+// follows. Deliberately separate from `transcript`/`currentCourses` above (the student's CURRENT
+// school's own academic record) — this is explicitly their PAST, pre-transfer history.
+function resolveTransferHighSchool(state) {
+  if (state.educationLevel !== 'transfer' || !state.transferHighSchool) return null;
+
+  if (state.transferHighSchool === 'Roslyn High School') {
+    const hsTranscript = state.transferHsTranscript || [];
+    return {
+      attended: 'Roslyn High School',
+      dataSource: 'real-catalog',
+      gpa: {
+        unweighted: calculateUnweightedGpa(hsTranscript),
+        weighted: calculateWeightedGpa(hsTranscript),
+        scale4: calculate4ScaleGpa(hsTranscript),
+      },
+      transcript: hsTranscript.map((entry) => {
+        const course = getCourseById(entry.courseId);
+        return {
+          course: course?.name || entry.courseId,
+          department: course?.department || null,
+          gradeEarned: entry.gradeEarned,
+          yearTaken: entry.yearTaken,
+        };
+      }),
+    };
+  }
+
+  // "Other" — the honest, simplified fallback (Task 2): no real per-course grades or catalog data
+  // to report, just the plain course names and self-reported GPA the student entered directly.
+  return {
+    attended: state.transferHighSchool,
+    dataSource: 'self-reported',
+    gpa: state.transferHsOtherGpa || null,
+    courses: (state.transferHsOtherCourses || []).map((c) => c.name),
+  };
 }
 
 // Reuses `generateRoadmap(state)` (no `yearWindow`, the same full, unfiltered multi-year call

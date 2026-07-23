@@ -4961,6 +4961,108 @@ TRANSFER DESTINATION.
   sub-step's own copy (from the earlier fix) is confirmed still correct too, unaffected by this
   change. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**High School Selection + Transcript for Transfer Students — a real transfer applicant's admissions
+file typically still includes their high school record, so Transfer-track students now get a
+dedicated way to add it, feeding both a real (Roslyn-catalog) and an honest simplified (any other
+school) path into the Stage 1 compiled profile.**
+- **Task 1 — `src/data/schools.js` gained `TRANSFER_HS_SCHOOLS = [...SCHOOLS, 'Other']`**, a
+  dedicated list (not a mutation of `SCHOOLS` itself, which stays real-schools-only for the actual
+  High School "current school" field) so `'Other'` — an honest placeholder for a school this app
+  has no real course-catalog/grading data for yet, the same spirit as `SchoolSearchField`'s own
+  "No matching schools yet — more coming soon" empty state — never leaks into a context that
+  shouldn't offer it. `SurveyScreen.jsx` renders "Which high school did you attend?" gated on
+  `isTransfer` (`state.educationLevel === 'transfer'`, NOT general `isCollege`) — deliberately
+  scoped to Transfer only, since a general Undergraduate student is typically several years removed
+  from high school with no equivalent admissions need for that record. Reuses `SchoolSearchField`
+  directly (the exact same selector pattern the "What school do you currently attend?" college
+  field already established), optional (most transfer students won't have attended Roslyn
+  specifically, so Continue is never gated on this — same precedent that field's own optionality
+  already set). `state.transferHighSchool` (`AppContext.jsx`, `''` default) resets alongside
+  `currentSchool`/`currentMajor` whenever the education-level pill changes, so a stale answer from
+  a different level can never silently carry over.
+- **Task 2 — `src/components/TransferHighSchoolTranscript.jsx`** (new, shared) is the one section
+  rendered wherever this applies, branching on `state.transferHighSchool`:
+  - **Roslyn path** reuses the EXACT same real course-search-and-grade-entry mechanism and
+    weighted-GPA math `TranscriptScreen.jsx`'s own Roslyn form already uses (`CourseSearchField`'s
+    default `searchCourses`, `calculateUnweightedGpa`/`calculateWeightedGpa`/`calculate4ScaleGpa`,
+    the same AP/Research Honors/Honors weight multipliers) — scoped to a SEPARATE
+    `state.transferHsTranscript` array (same `{ id, courseId, gradeEarned, yearTaken }` shape as
+    `transcript`, kept distinct rather than reused, matching this app's own established "separate
+    field per concept" convention even where the shape coincides — see `ucdavisTranscript`'s own
+    precedent). Year options are the full 8th-12th range, unscoped to `state.schoolYear` (which for
+    a Transfer student means their CURRENT college year, not a high school grade) — their high
+    school record is already fully in the past by the time they're filling this out.
+  - **"Other" path** is a deliberately simpler, honest fallback — free-text course NAMES only (no
+    real per-course grading data to attach a weighted multiplier to) into `state.
+    transferHsOtherCourses` (a plain `{ id, name }` array, rendered as removable chips reusing
+    `.course-selected-chip`'s existing look), plus one plain self-reported GPA text field
+    (`state.transferHsOtherGpa`) — the same simple-text-box shape the Survey's own GPA field used
+    before the real Transcript & GPA feature replaced it for Roslyn/UC Davis. A clearly visible
+    italic note ("We don't have detailed course catalog or grading data for this school yet, so
+    this is a simplified version...") makes the limitation explicit rather than silently
+    under-delivering. Neither path ever writes `state.gpa` — that field stays scoped to the
+    student's CURRENT school/program (the existing Reach/Match/Safety contract), so this is a
+    secondary, display/AI-context-only data set, never conflated with the number every other
+    GPA-aware consumer already reads.
+  - **`src/components/GpaBox.jsx`** was extracted from a small local function inside
+    `TranscriptScreen.jsx` (its own count-up display wrapper around `useCountUp`, unchanged) into
+    its own file specifically so this new component can reuse it without a circular import between
+    the two files (`TranscriptScreen.jsx` itself renders `TransferHighSchoolTranscript`, which
+    would otherwise need to import back from the screen that renders it).
+  - **A real, deliberate reachability widening, not just a UI addition**: `TranscriptScreen.jsx`'s
+    own `hasCourseFlow` gate — previously `isHighSchool || isCollegeAtUCDavis`, meaning a Transfer
+    student without UC Davis as their current school had NO way to ever reach this screen at
+    all — is now `isHighSchool || isCollegeAtUCDavis || isTransfer`. A Transfer student who ALSO
+    selected UC Davis gets both sections (their real UC Davis transcript, PLUS
+    `TransferHighSchoolTranscript` appended near the bottom, hidden only in checkpoint mode — a
+    future-quarter revisit, not the one-time onboarding visit this section belongs to). A Transfer
+    student WITHOUT UC Davis (the majority, since UC Davis is the only real partner-school option
+    and won't match most transfer students) now reaches a new, minimal
+    `TransferOnlyTranscriptScreen` — ONLY the shared HS transcript section plus Continue/Back, no
+    fabricated current-college content to fill the gap. Its own Continue sets
+    `transcriptCompleted: true` (the hub's real "is this step done" signal) but deliberately never
+    writes `state.gpa` — there's no current-college transcript to derive one from, and guessing one
+    from the HS section alone would misrepresent what that number means everywhere else it's read.
+    Reuses the same shared `'transcript-empty'`/`'transcript-intro'`/`'transcript-revisit'` mascot
+    dialogue keys the Roslyn/UC Davis variants already established (a student encountering more
+    than one of the three variants shouldn't see an "intro" line replayed under a different name).
+  - **`HubScreen.jsx`'s Transcript & GPA tile gained `visibleForTransfer: true`**, read by the
+    `tiles` filter and by `GUIDED_SEQUENCE`'s own `getNextGuidedStep`/`getGuidedProgress` filters
+    alongside the existing `hasPartnerSchool` check — so this tile (and the mascot's guided
+    walkthrough) now also includes it for ANY Transfer student post-survey, not just one who
+    happens to have a real partner school. **`courseSelection`'s own tile is deliberately NOT given
+    this same flag** — Course Selection still has no real content for a non-UC-Davis transfer
+    student (no course catalog to pick from), so it stays exactly as gated as before.
+- **Task 3 — `profileCompiler.js`'s `resolveAcademic` gained `transferHighSchool:
+  resolveTransferHighSchool(state)`**, a new function returning `null` for a non-Transfer student
+  or one who left the Survey question blank (same "don't guess/fabricate, just omit" convention
+  every other optional profile field already follows), or — branching the same way the UI does —
+  either the real Roslyn-path object (`{ attended, dataSource: 'real-catalog', gpa: {unweighted,
+  weighted, scale4}, transcript: [...] }`) or the honest Other-path object (`{ attended,
+  dataSource: 'self-reported', gpa: <string|null>, courses: [...] }`). `compileSuggestionProfile`
+  needed zero additional wiring — it already spreads `...full` verbatim and only replaces
+  `planHistory`, so this flows through to Stage 2 suggestions/the general chat/Build Your Own
+  automatically, the same precedent `passionText`/`currentMajor` already established.
+- Verified with a dedicated 36-check Playwright suite: the Survey question appears only for
+  Transfer (confirmed absent for both Undergraduate and High School), shows Roslyn High School and
+  "Other" as real options with a visible "Optional" badge; the Transcript & GPA hub tile is visible
+  for a Transfer student with NO partner school selected (a real, confirmed widening — Undergraduate
+  without a partner school still correctly has NO such tile, unchanged); the Roslyn path's real
+  course search/grade entry/weighted-GPA math all work identically to the existing Roslyn HS
+  flow, writing to the separate `transferHsTranscript` field and never touching `state.gpa`; the
+  Other path's simplified free-text course entry, GPA input, and clear limited-data note all work
+  and persist correctly; a blank `transferHighSchool` renders no section at all (no crash, no
+  forced choice); the compiled profile carries the real HS transcript data correctly for both
+  paths, `null` when blank; and a Transfer + UC Davis student correctly gets BOTH sections
+  simultaneously with `state.gpa` still reflecting only the UC Davis transcript, never the HS one.
+  The full pre-existing regression suite (`test-current-major.js`, `test-major-copy-by-level.js`,
+  `test-program-copy-by-level.js`, `test-hub-chat-transition.js`, `test-map-chat-widget.js`,
+  `test-passion-buildyourown.js`, `test-prior-experience-profile.js`,
+  `test-hub-profile-tile-layout.js`, `test-ai-chat.js`, `test-ai-profile-edge.js`,
+  `test-ai-profile-stage1.js`, `test-chat-visuals-mascot-scale.js`,
+  `test-hub-search-coming-soon.js`) all still pass with zero regressions; `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
