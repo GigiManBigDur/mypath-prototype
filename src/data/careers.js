@@ -547,3 +547,19 @@ export function getMajorGroups(tracks, level) {
   }
   return groups;
 }
+
+// Clarify "Related College Majors" Copy by Education Level (see CLAUDE.md) — the exact same
+// pattern `getProgramApplicationSentence` (programs.js) already established for Recommended
+// Programs: a plain sentence naming exactly what kind of major these represent, since the word
+// alone reads ambiguously (a first-year undergraduate major vs. a graduate field vs. a major at a
+// transfer destination) depending on the student's own education level. Extracted once here so
+// DiscoveryScreen's own Related College Majors sub-step (Recommended and Browse alike, which share
+// the same header) can never independently drift on this wording.
+const MAJOR_APPLICATION_SENTENCE = {
+  highschool: 'These are majors you could pursue as a first-year college student.',
+  undergraduate: 'These are graduate majors/fields you could pursue.',
+  transfer: 'These are majors you could pursue at your transfer destination.',
+};
+export function getMajorApplicationSentence(educationLevel) {
+  return MAJOR_APPLICATION_SENTENCE[educationLevel] || MAJOR_APPLICATION_SENTENCE.highschool;
+}

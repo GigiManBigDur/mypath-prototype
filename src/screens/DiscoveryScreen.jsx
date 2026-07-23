@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getBuiltTracks, BUILT_TRACKS } from '../data/interests';
-import { getCareerPool, getCareerGroups, getMajorGroups } from '../data/careers';
+import { getCareerPool, getCareerGroups, getMajorGroups, getMajorApplicationSentence } from '../data/careers';
 import { getMergedPrograms, getProgramApplicationSentence } from '../data/programs';
 import CareersStep from './discovery/CareersStep';
 import MajorsStep from './discovery/MajorsStep';
@@ -31,7 +31,11 @@ const SUB_STEP_COPY = {
   },
   majors: {
     title: 'Related college majors',
-    sub: 'These majors lead toward the careers you picked. Select as many as fit.',
+    // Clarify "Related College Majors" Copy by Education Level (see CLAUDE.md) — a function of
+    // `level`, not a plain string, the same "resolve per-caller instead of a fixed string"
+    // convention the `programs` entry right below already established for the identical reason
+    // (varies by education level).
+    sub: (level) => `${getMajorApplicationSentence(level)} These majors lead toward the careers you picked. Select as many as fit.`,
   },
   programs: {
     title: 'Recommended programs',

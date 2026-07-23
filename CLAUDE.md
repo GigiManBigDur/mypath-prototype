@@ -4930,6 +4930,37 @@ what lets those features generate a genuinely personal suggestion instead of a g
   regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this
   feature never touches `Roadmap.jsx`/`roadmapLayout.js` at all.
 
+**Clarify "Related College Majors" Copy by Education Level — the same pattern the earlier
+"Recommended Programs" copy fix already established, applied to Discovery's Majors sub-step.**
+The word "major" alone reads ambiguously across this app's 3 education levels the same way
+"program" did — a High School student's own major is the one they'd declare as a FIRST-YEAR
+COLLEGE student, an Undergraduate's is a GRADUATE field, and a Transfer student's is one at their
+TRANSFER DESTINATION.
+- **`getMajorApplicationSentence(educationLevel)`** (new export, `src/data/careers.js`, right
+  after `getMajorGroups` — the same "extract once, every caller reads the identical value"
+  precedent `getProgramApplicationSentence`/`gpaBenchmarkText`/`getStage0TargetLabel` already
+  established) returns one of 3 fixed sentences keyed by level ("These are majors you could pursue
+  as a first-year college student." / "These are graduate majors/fields you could pursue." /
+  "These are majors you could pursue at your transfer destination."), falling back to the
+  highschool wording for a defensive/unexpected value, same as its Programs counterpart.
+- **`DiscoveryScreen.jsx`'s `SUB_STEP_COPY.majors.sub`** became a function of `level` (matching the
+  `programs` entry right below it in the same object, which already established this exact
+  "function vs. plain string, resolved generically at render time" convention) — `(level) =>
+  \`${getMajorApplicationSentence(level)} These majors lead toward the careers you picked. Select
+  as many as fit.\``. The render site's existing generic branch
+  (`typeof SUB_STEP_COPY[subStep].sub === 'function' ? ...sub(level) : ...sub`) needed zero changes
+  — it already handles a mix of function- and string-valued `sub` entries across the 3 sub-steps.
+  Because this header sits above the "Recommended for you" / "Browse all majors" toggle and is
+  shared by both views, both automatically show the correct sentence with no separate Browse-mode
+  copy needed — same reasoning the Programs fix already relied on. The Careers sub-step's own copy
+  (a plain string) is completely untouched, and there's no majors-equivalent of "Your School List"
+  (`ProgramSummaryScreen`) to also update — majors have no second screen this copy appears on.
+- Verified with a dedicated 8-check Playwright suite: all 3 education levels show their correct
+  sentence on Discovery's Related College Majors sub-step, in BOTH the Recommended and Browse
+  views; the Careers sub-step's own copy is confirmed completely untouched; and the Programs
+  sub-step's own copy (from the earlier fix) is confirmed still correct too, unaffected by this
+  change. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
