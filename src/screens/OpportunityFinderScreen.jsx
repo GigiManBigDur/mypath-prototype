@@ -4,9 +4,11 @@ import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getOpportunityPool, getSchoolOpportunities } from '../data/opportunities';
 import { anchorDate, formatDate, getEffectiveToday } from '../utils/dates';
+import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
-import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
+import PriorExperiencesEditor from '../components/PriorExperiencesEditor';
+import { useMascotIntroOnce, useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 import { TrackIcon, getTrackColor } from '../components/TrackVisuals';
 
 export default function OpportunityFinderScreen() {
@@ -64,7 +66,30 @@ export default function OpportunityFinderScreen() {
       : [...prev, track]));
   };
 
-  const mascotText = useMascotIntroThenRevisit('opportunities-intro', 'opportunities-revisit');
+  // Prior Experience Collection + New Profile Page (see CLAUDE.md), Task 1 — a one-time,
+  // skippable step shown before the real opportunity list, gated on `priorExperiencePromptDone`
+  // rather than a separate screen/route: once past it (add something, or explicitly skip),
+  // future visits go straight to the list, matching the exact same "done OR explicitly skipped,
+  // never re-shown" shape TranscriptScreen's own onboarding-vs-skip already established.
+  const priorExperiences = state.priorExperiences || [];
+  const addExperience = (exp) => {
+    patch({ priorExperiences: [...priorExperiences, { id: makeTaskId('prior-experience'), ...exp }] });
+  };
+  const editExperience = (id, updated) => {
+    patch({ priorExperiences: priorExperiences.map((e) => (e.id === id ? { ...e, ...updated } : e)) });
+  };
+  const removeExperience = (id) => {
+    patch({ priorExperiences: priorExperiences.filter((e) => e.id !== id) });
+  };
+  const finishPriorExperienceStep = () => patch({ priorExperiencePromptDone: true });
+
+  // Only one of these two ever actually renders (the gate step, or the real opportunity content
+  // below it) — but BOTH hooks are called unconditionally every render, matching the Rules of
+  // Hooks; each one's own internal "mark seen" effect is independent of which result ends up in
+  // the JSX, the same way this already works everywhere else in this app.
+  const priorExperienceIntro = useMascotIntroOnce('priorExperience-intro');
+  const opportunitiesText = useMascotIntroThenRevisit('opportunities-intro', 'opportunities-revisit');
+  const mascotText = state.priorExperiencePromptDone ? opportunitiesText : priorExperienceIntro;
 
   return (
     <div>
@@ -78,135 +103,166 @@ export default function OpportunityFinderScreen() {
       </button>
 
       <StepProgress step={6} total={8} />
-      <h1 className="page-title">Opportunity Finder</h1>
-      <p className="page-sub">
-        Real programs and competitions worth pursuing alongside your coursework. Select any that
-        interest you — they'll be scheduled right into your Academic Plan.
-      </p>
 
-      <div className="field-block">
-        <div className="pill-group">
-          <button
-            type="button"
-            className={`pill${viewMode === 'recommended' ? ' selected' : ''}`}
-            onClick={() => setViewMode('recommended')}
-          >
-            Recommended for you
-          </button>
-          <button
-            type="button"
-            className={`pill${viewMode === 'browse' ? ' selected' : ''}`}
-            onClick={() => setViewMode('browse')}
-          >
-            Browse all opportunities
-          </button>
-          {showMySchoolTab && (
-            <button
-              type="button"
-              className={`pill${viewMode === 'mySchool' ? ' selected' : ''}`}
-              onClick={() => setViewMode('mySchool')}
-            >
-              My School
+      {!state.priorExperiencePromptDone ? (
+        <>
+          <h1 className="page-title">Have you already done anything like this?</h1>
+          <p className="page-sub">
+            Clubs, jobs, volunteer work, competitions — anything you've already been part of.
+            Adding it here helps MyPath (and its AI features) understand you better — this is
+            completely optional and won't change anything you see next.
+          </p>
+
+          <PriorExperiencesEditor
+            experiences={priorExperiences}
+            onAdd={addExperience}
+            onEdit={editExperience}
+            onRemove={removeExperience}
+          />
+
+          <div className="btn-row" style={{ justifyContent: 'space-between' }}>
+            <button type="button" className="btn btn-ghost" onClick={finishPriorExperienceStep}>
+              Skip for now
             </button>
-          )}
-        </div>
-      </div>
+            <button type="button" className="btn btn-primary" onClick={finishPriorExperienceStep}>
+              Continue
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <h1 className="page-title">Opportunity Finder</h1>
+          <p className="page-sub">
+            Real programs and competitions worth pursuing alongside your coursework. Select any
+            that interest you — they'll be scheduled right into your Academic Plan.
+          </p>
 
-      {viewMode === 'mySchool' && (
-        <p className="field-hint" style={{ marginBottom: 18 }}>
-          {state.currentSchool === 'Roslyn High School'
-            ? "Real clubs from Roslyn High School's own club list — independently verified, not "
-              + 'generic national copy. Some (like DECA, Key Club, or Science Olympiad) match a '
-              + "national program you'd see elsewhere in this app; those are enriched with "
-              + "Roslyn's real details rather than shown twice."
-            : "Real clubs from UC Davis's own AggieLife directory — independently verified, not "
-              + 'generic national copy. This is a curated selection spanning UC Davis\'s major '
-              + 'club categories, not the full 800+ group directory.'}
-        </p>
-      )}
-
-      {viewMode === 'browse' && (
-        <div className="field-block">
-          <div className="field-label">Filter by interest</div>
-          <p className="field-hint">Leave everything unchecked to see opportunities from every track.</p>
-          <div className="pill-group">
-            {OPPORTUNITY_TRACKS.map((track) => (
+          <div className="field-block">
+            <div className="pill-group">
               <button
                 type="button"
-                key={track}
-                className={`pill${browseTrackFilter.includes(track) ? ' selected' : ''}`}
-                onClick={() => toggleTrackFilter(track)}
+                className={`pill${viewMode === 'recommended' ? ' selected' : ''}`}
+                onClick={() => setViewMode('recommended')}
               >
-                {TRACK_LABELS[track]}
+                Recommended for you
               </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'recommended' && isGeneric && (
-        <p className="field-hint" style={{ marginBottom: 18 }}>
-          More opportunities for this interest are coming soon — here are a few broadly useful
-          ones in the meantime.
-        </p>
-      )}
-
-      <div className="grid grid-2">
-        {opportunities.map((opp) => {
-          const selected = state.selectedOpportunityIds.includes(opp.id);
-          const deadline = anchorDate(opp.date, today);
-          const passed = deadline < today;
-          // Task 1's own "color-code opportunity cards by interest/type, using the established
-          // color mapping" — `_track` (opportunities.js, tagged at merge/collect time) resolves
-          // to the exact same color Survey/Discovery/Course Selection already use for that same
-          // track. Opportunities with no real track (the generic fallback list, or an unmapped
-          // "My School" affinity club) simply render no icon and fall back to a neutral card,
-          // same "don't force a fit" posture this codebase's data layer already holds elsewhere.
-          const track = opp._track;
-          return (
-            <button
-              type="button"
-              key={opp.id}
-              className={`card${selected ? ' selected' : ''}${passed ? ' passed' : ''}${opp.schoolVerified ? ' school-verified' : ''}`}
-              disabled={passed}
-              onClick={() => toggleOpportunity(opp.id)}
-              style={track ? { '--track-accent': getTrackColor(track) } : undefined}
-            >
-              {opp.schoolVerified && (
-                <div className="school-verified-badge">
-                  <BadgeCheck size={12} /> Verified — {opp.schoolName}
-                </div>
+              <button
+                type="button"
+                className={`pill${viewMode === 'browse' ? ' selected' : ''}`}
+                onClick={() => setViewMode('browse')}
+              >
+                Browse all opportunities
+              </button>
+              {showMySchoolTab && (
+                <button
+                  type="button"
+                  className={`pill${viewMode === 'mySchool' ? ' selected' : ''}`}
+                  onClick={() => setViewMode('mySchool')}
+                >
+                  My School
+                </button>
               )}
-              {track && <TrackIcon track={track} />}
-              <div className="card-title">{opp.name}</div>
-              <p className="card-desc" style={{ fontStyle: 'italic', marginBottom: 8 }}>{opp.type}</p>
-              <p className="card-desc">{opp.description}</p>
-              <div className="card-meta">
-                <div>
-                  <span className="label">Deadline / start</span>
-                  <strong>{passed ? 'Deadline passed' : formatDate(deadline)}</strong>
-                </div>
-                <div>
-                  <span className="label">How to apply</span>
-                  <strong>{opp.howToApply}</strong>
-                </div>
-                {opp.website && (
-                  <div>
-                    <span className="label">Website</span>
-                    <strong>{opp.website.replace(/^https?:\/\//, '')}</strong>
-                  </div>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+            </div>
+          </div>
 
-      <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'hub' })}>
-          Continue
-        </button>
-      </div>
+          {viewMode === 'mySchool' && (
+            <p className="field-hint" style={{ marginBottom: 18 }}>
+              {state.currentSchool === 'Roslyn High School'
+                ? "Real clubs from Roslyn High School's own club list — independently verified, not "
+                  + 'generic national copy. Some (like DECA, Key Club, or Science Olympiad) match a '
+                  + "national program you'd see elsewhere in this app; those are enriched with "
+                  + "Roslyn's real details rather than shown twice."
+                : "Real clubs from UC Davis's own AggieLife directory — independently verified, not "
+                  + 'generic national copy. This is a curated selection spanning UC Davis\'s major '
+                  + 'club categories, not the full 800+ group directory.'}
+            </p>
+          )}
+
+          {viewMode === 'browse' && (
+            <div className="field-block">
+              <div className="field-label">Filter by interest</div>
+              <p className="field-hint">Leave everything unchecked to see opportunities from every track.</p>
+              <div className="pill-group">
+                {OPPORTUNITY_TRACKS.map((track) => (
+                  <button
+                    type="button"
+                    key={track}
+                    className={`pill${browseTrackFilter.includes(track) ? ' selected' : ''}`}
+                    onClick={() => toggleTrackFilter(track)}
+                  >
+                    {TRACK_LABELS[track]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'recommended' && isGeneric && (
+            <p className="field-hint" style={{ marginBottom: 18 }}>
+              More opportunities for this interest are coming soon — here are a few broadly useful
+              ones in the meantime.
+            </p>
+          )}
+
+          <div className="grid grid-2">
+            {opportunities.map((opp) => {
+              const selected = state.selectedOpportunityIds.includes(opp.id);
+              const deadline = anchorDate(opp.date, today);
+              const passed = deadline < today;
+              // Task 1's own "color-code opportunity cards by interest/type, using the
+              // established color mapping" — `_track` (opportunities.js, tagged at merge/collect
+              // time) resolves to the exact same color Survey/Discovery/Course Selection already
+              // use for that same track. Opportunities with no real track (the generic fallback
+              // list, or an unmapped "My School" affinity club) simply render no icon and fall
+              // back to a neutral card, same "don't force a fit" posture this codebase's data
+              // layer already holds elsewhere.
+              const track = opp._track;
+              return (
+                <button
+                  type="button"
+                  key={opp.id}
+                  className={`card${selected ? ' selected' : ''}${passed ? ' passed' : ''}${opp.schoolVerified ? ' school-verified' : ''}`}
+                  disabled={passed}
+                  onClick={() => toggleOpportunity(opp.id)}
+                  style={track ? { '--track-accent': getTrackColor(track) } : undefined}
+                >
+                  {opp.schoolVerified && (
+                    <div className="school-verified-badge">
+                      <BadgeCheck size={12} /> Verified — {opp.schoolName}
+                    </div>
+                  )}
+                  {track && <TrackIcon track={track} />}
+                  <div className="card-title">{opp.name}</div>
+                  <p className="card-desc" style={{ fontStyle: 'italic', marginBottom: 8 }}>{opp.type}</p>
+                  <p className="card-desc">{opp.description}</p>
+                  <div className="card-meta">
+                    <div>
+                      <span className="label">Deadline / start</span>
+                      <strong>{passed ? 'Deadline passed' : formatDate(deadline)}</strong>
+                    </div>
+                    <div>
+                      <span className="label">How to apply</span>
+                      <strong>{opp.howToApply}</strong>
+                    </div>
+                    {opp.website && (
+                      <div>
+                        <span className="label">Website</span>
+                        <strong>{opp.website.replace(/^https?:\/\//, '')}</strong>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'hub' })}>
+              Continue
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

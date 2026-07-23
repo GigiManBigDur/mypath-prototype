@@ -58,6 +58,15 @@ export const MASCOT_LINES = {
   'plan-intro': 'And... here it is — your actual plan, built from everything you just told me. Click around, mark things off as you go, and come back anytime things change.',
   'plan-revisit': 'Your plan, always up to date. Anything new to add?',
 
+  // Prior Experience Collection + New Profile Page (see CLAUDE.md) — a one-time step inside
+  // Opportunity Finder, shown before the real opportunity list until the student either adds
+  // something or explicitly skips. No revisit line — once past this gate, editing happens on the
+  // new Profile screen instead, so there's nothing new to say here on a later visit.
+  'priorExperience-intro': "Before we dive in — have you already done any clubs, jobs, or activities? Totally optional, but it helps me (and every AI feature here) understand you better.",
+
+  'profile-intro': "This is the start of your profile — for now, it's where your past experiences and activities live. Add anything you've already done, or come back and skip it for now.",
+  'profile-revisit': 'Add, edit, or remove anything here whenever you like.',
+
   // Bug fix (see CLAUDE.md) — the hub's own guided-sequence pointing dialogue (HubScreen.jsx's
   // GUIDED_SEQUENCE) used to replay each step's real intro line in full on every hub visit, since
   // it was never wired into the mascotSeenKeys "seen once" system every OTHER screen's dialogue

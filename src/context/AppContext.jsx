@@ -145,6 +145,23 @@ const DEFAULT_STATE = {
   selectedMajorIds: [],
   selectedProgramKeys: [], // `${institution}::${program}`
   selectedOpportunityIds: [],
+  // Prior Experience Collection + New Profile Page (see CLAUDE.md) — `[{ id, name, description }]`,
+  // real extracurriculars/experiences the student had ALREADY done before this app, entered via a
+  // one-time optional step in Opportunity Finder (`priorExperiencePromptDone` below) and
+  // afterward viewable/editable anytime on the new Profile screen. Deliberately a separate array
+  // from anything else this app tracks (opportunities/projects are things planned/started THROUGH
+  // this app; these are real prior history) — included verbatim in the Stage 1 compiled profile so
+  // the already-built AI features (Stage 2 suggestions, the chat assistant, Build Your Own) can
+  // reference them, but explicitly NOT wired into the rule-based Careers/Majors/Programs
+  // recommendation logic, per this feature's own deliberate scope.
+  priorExperiences: [],
+  // Set once, permanently, the moment the student either adds at least one experience or
+  // explicitly clicks "Skip" on Opportunity Finder's own one-time prompt — mirrors the same
+  // "done OR explicitly skipped" shape `transcriptCompleted`/`projectBuilderSkipped` already
+  // established elsewhere in this file. Once true, Opportunity Finder goes straight to its real
+  // opportunity list on every future visit; editing the list afterward happens on the Profile
+  // screen instead, not by re-showing this same gate.
+  priorExperiencePromptDone: false,
   completedNodes: {},
   nodeDateOverrides: {}, // { [nodeId]: 'YYYY-MM-DD' } — user-edited due date, keyed like completedNodes
   removedNodeIds: {}, // { [nodeId]: true } — user-deleted tasks, same flat-map shape as completedNodes

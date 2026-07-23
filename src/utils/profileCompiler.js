@@ -267,6 +267,19 @@ export function compileStudentProfile(state) {
     activities: {
       opportunities: resolveOpportunities(state, roadmap),
       projects: resolveProjects(state),
+      // Prior Experience Collection + New Profile Page (see CLAUDE.md), Task 2 — real prior
+      // experiences/ECs the student entered (Opportunity Finder's own one-time prompt, or the
+      // Profile screen afterward), included verbatim. `compileSuggestionProfile` below reuses
+      // `activities` wholesale from this function, so this needed no separate wiring there — the
+      // Stage 2 suggestion feature and the chat assistant/Build Your Own conversations already
+      // read `profileSummary.activities`, so they see this the moment it's added here, with zero
+      // new AI-facing logic. Deliberately NOT read anywhere in the rule-based Careers/Majors/
+      // Programs recommendation logic (careers.js/majors.js/programs.js) — that's this feature's
+      // own explicit out-of-scope boundary, not an oversight.
+      priorExperiences: (state.priorExperiences || []).map((e) => ({
+        name: e.name,
+        description: e.description || null,
+      })),
     },
     planHistory: { tasks, customTasks },
   };

@@ -11,6 +11,7 @@ import ProgramSummaryScreen from './screens/ProgramSummaryScreen';
 import OpportunityFinderScreen from './screens/OpportunityFinderScreen';
 import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 const SCREENS = {
   welcome: WelcomeScreen,
@@ -27,6 +28,10 @@ const SCREENS = {
   opportunities: OpportunityFinderScreen,
   projectBuilder: ProjectBuilderScreen,
   plan: AcademicPlanScreen,
+  // Prior Experience Collection + New Profile Page (see CLAUDE.md) — a new, standalone hub tile
+  // destination, not part of the 8-step survey-through-plan sequence (same reason `hub` itself
+  // isn't tracked by StepProgress either).
+  profile: ProfileScreen,
 };
 
 // Screens that get the shared fade+slide page transition (Task 2 of the animation/polish pass).
@@ -35,7 +40,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'hub', 'survey', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder',
+  'signup', 'hub', 'survey', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile',
 ]);
 
 function AppShell() {
@@ -60,8 +65,11 @@ function AppShell() {
   // Discovery (Careers of Interest / Related College Majors / Recommended Programs — all one
   // `discovery` screenKey) were the second; Transcript & GPA and Course Selection were the third;
   // Opportunity Finder and Project Builder were the fourth; the Academic Plan's Map 1 (Year
-  // Overview) is the fifth; Program Summary (Your School List) is the sixth and last, closing out
-  // the rollout — every screen this app has is now on the "bloom" palette. `.app-shell-bloom`
+  // Overview) is the fifth; Program Summary (Your School List) was the sixth, closing out that
+  // rollout — every screen that existed at the time was on the "bloom" palette. The new Profile
+  // screen (Prior Experience Collection + New Profile Page) was simply built directly on it from
+  // day one, since there's no separate "unpainted" state to migrate later for a brand-new screen.
+  // `.app-shell-bloom`
   // scopes the shared-chrome color overrides (`.btn-primary`, `.card`, `.tag`, `.pill`,
   // `.rms-badge`, etc. — global.css), same scoping precedent `.app-shell-hub`/`.app-shell-plan`
   // already established. Added ALONGSIDE `.polish` (not instead of it, unlike the hub) — none of
@@ -76,7 +84,7 @@ function AppShell() {
     || screenKey === 'survey' || screenKey === 'discovery'
     || screenKey === 'transcript' || screenKey === 'courseSelection'
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
-    || screenKey === 'programSummary' || isMap1;
+    || screenKey === 'programSummary' || screenKey === 'profile' || isMap1;
 
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>

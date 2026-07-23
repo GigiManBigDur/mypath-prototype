@@ -4665,6 +4665,78 @@ pattern (LLM output length varies run to run around a threshold, not determinist
 - Deployed live immediately, per this app's own standing "Vercel deploys are automatic alongside
   every push" policy — every verification above was run directly against that live deployment.
 
+**Prior Experience Collection + New Profile Page — a pure data-collection feature, no new AI
+logic.** Lets a student record real prior extracurriculars/experiences (clubs, jobs, volunteer
+work, competitions) that predate this app, making them available to the AI features that already
+read the full profile — deliberately NOT wired into the rule-based Careers/Majors/Programs
+recommendation logic, per this feature's own explicit scope.
+- **Task 1 — a one-time, skippable step inside Opportunity Finder**, shown BEFORE the real
+  opportunity list until the student either adds something or explicitly clicks Skip.
+  `state.priorExperiencePromptDone` (`AppContext.jsx`, `false` default) tracks this — the exact
+  same "done OR explicitly skipped, never re-shown" shape `transcriptCompleted`/
+  `projectBuilderSkipped` already established elsewhere in this file — so once past it, later
+  visits to Opportunity Finder go straight to the real list; editing the list afterward happens
+  on the new Profile screen (Task 3), not by re-showing this same gate. Framed explicitly as
+  optional/helpful, not a requirement ("this is completely optional and won't change anything you
+  see next"), matching the build spec's own instruction. `OpportunityFinderScreen.jsx` calls BOTH
+  its existing `useMascotIntroThenRevisit('opportunities-intro', ...)` and a new
+  `useMascotIntroOnce('priorExperience-intro')` unconditionally every render (Rules of Hooks) and
+  picks whichever text actually applies based on `priorExperiencePromptDone` — each hook's own
+  "mark seen" effect runs independently of which result ends up in the JSX, so this needed no
+  changes to either hook.
+- **`src/components/PriorExperiencesEditor.jsx`** (new) is the one shared add/edit/remove UI,
+  used by BOTH this gate step and the new Profile screen — the same "shared presentational piece,
+  caller owns the data" shape `ChatConversation`/`AddTaskModal` already established, rather than
+  two independently-built copies of the same form/list. Each entry is `{ id, name, description }`
+  (`state.priorExperiences`, `AppContext.jsx`) — `name` required, `description` optional (an
+  `.optional-badge`-labeled textarea, matching this app's own established convention). Editing an
+  entry swaps that one card into an inline edit form (pre-filled name/description + Save/Cancel);
+  everything else keeps browsing normally.
+- **Task 2 — included verbatim in the Stage 1 compiled profile** (`profileCompiler.js`'s
+  `activities.priorExperiences`, a plain `{ name, description }` array, `description: null` when
+  blank matching this profile's own "don't guess/fabricate, just omit" convention). Because
+  `compileSuggestionProfile` already spreads `activities` wholesale from `compileStudentProfile`
+  (confirmed directly, not assumed, before writing this), this needed ZERO additional wiring for
+  Stage 2's auto-suggestions, the general chat assistant, or Build Your Own's conversations — all
+  three already read `profileSummary.activities` and see this the moment it's added, exactly
+  matching the build spec's own "no new AI logic needed here" framing.
+- **Task 3 — a new "Profile" hub tile** (`HubScreen.jsx`'s `TILES`, `id: 'profile'`, `unlock: ()
+  => true` — personal data entry has no real precondition to gate on, same reasoning "Let's Build
+  Your Plan" is always-unlocked too) opens a new standalone `ProfileScreen.jsx` (registered in
+  `App.jsx`'s `SCREENS`/`TRANSITION_SCREENS`, built directly on the "bloom" palette from day one
+  since there's no separate "unpainted" state to migrate for a brand-new screen). Deliberately NOT
+  part of `GUIDED_SEQUENCE` — same "real tile, but not part of the mascot's primary walkthrough"
+  treatment Academic Plan/Your School List already get, since this is explicitly framed as "the
+  start of a broader profile area," an optional utility to revisit anytime, not a step in the core
+  funnel. Uses the exact same `PriorExperiencesEditor` component and reads/writes the exact same
+  `state.priorExperiences` array Opportunity Finder's own gate step does — an experience added on
+  one screen shows up correctly on the other, since both are just two different views onto the
+  same one array, not separate data.
+- **A real, confirmed layout bug was caught and fixed while adding the 11th hub tile**: the hub's
+  own `RADIAL_POSITIONS` array (the hand-tuned percentage slots each tile is placed at, cycled by
+  plain array index) only ever had 10 entries — a partner-school student now has 11 REAL tiles
+  (the original 10 plus Profile), so the 11th tile's own index (`10 % 10 === 0`) would have
+  silently landed on the EXACT SAME slot as tile 0 ("Let's Build Your Plan"), a real, guaranteed
+  overlap. Fixed by adding an 11th slot (bottom-center, `{ x: 50, y: 89 }`) — re-verified with the
+  same real bounding-box math (232×194px tiles, this wrap's own 1300px max-width/1080px height)
+  the original 10-slot layout was checked with before this feature, confirming zero overlaps
+  against every one of the original 10, with real margin (not razor-thin) both from its
+  neighboring tiles and from the wrap's own bottom edge.
+- Verified with two dedicated Playwright suites: a 21-check suite confirming the gate shows
+  before the opportunity list and is clearly skippable; adding, editing, and the one-time nature
+  of the gate (a later revisit skips straight to the list); Skip also working correctly with zero
+  entries; the compiled profile including the real name/description verbatim under
+  `activities.priorExperiences`; the Profile tile appearing, always unlocked, and correctly
+  showing/adding/removing the SAME shared experience list Opportunity Finder already wrote to; and
+  — the feature's own explicit out-of-scope boundary — Careers of Interest rendering byte-for-byte
+  identically with prior experience data present vs. absent. A second, dedicated 6-check suite
+  confirms the new 11th radial-layout slot: the correct real tile count (11 for a partner-school
+  student, 9 without) and zero tile-to-tile overlaps in either case, with the Profile tile itself
+  rendering with real, visible dimensions. The full pre-existing regression suite
+  (`test-passion-buildyourown.js`, `test-hub-chat-transition.js`, `test-ai-chat.js`,
+  `test-program-copy-by-level.js`) all still pass unmodified; `npm run build`/`npm run lint`/
+  `npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

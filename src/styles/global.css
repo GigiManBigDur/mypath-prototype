@@ -2588,6 +2588,27 @@ button.card.passed:hover {
 .modal-edit-date input[type="date"]:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
 .remove-btn { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:4px; border:1px solid var(--paper-line); background:none; color: var(--rust); font-family:'IBM Plex Sans'; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; }
 .remove-btn:hover { background: rgba(166,73,31,0.08); border-color: var(--rust); }
+
+/* Prior Experience Collection + New Profile Page (see CLAUDE.md) — the shared
+   PriorExperiencesEditor's own list/card, used by both Opportunity Finder's one-time entry
+   prompt and the new Profile screen. Plain, simple card list — not a grid — since a real name +
+   description reads better full-width than squeezed into a fixed-column card. */
+.prior-exp-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.prior-exp-card {
+  background: var(--card);
+  border: 1px solid var(--paper-line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.prior-exp-name { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.prior-exp-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 10px; }
+.prior-exp-actions { display: flex; gap: 8px; }
+.prior-exp-edit-btn {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 4px;
+  border: 1px solid var(--paper-line); background: none; color: var(--teal);
+  font-family: 'IBM Plex Sans'; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.prior-exp-edit-btn:hover { background: rgba(46, 110, 94, 0.08); border-color: var(--teal); }
 .complete-btn { width:100%; padding:12px; border-radius:4px; border:none; cursor:pointer; font-family:'IBM Plex Sans'; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; }
 /* .complete-btn/.win-banner are exclusive to Roadmap.jsx (Map 2) — no other
    screen uses them, so recoloring the base rule directly is safe (same "exclusive class, edit
@@ -3628,6 +3649,19 @@ button.card.passed:hover {
 }
 /* .card-desc/.card-meta/.card-meta strong/.card-meta .label are already bloom-scoped from the
    Transcript/Course Selection batch above (identical shared classes) — no need to redeclare. */
+
+/* Prior Experience Collection + New Profile Page (see CLAUDE.md) — Opportunity Finder's own
+   one-time entry prompt and the new Profile screen are both `.app-shell-bloom` screens, so the
+   shared PriorExperiencesEditor's own cards get the same repaint treatment every other card on
+   these screens already has. */
+.app-shell.app-shell-bloom .prior-exp-card {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+}
+.app-shell.app-shell-bloom .prior-exp-name { color: var(--bloom-ink); }
+.app-shell.app-shell-bloom .prior-exp-desc { color: var(--bloom-ink-soft); }
+.app-shell.app-shell-bloom .prior-exp-edit-btn { color: var(--bloom-accent); }
+.app-shell.app-shell-bloom .prior-exp-edit-btn:hover { background: rgba(47, 143, 91, 0.08); border-color: var(--bloom-accent); }
 
 /* Task 2 — Project Builder repaint. `--pb-accent` is set per-instance in JSX
    (ProjectBuilderScreen.jsx's own CATEGORY_COLORS/getCategoryColor — 6 distinct bloom tokens,

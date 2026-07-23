@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
-  Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User,
+  Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
   Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -146,6 +146,18 @@ const TILES = [
     desc: 'Start a hands-on project to build your portfolio.',
     unlock: (state) => state.selectedProgramKeys.length > 0,
     lockedReason: () => 'Select at least one program first',
+  },
+  {
+    // Prior Experience Collection + New Profile Page (see CLAUDE.md), Task 3 — always unlocked,
+    // like "Let's Build Your Plan": this is personal data entry (prior experiences/ECs), not a
+    // step gated behind survey/discovery progress, so there's no real precondition to wait on.
+    // Deliberately NOT part of GUIDED_SEQUENCE below — same "real tile, but not part of the
+    // mascot's primary walkthrough" treatment Academic Plan/Your School List already get, since
+    // this is an optional, revisit-anytime utility, not a step in the core funnel.
+    id: 'profile', screen: 'profile', Icon: UserCircle2,
+    title: 'Profile',
+    desc: 'Add or edit clubs, jobs, and other experiences you\'ve already done.',
+    unlock: () => true,
   },
 ];
 
@@ -301,7 +313,7 @@ const TILE_ACCENTS = [
 ];
 
 // Radial-layout pass, Task 1 (see CLAUDE.md) — hand-tuned percentage slots (of `.hub-radial-wrap`'s
-// own box) forming a loose ring of up to 10 tiles around the centered mascot, scattered left/right
+// own box) forming a loose ring of up to 11 tiles around the centered mascot, scattered left/right
 // of the vertical center column the mascot + its dialogue bubble occupy so nothing ever overlaps
 // them. Assigned by plain tile INDEX (`tiles[i]` -> `RADIAL_POSITIONS[i]`), not tile identity —
 // which real tile lands in which visual slot can shift a little when `hasPartnerSchool` toggles
@@ -310,6 +322,15 @@ const TILE_ACCENTS = [
 // considered and rejected for a purely decorative composition like this one — fixed, hand-checked
 // slots are simpler and can't drift into overlap the way a runtime algorithm tuned for only 8-10
 // items could.
+//
+// Prior Experience Collection + New Profile Page (see CLAUDE.md) added the 11th slot (bottom-
+// center) once the new Profile tile pushed a partner-school student's real tile count past the
+// original 10 — re-verified via the same real bounding-box math the original 10-slot layout was
+// checked with (232x194px tiles, this wrap's own 1300px max-width/1080px height): a bottom-center
+// slot clears every one of the original 10 with real margin, since its horizontal position
+// (x=50, dead-center) sits far enough from its nearest neighbors' own x values (26/74, at the
+// y-band just above it) to clear despite the short vertical gap, and its own y (89%) keeps its
+// full box within the wrap's own bottom edge with real margin to spare (not a razor-thin fit).
 const RADIAL_POSITIONS = [
   { x: 22, y: 8 },
   { x: 78, y: 8 },
@@ -321,6 +342,7 @@ const RADIAL_POSITIONS = [
   { x: 90, y: 69 },
   { x: 26, y: 88 },
   { x: 74, y: 88 },
+  { x: 50, y: 89 },
 ];
 
 // Radial-layout pass, Task 1's "small decorative floating dots/particles" — purely visual flavor,
