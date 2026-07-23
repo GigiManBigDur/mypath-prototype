@@ -675,7 +675,13 @@ export default function HubScreen() {
       </div>
 
       <div className={`hub-radial-wrap${chatPhase !== 'hidden' ? ' chat-mode' : ''}`}>
-        {chatPhase === 'hidden' && PARTICLES.map((p, i) => (
+        {/* Enhance AI Chat Page Visuals (see CLAUDE.md), Task 1 — these decorative particles used
+            to be hidden entirely outside the normal hub view (`chatPhase === 'hidden' &&`); they
+            now render in every phase, giving the chat page the same "gentle floating dots" ambient
+            motion the hub itself already has, instead of the chat view reading as visually bare by
+            comparison. Purely additive — nothing about what these ARE changed, only when they
+            show. */}
+        {PARTICLES.map((p, i) => (
           <span
             // eslint-disable-next-line react/no-array-index-key
             key={i}
@@ -696,8 +702,20 @@ export default function HubScreen() {
               this element (and its containing `.hub-mascot-area`) renders completely unconditionally
               across every `chatPhase` value: the mascot never moves, never unmounts, never
               re-measures — it's the one visual anchor the whole transition reads as continuous
-              around. */}
-          <div className="hub-mascot-figure" ref={mascotRef}>
+              around.
+              Enhance AI Chat Page Visuals, Tasks 2/3 — `chat-grown` drives a smooth CSS
+              `transform: scale(...)` (global.css), applied via `transition`, not a change to
+              `MascotIcon`'s own `size` prop — scaling the WRAPPER via CSS keeps the mascot's own
+              real document CENTER fixed (the default `transform-origin` is the element's own
+              center), so it grows/shrinks in place rather than drifting, and reuses the exact
+              "CSS transition, not a JS-timed animation" approach every other transform on this
+              screen already uses (`.mascot-pose`, `.hub-tile:hover`, etc.). True for both
+              'tiles-exiting' (grows in sync with the tiles fading out, so it's already at its
+              larger size by the time the chat panel finishes entering) and 'chat' (stays grown for
+              the duration of the chat page) — false for 'chat-exiting'/'hidden', so it starts
+              shrinking the instant "Back to Hub" is clicked, in sync with the chat panel's own
+              exit fade and the tiles' own re-entrance. */}
+          <div className={`hub-mascot-figure${chatPhase === 'tiles-exiting' || chatPhase === 'chat' ? ' chat-grown' : ''}`} ref={mascotRef}>
             {/* Adjustment (see CLAUDE.md) — `pointing` reads `pointingTargetId` (above) rather
                 than a plain `!sequenceComplete` gate now, so the ONE visit where the completion
                 line is genuinely new still gets a real paired pointing gesture at Academic Plan;

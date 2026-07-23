@@ -4737,6 +4737,75 @@ recommendation logic, per this feature's own explicit scope.
   `test-program-copy-by-level.js`) all still pass unmodified; `npm run build`/`npm run lint`/
   `npm run verify:spacing` (20/20) all stay clean.
 
+**Enhance AI Chat Page Visuals + Mascot Grow/Shrink Transition — a pure visual/animation pass on
+top of the existing Hub-to-Chat transition (chatPhase state machine, `HubChatPanel`), no logic
+changes.**
+- **Task 1 — the chat view no longer reads as visually bare.** `HubScreen.jsx`'s own decorative
+  `PARTICLES` (12 colored floating dots, previously hidden the instant `chatPhase !== 'hidden'`)
+  now render in every phase — the simplest, zero-new-code way to give the chat view the same
+  "gentle floating dots" ambient motion the hub itself already has, reusing the identical elements
+  rather than a second, chat-specific particle set. `.hub-radial-wrap.chat-mode::before` (new) is
+  a soft, slowly drifting multi-color radial-gradient glow (the same "bloom" accent palette —
+  purple/teal/pink/blue — every other colorful element in this app already draws from), animated
+  via `background-position` over an 18s loop (`hub-chat-bg-drift`) — low opacity (0.15-0.18) and
+  slow, deliberately "subtle ambient motion," not something that competes with the actual
+  conversation. `z-index: 0` keeps it behind every real element in the wrap (particles at 1, the
+  mascot area at 5, the chat panel at 6). `.hub-chat-panel` itself gained a thin (4px), animated
+  multi-color shimmer bar along its top edge (`.hub-chat-panel::before`, `hub-chat-panel-shimmer`,
+  a `linear-gradient` whose `background-position` slides sideways over a 6s loop) — "richer visual
+  elements" for a card that otherwise reads as a plain white box — with `overflow: hidden` added to
+  the panel itself so the bar clips cleanly to the card's own rounded corners (the same
+  "overflow:hidden on the card" precedent `.pb-category-card`'s own top accent bar already
+  established). `.chat-mode` itself had carried zero CSS at all before this pass (applied in JSX,
+  unused) — this is the first real use of that hook.
+- **Tasks 2/3 — the mascot grows on entering chat, shrinks back on exit, as part of the SAME
+  existing transition, not a separate one.** Deliberately implemented as a CSS `transform: scale()`
+  transition on the WRAPPER (`.hub-mascot-figure`), not a change to `MascotIcon`'s own `size` prop
+  (which sets real SVG `width`/`height` attributes, not something a CSS transition animates
+  smoothly) — this also means the SVG's own internal 160×160 viewBox and every coordinate inside
+  it (the pointing-gesture math, the idle animations) needed zero changes at all. `transform-origin`
+  is left at its CSS default (the element's own center), which is what keeps the mascot's real
+  document CENTER fixed while it grows/shrinks — it gets bigger in place, never drifts.
+  `chat-grown` (a plain modifier class, applied whenever `chatPhase === 'tiles-exiting' ||
+  chatPhase === 'chat'`) sets `transform: scale(1.4)`; the `transition: transform 550ms
+  cubic-bezier(0.34, 1.56, 0.64, 1)` lives on the BASE `.hub-mascot-figure` rule (unconditional,
+  not gated by a class) — the same "plain transition on the base rule, a modifier class only
+  changes the end value" shape `.mascot-pose`'s own lean transition already established — so it
+  animates smoothly in BOTH directions from one shared rule. Applying `chat-grown` starting at
+  `'tiles-exiting'` (not waiting for `'chat'`) is what makes the mascot grow IN SYNC with the tiles
+  fading out, already at its larger size by the time the chat panel finishes entering; removing it
+  at `'chat-exiting'` (not waiting for `'hidden'`) is what makes it start shrinking the instant
+  "Back to Hub" is clicked, in sync with the chat panel's own exit fade and the tiles' own
+  re-entrance — exactly the build spec's own "in sync with the rest of the return transition"
+  requirement.
+- **A real, confirmed consequence of Task 2 was caught and correctly resolved, not silently
+  ignored**: the pre-existing `test-hub-chat-transition.js` (built for the earlier Hub-to-Chat
+  Transition feature) asserted the mascot's own bounding-rect TOP stayed byte-identical across
+  every phase — this legitimately broke once the mascot started growing, since a `scale()`
+  transform around a fixed CENTER necessarily moves the TOP edge upward as the box gets bigger,
+  even though the mascot hasn't actually relocated at all. Confirmed by running the pre-existing
+  test unmodified first (2 real failures, not guessed at) before touching anything. Fixed by
+  updating those 3 checks to compare the mascot's real document CENTER instead of its top edge —
+  the correct, truly-invariant property either way — matching the same "update a pre-existing test
+  after an intentional, expected change" pattern this codebase's own suite has already needed many
+  times before, not a regression; two NEW checks were added alongside it confirming the mascot
+  genuinely reaches a >1.2× scale in chat mode and genuinely returns to exactly 1× afterward.
+- Verified with a dedicated 15-check Playwright suite: the ambient background/particles/panel
+  shimmer are all absent before entering chat and present (with real, active CSS animations) once
+  in it; the grow is driven by a real class + CSS transform (not an inline one-off style) with a
+  real, non-zero transition duration; leaving chat removes the class and the mascot's own computed
+  transform genuinely returns to scale(1); and — checked in a SEPARATE page context with
+  `prefers-reduced-motion: reduce` forced — every new animation (`hub-chat-bg-drift`,
+  `hub-chat-panel-shimmer`, and the mascot's own scale transition) is confirmed disabled while
+  still landing on the correct end state (grown, just instantly rather than smoothly), matching
+  this codebase's own established `prefers-reduced-motion` convention throughout. The updated
+  `test-hub-chat-transition.js` (24 checks, 2 of the original assertions corrected +2 new ones) and
+  the full remaining pre-existing regression suite (`test-passion-buildyourown.js`,
+  `test-ai-chat.js`, `test-program-copy-by-level.js`, `test-prior-experience-profile.js`,
+  `test-hub-profile-tile-layout.js`) all still pass; `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) all stay clean — this pass touches only CSS plus two small, additive JSX
+  conditionals in `HubScreen.jsx`, no data/logic changes anywhere.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
