@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { makeTaskId } from '../utils/ids';
-import PriorExperiencesEditor from '../components/PriorExperiencesEditor';
+import PriorExperiencesEditor, { SAMPLE_PRIOR_EXPERIENCES } from '../components/PriorExperiencesEditor';
 import MascotWidget from '../components/MascotWidget';
 import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 
@@ -24,6 +24,14 @@ export default function ProfileScreen() {
   };
   const removeExperience = (id) => {
     patch({ priorExperiences: experiences.filter((e) => e.id !== id) });
+  };
+  // Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md), Task 2 — one
+  // real, whole-array write (replacing whatever's currently there), not a loop over `addExperience`
+  // — see PriorExperiencesEditor.jsx's own header comment for why that would be a real bug here.
+  const fillSampleExperiences = () => {
+    patch({
+      priorExperiences: SAMPLE_PRIOR_EXPERIENCES.map((exp) => ({ id: makeTaskId('prior-experience'), ...exp })),
+    });
   };
 
   const mascotText = useMascotIntroThenRevisit('profile-intro', 'profile-revisit');
@@ -54,6 +62,7 @@ export default function ProfileScreen() {
         onAdd={addExperience}
         onEdit={editExperience}
         onRemove={removeExperience}
+        onFillSample={fillSampleExperiences}
       />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>

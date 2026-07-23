@@ -4404,6 +4404,33 @@ button.card.passed:hover {
 }
 .year-overview-eyebrow { color: var(--bloom-yellow); }
 
+/* Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md) — a plain,
+   INLINE variant of DateOverrideControl's own established "testing tool" visual language (same
+   orange accent/flask icon/"(Testing)" copy), for a button that lives within a screen's normal
+   content flow rather than a floating fixed-position toggle. Shared by TranscriptScreen.jsx's
+   "Fill Sample Transcript" and PriorExperiencesEditor.jsx's "Fill Sample Experiences" — both real,
+   ordinary buttons a developer/tester would reach for, never styled to look like a real feature a
+   student would use. */
+.testing-fill-row { margin: 4px 0 18px; }
+.testing-fill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--bloom-orange);
+  background: rgba(224, 122, 43, 0.12);
+  color: var(--bloom-orange);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.testing-fill-btn:hover { background: rgba(224, 122, 43, 0.2); }
+.testing-fill-btn:active { transform: scale(0.97); }
+
 /* Real-Time Tracking feature, Task 2 (see CLAUDE.md) — DateOverrideControl.jsx is a testing-only
    tool, deliberately styled to read as one: an orange/warning accent (distinct from every real
    "You are here"/action color in this app), a flask icon, and explicit "(Testing)"/"Testing tool

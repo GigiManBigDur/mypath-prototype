@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2, FlaskConical } from 'lucide-react';
 import { getCourseById } from '../data/courses';
 import { getCourseById as getUCDavisCourseById, searchUCDavisCourses, getAreaForSubjectCode } from '../data/ucdavisCourses';
 import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../data/ucdavisRequirements';
@@ -20,6 +20,21 @@ const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
 const CLASS_YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
 const QUARTER_OPTIONS = ['Fall', 'Winter', 'Spring', 'Summer'];
+
+// Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md), Task 1 — real
+// course ids from the actual parsed Roslyn catalog (courses.js), not invented ones, spanning a mix
+// of standard/honors/AP weight categories so "Fill Sample Transcript" genuinely exercises the real
+// weighted/unweighted/4.0-scale GPA math (WEIGHT_MULTIPLIERS, convertTo4Scale) rather than
+// producing disconnected placeholder numbers. Grades are plausible (87-93, all real passing
+// grades), and `yearTaken` matches each course's own real `gradeLevels` entry.
+const SAMPLE_TRANSCRIPT = [
+  { courseId: 'english-english-1', gradeEarned: 89, yearTaken: 9 },
+  { courseId: 'math-algebra-1', gradeEarned: 91, yearTaken: 9 },
+  { courseId: 'science-biology-honors-previously-living-environment-honors', gradeEarned: 88, yearTaken: 10 },
+  { courseId: 'math-algebra-2-honors', gradeEarned: 90, yearTaken: 10 },
+  { courseId: 'math-ap-calculus-ab', gradeEarned: 93, yearTaken: 11 },
+  { courseId: 'science-ap-biology', gradeEarned: 87, yearTaken: 11 },
+];
 
 // Course Selection Stage 2 — real transcript entry, replacing both the Stage 1 placeholder here
 // AND (functionally) the original Survey GPA text box: state.gpa is now calculated from this
@@ -139,6 +154,18 @@ export default function TranscriptScreen() {
     patch({ transcript: transcript.filter((e) => e.id !== id) });
   };
 
+  // Add Testing-Only Prefill Buttons (see CLAUDE.md), Task 1 — replaces (not appends to) whatever
+  // is currently entered, the same "reset to a known sample" convenience this app's own testing
+  // tools already favor over merging (e.g. DateOverrideControl's own explicit reset). Real
+  // `makeTaskId` ids, same shape every other transcript entry already uses — nothing about how
+  // this data is read downstream (GPA math, the transcript table) needs to know it came from a
+  // shortcut instead of the real add-course form.
+  const fillSampleTranscript = () => {
+    patch({
+      transcript: SAMPLE_TRANSCRIPT.map((entry) => ({ id: makeTaskId('transcript'), ...entry })),
+    });
+  };
+
   // Continue and Skip do the exact same thing — advance, saving whatever GPA the current
   // transcript (even an empty one) produces. Skip is just a separate, more prominent affordance
   // for an incoming freshman with genuinely nothing to enter yet (Task 2's "fully supported path,
@@ -198,6 +225,20 @@ export default function TranscriptScreen() {
           ? "Add the courses you've just completed — this refreshes your GPA everywhere it's used, including your program Reach/Match/Safety tags."
           : "Search for the real courses you've taken, enter your grade and the year you took each one — we'll calculate your GPA from it automatically."}
       </p>
+
+      {/* Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md), Task 1 —
+          not shown in checkpoint mode (a later revisit updating an already-real transcript for a
+          specific future year — prefilling a fixed sample there doesn't fit that flow). Reuses
+          this app's own established "testing tool" visual language (flask icon, orange accent,
+          explicit "(Testing)" copy — DateOverrideControl's own precedent), so it reads unmistakably
+          as a developer/tester convenience, never a real student-facing feature. */}
+      {!checkpoint && (
+        <div className="testing-fill-row">
+          <button type="button" className="testing-fill-btn" onClick={fillSampleTranscript}>
+            <FlaskConical size={13} /> Fill Sample Transcript (Testing)
+          </button>
+        </div>
+      )}
 
       {transcript.length === 0 && (
         <div className="transcript-skip-row">

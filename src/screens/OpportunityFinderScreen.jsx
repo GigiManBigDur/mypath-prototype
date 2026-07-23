@@ -7,7 +7,7 @@ import { anchorDate, formatDate, getEffectiveToday } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
-import PriorExperiencesEditor from '../components/PriorExperiencesEditor';
+import PriorExperiencesEditor, { SAMPLE_PRIOR_EXPERIENCES } from '../components/PriorExperiencesEditor';
 import { useMascotIntroOnce, useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
 import { TrackIcon, getTrackColor } from '../components/TrackVisuals';
 
@@ -82,6 +82,14 @@ export default function OpportunityFinderScreen() {
     patch({ priorExperiences: priorExperiences.filter((e) => e.id !== id) });
   };
   const finishPriorExperienceStep = () => patch({ priorExperiencePromptDone: true });
+  // Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md), Task 2 — one
+  // real, whole-array write (replacing whatever's currently there), not a loop over `addExperience`
+  // — see PriorExperiencesEditor.jsx's own header comment for why that would be a real bug here.
+  const fillSampleExperiences = () => {
+    patch({
+      priorExperiences: SAMPLE_PRIOR_EXPERIENCES.map((exp) => ({ id: makeTaskId('prior-experience'), ...exp })),
+    });
+  };
 
   // Only one of these two ever actually renders (the gate step, or the real opportunity content
   // below it) — but BOTH hooks are called unconditionally every render, matching the Rules of
@@ -118,6 +126,7 @@ export default function OpportunityFinderScreen() {
             onAdd={addExperience}
             onEdit={editExperience}
             onRemove={removeExperience}
+            onFillSample={fillSampleExperiences}
           />
 
           <div className="btn-row" style={{ justifyContent: 'space-between' }}>

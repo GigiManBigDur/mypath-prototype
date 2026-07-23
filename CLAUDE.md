@@ -5504,6 +5504,56 @@ back and forth here to plan the phase.**
   additive and every other caller simply never passes it. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) all stay clean.
 
+**Testing-Only Prefill Buttons for Transcript & Experiences — two small convenience buttons for
+developer/tester use, deliberately styled so neither reads as a real student-facing feature.**
+- **`.testing-fill-btn`/`.testing-fill-row`** (`global.css`) is a new, shared, non-fixed-position
+  variant of `DateOverrideControl.jsx`'s own already-established "testing tool" visual language
+  (`FlaskConical` icon, `--bloom-orange` accent, explicit "(Testing)" label text) — that control is
+  a floating fixed-position toggle, which doesn't fit a button that belongs inline within a
+  screen's normal content flow, so this pass added a plain inline pill variant of the same look
+  rather than reusing that component directly.
+- **Task 1 — "Fill Sample Transcript" (`TranscriptScreen.jsx`, Roslyn only)**: `SAMPLE_TRANSCRIPT`
+  is 6 real course ids pulled directly from the actual parsed catalog (`courses.js`) —
+  `english-english-1`/`math-algebra-1` (standard), `science-biology-honors-previously-living-
+  environment-honors`/`math-algebra-2-honors` (honors), `math-ap-calculus-ab`/`science-ap-biology`
+  (AP) — spanning all 3 weight tiers so the button genuinely exercises the real weighted/
+  unweighted/4.0-scale GPA math (`WEIGHT_MULTIPLIERS`, `convertTo4Scale`) instead of producing
+  disconnected placeholder numbers; grades are plausible (87–93) and `yearTaken` matches each
+  course's own real `gradeLevels`. `fillSampleTranscript` REPLACES `state.transcript` wholesale
+  (`patch({ transcript: SAMPLE_TRANSCRIPT.map(...) })`), the same "reset to a known sample"
+  convention this fix uses everywhere, rather than appending. Rendered only in the onboarding
+  (non-checkpoint) flow — `{!checkpoint && (...)}` — since Course Selection Stage 4's per-year
+  revisit mode isn't what this convenience tool is for. Not yet built for UC Davis's own transcript
+  variant, matching the task's own explicit "Roslyn High School only, for now" scope.
+- **Task 2 — "Fill Sample Experiences" (`PriorExperiencesEditor.jsx`, shared)**:
+  `SAMPLE_PRIOR_EXPERIENCES` (exported from this component, not duplicated per caller) is 4
+  plausible, representative high-school extracurriculars with real-sounding names/descriptions
+  (Varsity Track & Field, National Honor Society, a food-bank volunteer role, School Robotics
+  Club) — not placeholder/lorem text. The button is gated on a new optional `onFillSample` prop
+  (undefined renders nothing), matching this component's own established "shared presentational
+  piece, caller owns the data" shape (`AddTaskModal`/`ChatConversation`). **Both real callers —
+  `OpportunityFinderScreen.jsx`'s one-time prior-experience prompt and `ProfileScreen.jsx` — supply
+  `onFillSample` as a single whole-array `patch()` call, not a loop over the existing `onAdd`
+  callback.** This is a deliberate correctness choice, not a style preference: `onAdd`'s own real
+  implementations close over the CURRENT `experiences`/`priorExperiences` array at render time, so
+  several synchronous `onAdd` calls inside one event handler would each compute
+  `[...staleArray, oneNewItem]` from the same stale snapshot — since React batches the resulting
+  `setState` calls, only the LAST call's value would actually stick, silently dropping every
+  earlier sample entry. A single whole-array write sidesteps this entirely.
+- Verified with a dedicated 17-check Playwright suite: the Fill Sample Transcript button is visibly
+  testing-styled (icon + "(Testing)" text) and, once clicked, writes all 6 real course entries with
+  the correct ids, the transcript table renders real rows, and the GPA summary shows a real
+  calculated number (not a placeholder); the button is confirmed absent when a checkpoint is
+  active; Fill Sample Experiences works identically from both Opportunity Finder's prompt (writing
+  4 real entries, rendering 4 real cards) and the Profile screen (correctly REPLACING a pre-existing
+  stale entry rather than appending to it); and a direct computed-style check confirms the shared
+  button class carries real, non-default styling. The full pre-existing regression suite touching
+  these files (`test-ai-profile-edge.js`, `test-ai-profile-stage1.js`,
+  `test-hub-profile-tile-layout.js`, `test-prior-experience-profile.js`,
+  `test-transfer-hs-transcript.js`, `test-hub-chat-transition.js`, `test-ai-chat.js`) all still
+  pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all
+  stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
