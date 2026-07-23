@@ -1,11 +1,7 @@
-import { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
-import { useApp } from '../context/AppContext';
 import ChatConversation from './ChatConversation';
-import { compileStudentProfile } from '../utils/profileCompiler';
-import { requestChatReply } from '../utils/chatRequest';
-import { makeTaskId } from '../utils/ids';
-import { getEffectiveToday, parseDateInputValue } from '../utils/dates';
+import ChatTaskConfirmFooter from './ChatTaskConfirmFooter';
+import { useHubChat } from '../hooks/useHubChat';
+import { ArrowLeft } from 'lucide-react';
 
 // Polished Hub-to-Chat Transition + Persistent Chat History (see CLAUDE.md) — the real chat
 // conversation itself, re-hosted inline in the hub instead of behind the old portaled overlay
@@ -18,87 +14,27 @@ import { getEffectiveToday, parseDateInputValue } from '../utils/dates';
 // requirement — cleared only by the hub's own Reset button, same as every other piece of state.
 //
 // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md) — the actual message-
-// list/input-row rendering now comes from the shared `ChatConversation` component (extracted here
-// so Project Builder's own "Build Your Own" conversation can reuse the identical UI instead of a
-// third, separate implementation); this component keeps only what's genuinely specific to the hub
-// assistant (the task-add confirm/date-picker flow, the Build-Your-Own redirect action).
+// list/input-row rendering comes from the shared `ChatConversation` component (extracted here so
+// Project Builder's own "Build Your Own" conversation can reuse the identical UI instead of a
+// third, separate implementation).
+//
+// Add a Small Embedded AI Chat Widget to Map 2 (see CLAUDE.md), Task 1 — the actual conversation
+// LOGIC (send/task-confirm/date-pick/Build-Your-Own-redirect) now lives in the shared
+// `useHubChat` hook, extracted here so the new `MapChatWidget.jsx` (rendered on the Academic Plan)
+// reads/writes the exact same `state.chatHistory` through the exact same mechanics — this
+// component keeps only what's genuinely specific to the hub's own presentation (its header, the
+// "Back to Hub" button, the exit-transition class).
 //
 // The mascot itself is NOT rendered here — it stays put in HubScreen's own `.hub-mascot-area` so
 // it visually "stays anchored" across the whole transition (Task 2). This component only reports
 // the latest reply's text upward via `onAssistantReply`, so HubScreen's own `useMascotSpeech` call
 // can drive the ONE shared mascot instance's speaking animation/voiceover.
 export default function HubChatPanel({ onBack, exiting, onAssistantReply }) {
-  const { state, patch } = useApp();
-  const chatHistory = state.chatHistory || [];
-  const [loading, setLoading] = useState(false);
-  const [pendingTask, setPendingTask] = useState(null);
-  const [pickingDate, setPickingDate] = useState(false);
-  const [dateInput, setDateInput] = useState('');
-  const [dateError, setDateError] = useState(null);
-
-  // Stopping speech the instant the panel starts exiting (Task 5's own reverse transition) is the
-  // same "dismissing is just an ordinary 'the current line went away' change" contract every other
-  // caller of useMascotSpeech already relies on — HubScreen clears its own speakingText the moment
-  // it kicks off the exit transition, so there's nothing extra to do here.
-
-  const sendMessage = (trimmed) => {
-    const history = chatHistory.map((m) => ({ role: m.role, content: m.content }));
-    const afterUser = [...chatHistory, { role: 'user', content: trimmed }];
-    patch({ chatHistory: afterUser });
-    setLoading(true);
-    setPendingTask(null);
-    const profileSummary = compileStudentProfile(state);
-    requestChatReply(
-      { history, prompt: trimmed, profileSummary },
-      {
-        onResult: (proposal) => {
-          setLoading(false);
-          if (!proposal || typeof proposal.reply !== 'string' || !proposal.reply.trim()) {
-            patch({ chatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't come up with a reply just now — try asking again." }] });
-            return;
-          }
-          patch({ chatHistory: [...afterUser, { role: 'assistant', content: proposal.reply, intent: proposal.intent }] });
-          onAssistantReply(proposal.reply);
-          if (proposal.intent === 'propose_task' && proposal.taskTitle) {
-            setPendingTask({ title: proposal.taskTitle });
-          }
-        },
-        onError: () => {
-          setLoading(false);
-          patch({ chatHistory: [...afterUser, { role: 'assistant', content: 'Sorry, something went wrong — try asking again in a moment.' }] });
-        },
-      },
-    );
-  };
-
-  const goToBuildYourOwn = () => patch({ screen: 'projectBuilder' });
-
-  const dismissPendingTask = () => {
-    setPendingTask(null);
-    setPickingDate(false);
-    setDateInput('');
-    setDateError(null);
-  };
-
-  const finalizeAddTask = () => {
-    if (!dateInput) { setDateError('Pick a date to continue.'); return; }
-    const picked = parseDateInputValue(dateInput);
-    const today = getEffectiveToday(state.dateOverride);
-    if (picked.getTime() < today.getTime()) {
-      setDateError('Pick today or a future date.');
-      return;
-    }
-    patch({
-      aiSuggestedTasks: [...(state.aiSuggestedTasks || []), {
-        id: makeTaskId('ai-suggestion'),
-        title: pendingTask.title,
-        date: dateInput,
-        desc: 'Added from a conversation with MyPath AI.',
-      }],
-      chatHistory: [...chatHistory, { role: 'assistant', content: `Added "${pendingTask.title}" to your plan.` }],
-    });
-    dismissPendingTask();
-  };
+  const {
+    chatHistory, loading, sendMessage, goToBuildYourOwn,
+    pendingTask, pickingDate, dateInput, dateError,
+    startPickingDate, updateDateInput, dismissPendingTask, finalizeAddTask,
+  } = useHubChat(onAssistantReply);
 
   return (
     <div className={`hub-chat-panel${exiting ? ' hub-chat-exit' : ''}`}>
@@ -123,36 +59,16 @@ export default function HubChatPanel({ onBack, exiting, onAssistantReply }) {
           </div>
         )}
         footer={(
-          <>
-            {pendingTask && !pickingDate && (
-              <div className="chat-task-confirm">
-                <p>Want me to add &ldquo;{pendingTask.title}&rdquo; to your plan?</p>
-                <div className="task-form-actions">
-                  <button type="button" className="btn btn-ghost" onClick={dismissPendingTask}>Not now</button>
-                  <button type="button" className="btn btn-primary" onClick={() => { setPickingDate(true); setDateError(null); }}>Add it</button>
-                </div>
-              </div>
-            )}
-
-            {pendingTask && pickingDate && (
-              <div className="chat-task-confirm">
-                <label className="task-form-field">
-                  <span className="label">Date</span>
-                  <input
-                    type="date"
-                    value={dateInput}
-                    onChange={(e) => { setDateInput(e.target.value); setDateError(null); }}
-                    autoFocus
-                  />
-                </label>
-                {dateError && <p className="mascot-suggestion-date-error">{dateError}</p>}
-                <div className="task-form-actions">
-                  <button type="button" className="btn btn-ghost" onClick={dismissPendingTask}>Cancel</button>
-                  <button type="button" className="btn btn-primary" onClick={finalizeAddTask} disabled={!dateInput}>Confirm</button>
-                </div>
-              </div>
-            )}
-          </>
+          <ChatTaskConfirmFooter
+            pendingTask={pendingTask}
+            pickingDate={pickingDate}
+            dateInput={dateInput}
+            dateError={dateError}
+            onStartPickingDate={startPickingDate}
+            onDateChange={updateDateInput}
+            onDismiss={dismissPendingTask}
+            onConfirm={finalizeAddTask}
+          />
         )}
       />
     </div>

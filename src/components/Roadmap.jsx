@@ -19,6 +19,7 @@ import { getTrackColor } from './TrackVisuals';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestSuggestion } from '../utils/suggestions';
 import MascotWidget from './MascotWidget';
+import MapChatWidget from './MapChatWidget';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
 // "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
@@ -1508,6 +1509,12 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
           completely inert for every other purpose — MascotWidget itself is what decides whether
           `state.pendingSuggestion` overrides the (here, always-null) text prop. */}
       <MascotWidget text={null} />
+
+      {/* Add a Small Embedded AI Chat Widget to Map 2 (see CLAUDE.md), Task 3 — a plain sibling of
+          the canvas/zoom-controls/bottom-panel above, added alongside the roadmap rather than
+          touching it; nothing about this component reads or writes roadmapLayout.js's own
+          date-to-y positions, the connector-line rendering, or the zoom/pan/drag handlers. */}
+      <MapChatWidget />
     </div>
   );
 }

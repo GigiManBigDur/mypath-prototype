@@ -2481,6 +2481,118 @@ button.card.passed:hover {
 .roadmap-callout-arrow-tl { left: 6px; }
 .roadmap-callout-arrow-tr { right: 6px; }
 
+/* Add a Small Embedded AI Chat Widget to Map 2 (see CLAUDE.md) — a plain sibling of the canvas/
+   zoom-controls/bottom-panel above (Task 3's own explicit boundary: added ALONGSIDE the roadmap,
+   never touching its date-to-y positioning/connector rendering/zoom-pan-drag mechanics). Exclusive
+   to Roadmap.jsx, so edited directly onto the bloom tokens the same way every other Map 2-exclusive
+   class already is (Map 2 never carries `.app-shell-bloom` — see this file's own Academic Plan
+   repaint section for why).
+   Anchored bottom-LEFT (`.zoom-controls`/`.roadmap-panel` both already claim the right side/full
+   bottom strip) at a fixed `bottom: 280px` — comfortably above the bottom panel's own maximum
+   reach when expanded (`BOTTOM_PANEL_CLEARANCE_EXPANDED`/`ZOOM_CONTROLS_BOTTOM_EXPANDED` in
+   Roadmap.jsx both top out around 230-240px from the bottom), so this widget is never at risk of
+   overlapping the panel regardless of the panel's own collapsed/expanded state or the viewport's
+   width (the panel's own centering behavior on a wide viewport made a shared-band placement too
+   fragile to reason about safely). `max-height` is a formula (not a fixed px cap) specifically so
+   the EXPANDED panel can never overflow the top of the viewport on a shorter screen either,
+   regardless of how tall `100vh` actually is. */
+.map-chat-toggle {
+  position: absolute;
+  left: 20px;
+  bottom: 280px;
+  z-index: 6;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bloom-card);
+  box-shadow: var(--bloom-shadow-hover);
+  cursor: pointer;
+  transition: opacity 220ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.map-chat-toggle:hover { transform: scale(1.08); }
+.map-chat-toggle:active { transform: scale(0.95); }
+/* Hidden (not removed) once the panel is open — same "keep it mounted, toggle a class" approach
+   this codebase already favors for a simple collapse/expand that doesn't need an unmount-after-
+   fade mechanism. */
+.map-chat-toggle.map-chat-toggle-hidden {
+  opacity: 0;
+  transform: scale(0.5);
+  pointer-events: none;
+}
+
+.map-chat-panel {
+  position: absolute;
+  left: 20px;
+  bottom: 280px;
+  z-index: 9;
+  width: min(360px, calc(100vw - 40px));
+  max-height: min(480px, calc(100vh - 320px));
+  display: flex;
+  flex-direction: column;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 16px;
+  box-shadow: var(--bloom-shadow-hover);
+  padding: 16px 18px;
+  transform-origin: bottom left;
+  opacity: 0;
+  transform: scale(0.85) translateY(6px);
+  pointer-events: none;
+  transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1), transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.map-chat-panel.map-chat-panel-open {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+.map-chat-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.map-chat-header-text { flex: 1; min-width: 0; }
+.map-chat-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; font-weight: 700; color: var(--bloom-ink); margin: 0; }
+.map-chat-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--bloom-ink-soft);
+  display: flex;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.map-chat-close:hover { color: var(--bloom-ink); }
+
+/* Reuses the shared .chat-messages/.chat-bubble/.chat-input-row/.chat-send-btn structure
+   (ChatConversation.jsx) — recolored onto the bloom tokens the same way Build Your Own's own
+   conversation already is, scoped under `.map-chat-panel` so nothing leaks onto the hub's own
+   differently-scoped `.hub-chat-panel` instance of the identical shared classes. */
+.map-chat-panel .chat-messages { min-height: 140px; }
+.map-chat-panel .chat-bubble-user { background: var(--bloom-accent); }
+.map-chat-panel .chat-bubble-assistant {
+  background: var(--bloom-bg);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.map-chat-panel .chat-empty-hint,
+.map-chat-panel .chat-bubble-loading { color: var(--bloom-ink-soft); }
+.map-chat-panel .chat-input-row input {
+  background: var(--bloom-bg);
+  border-color: var(--bloom-card-border);
+  color: var(--bloom-ink);
+}
+.map-chat-panel .chat-send-btn { background: var(--bloom-ai); }
+
+@media (prefers-reduced-motion: reduce) {
+  .map-chat-toggle, .map-chat-panel { transition: none; }
+}
+
+@media (max-width: 640px) {
+  .map-chat-toggle, .map-chat-panel { left: 12px; bottom: 240px; }
+  .map-chat-panel { width: min(320px, calc(100vw - 24px)); max-height: min(420px, calc(100vh - 280px)); }
+}
+
 /* Bottom-anchored, collapsible panel — floats above the canvas rather than pushing it (that's
    why .roadmap-fullscreen-root's other children are all position:absolute too). Collapsing only
    animates .roadmap-panel-content's own box (max-height/opacity/padding); the panel itself keeps

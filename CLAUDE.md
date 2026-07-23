@@ -4806,6 +4806,64 @@ changes.**
   verify:spacing` (20/20) all stay clean — this pass touches only CSS plus two small, additive JSX
   conditionals in `HubScreen.jsx`, no data/logic changes anywhere.
 
+**Add a Small Embedded AI Chat Widget to Map 2 — a compact entry point into the SAME hub
+conversation, reached from the Academic Plan, alongside the roadmap rather than touching it.**
+- **Task 1 — the actual chat LOGIC (not just the UI) is shared, not duplicated.**
+  `src/hooks/useHubChat.js` (new) is `HubChatPanel.jsx`'s own conversation mechanics — reading
+  `state.chatHistory`, `sendMessage`, the task-add confirm-then-date-pick flow, the Build-Your-Own
+  redirect — extracted verbatim into a hook, since a plain shared UI component (`ChatConversation`,
+  already established for the Hub/Build Your Own) wasn't enough on its own here: this widget needed
+  the actual state-and-request MACHINERY too, not just message-list rendering. `HubChatPanel.jsx`
+  was refactored to call this hook instead of holding the logic itself — confirmed to behave
+  identically (same 24-check `test-hub-chat-transition.js` suite passes unmodified). The new
+  `src/components/MapChatWidget.jsx` calls the SAME hook, meaning a message sent from Map 2 lands
+  in the exact same `state.chatHistory` array the hub's own chat already reads/writes — one
+  conversation, two entry points, not a third independent implementation.
+  `src/components/ChatTaskConfirmFooter.jsx` (new) is the task-add confirm/date-pick footer JSX,
+  similarly extracted so both callers render the identical markup instead of a second copy.
+- **Task 2 — small, collapsed by default, expands into a compact panel.** `MapChatWidget.jsx`
+  renders a small circular toggle (a 52px mascot-icon bubble, reusing `MascotIcon` + the shared
+  `useMascotSpeech` hook for voice/animation — the same mascot speaking mechanism every other AI
+  surface in this app already uses) and the real chat panel, BOTH always mounted — only a CSS
+  class (`map-chat-panel-open`) toggles opacity/transform/pointer-events, the same "keep it
+  mounted, toggle a class" approach this app already favors for a simple collapse/expand that
+  doesn't need an unmount-after-fade mechanism (`useModalExit`). `open` is local, unpersisted UI
+  state (matching Project Builder's own sub-view state, the Academic Plan panel's own
+  `panelCollapsed`) — always starts collapsed on a fresh mount/reload. The toggle hides (fades +
+  scales down) the instant the panel opens, and reappears the instant it's closed via the panel's
+  own `X` button.
+- **Task 3 — added alongside the roadmap, never touching it.** `<MapChatWidget />` is rendered as
+  a plain sibling inside `Roadmap.jsx`'s own `.roadmap-fullscreen-root` (alongside the canvas,
+  `.zoom-controls`, and `.roadmap-panel` — right next to the existing `<MascotWidget text={null}
+  />`), not integrated into any of the roadmap's own rendering. Anchored bottom-LEFT (the right
+  side already belongs to `.zoom-controls`, the bottom strip to `.roadmap-panel`) at a fixed
+  `bottom: 280px` — deliberately ABOVE the bottom panel's own maximum reach when expanded
+  (`BOTTOM_PANEL_CLEARANCE_EXPANDED`/`ZOOM_CONTROLS_BOTTOM_EXPANDED` both top out around 230-240px
+  from the bottom), chosen specifically because a shared-band placement turned out to be fragile
+  to reason about: `.roadmap-panel` itself is centered (`left/right: 20px` + `max-width: 1000px` +
+  `margin: 0 auto`), so on a wide viewport it doesn't actually reach the full `left: 20px` edge,
+  but on a narrower one it does — placing this widget safely ABOVE the panel's own tallest state
+  sidesteps that viewport-width dependency entirely rather than needing to reason about it.
+  `max-height` on the expanded panel is a formula (`min(480px, calc(100vh - 320px))`), not a fixed
+  px cap, so it can never overflow the top of the viewport on a shorter screen either. Confirmed
+  via `npm run verify:spacing` run BOTH before (via `git stash`) and after this change — byte-for-
+  byte identical output (20/20 checks, the same `y=[330, 270, 210, 150, 90]` sequence) — this
+  change never opens `roadmapLayout.js` at all.
+- Verified with a dedicated 14-check Playwright suite: the toggle renders collapsed by default
+  with the panel genuinely invisible/non-interactive; neither the collapsed toggle nor the
+  EXPANDED panel overlaps `.zoom-controls` or `.roadmap-panel` (checked via real
+  `getBoundingClientRect()` comparisons, not assumed from CSS alone), and the expanded panel stays
+  fully within the viewport; a message sent from Map 2's widget writes to the same
+  `state.chatHistory` the hub reads, confirmed by then opening the REAL hub chat afterward and
+  seeing the identical conversation (real continuity, not just "the same shape of data") — and,
+  the other direction, a message sent from the HUB's own chat correctly shows up back on Map 2's
+  widget too. The full pre-existing regression suite (`test-hub-chat-transition.js`,
+  `test-ai-chat.js`, `test-chat-visuals-mascot-scale.js`, `test-passion-buildyourown.js`,
+  `test-prior-experience-profile.js`, `test-hub-profile-tile-layout.js`,
+  `test-program-copy-by-level.js`) all still pass unmodified, confirming the `HubChatPanel`
+  refactor didn't change its own behavior at all; `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
