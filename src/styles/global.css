@@ -2848,6 +2848,80 @@ button.card.passed:hover {
 .milestone-ready-preview li { margin-bottom: 4px; }
 .milestone-date-picker { margin-top: 12px; padding: 14px 16px; background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 6px; }
 
+/* Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md). Task 3's own mascot
+   header reuses BuildYourOwnView's exact `.chat-header` shape (already shared across the two
+   files, no new class needed there) — just a smaller MascotIcon (40 vs. 44) to fit this narrower
+   modal context. */
+.milestone-chat-header { margin-bottom: 10px; }
+
+/* Task 2 — a gentle pulsing glow around the chat input, active only while `firstTimeUI` is true
+   (MilestonePlanningPanel.jsx) — `position: relative` on the wrap is what lets Task 1's own hint
+   (below) position itself relative to this box rather than the whole page. The glow targets the
+   real input directly (not a wrapper box around it) so it reads as "look here, in this exact
+   field," not a vague highlight around the whole chat. */
+.milestone-chat-wrap { position: relative; }
+.milestone-chat-glow .chat-input-row input {
+  animation: milestone-chat-input-glow 1.8s ease-in-out infinite;
+}
+@keyframes milestone-chat-input-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.35); border-color: var(--paper-line); }
+  50% { box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.18); border-color: var(--bloom-ai); }
+}
+
+/* Task 1 — a small, dismissible, first-time-only hint, reusing the exact same card visual
+   language (and close-button/icon/text sub-classes) the Academic Plan's own first-visit callouts
+   already established (`.roadmap-callout-close`/`-icon`/`-text`), but with its own container
+   class/positioning — `.roadmap-callout` itself is absolutely positioned relative to the roadmap
+   canvas specifically, which doesn't apply here. Anchored just above the input row (not
+   `.roadmap-callout`'s own top-of-canvas placement), with its own downward-pointing arrow so it
+   reads as pointing AT the input, per this task's own explicit instruction. */
+.milestone-chat-hint {
+  position: absolute;
+  left: 8px;
+  right: 44px;
+  bottom: 54px;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 10px;
+  padding: 10px 24px 10px 12px;
+  box-shadow: var(--bloom-shadow-hover);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--bloom-ink);
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  animation: callout-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.milestone-chat-hint.callout-exit { animation: callout-out 200ms ease both; pointer-events: none; }
+.milestone-chat-hint-arrow {
+  position: absolute;
+  top: 100%;
+  left: 18px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 8px solid var(--bloom-card-border);
+}
+.milestone-chat-hint-arrow::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--bloom-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .milestone-chat-glow .chat-input-row input { animation: none; border-color: var(--bloom-ai); }
+  .milestone-chat-hint, .milestone-chat-hint.callout-exit { animation: none; }
+}
+
 .win-banner { margin-top:22px; background: var(--bloom-card); border:1px solid var(--bloom-card-border); border-left:4px solid var(--bloom-accent); border-radius:4px; padding:18px 20px; font-size:14px; color: var(--bloom-ink); box-shadow: var(--bloom-shadow); }
 
 /* Palette repaint, Academic Plan batch (see CLAUDE.md) — `.remove-btn`/`.modal-edit-date` ARE

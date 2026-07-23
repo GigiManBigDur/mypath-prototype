@@ -247,6 +247,13 @@ const DEFAULT_STATE = {
   // they're shown/dismissed as one onboarding moment. Persisted (not just session-scoped) so a
   // dismissal survives a reload; "Start over" resets it like everything else, which is fine —
   // that's a fresh run of the app.
+  // Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md) — the same "one-time,
+  // persisted, dismiss-once-ever" shape `roadmapTooltipsSeen` above already established, applied
+  // to MilestonePlanningPanel's own first-visit hint + input glow (Two-Phase Generation's
+  // per-milestone scoped chat) instead of the Academic Plan's own callouts. A single app-wide flag
+  // (not per-milestone) — once a student has seen this hint for ANY overview task's chat, they
+  // understand the pattern and don't need it repeated for every later one either.
+  milestoneChatHintSeen: false,
   planYearIndex: null, // null = viewing Map 1 (the Year Overview); a stage index (0 = the
   // current year, matching STAGE_PLAN's ordering) = viewing Map 2 (Roadmap.jsx) scoped to that
   // one year. Persisted like every other navigation field so a returning user resumes on

@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import { X, MessageCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ChatConversation from './ChatConversation';
+import MascotIcon from './MascotIcon';
+import { useMascotSpeech } from '../hooks/useMascotSpeech';
+import { useModalExit } from '../hooks/useModalExit';
 import { requestBuildYourOwnChatReply } from '../utils/buildYourOwnChatRequest';
 import { compileStudentProfile } from '../utils/profileCompiler';
 import { parseDateInputValue, realDaysBetween, formatDateWithYear } from '../utils/dates';
@@ -26,6 +30,27 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
   // already established, so dismissing THIS ready turn's preview doesn't also suppress a later,
   // genuinely new one if the student keeps refining and reaches planReady again.
   const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
+
+  // Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md) — the latest reply's
+  // text, fed to useMascotSpeech below, kept separate from chatHistory so speech only ever
+  // triggers on a genuinely NEW reply arriving — the exact same convention BuildYourOwnView/
+  // HubChatPanel's own mascot-speech wiring already established. Task 3's own "reinforce the
+  // mascot's presence" is what motivates giving this panel its own MascotIcon/useMascotSpeech pair
+  // at all — this screen previously had neither.
+  const [speakingText, setSpeakingText] = useState(null);
+  const isSpeaking = useMascotSpeech(speakingText, state.voiceMuted);
+
+  // Task 1/2 — a single, app-wide, persisted "have they ever used one of these chats before" flag
+  // (not per-milestone — once a student understands the pattern once, they don't need it repeated
+  // for every later overview task), the same "one-time, dismiss-once-ever" shape
+  // `roadmapTooltipsSeen` already established for the Academic Plan's own first-visit callouts.
+  // Both the hint (Task 1) and the input's own glow (Task 2) derive from this ONE flag, and both
+  // Task 2's own two stated triggers — "starts typing" (via ChatConversation's new `onInputFocus`)
+  // and "the hint is dismissed" (its own close button) — resolve to the exact same action: mark
+  // this flag seen. There's nothing left to fade separately once it's set.
+  const firstTimeUI = !state.milestoneChatHintSeen;
+  const dismissFirstTimeUI = () => patch({ milestoneChatHintSeen: true });
+  const { rendered: hintRendered, closing: hintClosing } = useModalExit(firstTimeUI);
 
   const chatHistory = milestone.chatHistory || [];
 
@@ -60,7 +85,9 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
         onResult: (proposal) => {
           setLoading(false);
           if (!proposal || typeof proposal.reply !== 'string' || !proposal.reply.trim()) {
-            updateChatHistory([...afterUser, { role: 'assistant', content: "Sorry, I couldn't think of anything just now — try again." }]);
+            const fallback = "Sorry, I couldn't think of anything just now — try again.";
+            updateChatHistory([...afterUser, { role: 'assistant', content: fallback }]);
+            setSpeakingText(fallback);
             return;
           }
           updateChatHistory([...afterUser, {
@@ -69,10 +96,13 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
             planReady: proposal.planReady,
             milestones: proposal.milestones,
           }]);
+          setSpeakingText(proposal.reply);
         },
         onError: () => {
           setLoading(false);
-          updateChatHistory([...afterUser, { role: 'assistant', content: 'Sorry, something went wrong — try again in a moment.' }]);
+          const errorText = 'Sorry, something went wrong — try again in a moment.';
+          updateChatHistory([...afterUser, { role: 'assistant', content: errorText }]);
+          setSpeakingText(errorText);
         },
       },
     );
@@ -104,16 +134,48 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
 
   return (
     <div className="milestone-planning-panel">
+      {/* Task 3 — a small header pairing the mascot with a plain "MyPath AI" label, the same
+          visual language BuildYourOwnView's own chat header already uses, so this reads as the
+          same familiar assistant rather than an unlabeled text box. `thinking`/`speaking` drive
+          the exact same animation states every other chat surface already does. */}
+      <div className="chat-header milestone-chat-header">
+        <MascotIcon size={40} thinking={loading} speaking={isSpeaking} />
+        <div>
+          <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)', margin: 0 }}>MyPath AI</div>
+          <h2 className="hub-chat-title" style={{ fontSize: 15 }}>Planning this phase</h2>
+        </div>
+      </div>
+
       <p className="field-hint">
         Let&rsquo;s plan the concrete steps for this phase — grounded in your original project
         conversation, scoped to just &ldquo;{milestone.title}.&rdquo;
       </p>
-      <ChatConversation
-        messages={chatHistory}
-        loading={loading}
-        onSend={sendMessage}
-        emptyHint={`What do you already know about how you'll approach "${milestone.title}"?`}
-      />
+
+      <div className={`milestone-chat-wrap${firstTimeUI ? ' milestone-chat-glow' : ''}`}>
+        <ChatConversation
+          messages={chatHistory}
+          loading={loading}
+          onSend={sendMessage}
+          onInputFocus={dismissFirstTimeUI}
+          emptyHint={`What do you already know about how you'll approach "${milestone.title}"?`}
+        />
+        {/* Task 1 — a small, dismissible, first-time-only hint pointing at the chat input. Shown
+            once, ever (see `firstTimeUI`'s own comment above), never reappearing after it's
+            dismissed OR the student starts typing (ChatConversation's own `onInputFocus`). */}
+        {hintRendered && (
+          <div className={`milestone-chat-hint${hintClosing ? ' callout-exit' : ''}`}>
+            <button type="button" className="roadmap-callout-close" onClick={dismissFirstTimeUI} aria-label="Dismiss">
+              <X size={12} />
+            </button>
+            <MessageCircle size={16} className="roadmap-callout-icon" />
+            <div className="roadmap-callout-text">
+              Chat here with the AI to plan out the exact steps for this phase.
+            </div>
+            <div className="milestone-chat-hint-arrow" aria-hidden="true" />
+          </div>
+        )}
+      </div>
+
       {latestReadySteps && !readyDismissed && !pickingDate && (
         <div className="milestone-ready-preview">
           <div className="field-label">Proposed steps for this phase</div>

@@ -5447,6 +5447,63 @@ consistently everywhere a response is being generated.**
   this pass touches only the mascot's own illustration/animation layer and two loading-state
   booleans, never `roadmapGenerator.js`/`roadmapLayout.js`.
 
+**Make the Overview-Task Chat More Obviously Interactive for First-Time Users —
+`MilestonePlanningPanel.jsx` (Two-Phase Generation's own per-milestone scoped chat) previously
+read as passive information; a first-time student had no clear signal they were expected to chat
+back and forth here to plan the phase.**
+- **`state.milestoneChatHintSeen`** (`AppContext.jsx`, `false` default) is a single, app-wide,
+  persisted flag — the exact same "one-time, dismiss-once-ever" shape `roadmapTooltipsSeen`
+  already established for the Academic Plan's own first-visit callouts, just scoped to this
+  screen instead. Deliberately NOT per-milestone: once a student has used one of these scoped
+  chats, they understand the pattern and don't need it re-explained for every later overview task.
+- **Task 1 — the hint** reuses `useModalExit` for its own enter/exit animation (the same mechanism
+  every dismissible callout/modal in this app already uses) and the Academic Plan's own callout
+  sub-classes (`.roadmap-callout-close`/`-icon`/`-text`) for a consistent look, but gets its own
+  container class (`.milestone-chat-hint`) and positioning — `.roadmap-callout` itself is
+  absolutely positioned relative to the roadmap canvas specifically, which doesn't apply inside a
+  modal. Anchored just above the chat input (`position: absolute` within a new `position: relative`
+  `.milestone-chat-wrap` around `ChatConversation`), with its own small downward-pointing CSS
+  triangle so it visibly points at the input, matching this task's own explicit instruction —
+  confirmed via a real screenshot, not just bounding-box math, that it reads clearly as "here,
+  right above the field."
+- **Task 2 — the glow** is a `.milestone-chat-glow` class applied to the SAME wrap while
+  `!state.milestoneChatHintSeen`, targeting `.chat-input-row input` directly (a pulsing
+  `box-shadow`/border-color animation) so it draws the eye to the exact field, not a vague
+  highlight around the whole chat. Its own two fade triggers — Task 2's explicit "fading once the
+  student starts typing or the hint is dismissed" — both resolve to the SAME action: marking
+  `milestoneChatHintSeen` true. `ChatConversation.jsx` gained one new, purely optional prop,
+  `onInputFocus` (undefined/no-op for every other existing caller), fired on the input's real
+  `onFocus` — the literal moment a student is about to start typing — which
+  `MilestonePlanningPanel` wires straight to the same dismiss function the hint's own close button
+  already uses. There's no separate "hasTyped" state to track — one flag, two ways to trip it,
+  both permanently retiring the first-time UI together (a genuinely dismissed hint never leaves
+  the glow behind, and starting to type never leaves an orphaned hint bubble behind either).
+- **Task 3 — a small mascot header** (`.milestone-chat-header`, reusing the exact `.chat-header`
+  shape `BuildYourOwnView`'s own chat header already established, just a smaller 40px `MascotIcon`
+  to fit this narrower modal) was added to a screen that previously had NO mascot presence at all.
+  This also gave the panel its own `useMascotSpeech` wiring for the first time — `speakingText`
+  set on every real reply (mirroring `BuildYourOwnView`/`HubChatPanel`'s own identical convention)
+  drives `isSpeaking`, and `loading` drives the mascot's `thinking` state (Improve the AI "Thinking"
+  Indicator's own animation, already shared via `ChatConversation`'s loading bubble — now the
+  OUTER mascot header shows the identical thinking state too, not just the inline bubble). This
+  reinforces "the same AI assistant already familiar from the rest of the app," per this task's
+  own explicit framing, rather than reading as an unlabeled text field.
+- Verified with a dedicated 12-check Playwright suite: the hint and glow both appear together on a
+  genuinely fresh first visit, alongside a real mascot header/SVG; a direct `getBoundingClientRect()`
+  check confirms the hint sits fully within the modal and directly above (not overlapping) the
+  input; dismissing the hint sets `milestoneChatHintSeen` and stops the glow immediately; a later
+  visit — even to a DIFFERENT overview milestone in the same project — never shows either again;
+  and focusing the input alone (before typing or sending anything) also permanently dismisses both,
+  confirmed via the persisted state flag. A real screenshot (both full-modal and a cropped
+  close-up) confirms the composition reads clearly: a labeled "MyPath AI · Planning this phase"
+  header, a dismissible callout with a visible downward-pointing arrow sitting right above a
+  visibly glowing input field. The full pre-existing regression suite (`test-two-phase-e2e.js`,
+  `test-keep-refining.js`, `test-thinking-indicator.js`, `test-ai-chat.js`,
+  `test-hub-chat-transition.js`, `test-map-chat-widget.js`, `test-chat-visuals-mascot-scale.js`)
+  all still pass with zero regressions — `ChatConversation.jsx`'s new `onInputFocus` prop is purely
+  additive and every other caller simply never passes it. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

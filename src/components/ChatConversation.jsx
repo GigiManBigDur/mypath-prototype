@@ -12,8 +12,13 @@ import MascotIcon from './MascotIcon';
 // turn, etc.). `renderMessageExtra`/`footer` are the two extension points each caller uses for its
 // own per-feature UI (the hub's redirect-to-Build-Your-Own button; a "Start This Project" button
 // once a plan is ready) without this component needing to know anything about either one.
+// Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md), Task 2 — `onInputFocus`
+// is a new, purely optional prop (undefined/no-op for every existing caller that doesn't pass it)
+// firing on the input's own real `onFocus` — the literal moment a student is "about to start
+// typing," which is what MilestonePlanningPanel uses to fade its own first-time glow/hint. No
+// other caller needed to change at all.
 export default function ChatConversation({
-  messages, loading, onSend, emptyHint, placeholder = 'Type a message…', renderMessageExtra, footer,
+  messages, loading, onSend, emptyHint, placeholder = 'Type a message…', renderMessageExtra, footer, onInputFocus,
 }) {
   const [inputValue, setInputValue] = useState('');
   const listRef = useRef(null);
@@ -64,6 +69,7 @@ export default function ChatConversation({
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onFocus={onInputFocus}
           placeholder={placeholder}
         />
         <button type="submit" className="chat-send-btn" disabled={!inputValue.trim() || loading} aria-label="Send">
