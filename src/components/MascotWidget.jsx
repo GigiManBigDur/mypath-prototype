@@ -46,7 +46,15 @@ import { chainExistsFor, findChainAnchor } from '../utils/suggestionResolver';
 // deliberately has no OTHER in-flow dialogue (see CLAUDE.md's own Stage 5 section), but a pending
 // suggestion still needs somewhere to surface while the student is right there having just
 // triggered it.
-export default function MascotWidget({ text }) {
+// Improve the AI "Thinking" Indicator (see CLAUDE.md), Task 2 — `thinking` (default `false`, only
+// ever passed `true` by Roadmap.jsx while its own Stage 2 suggestion request is in flight) closes
+// a real gap: previously nothing here indicated a suggestion request was even happening between
+// it firing and its `onResult`/`onError`. When true and there's no real dialogue/suggestion text
+// to show yet, this renders a small thinking-only bubble (the same animated mascot every chat
+// surface now uses) instead of returning null — the moment `effectiveText` becomes real (the
+// suggestion arrives, or fails and the caller flips `thinking` back to false), the normal
+// dialogue/suggestion rendering below takes back over, unchanged.
+export default function MascotWidget({ text, thinking = false }) {
   const { state, patch } = useApp();
   const [dismissed, setDismissed] = useState(false);
 
@@ -105,6 +113,24 @@ export default function MascotWidget({ text }) {
   // change, handled by the exact same effect that also stops audio when a screen navigates away or
   // the line is genuinely replaced.
   useMascotSpeech(!dismissed ? effectiveText : null, state.voiceMuted);
+
+  // Improve the AI "Thinking" Indicator (see CLAUDE.md), Task 2 — a thinking-only bubble (no real
+  // text yet, nothing to dismiss) renders BEFORE the normal `!effectiveText` early-return below
+  // would otherwise make this whole component invisible. Not portaled through the same dismiss/
+  // speech machinery below on purpose — this state is transient by design (the same maxDuration
+  // fix that already bounds every other AI request bounds this one too) and has nothing real to
+  // act on yet.
+  if (thinking && !effectiveText) {
+    return createPortal(
+      <div className="mascot-widget">
+        <MascotIcon size={52} thinking />
+        <div className="mascot-widget-bubble">
+          <p className="mascot-widget-text">Thinking of something based on what you just did&hellip;</p>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   if (!effectiveText || dismissed) return null;
 

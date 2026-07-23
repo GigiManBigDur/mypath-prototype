@@ -1331,9 +1331,54 @@ button.card.passed:hover {
   50% { opacity: 1; }
 }
 
+/* Improve the AI "Thinking" Indicator (see CLAUDE.md) — a fourth distinct animation state
+   (MascotIcon.jsx's own `thinking` prop), consistent with idle/speaking/pointing above: a slow,
+   contemplative tilt-bob (distinct from idle's gentle sway and speaking's quick bounce), eyes
+   easing into a soft squint-and-hold (distinct from blinking or the rhythmic talk-squeeze), and a
+   slower, more pronounced chest-light glow — reusing the exact same elements those other states
+   already animate, only the preset differs. Compound selectors beat the plain single-class idle
+   rules regardless of declaration order, same precedent `.mascot-bob.mascot-speaking` already
+   established. `.mascot-thinking-dot` is the genuinely new piece — a small "..." thought-bubble,
+   three dots bouncing in a staggered sequence via inline `animationDelay` (MascotIcon.jsx), the
+   same recognizable "composing a reply" visual language a real typing indicator already uses. */
+.mascot-bob.mascot-thinking { animation: mascot-think-bob 1.8s ease-in-out infinite; }
+.mascot-eye.mascot-eye-thinking { animation: mascot-eye-think 1.8s ease-in-out infinite; }
+.mascot-chest-light.mascot-chest-light-thinking { animation: mascot-chest-pulse-think 1.4s ease-in-out infinite; }
+.mascot-thinking-dot {
+  fill: var(--bloom-ai);
+  animation: mascot-thinking-dot-bounce 1.2s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes mascot-think-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(-2deg); }
+}
+@keyframes mascot-eye-think {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.55); }
+}
+@keyframes mascot-chest-pulse-think {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+@keyframes mascot-thinking-dot-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* Small, embedded "thinking" indicator inside a chat's own loading bubble (ChatConversation.jsx) —
+   reuses the shared `.chat-bubble`/`.chat-bubble-assistant` shell so it sits exactly where the old
+   plain "Thinking…" text used to, just with a small animated mascot next to a short label instead
+   of bare italic text. */
+.chat-bubble-thinking { display: flex; align-items: center; gap: 8px; }
+.chat-bubble-thinking-label { font-style: italic; }
+
 @media (prefers-reduced-motion: reduce) {
   .mascot-bob, .mascot-eye, .mascot-chest-light, .mascot-leaf,
-  .mascot-bob.mascot-speaking, .mascot-eye.mascot-eye-talking, .mascot-chest-light.mascot-chest-light-talking {
+  .mascot-bob.mascot-speaking, .mascot-eye.mascot-eye-talking, .mascot-chest-light.mascot-chest-light-talking,
+  .mascot-bob.mascot-thinking, .mascot-eye.mascot-eye-thinking, .mascot-chest-light.mascot-chest-light-thinking,
+  .mascot-thinking-dot {
     animation: none;
   }
 }

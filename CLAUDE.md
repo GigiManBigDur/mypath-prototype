@@ -5398,6 +5398,55 @@ steps alongside a commit action.
   this is a pure UI-state addition, touching neither `roadmapGenerator.js` nor `Roadmap.jsx`'s own
   positioning/locking logic at all.
 
+**Improve the AI "Thinking" Indicator — replaces the one plain, static "Thinking…" italic-text
+bubble every AI surface in this app shared with a dedicated, animated mascot state, applied
+consistently everywhere a response is being generated.**
+- **Task 1 — `MascotIcon.jsx` gained a FOURTH distinct animation state, `thinking`**, consistent
+  with the existing idle/speaking/pointing states: reuses the exact same body/eye/chest-light
+  elements those already animate (a slow, contemplative tilt-bob — `mascot-think-bob`, distinct
+  from idle's gentle sway and speaking's quick bounce; eyes ease into a soft squint-and-hold —
+  `mascot-eye-think`, distinct from blinking or the rhythmic talk-squeeze; the chest light glows
+  with a slower, more pronounced pulse — `mascot-chest-pulse-think`), plus one genuinely NEW piece
+  of markup: a small `.mascot-thought-bubble` group — three dots near the head, bouncing in a
+  staggered sequence via inline `animationDelay` — the same immediately-recognizable "composing a
+  reply" visual language a real typing indicator already uses elsewhere on the web. Deliberately a
+  SIBLING of `.mascot-pose` (not nested inside it), so it never inherits any lean/pointing
+  transform — `thinking` and `pointing`/`speaking` never co-occur in any real caller (a request is
+  either still in flight or has already resolved into real dialogue, never both), but nothing here
+  assumes that structurally. `prefers-reduced-motion` disables all of the new animations the same
+  plain-CSS way this file's own idle/speaking states already do, leaving the dots visibly present
+  but static rather than removing the affordance entirely.
+- **Task 2 — applied everywhere the AI is generating, via two changes, not four separate ones.**
+  `ChatConversation.jsx`'s own `loading` bubble (previously bare italic "Thinking…" text) now
+  renders a small `<MascotIcon thinking />` next to a short label — since EVERY real-time chat
+  surface in this app (the general hub chat via `HubChatPanel`, the Map 2 embedded chat via
+  `MapChatWidget`, Build Your Own's overview conversation, and Two-Phase Generation's own
+  per-milestone scoped chat via `MilestonePlanningPanel`) already renders its own loading state
+  through this ONE shared component's `loading` prop, this single change covers all of them
+  consistently with zero per-caller wiring. **Stage 2's suggestion generation is the one AI-calling
+  surface in this app that ISN'T a chat at all** — `maybeTriggerSuggestion` (`Roadmap.jsx`)
+  previously had no loading indicator of any kind; nothing showed between the request firing and
+  its `onResult`/`onError`, a real, confirmed gap this task closed. A new local `suggestionThinking`
+  boolean (`Roadmap.jsx`) is set `true` right before `requestSuggestion` fires and `false` in both
+  callbacks, passed to `MascotWidget`'s new `thinking` prop. `MascotWidget.jsx` — which previously
+  rendered nothing at all whenever it had no real `text`/`pendingSuggestion` to show — now renders
+  a small thinking-only bubble (the same `MascotIcon thinking` state, with an honest "Thinking of
+  something based on what you just did…" line) in that gap; the moment the real suggestion arrives
+  (or the request fails), the normal dialogue/suggestion rendering takes back over unchanged.
+- Verified with a dedicated 10-check Playwright suite (mocking each endpoint with an artificial
+  delay so the loading window is long enough to inspect) covering all four surfaces: the hub chat,
+  Build Your Own's overview conversation, and the milestone scoped chat each show a real
+  `.chat-bubble-thinking` containing an actual mascot SVG with its 3-dot thought bubble while
+  loading, correctly disappearing once the real reply arrives; and Stage 2's suggestion generation
+  — previously showing nothing at all during this window — now shows the identical animated
+  mascot with the same 3 dots and an honest, real thinking message, correctly replaced by the real
+  suggestion once it resolves. The full pre-existing regression suite (`test-two-phase-e2e.js`,
+  `test-keep-refining.js`, `test-ai-chat.js`, `test-hub-chat-transition.js`,
+  `test-map-chat-widget.js`, `test-chat-visuals-mascot-scale.js`) all still pass with zero
+  regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean —
+  this pass touches only the mascot's own illustration/animation layer and two loading-state
+  booleans, never `roadmapGenerator.js`/`roadmapLayout.js`.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

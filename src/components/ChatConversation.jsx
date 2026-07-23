@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
+import MascotIcon from './MascotIcon';
 
 // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 4 — the one
 // shared chat UI implementation this app now has, extracted out of `HubChatPanel.jsx` so Project
@@ -42,7 +43,19 @@ export default function ChatConversation({
             {renderMessageExtra && renderMessageExtra(m)}
           </div>
         ))}
-        {loading && <div className="chat-bubble chat-bubble-assistant chat-bubble-loading">Thinking&hellip;</div>}
+        {/* Improve the AI "Thinking" Indicator (see CLAUDE.md) — replaces the old plain italic
+            "Thinking…" text with the mascot's own dedicated thinking animation (a contemplative
+            tilt-bob, soft squint-and-hold eyes, a slower chest-light glow, plus a small bouncing
+            "..." thought bubble — see MascotIcon.jsx's own `thinking` prop), shown wherever ANY
+            caller of this shared component is waiting on a reply — the general chat, Build Your
+            Own, and the milestone-scoped chat all route through this one component's own `loading`
+            prop, so this single change covers all of them consistently with no per-caller wiring. */}
+        {loading && (
+          <div className="chat-bubble chat-bubble-assistant chat-bubble-loading chat-bubble-thinking">
+            <MascotIcon size={28} thinking />
+            <span className="chat-bubble-thinking-label">Thinking&hellip;</span>
+          </div>
+        )}
         {footer}
       </div>
 

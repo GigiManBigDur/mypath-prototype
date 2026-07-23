@@ -69,7 +69,21 @@
 // runs during idle.
 const MAX_LEAN_DEG = 10;
 
-export default function MascotIcon({ size = 140, speaking = false, pointing = false, pointAngle = null }) {
+// Improve the AI "Thinking" Indicator (see CLAUDE.md) — a FOURTH distinct animation state,
+// consistent with idle/speaking/pointing above: `thinking` reuses the exact same body/eye/chest-
+// light elements those already animate (a slow, contemplative tilt-bob instead of idle's gentle
+// sway or speaking's quick bounce; eyes ease into a soft squint-and-hold instead of blinking or
+// talk-squeezing; the chest light glows with a slower, more pronounced pulse), plus a small,
+// genuinely NEW piece of markup — three small dots near the head, bouncing in a staggered
+// sequence, the same immediately-recognizable "someone is composing a reply" visual language a
+// real typing indicator already uses elsewhere on the web. `thinking` and `speaking` are mutually
+// exclusive in every real caller (a request is either still in flight or has already resolved into
+// real, spoken dialogue — never both at once), but nothing here assumes that; each is its own
+// independent prop/class, so an unexpected simultaneous case would just show both animations
+// rather than silently breaking.
+export default function MascotIcon({
+  size = 140, speaking = false, pointing = false, pointAngle = null, thinking = false,
+}) {
   // A real pointing pose needs a real, measured angle — with none (still measuring, e.g. the very
   // first frame after mount), the character simply stays in its centered idle pose rather than
   // guessing a direction, same "don't fake it" posture the old PointerArrow already held.
@@ -99,14 +113,14 @@ export default function MascotIcon({ size = 140, speaking = false, pointing = fa
         className={`mascot-pose${hasAngle ? ' mascot-pointing' : ''}`}
         style={hasAngle ? { transform: `rotate(${leanDeg}deg)` } : undefined}
       >
-        <g className={`mascot-bob${speaking ? ' mascot-speaking' : ''}`}>
+        <g className={`mascot-bob${speaking ? ' mascot-speaking' : ''}${thinking ? ' mascot-thinking' : ''}`}>
           <rect className="mascot-body" x="35" y="30" width="90" height="112" rx="45" />
           <circle className="mascot-ear" cx="38" cy="74" r="7" />
           <circle className="mascot-ear" cx="122" cy="74" r="7" />
           <rect className="mascot-face" x="52" y="56" width="56" height="42" rx="21" />
-          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}`} d="M 64 79 Q 69 71 74 79" />
-          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}`} d="M 86 79 Q 91 71 96 79" />
-          <circle className={`mascot-chest-light${speaking ? ' mascot-chest-light-talking' : ''}`} cx="80" cy="119" r="6" />
+          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}`} d="M 64 79 Q 69 71 74 79" />
+          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}`} d="M 86 79 Q 91 71 96 79" />
+          <circle className={`mascot-chest-light${speaking ? ' mascot-chest-light-talking' : ''}${thinking ? ' mascot-chest-light-thinking' : ''}`} cx="80" cy="119" r="6" />
           {/* Leaf sprout — sways independently via its own inner <g>, same "outer <g> carries the
               positioning translate, inner <g> carries only the CSS-animated transform" split this
               codebase's own WelcomeScreen/Roadmap.jsx transforms already document — a CSS transform
@@ -138,6 +152,20 @@ export default function MascotIcon({ size = 140, speaking = false, pointing = fa
           </g>
         </g>
       </g>
+
+      {/* A small, genuinely NEW piece of markup for the thinking state — three dots near the
+          head, bouncing in a staggered sequence (classic "composing a reply" visual language).
+          Deliberately a SIBLING of `.mascot-pose`, not nested inside it, so it never inherits any
+          lean/pointing transform — thinking and pointing never co-occur in practice (this app's
+          only pointing context, the hub's own guided-sequence dialogue, never triggers a
+          request), but keeping this independent means it wouldn't silently break if they ever did. */}
+      {thinking && (
+        <g className="mascot-thought-bubble">
+          <circle className="mascot-thinking-dot" cx="128" cy="30" r="4" style={{ animationDelay: '0s' }} />
+          <circle className="mascot-thinking-dot" cx="140" cy="20" r="5" style={{ animationDelay: '0.15s' }} />
+          <circle className="mascot-thinking-dot" cx="153" cy="10" r="6" style={{ animationDelay: '0.3s' }} />
+        </g>
+      )}
     </svg>
   );
 }

@@ -210,6 +210,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const entranceEnabled = !reducedMotion && !hasPlayedRoadmapEntrance;
   const [selected, setSelected] = useState(null);
+  // Improve the AI "Thinking" Indicator (see CLAUDE.md), Task 2 — Stage 2's own suggestion request
+  // (`maybeTriggerSuggestion` below) previously had no loading indicator of any kind: nothing
+  // showed between the request firing and its `onResult`/`onError`. True while a request is in
+  // flight, passed to `MascotWidget`'s own new `thinking` prop so it can show the same animated
+  // mascot every chat surface now uses, even though this isn't a chat at all — just a background
+  // request triggered by completing a task with an outcome note.
+  const [suggestionThinking, setSuggestionThinking] = useState(false);
   // Date-cluster feature (see CLAUDE.md), Task 3 — the cluster whose expand-list modal is open,
   // or null. A separate piece of state from `selected` (a single item's own modal) since the two
   // render genuinely different modal shapes; clicking a row inside the cluster list closes this
@@ -435,6 +442,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
 
     const profileSummary = compileSuggestionProfile(effectiveState, id);
     const today = toDateInputValue(getEffectiveToday(effectiveState.dateOverride));
+    setSuggestionThinking(true);
     requestSuggestion(
       { today, profileSummary, triggeringTask: profileSummary.triggeringTask },
       {
@@ -446,6 +454,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
         // check (real title/rationale strings) guards against a malformed proxy response; the
         // server's own `validateProposal` already did the real validation.
         onResult: (proposal) => {
+          setSuggestionThinking(false);
           if (!proposal || typeof proposal.title !== 'string' || !proposal.title.trim()) return;
           if (typeof proposal.rationale !== 'string' || !proposal.rationale.trim()) return;
           patch({
@@ -459,7 +468,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             },
           });
         },
-        onError: () => {}, // graceful no-op — no suggestion this time, nothing else changes
+        onError: () => setSuggestionThinking(false), // graceful no-op otherwise — no suggestion this time, nothing else changes
       },
     );
   };
@@ -1608,8 +1617,12 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
           mascot dialogue (see CLAUDE.md's own Stage 5 section for why), but a pending suggestion
           needs somewhere to surface right where it was triggered. `text={null}` keeps this
           completely inert for every other purpose — MascotWidget itself is what decides whether
-          `state.pendingSuggestion` overrides the (here, always-null) text prop. */}
-      <MascotWidget text={null} />
+          `state.pendingSuggestion` overrides the (here, always-null) text prop.
+          Improve the AI "Thinking" Indicator (see CLAUDE.md), Task 2 — `thinking` shows the same
+          animated mascot every chat surface now uses while `maybeTriggerSuggestion`'s own request
+          is in flight, closing the one real gap this feature found: previously nothing at all
+          indicated a suggestion request was even happening. */}
+      <MascotWidget text={null} thinking={suggestionThinking} />
 
       {/* Add a Small Embedded AI Chat Widget to Map 2 (see CLAUDE.md), Task 3 — a plain sibling of
           the canvas/zoom-controls/bottom-panel above, added alongside the roadmap rather than
