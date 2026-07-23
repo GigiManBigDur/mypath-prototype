@@ -633,6 +633,17 @@ function BuildYourOwnView({
   const [speakingText, setSpeakingText] = useState(null);
   const isSpeaking = useMascotSpeech(speakingText, state.voiceMuted);
 
+  // Add Explicit "Not Satisfied, Keep Refining" Option (see CLAUDE.md) — a dismiss for the
+  // "Start This Project" footer that hides it WITHOUT touching any persisted data (the chat
+  // history/planReady/milestones fields are completely untouched — this is purely a local,
+  // session-only "I've seen this readiness prompt, hide it for now" flag), the same "dismissing
+  // is just an ordinary visual state, never a data mutation" posture MascotWidget's own dismiss
+  // already established. Tracked by the ready message's own index rather than a plain boolean, so
+  // dismissing THIS turn's prompt doesn't also suppress a LATER, genuinely new one — if the
+  // student keeps talking and a later reply reaches planReady again (whether refined or
+  // unchanged), its own index differs, so the footer reappears for that new turn automatically.
+  const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
+
   // Task 6 — scans the persisted conversation for the MOST RECENT assistant turn that reported a
   // genuinely complete plan, so "Start This Project" always reflects the latest thinking even if
   // the student keeps refining after an earlier turn already reached planReady. This is derived
@@ -643,7 +654,7 @@ function BuildYourOwnView({
     for (let i = chatHistory.length - 1; i >= 0; i--) {
       const m = chatHistory[i];
       if (m.role === 'assistant' && m.planReady && m.projectName && m.milestones?.length) {
-        return { projectName: m.projectName, milestones: m.milestones };
+        return { projectName: m.projectName, milestones: m.milestones, sourceIndex: i };
       }
     }
     return null;
@@ -764,7 +775,7 @@ function BuildYourOwnView({
         onSend={sendMessage}
         emptyHint={chatHistory.length === 0 ? 'Or ask your own question below to get started.' : undefined}
         placeholder="Describe your own idea, or ask a question…"
-        footer={latestReadyPlan && (
+        footer={latestReadyPlan && latestReadyPlan.sourceIndex !== dismissedReadyIndex && (
           <div className="chat-task-confirm">
             <p>
               <strong>{latestReadyPlan.projectName}</strong> — {latestReadyPlan.milestones.length} milestones
@@ -773,6 +784,15 @@ function BuildYourOwnView({
             <div className="task-form-actions">
               <button type="button" className="btn btn-primary" onClick={() => onChoosePlan(latestReadyPlan)}>
                 <Rocket size={14} /> Start This Project
+              </button>
+              {/* Add Explicit "Not Satisfied, Keep Refining" Option (see CLAUDE.md) — a real,
+                  visible second action, not something the student has to guess they can do by
+                  just typing more. Only ever hides THIS footer (see dismissedReadyIndex's own
+                  comment above) — nothing in chatHistory/planReady/milestones is touched, so
+                  nothing is lost; the conversation (and its input box, already always visible)
+                  is immediately ready for more discussion. */}
+              <button type="button" className="btn btn-ghost" onClick={() => setDismissedReadyIndex(latestReadyPlan.sourceIndex)}>
+                Not quite right — keep refining
               </button>
             </div>
           </div>

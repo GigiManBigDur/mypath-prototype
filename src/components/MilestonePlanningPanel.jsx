@@ -21,6 +21,11 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
   const [pickingDate, setPickingDate] = useState(false);
   const [dateInput, setDateInput] = useState('');
   const [dateError, setDateError] = useState('');
+  // Add Explicit "Not Satisfied, Keep Refining" Option (see CLAUDE.md) — same "dismiss by source
+  // turn index, not a plain boolean" convention BuildYourOwnView's own `dismissedReadyIndex`
+  // already established, so dismissing THIS ready turn's preview doesn't also suppress a later,
+  // genuinely new one if the student keeps refining and reaches planReady again.
+  const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
 
   const chatHistory = milestone.chatHistory || [];
 
@@ -76,10 +81,16 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
   // Same "scan for the most recent ready turn" precedent BuildYourOwnView's own `latestReadyPlan`
   // already established — keeps refining if the student keeps talking after reaching a ready list.
   let latestReadySteps = null;
+  let latestReadySourceIndex = -1;
   for (let i = chatHistory.length - 1; i >= 0; i--) {
     const m = chatHistory[i];
-    if (m.role === 'assistant' && m.planReady && m.milestones?.length) { latestReadySteps = m.milestones; break; }
+    if (m.role === 'assistant' && m.planReady && m.milestones?.length) {
+      latestReadySteps = m.milestones;
+      latestReadySourceIndex = i;
+      break;
+    }
   }
+  const readyDismissed = latestReadySourceIndex === dismissedReadyIndex;
 
   const confirmDate = () => {
     if (!dateInput) { setDateError('Pick a date to continue.'); return; }
@@ -103,7 +114,7 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
         onSend={sendMessage}
         emptyHint={`What do you already know about how you'll approach "${milestone.title}"?`}
       />
-      {latestReadySteps && !pickingDate && (
+      {latestReadySteps && !readyDismissed && !pickingDate && (
         <div className="milestone-ready-preview">
           <div className="field-label">Proposed steps for this phase</div>
           <ol>{latestReadySteps.map((s) => <li key={s}>{s}</li>)}</ol>
@@ -111,10 +122,18 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
             <button type="button" className="btn btn-primary" onClick={() => setPickingDate(true)}>
               Set a target date &amp; add these steps
             </button>
+            {/* Add Explicit "Not Satisfied, Keep Refining" Option (see CLAUDE.md) — a real,
+                visible second action next to the commit button, not something the student has
+                to guess they can do by just typing more. Only hides this preview (see
+                dismissedReadyIndex's own comment above) — nothing in chatHistory/planReady/
+                milestones is touched, so nothing is lost. */}
+            <button type="button" className="btn btn-ghost" onClick={() => setDismissedReadyIndex(latestReadySourceIndex)}>
+              Not quite right — keep refining
+            </button>
           </div>
         </div>
       )}
-      {latestReadySteps && pickingDate && (
+      {latestReadySteps && !readyDismissed && pickingDate && (
         <div className="milestone-date-picker">
           <label className="task-form-field">
             <span className="label">When do you want to complete this phase by?</span>

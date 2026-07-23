@@ -5354,6 +5354,50 @@ phases genuinely can't be usefully detailed until earlier ones are actually done
   both immediately after the `roadmapGenerator.js` changes and again at the very end) all stay
   clean.
 
+**Add Explicit "Not Satisfied, Keep Refining" Option — a real, visible second action next to
+"Start This Project" (and its per-milestone equivalent), so a student isn't left guessing that
+typing more is even possible.** Applies to both places Two-Phase Generation presents milestones/
+steps alongside a commit action.
+- **`ProjectBuilderScreen.jsx`'s `BuildYourOwnView`** — `latestReadyPlan`'s own scan now also
+  captures `sourceIndex` (which turn in `chatHistory` produced this ready state), and a new local
+  `dismissedReadyIndex` (`-1` default) tracks which turn's own footer the student has dismissed.
+  The `chat-task-confirm` footer (`"Start This Project"`) now only renders when `latestReadyPlan &&
+  latestReadyPlan.sourceIndex !== dismissedReadyIndex`, and gets a second button, `"Not quite
+  right — keep refining"` (`onClick={() => setDismissedReadyIndex(latestReadyPlan.sourceIndex)}`),
+  right next to it. **Dismissing is purely a local, session-only visibility flag — nothing in
+  `state.buildYourOwnChatHistory` (the message, its `planReady`/`projectName`/`milestones` fields)
+  is ever touched**, the same "dismissing is just an ordinary visual state, never a data mutation"
+  posture `MascotWidget`'s own dismiss already established. Tracking by the ready message's own
+  INDEX rather than a plain boolean is what makes this safe against a REAL, later refinement: if
+  the student keeps talking and a later reply reaches `planReady` again (refined or not), its own
+  index differs from whatever was dismissed, so the footer reappears automatically for that new
+  turn — dismissing one turn's prompt can never permanently suppress a later, genuinely new one.
+  The chat input itself was already always visible regardless of `latestReadyPlan` (nothing
+  previously hid it), so "returns focus to the conversation" falls out for free the instant the
+  footer is gone — no extra state needed to "show" the conversation, only to hide the commit UI
+  sitting on top of it.
+- **`src/components/MilestonePlanningPanel.jsx`** (the per-milestone scoped chat from Two-Phase
+  Generation) gets the identical treatment: its own step-by-step scan for the latest ready turn
+  now also tracks `latestReadySourceIndex`, and a matching local `dismissedReadyIndex` gates the
+  `.milestone-ready-preview` block (the "Proposed steps for this phase" list + "Set a target date
+  & add these steps" button) the same way. `"Not quite right — keep refining"` sits right next to
+  that commit button; dismissing it hides only the preview, leaving `milestone.chatHistory` (and
+  therefore the generated steps still sitting in it) completely untouched — nothing is committed
+  to `subSteps` unless the student explicitly goes through the real date-picker/confirm flow.
+- Verified with a dedicated 10-check Playwright suite covering both locations end to end: both
+  buttons render together at the overview stage; clicking "keep refining" hides the footer,
+  confirms the chat input is immediately available, and confirms the underlying `planReady`/
+  `milestones` data is still present in `chatHistory` (not lost); sending a further message that
+  produces a genuinely NEW ready reply shows the footer again (confirming the dismiss doesn't
+  suppress future turns); and the identical set of checks for the milestone's own scoped chat —
+  both buttons visible together, dismissing hides only the preview, the chat stays available, the
+  generated steps remain in the milestone's own `chatHistory`, and nothing was written to
+  `subSteps`. The full pre-existing regression suite (`test-two-phase-e2e.js`, `test-ai-chat.js`,
+  `test-hub-chat-transition.js`, `test-chat-visuals-mascot-scale.js`) all still pass with zero
+  regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean —
+  this is a pure UI-state addition, touching neither `roadmapGenerator.js` nor `Roadmap.jsx`'s own
+  positioning/locking logic at all.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
