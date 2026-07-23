@@ -18,6 +18,24 @@
 // schema fields here and `intent`/`taskTitle` are not — a fundamentally different job, hence a
 // fundamentally different (but structurally parallel) schema, not the same one reused.
 
+// Bug fix (see CLAUDE.md) — "Sorry, something went wrong" firing when asked for the project's
+// milestones. Root-caused by direct measurement against the LIVE endpoint (not guessed): a
+// realistic request (a developed multi-turn conversation, a real-sized profile, and — after
+// Improve Build Your Own's own Task 2 — a genuinely granular 30-40+ item milestones response)
+// regularly took 8-11 real seconds end to end, with several individual attempts measured PAST 10
+// seconds. This repo had no `vercel.json` and no per-function `config` anywhere, so every
+// serverless function ran on whatever short default timeout the deployment's own plan/runtime
+// applies — a request that legitimately takes this long is exactly the kind Vercel kills mid-flight
+// on a default that short, which surfaces to the client as an ordinary failed fetch (indistinguishable
+// from any other network error) → `onError` → the generic "something went wrong" message. This
+// export is the standard, explicit way to raise a Vercel Node serverless function's own timeout
+// without a vercel.json — 60s (the Hobby-plan ceiling, so this is safe regardless of which plan
+// this project is actually on) is comfortably above every measured real duration with real margin,
+// not a razor-thin fit.
+export const config = {
+  maxDuration: 60,
+};
+
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const OPENAI_MODEL = 'gpt-5.6-terra';
 

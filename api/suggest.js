@@ -25,6 +25,13 @@
 // redeploy. No code changes. Switching back to Anthropic is just removing/changing that one env
 // var back (or deleting it, since 'anthropic' is the default).
 
+// Bug fix (see CLAUDE.md, api/build-your-own-chat.js's own detailed comment for the full
+// diagnosis) — same latent risk here: no vercel.json/per-function config anywhere in this repo
+// meant every AI-calling function ran on whatever short default timeout the deployment applies.
+export const config = {
+  maxDuration: 60,
+};
+
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
 // GPT-5.6 Terra's own real API model id, confirmed directly against OpenAI's own docs — the plain
 // "gpt-5.6" alias actually routes to Sol (a different tier), not Terra, so this exact string

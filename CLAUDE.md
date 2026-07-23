@@ -5152,6 +5152,46 @@ code, or validation logic changed beyond what the larger milestone lists require
   guardrail note appended, in all 3/3 real attempts — confirming the existing guardrail still
   fires correctly on a genuinely new named-entity claim, unaffected by any of the above changes.
 
+**Bug fix: asking Build Your Own for the project's milestones intermittently failed with "Sorry,
+something went wrong — try again in a moment" — root-caused by direct measurement against the
+live endpoint, not guessed at, and it turned out to be a real consequence of the Task 2 granularity
+increase immediately above, not a new, unrelated bug.** A realistic reproduction (a genuinely
+developed multi-turn conversation, a real-sized profile, asking for the milestones once a Hult
+Prize chapter concept was fully established — the exact scenario the immediately-preceding fix's
+own Task 2 was built to serve) was run repeatedly against the live deployment: response times
+ranged from about 8 seconds up to over 22 seconds, with several real attempts landing past the
+10-second mark. This repo had **no `vercel.json` and no per-function `config` export anywhere** —
+every one of the 5 `api/*.js` serverless functions ran on whichever short default execution timeout
+the deployment's own plan/runtime applies, with nothing in this codebase ever overriding it
+explicitly. A request that legitimately takes 10+ seconds (exactly what asking for a genuinely
+granular 30-45-item milestones list, in the same response as a substantive reply, now routinely
+takes) is exactly the kind Vercel kills mid-flight on a short default — which surfaces to the
+client as an ordinary failed `fetch()`, indistinguishable from any other network error, so it fell
+straight into `requestBuildYourOwnChatReply`'s existing `onError` handler and showed the same
+generic message a real network hiccup would.
+- **The fix**: every `api/*.js` file now exports `export const config = { maxDuration: 60 };` —
+  the standard, documented way to raise a Vercel Node serverless function's own execution timeout
+  without a `vercel.json`. `60` (seconds) is the Hobby-plan ceiling, chosen specifically so this is
+  safe regardless of which plan this project is actually deployed under, and comfortably above
+  every real duration measured during this diagnosis. Applied to all 5 functions
+  (`build-your-own-chat`, `chat`, `suggest`, `creative-suggest`, `tts`) for consistency, not just
+  the one actually observed failing — every one of them makes a real LLM (or, for `tts`,
+  ElevenLabs) call and shared the identical latent risk of an occasional slow request with no
+  explicit ceiling protecting it; `tts` itself was never the one observed running long in practice,
+  but there's no reason to leave it as the one function still relying on an implicit default.
+  This is a pure server-side config change — no client code, schema, or prompt content changed
+  again here (those were already correctly updated by the immediately-preceding fix).
+- Verified directly against the live, redeployed endpoint: the exact same realistic reproduction
+  scenario that previously spent noticeable time in the 8-11 second danger zone was re-run 15 times
+  in a row post-fix, and now succeeds 15/15 — including several attempts that took well past the
+  old danger zone (up to a real 22.5 seconds) and still completed successfully rather than being
+  killed mid-flight, direct, repeatable evidence the fix addresses the actual observed cause rather
+  than a guess. The full pre-existing regression suite (`test-passion-buildyourown.js`,
+  `test-transfer-hs-transcript.js`, `test-current-major.js`) all still pass with zero regressions;
+  `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches
+  no client-side code at all, so the built `dist/` output (and therefore the GitHub Pages deploy)
+  is byte-for-byte unaffected; only the Vercel-hosted serverless functions needed a new deploy.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

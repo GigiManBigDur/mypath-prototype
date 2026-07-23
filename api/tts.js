@@ -13,6 +13,13 @@
 // serves this project from, and the client calls it via a plain cross-origin fetch regardless of
 // where the frontend itself happens to be hosted (see src/utils/speech.js's own TTS_ENDPOINT).
 
+// Bug fix (see CLAUDE.md, api/build-your-own-chat.js's own detailed comment for the full
+// diagnosis) — applied here too for consistency, though TTS synthesis is normally fast enough
+// that this endpoint was never the one actually observed running long.
+export const config = {
+  maxDuration: 60,
+};
+
 // "Karma - Social Media Starlet" — Task 1's own exact, confirmed voice ID. Fixed to this one
 // voice for every mascot line in the app; there's no per-request voice selection.
 const VOICE_ID = '4BYplVmdmNPw4bhCsabh';

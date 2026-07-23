@@ -25,6 +25,13 @@
 // student-initiated (not fired automatically on every task completion), no special rate-limiting
 // is needed beyond ordinary usage, per the build spec's own Task 5.
 
+// Bug fix (see CLAUDE.md, api/build-your-own-chat.js's own detailed comment for the full
+// diagnosis) — same latent risk here: no vercel.json/per-function config anywhere in this repo
+// meant every AI-calling function ran on whatever short default timeout the deployment applies.
+export const config = {
+  maxDuration: 60,
+};
+
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const OPENAI_MODEL = 'gpt-5.6-terra';
 

@@ -19,6 +19,15 @@
 // these narrow serverless exceptions) — the CLIENT holds the conversation and resends the full
 // turn history on every request, which is what "history"/"prompt" below are for.
 
+// Bug fix (see CLAUDE.md, api/build-your-own-chat.js's own detailed comment for the full
+// diagnosis) — same latent risk here: no vercel.json/per-function config anywhere in this repo
+// meant every AI-calling function ran on whatever short default timeout the deployment applies. A
+// real multi-turn conversation with a full profile can legitimately take several seconds; this
+// makes the ceiling explicit rather than leaving it to an implicit platform default.
+export const config = {
+  maxDuration: 60,
+};
+
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const OPENAI_MODEL = 'gpt-5.6-terra';
 
