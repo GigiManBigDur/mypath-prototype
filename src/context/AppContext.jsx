@@ -274,6 +274,29 @@ const DEFAULT_STATE = {
   // showing whatever's still undecided, rather than losing it.
   weeklyDigestSuggestionWeekOf: null,
   pendingWeeklyDigestSuggestions: [],
+  // Add a Daily Schedule Feature (AI-Assisted + Fully Manual) (see CLAUDE.md) — a genuinely new
+  // dimension for this app: TIME of day within a single date, distinct from every other spine/
+  // digest concept, which only ever deals with WHICH day something is due. `dailySchedules` is
+  // keyed by 'YYYY-MM-DD', each value a real, committed array of time blocks for that one day —
+  // `[{ id, startTime: 'HH:MM', endTime: 'HH:MM', title, linkedTaskId, completed }]` (24-hour
+  // `HH:MM` strings, the exact format a plain `<input type="time">` already produces/accepts, so
+  // no custom time-parsing UI was needed). `linkedTaskId` (nullable) is Task 4's own real-task
+  // connection: when set, the block's own completion is DERIVED live from
+  // `state.completedNodes[linkedTaskId]` (the same shared map every other spine/digest item
+  // already reads/writes via `toggleDone`), never a second, independently-tracked flag — this is
+  // what keeps a linked block and its real task's status in sync automatically, in both
+  // directions, with zero extra sync code (the same "one shared source of truth" principle
+  // already established between "This Week" and the spatial roadmap). `completed` is only ever
+  // read/written for an UNLINKED (`linkedTaskId: null`) block — a purely personal entry like
+  // "Dinner" with no corresponding real task to derive completion from.
+  dailySchedules: {},
+  // The one still-undecided AI-proposed FULL DAY schedule awaiting Accept/Reject (and optional
+  // editing first) — `{ date, blocks: [{ id, startTime, endTime, title, linkedTaskId,
+  // referencesExternalFact }] } | null`. Deliberately a single whole-day object (not a per-block
+  // array like `pendingWeeklyDigestSuggestions`) since a daily schedule is one cohesive proposal
+  // the student reviews and accepts/rejects as a connected whole, not a set of independent
+  // suggestions each decided on its own.
+  pendingDailySchedule: null,
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

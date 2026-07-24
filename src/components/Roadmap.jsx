@@ -3,7 +3,7 @@ import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
-  ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane,
+  ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -24,6 +24,7 @@ import MascotWidget from './MascotWidget';
 import MapChatWidget from './MapChatWidget';
 import MilestonePlanningPanel from './MilestonePlanningPanel';
 import WeeklyTaskSuggestionPanel from './WeeklyTaskSuggestionPanel';
+import DailyScheduleView from './DailyScheduleView';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
 // "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
@@ -547,13 +548,40 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   // Part 2 flow (see the modal's own `selectedIsCourseCheckpoint`/`selectedIsUCDavisCheckpoint`
   // special case below), so a "quick-check" here opens that same flow instead of writing
   // `completedNodes` straight from the list, which would desync it from the real checkpoint state.
-  const digestGroups = useMemo(() => {
-    const todayDate = fullRoadmap.today.date;
+  // Add a Daily Schedule Feature (AI-Assisted + Fully Manual) (see CLAUDE.md) — the exact same
+  // flattening `digestGroups` below already needed (spine + every `hasBranch` item's own
+  // `branchSteps`), extracted into its own memo so DailyScheduleView can read the IDENTICAL data
+  // "This Week" already reads, rather than a second, possibly-drifting copy — this is what makes
+  // Task 4's "same shared task data" requirement structural, not just conventional.
+  const flatPlanItems = useMemo(() => {
     const flat = [];
     fullRoadmap.spine.forEach((item) => {
       flat.push(item);
       if (item.hasBranch) flat.push(...item.branchSteps);
     });
+    return flat;
+  }, [fullRoadmap]);
+
+  // Digest/Checklist feature (see CLAUDE.md), Task 1 — the exact same underlying task data as the
+  // Roadmap view (`fullRoadmap.spine` plus every `hasBranch` item's own `branchSteps` — the
+  // identical flattening `HubScreen.jsx`'s own `countPlanTasks` already uses for its "Tasks
+  // completed" stat), just grouped differently. Reads `fullRoadmap` (the UNFILTERED, whole-plan
+  // `generateRoadmap(state)` call — see AcademicPlanScreen.jsx's own comment), not the year-scoped
+  // `roadmap` prop the SVG canvas renders from: for the year containing real "today",
+  // `yearWindow.start` IS today, so `roadmap.spine` structurally excludes anything dated even one
+  // day earlier — which would silently make "Overdue" impossible to populate. Items are filtered
+  // to those still INCOMPLETE (a completed task isn't meaningfully "due" anymore — Task 3's own
+  // "nothing due" empty-state framing only makes sense under this reading) and bucketed by real
+  // day-gap from the SAME real/overridable "today" (`fullRoadmap.today.date`, always the genuine
+  // current effective date regardless of which year Map 2 happens to be showing — see
+  // `isCurrentYearView` in roadmapGenerator.js) every other today-aware feature in this app
+  // already uses. `isCheckpoint` items (course-checkpoint/ucdavis-checkpoint) are flagged rather
+  // than toggled directly — their real completion only ever happens through the two-part Part 1/
+  // Part 2 flow (see the modal's own `selectedIsCourseCheckpoint`/`selectedIsUCDavisCheckpoint`
+  // special case below), so a "quick-check" here opens that same flow instead of writing
+  // `completedNodes` straight from the list, which would desync it from the real checkpoint state.
+  const digestGroups = useMemo(() => {
+    const todayDate = fullRoadmap.today.date;
 
     // Fix: Weekly AI Suggestions Missing from the Roadmap (see CLAUDE.md) — an accepted weekly
     // suggestion used to be merged in HERE directly, deliberately excluded from
@@ -568,7 +596,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     const overdue = [];
     const todayItems = [];
     const week = [];
-    flat.forEach((item) => {
+    flatPlanItems.forEach((item) => {
       if (isDone(item.id)) return;
       const daysUntil = realDaysBetween(item.date, todayDate);
       const isCheckpoint = item.coreType === 'course-checkpoint' || item.coreType === 'ucdavis-checkpoint';
@@ -591,6 +619,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     toggleDone(entry.item.id);
   };
   const handleDigestOpen = (entry) => setSelected(entry.item);
+
+  // Add a Daily Schedule Feature (see CLAUDE.md), Task 4 — clicking a schedule block that's linked
+  // to a real task opens the exact same detail modal every other spine/digest item already opens,
+  // looked up from the identical `flatPlanItems` array (below) rather than a second lookup.
+  const handleOpenLinkedTask = (taskId) => {
+    const item = flatPlanItems.find((i) => i.id === taskId);
+    if (item) setSelected(item);
+  };
 
   const fitView = useCallback(() => {
     const el = viewportRef.current;
@@ -827,6 +863,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
         {mapMode === 'digest' ? (
           <div className="roadmap-digest-wrap">
             <DigestList groups={digestGroups} onToggle={handleDigestToggle} onOpen={handleDigestOpen} />
+          </div>
+        ) : mapMode === 'schedule' ? (
+          <div className="roadmap-digest-wrap">
+            <DailyScheduleView
+              flatPlanItems={flatPlanItems}
+              isDone={isDone}
+              toggleDone={toggleDone}
+              onOpenTask={handleOpenLinkedTask}
+            />
           </div>
         ) : (
         <div
@@ -1294,6 +1339,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                   onClick={() => setMapMode('digest')}
                 >
                   <ListChecks size={13} /> This Week
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mapMode === 'schedule'}
+                  className={`roadmap-view-toggle-btn${mapMode === 'schedule' ? ' active' : ''}`}
+                  onClick={() => setMapMode('schedule')}
+                >
+                  <CalendarClock size={13} /> Daily Schedule
                 </button>
               </div>
               <h1 className="rm-title">{roadmap.title}</h1>

@@ -2466,6 +2466,277 @@ button.card.passed:hover {
   .digest-item-meta { white-space: normal; }
 }
 
+/* Add a Daily Schedule Feature (AI-Assisted + Fully Manual) (see CLAUDE.md) — the third Academic
+   Plan view, sharing `.roadmap-digest-wrap`'s own generic centered/scrollable positioning box with
+   "This Week" (both fill the same `.roadmap-viewport-wrap` slot the pannable SVG canvas otherwise
+   occupies), with its own inner width/layout below. */
+.daily-schedule-wrap { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 22px; }
+
+.daily-schedule-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.daily-schedule-nav-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-card);
+  color: var(--bloom-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.daily-schedule-nav-btn:hover { color: var(--bloom-accent); border-color: var(--bloom-accent); }
+.daily-schedule-nav-btn:active { transform: scale(0.9); }
+.daily-schedule-date { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.daily-schedule-date-main {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--bloom-ink);
+}
+.daily-schedule-today-btn {
+  border: none;
+  background: none;
+  color: var(--bloom-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.daily-schedule-ai-row { display: flex; justify-content: center; }
+
+.daily-schedule-due-section {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: var(--bloom-shadow);
+}
+.daily-schedule-section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--bloom-ink-soft);
+  margin-bottom: 10px;
+}
+.daily-schedule-due-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.daily-schedule-due-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(47, 143, 91, 0.08);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 20px;
+  padding: 5px 6px 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bloom-ink);
+}
+.daily-schedule-due-add-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bloom-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.daily-schedule-due-add-btn:hover { transform: scale(1.1); }
+
+.daily-schedule-list { display: flex; flex-direction: column; gap: 8px; }
+.daily-schedule-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: var(--bloom-shadow);
+  flex-wrap: wrap;
+}
+.daily-schedule-block.done { opacity: 0.55; }
+.daily-schedule-block.done .daily-schedule-block-title { text-decoration: line-through; }
+.daily-schedule-block-checkbox {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--bloom-ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+.daily-schedule-block-checkbox:hover { color: var(--bloom-accent); }
+.daily-schedule-block-checkbox:active { transform: scale(0.88); }
+.daily-schedule-block-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bloom-ink-soft);
+  white-space: nowrap;
+  min-width: 128px;
+}
+.daily-schedule-block-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--bloom-ink);
+  cursor: default;
+}
+.daily-schedule-block-title:not(:disabled) { cursor: pointer; }
+.daily-schedule-block-title:not(:disabled):hover { color: var(--bloom-accent); }
+.schedule-block-linked-icon { color: var(--bloom-accent); flex-shrink: 0; }
+.daily-schedule-block-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.daily-schedule-add-btn { align-self: flex-start; }
+
+/* Inline edit row (an existing block) and the manual add form share the same compact
+   time+time+title+actions layout — reused as one class rather than two near-identical rules. */
+.schedule-block-edit-row, .schedule-add-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  box-shadow: var(--bloom-shadow);
+}
+.schedule-block-edit-row input[type="time"],
+.schedule-add-form input[type="time"] {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 6px;
+  padding: 5px 6px;
+  background: var(--bloom-bg);
+  color: var(--bloom-ink);
+}
+.schedule-block-edit-row input[type="text"],
+.schedule-add-form input[type="text"] {
+  flex: 1;
+  min-width: 140px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--bloom-bg);
+  color: var(--bloom-ink);
+}
+
+/* The AI-proposed full-day schedule review panel — a distinct --bloom-ai accent (this app's
+   established "AI-suggested content" color, see the AI-suggested spine-node section elsewhere in
+   this file) so it's unmistakably a proposal awaiting a decision, not the student's real committed
+   schedule (which uses the plain neutral card language above). */
+.schedule-proposal {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-ai);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--bloom-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.schedule-proposal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bloom-ai);
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.schedule-proposal-list { display: flex; flex-direction: column; gap: 10px; }
+.schedule-proposal-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--bloom-bg);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.schedule-proposal-times { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.schedule-proposal-times input[type="time"] {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 6px;
+  padding: 4px 5px;
+  background: #fff;
+  color: var(--bloom-ink);
+}
+.schedule-proposal-times span { color: var(--bloom-ink-soft); }
+.schedule-proposal-title {
+  flex: 1;
+  min-width: 140px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--bloom-ink);
+}
+.schedule-proposal-title:hover, .schedule-proposal-title:focus {
+  border-color: var(--bloom-card-border);
+  background: #fff;
+}
+.schedule-block-linked-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bloom-accent);
+  background: rgba(47, 143, 91, 0.1);
+  border-radius: 20px;
+  padding: 3px 9px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.schedule-block-note {
+  width: 100%;
+  margin: 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--bloom-orange);
+}
+.schedule-proposal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 640px) {
+  .daily-schedule-block-time { min-width: 0; }
+  .daily-schedule-block { flex-wrap: wrap; }
+}
+
 /* A sibling of .roadmap-viewport, not a child — keeps button clicks from being swallowed by the
    viewport's own pointer-drag handlers (pointer capture on the viewport was intercepting clicks
    on controls rendered inside it). Floats independently of the bottom panel; `bottom` is set

@@ -6181,6 +6181,133 @@ the Sunday-planning behavior being asked for here, with no separate scheduling m
   with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
   clean.
 
+**Add a Daily Schedule Feature (AI-Assisted + Fully Manual) — a THIRD Academic Plan view, sitting
+alongside the spatial "Roadmap" and the flat "This Week" digest on the same `.roadmap-view-toggle`,
+introducing a genuinely new dimension this app had never modeled before: TIME OF DAY within a
+single date, as opposed to every other spine/digest concept, which only ever tracks WHICH DAY
+something is due.**
+- **Task 1 — the view itself.** `Roadmap.jsx`'s local `mapMode` state gained a third value,
+  `'schedule'` (alongside the pre-existing `'roadmap'`/`'digest'`), with its own toggle button
+  (`CalendarClock` icon) right next to "This Week." Selecting it swaps `.roadmap-viewport-wrap`'s
+  contents to the new `DailyScheduleView.jsx` — the same "swap which view fills the identical
+  positioning box" pattern the Digest/Checklist feature already established, reusing
+  `.roadmap-digest-wrap`'s own generic centered/scrollable outer container unchanged (confirmed
+  it needed zero edits — a plain `position: absolute; inset: 0; overflow-y: auto;` box with no
+  opinion on what's inside it). The zoom controls, first-visit pan/zoom callouts, and ring-style
+  legend all stay gated on `mapMode === 'roadmap'` (unchanged), so schedule mode hides all of that
+  spatial-canvas-only chrome exactly like digest mode already does. `DailyScheduleView` itself is a
+  plain, sorted list of time blocks (`{ startTime, endTime, title }`, 24-hour `HH:MM` — the exact
+  format a plain `<input type="time">` already produces/accepts, so no custom time-parsing UI layer
+  was needed anywhere) for ONE day at a time, with Prev/Next-day navigation (`realAddDays`) plus a
+  "Jump to today" link that appears only once the student has actually navigated away from
+  `getEffectiveToday(state.dateOverride)` — the same shared "what day is it" resolver the Real-Time
+  Tracking feature's own testing-override tool already established, so this view's own "today"
+  honors an active date override exactly like every other today-aware feature in this app already
+  does. Task 1's own "pull in real tasks/opportunities due that day as a starting reference" is a
+  `dueToday` list filtered from the exact same flattened task array "This Week" already reads (see
+  the shared-data-source note below), shown as small removable-reference chips with their own
+  "+ add a time block for this" button — clicking one pre-fills the manual add form with that
+  task's real title and a real `linkedTaskId`, the easiest way to create a genuine Task 4 linkage.
+- **Shared task data, made structural rather than conventional.** `Roadmap.jsx`'s `digestGroups`
+  `useMemo` used to inline-flatten `fullRoadmap.spine` (plus every `hasBranch` item's own
+  `branchSteps`) itself; that flattening was extracted into its own `flatPlanItems` `useMemo`,
+  computed once and consumed by BOTH `digestGroups` (unchanged behavior, just reading from the
+  extracted memo instead of its own local `const flat = []`) and the new `DailyScheduleView` (which
+  receives it as a prop, never recomputing its own copy). This is what makes Task 4's own "the same
+  shared task data used by This Week" requirement a structural guarantee rather than a
+  by-convention one — the two views are provably reading the identical array, not two independently
+  maintained copies that could quietly drift apart.
+- **Task 2 — AI-assisted generation, explicit consent, suggest-then-confirm.** A new, standalone
+  Vercel serverless function, `api/suggest-schedule.js` — matching this app's own established "each
+  Vercel function stays standalone" precedent (never a mode flag layered onto `api/suggest.js` or
+  `api/suggest-weekly.js`, both of which propose something structurally different: a single task
+  or a week's worth of dated tasks, never a full day's worth of TIME-blocked content). Same
+  dual-provider Anthropic/OpenAI dispatch via the shared `AI_SUGGESTION_PROVIDER` env var, the same
+  forced-tool-call reliability pattern (`propose_daily_schedule`), and the same code-enforced
+  external-fact guardrail every sibling AI endpoint already uses — applied PER BLOCK here (a full
+  day can mix purely routine blocks with one that names something specific), landing in a new,
+  block-level `note` field (blocks have no natural "rationale" sentence the way a single task
+  proposal does, so the guardrail note gets its own dedicated field instead of being crammed into
+  the block's short title). The system prompt is explicit that this app collects no real school-
+  hours/routine data, so a generic ~8am-3pm school-day default is a reasonable ASSUMPTION, not a
+  fabricated specific fact about this student — deliberately not guardrail-triggering. `linkedTaskId`
+  is the model's own real-task connection: the client sends the day's real due tasks with their
+  exact `id`/`title` pairs, and the server's `validateProposal` cross-checks any returned
+  `linkedTaskId` against that exact set, silently resolving an invented/mismatched one to `null`
+  rather than rejecting the whole proposal — the same "don't guess, fall back to the honest option"
+  posture this app's other AI-linkage features (the chain-attachment fix's own
+  `relatedOpportunityId` resolution) already established. `blocks` is schema-bounded to 4-14 items
+  (a genuinely full day, never 1-2 sparse ones, never an absurd 30+). **Never automatic** — the
+  trigger is a plain "Ask AI to help plan today" button in `DailyScheduleView` (Task 2's own
+  explicit "not automatic" requirement, unlike the Weekly Digest feature's own once-per-week
+  passive trigger); the response becomes `state.pendingDailySchedule` (`AppContext.jsx`, a single
+  whole-day `{ date, blocks }` object — deliberately NOT a per-block array the way
+  `pendingWeeklyDigestSuggestions` is, since a daily schedule reads as one cohesive proposal the
+  student reviews and accepts/rejects as a connected whole, not independent per-item decisions),
+  rendered as a real review panel (a distinct `--bloom-ai`-bordered card, this app's own established
+  "AI-suggested content" accent) with every block's own time/title directly EDITABLE before a
+  decision, plus a per-block remove button — the student can adjust the proposal itself, not just
+  accept-or-reject it wholesale. Accept converts every surviving proposal block into a real,
+  independently-`makeTaskId`'d committed block (carrying forward any guardrail `note` as the
+  block's own `desc`); Reject discards the whole proposal with nothing written to
+  `state.dailySchedules` at all. Accepting when the day already has real committed blocks shows a
+  `window.confirm(...)` guard first (mirroring this app's own established destructive-action
+  confirmation pattern — required-task removal, app reset) since accepting would otherwise silently
+  overwrite a day the student had already built by hand.
+- **Task 3 — full manual editing, completely independent of AI.** `state.dailySchedules`
+  (`AppContext.jsx`, `{}` default) is keyed by `'YYYY-MM-DD'`, each value a real committed array of
+  `{ id, startTime, endTime, title, linkedTaskId, completed }` blocks — the student can add
+  (a plain inline form, time+time+title), edit (an inline edit row swapping in for a block's normal
+  display row), and remove any block at any time with zero AI involvement anywhere in that path;
+  `askAiToPlan`/`api/suggest-schedule.js` are never called unless the student explicitly clicks the
+  one dedicated AI button. A day with zero blocks and zero AI use shows an honest empty-state hint
+  rather than a blank list.
+- **Task 4 — real task linkage, kept in sync via one shared source of truth, not a second flag.**
+  A block's own `linkedTaskId` (nullable) is the connection; when set, that block's completion is
+  DERIVED LIVE from `state.completedNodes[linkedTaskId]` — the exact same flat map every other
+  spine/digest item's completion already lives in, read via `isDone()`/written via `toggleDone()`
+  (both already defined in `Roadmap.jsx`, passed down as props) — never a second, independently-
+  tracked flag. This is what makes "completing it in one place reflects in the other" hold in BOTH
+  directions with zero extra sync code, mirroring the exact same principle the Digest/Checklist and
+  Weekly Digest features already established between "This Week" and the spatial roadmap: toggling
+  a linked block's own checkbox calls `toggleDone(linkedTaskId)` directly (so it also correctly
+  triggers whatever that real task's own completion already does elsewhere, e.g. a started
+  project's reveal-next-step prompt, unaffected by going through this view instead of the spine);
+  marking that same real task done from ANY other view (This Week's own quick-check, or the
+  spatial roadmap's own node) is reflected back here automatically on next render, since nothing
+  here caches a stale copy. `completed` (the plain boolean on the block object itself) is only ever
+  read/written for an UNLINKED block (`linkedTaskId: null`) — a purely personal entry like "Dinner"
+  with no real task to derive completion from. Clicking a linked block's own title opens the exact
+  same detail modal every other spine/digest item already opens (`handleOpenLinkedTask`, a new
+  small lookup in `Roadmap.jsx` reading the identical `flatPlanItems` array by id, reusing the
+  existing `setSelected` mechanism rather than a second modal implementation).
+- Verified with two dedicated test files. A 22-check Node-level test (`api/suggest-schedule.js`'s
+  own server logic, mocking `global.fetch`, mirroring `test-suggest-weekly-server.js`'s established
+  pattern) confirms: block-count bounds (4-14) are enforced; malformed times/reversed
+  start-before-end/blank titles are all rejected; an invented `linkedTaskId` is silently resolved
+  to `null` rather than rejecting the whole proposal; the per-block guardrail note is appended only
+  to the flagged block and no others; and the system prompt correctly reflects the real day-of-week
+  and whether real due-tasks were actually provided. A 35-check Playwright suite covers the feature
+  end-to-end against the real UI: the view renders a clean layout with real day navigation and no
+  auto-triggered AI call; a mocked AI response shows a real, editable review panel that commits
+  NOTHING until Accept (confirmed both for Reject, which discards cleanly, and for editing a block's
+  title before accepting, which is correctly preserved); accepting over an already-populated day
+  triggers the overwrite-confirmation dialog; manual add/edit/mark-complete/remove all work on a
+  day that never once talks to the AI endpoint; and — Task 4's own core claim — a block linked to a
+  real due-today custom task shows the linked icon, toggling its checkbox writes to the exact same
+  `completedNodes` map the rest of the app already shares (confirmed by then checking "This Week"
+  and seeing the same task correctly drop out of that list, since digest only shows incomplete
+  items), and clicking its title opens the real task's own detail modal. The full pre-existing
+  regression suite (39 files spanning every AI-suggestion/Digest/Weekly-Digest/UC-Davis/Build-Your-
+  Own/chat feature built earlier this session) was re-run in full; 4 pre-existing failures
+  (`test-ai-suggestions.js`'s Scenarios 1/1b/4/5 request-count assertions, `test-ai-suggestions-
+  live-fail.js`'s two live-network-dependent checks, `test-byo-chat-prompt.js`'s two milestone-
+  count-wording checks, and `test-build-your-own.js`'s crash on a stale card-order assertion) were
+  independently confirmed via `git stash` to fail BYTE-FOR-BYTE IDENTICALLY against the unmodified,
+  pre-existing baseline with none of this feature's own changes applied — pre-existing issues
+  unrelated to this feature, not regressions it introduced. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20, unaffected — this feature never opens `roadmapLayout.js`) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
