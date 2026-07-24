@@ -33,21 +33,27 @@ function resolveAllowedOrigin(origin) {
 }
 
 // A forced tool call returning an ARRAY of small tasks, not a single one — Task 1's own "generate
-// a small set of suggested daily/recurring tasks for that week." 2-5 items: enough to feel like a
-// real set without overwhelming the digest list alongside whatever real deadlines/milestones are
-// already due that week. Each item keeps the exact same referencesExternalFact shape/meaning
-// api/suggest.js's own TASK_SCHEMA already established, applied per-task here since a set can
-// mix a purely generic suggestion ("Review your notes from this week") with one that does name
-// something specific ("Look into the regional round's own eligibility rules"). No `date` field —
-// same reasoning api/suggest.js's own header comment already documents for its single-task
-// version: the app decides real dates for these (spread across the current week), not the model.
+// a small set of suggested daily/recurring tasks for that week." Ensure Weekly AI Suggestions
+// Cover Every Day, Including Weekends (see CLAUDE.md) — EXACTLY 7 items, one per real calendar day
+// of the week (Monday through Sunday, no gaps), not the earlier 2-5-item "small set" this schema
+// originally asked for: guaranteeing every single day gets at least one task requires at least 7
+// total tasks, so the range was replaced outright rather than merely widened. The model is asked
+// to order its 7 tasks Monday-first, but the actual day-to-date mapping is still decided entirely
+// by the CLIENT (WeeklyTaskSuggestionPanel.jsx assigns task[i]'s real date as Monday-of-this-week
+// + i days, i = 0..6) — the model's own ordering is a courtesy for a sensibly-themed week, not
+// something the coverage guarantee depends on; a real per-item `date` from the model is still
+// never used, same reasoning api/suggest.js's own header comment already documents. Each item
+// keeps the exact same referencesExternalFact shape/meaning api/suggest.js's own TASK_SCHEMA
+// already established, applied per-task here since a set can mix a purely generic suggestion
+// ("Review your notes from this week") with one that does name something specific ("Look into
+// the regional round's own eligibility rules").
 const WEEKLY_TASKS_SCHEMA = {
   type: 'object',
   properties: {
     tasks: {
       type: 'array',
-      minItems: 2,
-      maxItems: 5,
+      minItems: 7,
+      maxItems: 7,
       items: {
         type: 'object',
         properties: {
@@ -67,24 +73,25 @@ const WEEKLY_TASKS_SCHEMA = {
   additionalProperties: false,
 };
 const TOOL_NAME = 'propose_weekly_tasks';
-const TOOL_DESCRIPTION = 'Propose a small set of realistic, routine daily/recurring tasks for the student\'s upcoming week.';
+const TOOL_DESCRIPTION = 'Propose exactly 7 realistic, routine daily/recurring tasks, one for each day of the student\'s upcoming week (Monday through Sunday).';
 
-const SYSTEM_PROMPT = `You are a careful, conservative academic and career planning assistant embedded in a student's personalized roadmap app. This student's plan already tracks big milestones (application deadlines, competitions, exams) — your job is different: fill the gap between those milestones with a small set of realistic, ROUTINE, day-to-day tasks for their upcoming week (studying, practicing, reviewing, working steadily toward something already in progress).
+const SYSTEM_PROMPT = `You are a careful, conservative academic and career planning assistant embedded in a student's personalized roadmap app. This student's plan already tracks big milestones (application deadlines, competitions, exams) — your job is different: fill the gap between those milestones with a small, routine, day-to-day task for EVERY day of their upcoming week, including weekends (studying, practicing, reviewing, working steadily toward something already in progress).
 
 Rules you must follow:
-- Propose 2-5 small, concrete, routine tasks for the upcoming week — the kind of ongoing effort a student should be doing regularly, not another big milestone (those are already tracked elsewhere in the plan; don't duplicate them).
+- Propose EXACTLY 7 tasks — one for each day of the week, Monday through Sunday, in that order (task 1 = Monday, task 2 = Tuesday, ..., task 7 = Sunday). Every single day needs its own task, with no gaps — Saturday and Sunday get real tasks too, not just weekdays (a lighter or more flexible task is fine for weekends, but never skip them).
+- Each task should be a small, concrete, routine action — the kind of ongoing effort a student should be doing regularly, not another big milestone (those are already tracked elsewhere in the plan; don't duplicate them).
 - Ground every task in the student's own real profile: reference their upcoming deadlines, current goals/activities, or recent progress from profileSummary. Don't invent generic advice disconnected from what's actually in their profile.
 - Each task needs a short, specific title (not a full sentence) and exactly one sentence of rationale connecting it to something real in their profile.
-- Do NOT propose a date, day, or any scheduling detail for any task — the app schedules these within the upcoming week itself.
+- Do NOT propose a date for any task — the app assigns each of your 7 tasks to its own real calendar day (Monday through Sunday) based on your ordering alone.
 - Set referencesExternalFact to true ONLY when a task introduces a genuinely NEW, specific, external claim — a real organization, program, award, competition tier, or contact — that isn't already confirmed by the student's own data. Referencing something already listed in profileSummary.activities (even by its real name) is NOT a new unverified claim — set this false in those cases. Only set it true when you name something specific the student would genuinely need to go verify themselves.
 - Never propose anything that edits, removes, or replaces an existing task — only ever new, additional tasks.
-- Call the propose_weekly_tasks tool exactly once with your full set, and nothing else.`;
+- Call the propose_weekly_tasks tool exactly once with your full set of 7, and nothing else.`;
 
 // Structural validation, shared by both providers — runs AFTER either one returns its own raw
 // proposal, the one place the two implementations converge back onto a single code path.
 function validateProposal(input) {
   if (!input || typeof input !== 'object' || !Array.isArray(input.tasks)) return null;
-  if (input.tasks.length < 2 || input.tasks.length > 5) return null;
+  if (input.tasks.length !== 7) return null;
 
   const tasks = [];
   for (const task of input.tasks) {
@@ -119,7 +126,12 @@ async function callAnthropic(apiKey, today, profileSummary) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 900,
+      // Raised from 900 once the schema went from a 2-5-item "small set" to a fixed 7 items (see
+      // WEEKLY_TASKS_SCHEMA's own comment) — real headroom for 7 titles+rationales in one
+      // response, matching this app's own established "don't risk truncation, give it real room"
+      // precedent from a prior, similar token-budget bug fix elsewhere in this file's sibling
+      // functions.
+      max_tokens: 1400,
       temperature: 0.5,
       system: SYSTEM_PROMPT,
       tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: WEEKLY_TASKS_SCHEMA }],
@@ -153,7 +165,7 @@ async function callOpenAI(apiKey, today, profileSummary) {
       input: JSON.stringify({ today, profileSummary }),
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: WEEKLY_TASKS_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
-      max_output_tokens: 900,
+      max_output_tokens: 1400,
       reasoning: { effort: 'low' },
     }),
   });

@@ -5974,6 +5974,78 @@ onto the same task data the spatial roadmap renders, never a second, independent
   with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
   clean — this fix never opens `roadmapLayout.js`, only reuses its existing date-clustering output.
 
+**Fix: Ensure Weekly AI Suggestions Cover Every Day, Including Weekends — the weekly suggestion
+batch now guarantees real coverage of all 7 real calendar days (Monday through Sunday), not just
+whatever the model happened to propose.** The prior fix (above) deliberately dated every task in
+one batch identically so multiple accepted suggestions would cluster — but that meant a batch
+structurally left 6 of 7 days with zero coverage every time, the exact opposite of "fill the gap
+between big milestones" this whole feature exists for. This fix supersedes that specific date-
+assignment choice (the clustering MECHANISM itself is untouched and still works for any genuine
+same-date collision, from any source — see below).
+- **`api/suggest-weekly.js`'s schema changed from a flexible 2-5-item "small set" to EXACTLY 7
+  items** (`WEEKLY_TASKS_SCHEMA.tasks.minItems`/`maxItems` both `7`) — guaranteeing every single
+  day gets at least one task requires at least 7 total tasks, so the range was replaced outright
+  rather than merely widened. `validateProposal` now rejects any count other than 7 (previously
+  `< 2 || > 5`). `SYSTEM_PROMPT`/`TOOL_DESCRIPTION` were reworded to ask for exactly 7 tasks
+  ordered Monday-first through Sunday-last, explicitly calling out that weekends need real tasks
+  too, not just weekdays. `max_tokens`/`max_output_tokens` were raised from 900 to 1400 (both
+  providers) to give 7 titles+rationales in one response real headroom, matching this file's own
+  established "don't risk truncation" precedent from a similar token-budget fix elsewhere in this
+  app's history.
+- **The actual "no gaps" guarantee is enforced by the CLIENT, not the model** — the same "the app
+  decides real dates, never trusts the model to get scheduling right" posture this app's every
+  other AI-suggestion feature already holds. `WeeklyTaskSuggestionPanel.jsx`'s `onResult` handler
+  computes `monday = startOfWeek(todayDate)` and assigns `task[i]`'s real date as `monday + i`
+  days — index 0 always lands on the real Monday of the current week, index 6 always lands on the
+  real Sunday, regardless of which day of the week "today" (the day the trigger actually fired)
+  happens to be. Since `api/suggest-weekly.js` now structurally guarantees exactly 7 tasks in a
+  successful response, this deterministically produces one task per real calendar day with zero
+  possibility of a gap — the model's own requested Monday-first ordering is a courtesy for a
+  sensibly-themed week, not something the coverage guarantee itself depends on. `i % 7` is kept as
+  a defensive-only wrap (never actually exercised given the server's own exact-7 guarantee) rather
+  than assuming array length blindly.
+- **A real, confirmed UI bug was found and fixed while testing this**: with 7 suggestions now
+  showing at once (up from the old 2-5), `.weekly-suggestion-panel`'s own `max-height` (`min(70vh,
+  calc(100vh - 140px))`) let the panel grow tall enough to visually and functionally overlap
+  `.roadmap-view-toggle-btn` ("This Week") at ordinary/default viewport heights — confirmed
+  directly via a real `boundingBox()` measurement (not assumed): at a typical viewport, the panel's
+  own bottom edge extended well past the toggle's top edge, and `elementFromPoint` at the toggle's
+  real center resolved to the PANEL, not the button underneath it — a real click was silently
+  swallowed. Fixed by tightening the cap to `min(50vh, calc(100vh - 320px))` — reusing
+  `MapChatWidget.jsx`'s own already-shipped, already-safe clearance formula (`min(480px,
+  calc(100vh - 320px))`) rather than inventing a new value, re-verified via the same direct
+  measurement technique afterward to confirm the panel now clears the toggle with real margin.
+- Verified with three dedicated Playwright/Node suites. A new 18-check Playwright suite
+  (`test-weekly-suggestions-full-week-coverage.js`) covers the task's own 2 stated criteria
+  directly, across 3 real dates chosen so the trigger fires on a Wednesday, a Sunday, and a Monday
+  respectively: every scenario produces exactly 7 tasks with 7 genuinely distinct dates, all 7 real
+  weekdays represented, the earliest date is the real Monday of that week, the latest is the real
+  Sunday (confirming the weekend is covered), and Saturday specifically (not just "some weekend
+  day") has a real assigned task — proving day-of-week coverage holds regardless of which day the
+  trigger happens to fire on, not just when it happens to land on a Monday. A new 13-check Node
+  test (`test-suggest-weekly-server.js`, mocking `global.fetch`) confirms the server-side half: the
+  real outgoing schema/prompt ask for exactly 7 tasks Monday-Sunday with no gaps, a 5-item proposal
+  (the old range) and a 9-item proposal are both now correctly REJECTED, and the per-task external-
+  fact guardrail still works correctly on a valid 7-item set. The pre-existing
+  `test-weekly-suggestions-roadmap-fix.js` suite (13 checks) was updated for the new reality:
+  Criterion 1 (appears on both digest and roadmap) is unchanged; Criterion 2 was split into 2a
+  (accepting a normal, fully-spread 7-task weekly batch does NOT falsely cluster, since each task
+  now lands on a genuinely distinct day) and 2b (the underlying Date-Cluster mechanism the prior
+  fix relies on is still fully intact, demonstrated with a real same-date collision seeded directly
+  via state — simulating a coincidental cross-source collision, since a single weekly batch no
+  longer naturally produces one); Criterion 3 (digest/roadmap consistency) is unchanged. The
+  pre-existing `test-weekly-digest-suggestions.js`/`test-weekly-digest-edge-cases.js` suites had
+  their own mocks updated from the old 2-3-item shape to a real 7-item one, and one stale
+  same-date-clustering assertion was replaced with a same-relevance distinct-dates one — the same
+  "update a pre-existing test after an intentional, expected change" pattern this suite has already
+  needed many times before, not a regression; both suites' remaining checks (12 + 9) all still
+  pass unmodified. The full remaining pre-existing regression suite (`test-transfer-gap.js`,
+  `test-transfer-hs-transcript.js`, `test-international-student.js`, `test-map-chat-widget.js`,
+  `test-hub-chat-transition.js`, `test-current-major.js`, `test-ai-profile-stage1.js`,
+  `test-ai-profile-edge.js`, `test-two-phase-e2e.js`, `test-keep-refining.js`,
+  `test-thinking-indicator.js`) all still pass with zero regressions; `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

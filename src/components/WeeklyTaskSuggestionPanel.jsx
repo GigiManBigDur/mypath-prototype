@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  getEffectiveToday, toDateInputValue, startOfWeek, realDaysBetween, parseDateInputValue,
+  getEffectiveToday, toDateInputValue, startOfWeek, realAddDays, realDaysBetween, parseDateInputValue,
 } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
@@ -55,21 +55,25 @@ export default function WeeklyTaskSuggestionPanel() {
       {
         onResult: (result) => {
           if (!result || !Array.isArray(result.tasks) || result.tasks.length === 0) return;
-          // Fix: Weekly AI Suggestions Missing from the Roadmap (see CLAUDE.md) — every task in
-          // one batch gets the SAME real date (the day the batch was generated), not spread across
-          // different days of the week. These are now real spine items (see acceptSuggestion
-          // below), so date assignment has real consequences: a batch of small, routine "this
-          // week" tasks doesn't inherently belong to any one particular day more than another, and
-          // dating them identically is what lets the EXISTING Date-Cluster feature merge them into
-          // one cluster marker when more than one gets accepted — exactly the "use the tools
-          // already built for this" fix, rather than artificially spreading dates just to dodge a
-          // collision that's now handled gracefully anyway.
-          const todayStr = toDateInputValue(todayDate);
-          const withDates = result.tasks.map((task) => ({
+          // Ensure Weekly AI Suggestions Cover Every Day, Including Weekends (see CLAUDE.md) —
+          // supersedes the immediately-prior fix's own "every task in a batch shares the SAME
+          // date" design: that made intra-batch clustering common, but it also meant a batch could
+          // (and, structurally, always did) leave most of the week with zero coverage. The CLIENT,
+          // not the model, is what guarantees "no gaps": task[i]'s real date is always
+          // Monday-of-this-week + i days (`startOfWeek()`, utils/dates.js — the same Monday
+          // `weeklyDigestSuggestionWeekOf` above is already keyed by), so index 0 always lands on
+          // Monday and index 6 always lands on Sunday regardless of which day "today" actually
+          // falls on within that week. `api/suggest-weekly.js`'s own schema now enforces EXACTLY 7
+          // tasks server-side (rejecting anything else before it ever reaches here), so `i % 7` is
+          // a defensive-only wrap for an array that should already be exactly this long — it can
+          // never produce a wrong index for the guaranteed-7 case, and degrades gracefully rather
+          // than crashing if that guarantee were ever violated.
+          const monday = startOfWeek(todayDate);
+          const withDates = result.tasks.map((task, i) => ({
             id: makeTaskId('weekly-suggestion'),
             title: task.title,
             rationale: task.rationale,
-            date: todayStr,
+            date: toDateInputValue(realAddDays(monday, i % 7)),
           }));
           patch({ pendingWeeklyDigestSuggestions: withDates });
         },
