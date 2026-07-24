@@ -5553,6 +5553,54 @@ developer/tester use, deliberately styled so neither reads as a real student-fac
   `test-transfer-hs-transcript.js`, `test-hub-chat-transition.js`, `test-ai-chat.js`) all still
   pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all
   stay clean.
+- **Extended to the High School Transcript section a Transfer student sees**
+  (`TransferHighSchoolTranscript.jsx`, see "High School Selection + Transcript for Transfer
+  Students" above) — both of its two paths get the same testing-only fill button, following the
+  exact same visual convention. `SAMPLE_TRANSCRIPT` was pulled out of `TranscriptScreen.jsx` into
+  a new shared `src/data/sampleTranscript.js` module (rather than duplicated) specifically so this
+  component could reuse the identical real 6-course sample — a direct import the other way would
+  have been circular, since `TranscriptScreen.jsx` already imports `TransferHighSchoolTranscript`
+  for its own multi-year trunk rendering, matching this codebase's own "data holds the values,
+  screens own the UI" convention for where shared constants like this belong.
+  - **The Roslyn path** (`RoslynHsTranscript`) writes the identical sample into the SEPARATE
+    `state.transferHsTranscript` field (never `state.transcript`, which stays reserved for a
+    genuine current High School student's own in-progress record) — same whole-array-replace
+    convention, same real weighted/unweighted/4.0-scale GPA math exercised for real.
+  - **The "Other" (non-Roslyn) path** (`OtherHsTranscript`) has no real per-course catalog to
+    sample from at all, so its own fill button writes plain, plausible free-text course names
+    (`SAMPLE_OTHER_HS_COURSES` — "AP English Language," "Algebra II," etc.) plus one plausible
+    self-reported GPA (`SAMPLE_OTHER_HS_GPA`, `'3.6'`) — exactly the same kind of data a real
+    student would type into these same two fields, not fabricated catalog data standing in for
+    real content this path was never built to have.
+  - **A real, confirmed bug was caught and fixed while wiring this path's own fill button**: the
+    GPA field there is an UNCONTROLLED input (`defaultValue={state.transferHsOtherGpa}` +
+    `onBlur`, the same "buffer locally, commit once" trade this app's other text-entry forms
+    already make) — writing to `state.transferHsOtherGpa` programmatically (rather than via a
+    real blur event) doesn't make an uncontrolled input's VISIBLE value update on its own, since
+    `defaultValue` is only read once, at mount. Without a fix, the fill button would have
+    correctly written the real GPA to state while the input box kept showing blank until the
+    screen was later remounted (e.g., navigating away and back) — a real, confirmed visual bug,
+    not just a theoretical one. Fixed with `key={state.transferHsOtherGpa}` on the input, forcing
+    a fresh mount (and therefore a fresh `defaultValue` read) whenever the underlying state value
+    actually changes, whether from a real blur or this button's own programmatic write — safe
+    either way, since a remount never disrupts an already-blurred field's focus.
+  - **A real Transfer + UC Davis student sees exactly ONE "Fill Sample Transcript" button, not
+    two** — confirmed directly, not assumed: Task 1's own button only exists inside
+    `TranscriptScreen.jsx`'s Roslyn-specific branch; UC Davis's own current-school transcript form
+    (`UCDavisTranscriptScreen`) never got one, so only this section's own button appears alongside
+    it. A Transfer student with no current college on file at all (`TransferOnlyTranscriptScreen`,
+    the no-partner-school path) still shows exactly this one button and fills only
+    `transferHsTranscript`, confirming the button doesn't depend on any current-school section
+    being present.
+  - Verified with a dedicated 17-check Playwright suite covering the Roslyn path (button count,
+    visual testing markers, real course ids landing in `transferHsTranscript` specifically — not
+    `transcript`/`ucdavisTranscript` — and a real calculated GPA rendering), the "Other" path
+    (4 real course-name entries, the sample GPA, and a direct check that the GPA input's own
+    VISIBLE value updates, confirming the uncontrolled-input fix), and the no-current-school
+    Transfer path. The full pre-existing regression suite (`test-transfer-hs-transcript.js`,
+    `test-ai-profile-edge.js`, `test-ucdavis-code-search.js`, `test-hub-chat-transition.js`) all
+    still pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing`
+    (20/20) all stay clean.
 
 ## Design tokens
 

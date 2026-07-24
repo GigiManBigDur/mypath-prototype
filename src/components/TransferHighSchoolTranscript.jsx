@@ -1,11 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { Trash2, X, FlaskConical } from 'lucide-react';
 import { getCourseById } from '../data/courses';
 import { getDepartmentColor } from '../data/courseTrackMap';
+import { SAMPLE_TRANSCRIPT } from '../data/sampleTranscript';
 import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from '../utils/gpa';
 import { makeTaskId } from '../utils/ids';
 import CourseSearchField from './CourseSearchField';
 import GpaBox from './GpaBox';
+
+// Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md) — a few plausible
+// free-text course names for the "Other" (non-Roslyn) high school path, which has no real catalog
+// to sample real courses/grades from in the first place (see that path's own honest "we don't have
+// detailed course catalog or grading data for this school yet" note below) — plain, representative
+// high-school course names, not placeholder text, plus one plausible self-reported GPA matching the
+// same 0-4.0 scale that field's own placeholder already models.
+const SAMPLE_OTHER_HS_COURSES = ['AP English Language', 'Algebra II', 'Chemistry', 'U.S. History'];
+const SAMPLE_OTHER_HS_GPA = '3.6';
 
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
@@ -76,8 +86,26 @@ function RoslynHsTranscript({ state, patch }) {
     patch({ transferHsTranscript: transcript.filter((e) => e.id !== id) });
   };
 
+  // Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md) — the exact same
+  // real, weight-tier-spanning sample list TranscriptScreen.jsx's own onboarding "Fill Sample
+  // Transcript" button already uses (see sampleTranscript.js's own header comment for why it's
+  // shared rather than duplicated), written into this component's own separate
+  // `transferHsTranscript` field. A single whole-array REPLACE, matching the same "reset to a known
+  // sample" convention every other testing prefill in this app already follows.
+  const fillSampleTranscript = () => {
+    patch({
+      transferHsTranscript: SAMPLE_TRANSCRIPT.map((entry) => ({ id: makeTaskId('transfer-hs-transcript'), ...entry })),
+    });
+  };
+
   return (
     <>
+      <div className="testing-fill-row">
+        <button type="button" className="testing-fill-btn" onClick={fillSampleTranscript}>
+          <FlaskConical size={13} /> Fill Sample Transcript (Testing)
+        </button>
+      </div>
+
       <div className="transcript-form">
         <div className="transcript-form-field" style={{ flex: '1 1 260px' }}>
           <span className="label">Course</span>
@@ -199,8 +227,27 @@ function OtherHsTranscript({ state, patch }) {
     patch({ transferHsOtherCourses: courses.filter((c) => c.id !== id) });
   };
 
+  // Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md) — this path has
+  // no real per-course catalog to sample from (see the honest note right below), so this is plain
+  // free-text course names plus a plausible self-reported GPA, exactly the same kind of data a real
+  // student would type into these same two fields — not fabricated catalog data, just a fast way to
+  // populate this form while testing. A whole-array REPLACE for the course chips, matching every
+  // other testing prefill in this app.
+  const fillSampleOther = () => {
+    patch({
+      transferHsOtherCourses: SAMPLE_OTHER_HS_COURSES.map((name) => ({ id: makeTaskId('transfer-hs-other-course'), name })),
+      transferHsOtherGpa: SAMPLE_OTHER_HS_GPA,
+    });
+  };
+
   return (
     <>
+      <div className="testing-fill-row">
+        <button type="button" className="testing-fill-btn" onClick={fillSampleOther}>
+          <FlaskConical size={13} /> Fill Sample Transcript (Testing)
+        </button>
+      </div>
+
       <p className="field-hint" style={{ fontStyle: 'italic' }}>
         We don't have detailed course catalog or grading data for this school yet, so this is a
         simplified version — just list your main courses and your GPA if you know it.
@@ -240,6 +287,7 @@ function OtherHsTranscript({ state, patch }) {
         <span className="label">GPA (self-reported)</span>
         <input
           type="text"
+          key={state.transferHsOtherGpa}
           defaultValue={state.transferHsOtherGpa}
           onBlur={(e) => patch({ transferHsOtherGpa: e.target.value.trim() })}
           placeholder="e.g. 3.7"

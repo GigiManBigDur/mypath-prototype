@@ -6,6 +6,7 @@ import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../d
 import { getDepartmentColor, getUCDavisAreaColor } from '../data/courseTrackMap';
 import { useApp } from '../context/AppContext';
 import { makeTaskId } from '../utils/ids';
+import { SAMPLE_TRANSCRIPT } from '../data/sampleTranscript';
 import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from '../utils/gpa';
 import { LETTER_GRADE_OPTIONS, calculateUCDavisGpa } from '../utils/ucdavisGpa';
 import StepProgress from '../components/StepProgress';
@@ -20,21 +21,6 @@ const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
 const CLASS_YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior'];
 const QUARTER_OPTIONS = ['Fall', 'Winter', 'Spring', 'Summer'];
-
-// Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md), Task 1 — real
-// course ids from the actual parsed Roslyn catalog (courses.js), not invented ones, spanning a mix
-// of standard/honors/AP weight categories so "Fill Sample Transcript" genuinely exercises the real
-// weighted/unweighted/4.0-scale GPA math (WEIGHT_MULTIPLIERS, convertTo4Scale) rather than
-// producing disconnected placeholder numbers. Grades are plausible (87-93, all real passing
-// grades), and `yearTaken` matches each course's own real `gradeLevels` entry.
-const SAMPLE_TRANSCRIPT = [
-  { courseId: 'english-english-1', gradeEarned: 89, yearTaken: 9 },
-  { courseId: 'math-algebra-1', gradeEarned: 91, yearTaken: 9 },
-  { courseId: 'science-biology-honors-previously-living-environment-honors', gradeEarned: 88, yearTaken: 10 },
-  { courseId: 'math-algebra-2-honors', gradeEarned: 90, yearTaken: 10 },
-  { courseId: 'math-ap-calculus-ab', gradeEarned: 93, yearTaken: 11 },
-  { courseId: 'science-ap-biology', gradeEarned: 87, yearTaken: 11 },
-];
 
 // Course Selection Stage 2 — real transcript entry, replacing both the Stage 1 placeholder here
 // AND (functionally) the original Survey GPA text box: state.gpa is now calculated from this
