@@ -5910,13 +5910,69 @@ standalone" precedent.
   with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
   clean — this feature never opens `roadmapLayout.js` at all, only reuses `Roadmap.jsx`'s
   already-existing digest-grouping/completion machinery.
-- **What still needs to happen before this is live**: `api/suggest-weekly.js` must actually be
-  deployed via `vercel deploy --prod` — per this file's own standing "deploys are opt-in only"
-  rule for anything beyond the automatic git-push-paired Vercel deploy, this should happen as part
-  of the normal proactive Vercel deploy step, same as every other AI serverless function addition
-  in this app's history. Until then, every trigger falls back exactly the way the graceful-failure
-  test above already demonstrates: the roadmap keeps working correctly, the week guard is still
-  set (no repeated failed attempts), and simply no suggestion panel appears.
+- **Live as of this writing.** `api/suggest-weekly.js` was deployed via `vercel deploy --prod` and
+  confirmed live with a direct `curl` against the real endpoint (a realistic profile payload
+  returned a genuine, grounded 3-task set) — the same "verify a deploy actually took effect, don't
+  assume success from the CLI output alone" discipline this file's own past debugging sessions have
+  already established.
+
+**Fix: Weekly AI Suggestions Missing from the Roadmap — the digest view and the spatial roadmap
+are supposed to read the exact same underlying task data, and an accepted weekly suggestion now
+does, on both.** The feature above originally kept accepted weekly suggestions in their own
+`state.weeklyDigestTasks` array, deliberately excluded from `roadmapGenerator.js`'s spine builder
+so they'd never appear on the spatial roadmap — a real, deliberate design choice at the time (see
+that feature's own Task 3), but real usage confirmed it broke a more important, already-
+established principle this app holds everywhere else: the digest list is just a different VIEW
+onto the same task data the spatial roadmap renders, never a second, independent data source.
+- **The fix**: `state.weeklyDigestTasks` is gone entirely. Accepting a weekly suggestion
+  (`WeeklyTaskSuggestionPanel.jsx`'s `acceptSuggestion`) now commits straight to
+  `state.aiSuggestedTasks` — the exact same array Stage 2's own single-task suggestions already
+  use. `roadmapGenerator.js`'s existing `buildAiSuggestedItems()` already turns every entry there
+  into a real spine item with the 'ai-suggested' visual marker; since a weekly-accepted task now
+  lives in that same array, it's already present in `fullRoadmap.spine` by construction — no new
+  builder, no new rendering logic, no special-casing anywhere. `Roadmap.jsx`'s own `digestGroups`
+  computation had its manual `weeklyDigestTasks`-merging block removed outright (it read directly
+  from `fullRoadmap.spine`, which now already includes these tasks) — the digest list and the
+  spatial roadmap are back to being two views over one array, exactly like every other spine item
+  category in this app.
+- **Density is handled by reusing the existing Date-Cluster feature, not by hiding tasks from the
+  roadmap.** Every task in one proposed weekly batch is now dated to the SAME real day — the day
+  the batch was generated (`WeeklyTaskSuggestionPanel.jsx`'s `onResult` handler, previously spread
+  across `today, today+1, today+2, ...` specifically to dodge collisions under the old digest-only
+  design). Now that these are real spine items, that spread was actively counterproductive: a
+  batch of small, routine "this week" tasks doesn't inherently belong to one particular day more
+  than another, and the existing Date-Cluster feature (see its own section above — "generalizes...
+  to ANY 2+ top-level spine items sharing an exact date") already merges same-date items into one
+  expandable cluster marker with zero code changes needed here. Confirmed directly via a Node
+  script loading the real `generateRoadmap()` through Vite's own module loader: 3 accepted weekly
+  tasks dated identically produce exactly one `dateClusters` entry containing all 3 (correctly
+  flagged `isToday: true` when that shared date is today's own real date, reusing the "You are
+  here" merge path the exact same way any other today-collision already does).
+- Verified with a dedicated 12-check Playwright suite covering the fix's own 3 stated criteria
+  directly: accepting one suggestion commits it to `state.aiSuggestedTasks` (confirming
+  `weeklyDigestTasks` no longer exists in state at all) and it renders correctly on BOTH the
+  spatial roadmap (as a real node, or merged into the "You are here" today-collision label when
+  dated exactly today with nothing else colliding — a real, pre-existing, unrelated app behavior,
+  not something this fix changes) and the "This Week" digest list; accepting all 3 suggestions
+  from one batch (confirmed to share the identical real date) produces zero individual spine nodes
+  for any of them and instead one real cluster marker, whose expand-list modal correctly lists all
+  3 real tasks by title; and the digest list independently confirms it shows all 3 tasks
+  individually (the digest never clusters — that's a spatial-roadmap-only rendering optimization,
+  the same "digest and roadmap read one array, but the digest's own flattening doesn't apply
+  cluster-skip logic" behavior every other clustered item in this app already has), with the
+  quick-check mechanism still writing to the shared `completedNodes` map exactly as before. The
+  pre-existing trigger-timing suite (`test-weekly-digest-suggestions.js`) had its own now-incorrect
+  Task 3 assertions (which specifically expected the old exclusion) removed and its seed states
+  updated from `weeklyDigestTasks` to `aiSuggestedTasks` — the same "update a pre-existing test
+  after an intentional, expected change" pattern this codebase's own suite has already needed many
+  times before, not a regression; its remaining trigger-timing/dismiss/non-blocking checks (12 of
+  them) all still pass unmodified. The full remaining pre-existing regression suite
+  (`test-weekly-digest-edge-cases.js`, `test-transfer-gap.js`, `test-transfer-hs-transcript.js`,
+  `test-international-student.js`, `test-map-chat-widget.js`, `test-hub-chat-transition.js`,
+  `test-current-major.js`, `test-ai-profile-stage1.js`, `test-ai-profile-edge.js`,
+  `test-two-phase-e2e.js`, `test-keep-refining.js`, `test-thinking-indicator.js`) all still pass
+  with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
+  clean — this fix never opens `roadmapLayout.js`, only reuses its existing date-clustering output.
 
 ## Design tokens
 

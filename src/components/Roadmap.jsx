@@ -555,36 +555,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
       if (item.hasBranch) flat.push(...item.branchSteps);
     });
 
-    // AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md), Task 3 — an
-    // accepted suggestion (state.weeklyDigestTasks) is merged in HERE, directly, rather than
-    // flowing through roadmapGenerator.js's spine builder the way every other core/opportunity/
-    // custom/ai-suggested item does — this is what keeps it out of the spatial roadmap entirely
-    // (it never becomes a spine/branch node, so it can't crowd Map 2's own canvas), while still
-    // going through the exact same completion/edit/remove mechanism (state.completedNodes/
-    // nodeDateOverrides/removedNodeIds, all keyed generically by id) every other digest entry
-    // already uses. `category: 'ai-suggested'` reuses the exact same visual marker
-    // (configFor -> CORE_TYPE_CONFIG['ai-suggested'], the sparkle-badge color) Stage 2's own
-    // standalone AI suggestions already established — Task 3's own explicit instruction, not a
-    // new marker invented for this feature.
-    (state.weeklyDigestTasks || [])
-      .filter((task) => !(state.removedNodeIds || {})[task.id])
-      .forEach((task) => {
-        const templateDate = parseDateInputValue(task.date);
-        const overrideValue = (state.nodeDateOverrides || {})[task.id];
-        const realDate = overrideValue ? parseDateInputValue(overrideValue) : templateDate;
-        flat.push({
-          id: task.id,
-          title: task.title,
-          category: 'ai-suggested',
-          required: false,
-          coreType: 'ai-suggested',
-          date: realDate,
-          due: formatDateWithYear(realDate),
-          desc: task.desc || 'A small, recurring task suggested for this week.',
-          resources: [],
-          steps: null,
-        });
-      });
+    // Fix: Weekly AI Suggestions Missing from the Roadmap (see CLAUDE.md) — an accepted weekly
+    // suggestion used to be merged in HERE directly, deliberately excluded from
+    // roadmapGenerator.js's spine builder so it would never appear on the spatial roadmap. That
+    // broke the more important, already-established principle that the digest list and the
+    // spatial roadmap read the exact same underlying task data — real usage confirmed it read as
+    // a bug, not a feature. Accepted weekly suggestions now land in state.aiSuggestedTasks (the
+    // same array Stage 2's own single-task suggestions use), which roadmapGenerator.js's existing
+    // buildAiSuggestedItems() already turns into real spine items — so they're already present in
+    // fullRoadmap.spine above by the time this function runs, with no separate merge step needed.
 
     const overdue = [];
     const todayItems = [];
@@ -605,7 +584,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     week.sort(byDate);
 
     return { overdue, today: todayItems, week };
-  }, [fullRoadmap, state.completedNodes, state.weeklyDigestTasks, state.removedNodeIds, state.nodeDateOverrides]);
+  }, [fullRoadmap, state.completedNodes]);
 
   const handleDigestToggle = (entry) => {
     if (entry.isCheckpoint) { setSelected(entry.item); return; }

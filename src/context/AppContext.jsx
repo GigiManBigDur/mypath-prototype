@@ -245,25 +245,30 @@ const DEFAULT_STATE = {
   // `date` is a fixed, one-time value computed at accept time (see suggestionResolver.js) — not
   // recomputed on every render — so the chain's existing steps never shift underneath it.
   aiChainInsertions: {},
-  // AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — a SEPARATE trigger/
-  // acceptance pair from Stage 2's own single-task `pendingSuggestion`/`aiSuggestedTasks` above:
-  // this one fires at most once per real calendar WEEK (not per completed task), proposes a small
-  // SET of tasks at once (not one), and — per this feature's own explicit Task 3 — an accepted
-  // suggestion here NEVER becomes a spine/branch node on the spatial roadmap; it only ever appears
-  // in the "This Week" digest list. `weeklyDigestSuggestionWeekOf` is a plain 'YYYY-MM-DD' string
-  // (the Monday of the real week the trigger last fired, via `startOfWeek()`, utils/dates.js) or
-  // `null` before it's ever fired — compared against the CURRENT real week on every Academic Plan
-  // visit; a mismatch means a new week has started and it's safe to trigger again.
-  // `pendingWeeklyDigestSuggestions` is the array still awaiting a per-item Accept/Dismiss decision
-  // — `[{ id, title, rationale, date }]` — persisted (not ephemeral component state) so reopening
-  // the roadmap later the SAME week resumes showing whatever's still undecided, rather than losing
-  // it. `weeklyDigestTasks` is where an ACCEPTED one lands — `[{ id, title, date, desc }]`, the
-  // same shape `aiSuggestedTasks` uses, but read directly by Roadmap.jsx's own digest-grouping
-  // logic instead of `roadmapGenerator.js`'s spine builder, which is what keeps it out of the
-  // spatial view entirely.
+  // AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — a SEPARATE TRIGGER
+  // from Stage 2's own single-task `pendingSuggestion` above (this one fires at most once per real
+  // calendar WEEK, not per completed task, and proposes a small SET of tasks at once, not one), but
+  // an ACCEPTED suggestion shares the exact same landing spot: `aiSuggestedTasks` (above). Fix:
+  // Weekly AI Suggestions Missing from the Roadmap (see CLAUDE.md) — an earlier version of this
+  // feature kept accepted weekly tasks in a separate `weeklyDigestTasks` array read only by
+  // Roadmap.jsx's own digest-grouping logic, deliberately excluded from `roadmapGenerator.js`'s
+  // spine builder so they'd never appear on the spatial roadmap. That broke a more important,
+  // already-established principle — the digest list and the spatial roadmap are supposed to read
+  // the exact same underlying task data, so they can never disagree — and real usage confirmed it
+  // read as a bug, not a feature. Folding these into `aiSuggestedTasks` instead means they flow
+  // through the exact same `buildAiSuggestedItems()` pipeline every other accepted AI suggestion
+  // already does: a real spine item, the same sparkle-badge visual marker, and automatic
+  // same-date clustering via the existing Date-Cluster feature if multiple land on one day — with
+  // zero new code needed for any of that.
+  // `weeklyDigestSuggestionWeekOf` is a plain 'YYYY-MM-DD' string (the Monday of the real week the
+  // trigger last fired, via `startOfWeek()`, utils/dates.js) or `null` before it's ever fired —
+  // compared against the CURRENT real week on every Academic Plan visit; a mismatch means a new
+  // week has started and it's safe to trigger again. `pendingWeeklyDigestSuggestions` is the array
+  // still awaiting a per-item Accept/Dismiss decision — `[{ id, title, rationale, date }]` —
+  // persisted (not ephemeral component state) so reopening the roadmap later the SAME week resumes
+  // showing whatever's still undecided, rather than losing it.
   weeklyDigestSuggestionWeekOf: null,
   pendingWeeklyDigestSuggestions: [],
-  weeklyDigestTasks: [],
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

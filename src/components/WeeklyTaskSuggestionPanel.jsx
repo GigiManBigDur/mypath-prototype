@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  getEffectiveToday, toDateInputValue, startOfWeek, realAddDays, realDaysBetween, parseDateInputValue,
+  getEffectiveToday, toDateInputValue, startOfWeek, realDaysBetween, parseDateInputValue,
 } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
@@ -55,15 +55,21 @@ export default function WeeklyTaskSuggestionPanel() {
       {
         onResult: (result) => {
           if (!result || !Array.isArray(result.tasks) || result.tasks.length === 0) return;
-          // Spread across the upcoming days of the week (today, today+1, ...), wrapping past 7 if
-          // the model ever returns more than 7 — the app decides real dates, not the model (see
-          // api/suggest-weekly.js's own SYSTEM_PROMPT), since these are digest-only tasks with no
-          // spine-positioning/chain-attachment risk to protect against.
-          const withDates = result.tasks.map((task, i) => ({
+          // Fix: Weekly AI Suggestions Missing from the Roadmap (see CLAUDE.md) — every task in
+          // one batch gets the SAME real date (the day the batch was generated), not spread across
+          // different days of the week. These are now real spine items (see acceptSuggestion
+          // below), so date assignment has real consequences: a batch of small, routine "this
+          // week" tasks doesn't inherently belong to any one particular day more than another, and
+          // dating them identically is what lets the EXISTING Date-Cluster feature merge them into
+          // one cluster marker when more than one gets accepted — exactly the "use the tools
+          // already built for this" fix, rather than artificially spreading dates just to dodge a
+          // collision that's now handled gracefully anyway.
+          const todayStr = toDateInputValue(todayDate);
+          const withDates = result.tasks.map((task) => ({
             id: makeTaskId('weekly-suggestion'),
             title: task.title,
             rationale: task.rationale,
-            date: toDateInputValue(realAddDays(todayDate, i % 7)),
+            date: todayStr,
           }));
           patch({ pendingWeeklyDigestSuggestions: withDates });
         },
@@ -88,12 +94,16 @@ export default function WeeklyTaskSuggestionPanel() {
   const acceptSuggestion = (suggestion) => {
     patch({
       pendingWeeklyDigestSuggestions: pending.filter((s) => s.id !== suggestion.id),
-      // Task 3 — this is the ONE place an accepted suggestion is committed: `weeklyDigestTasks`,
-      // read directly by Roadmap.jsx's own digest-grouping logic, never by roadmapGenerator.js's
-      // spine builder — so it can only ever appear in the "This Week" digest list, never as a
-      // spine/branch node on the spatial roadmap.
-      weeklyDigestTasks: [
-        ...(state.weeklyDigestTasks || []),
+      // Fix: Weekly AI Suggestions Missing from the Roadmap (see CLAUDE.md) — an accepted
+      // suggestion is committed straight to `aiSuggestedTasks`, the SAME shared array Stage 2's
+      // own single-task suggestions already use. `roadmapGenerator.js`'s existing
+      // `buildAiSuggestedItems()` already turns every entry here into a real spine item with the
+      // 'ai-suggested' visual marker — no separate digest-only array, no special-casing, so this
+      // task appears correctly on both the "This Week" digest list and the spatial roadmap, and
+      // automatically participates in the existing Date-Cluster feature if another task (weekly
+      // or otherwise) happens to share its exact date.
+      aiSuggestedTasks: [
+        ...(state.aiSuggestedTasks || []),
         { id: suggestion.id, title: suggestion.title, date: suggestion.date, desc: suggestion.rationale },
       ],
     });
