@@ -1256,10 +1256,6 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             </div>
           )}
 
-          {roadmap.caveatNote && (
-            <div className="caveat-banner">{roadmap.caveatNote}</div>
-          )}
-
           <div className="roadmap-panel-top">
             <div className="roadmap-panel-info">
               <div className="roadmap-panel-eyebrow-row">

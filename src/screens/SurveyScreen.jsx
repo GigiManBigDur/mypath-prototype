@@ -51,15 +51,43 @@ const YEAR_OPTIONS = {
   ],
 };
 
+// Ask Transfer Students Directly When They Plan to Transfer (see CLAUDE.md) — options are relative
+// to the student's own current year (schoolYear above), capped at this app's own existing "3rd
+// year" ceiling for transfer students (there's no "4th year" option in YEAR_OPTIONS.transfer to
+// target beyond it). `gap` is the real value stored (state.transferTargetGap) and read by
+// resolveStageNames() (trunkSteps.js) — the number of full years between current and target, not
+// the absolute target year itself, so the stored answer stays meaningful even if schoolYear is
+// later revisited (though changing it resets this question — see the schoolYear pill's own
+// onClick below, since the available OPTIONS themselves depend on the current year).
+const TRANSFER_TARGET_OPTIONS = {
+  1: [
+    { gap: 0, label: 'After this year' },
+    { gap: 1, label: 'After my 2nd year' },
+    { gap: 2, label: 'After my 3rd year' },
+  ],
+  2: [
+    { gap: 0, label: 'After this year' },
+    { gap: 1, label: 'After my 3rd year' },
+  ],
+  3: [
+    { gap: 0, label: 'After this year' },
+  ],
+};
+
 // Exported so the Dashboard/Guide hub (Stage 3, see CLAUDE.md) can check "is the survey done" for
 // its own Let's Build Your Plan -> Careers of Interest unlock gate, using the EXACT same formula
 // this screen's own Continue button already gates on — extracted once so the two can never
 // independently drift the way this codebase's own getStage0TargetLabel precedent already fixed a
-// real bug for (see trunkSteps.js).
+// real bug for (see trunkSteps.js). A Transfer student additionally can't complete the survey
+// without a real answer to "When do you plan to transfer?" (state.transferTargetGap !== null, NOT
+// a truthy check — 0 is itself a real, valid answer, "after this year") now that plan length is
+// always driven by that answer rather than inferred from schoolYear alone.
 export function isSurveyComplete(state) {
   const isHighSchool = state.educationLevel === 'highschool';
+  const isTransfer = state.educationLevel === 'transfer';
   return state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
-    && (!isHighSchool || !!state.currentSchool);
+    && (!isHighSchool || !!state.currentSchool)
+    && (!isTransfer || state.transferTargetGap !== null);
 }
 
 // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — SurveyScreen has no internal sub-screens
@@ -272,7 +300,7 @@ export default function SurveyScreen() {
               className={`pill${state.educationLevel === lvl.id ? ' selected' : ''}`}
               onClick={() => patch({
                 educationLevel: lvl.id, schoolYear: null, currentSchool: '', currentMajor: '',
-                transferHighSchool: '',
+                transferHighSchool: '', transferTargetGap: null,
               })}
             >
               {lvl.label}
@@ -304,9 +332,36 @@ export default function SurveyScreen() {
                 type="button"
                 key={y.id}
                 className={`pill${state.schoolYear === y.id ? ' selected' : ''}`}
-                onClick={() => patch({ schoolYear: y.id })}
+                onClick={() => patch({ schoolYear: y.id, transferTargetGap: null })}
               >
                 {y.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ask Transfer Students Directly When They Plan to Transfer (see CLAUDE.md) — replaces the
+          old assumption-based plan-length logic (1st year always got a 2-year plan, 2nd/3rd year
+          always got 1) with a direct question, since plenty of students want to transfer after
+          just one year regardless of their current year. Required to complete the survey (see
+          isSurveyComplete above) — plan length now always comes from this real answer, never
+          inferred from schoolYear alone. Options are relative to the student's own current year
+          (TRANSFER_TARGET_OPTIONS[state.schoolYear]), so this only renders once schoolYear is
+          actually answered. */}
+      {isTransfer && !!state.schoolYear && (
+        <div className="field-block">
+          <div className="field-label">When do you plan to transfer?</div>
+          <p className="field-hint">This determines how much time your plan has to work with.</p>
+          <div className="pill-group">
+            {TRANSFER_TARGET_OPTIONS[state.schoolYear].map((opt) => (
+              <button
+                type="button"
+                key={opt.gap}
+                className={`pill${state.transferTargetGap === opt.gap ? ' selected' : ''}`}
+                onClick={() => patch({ transferTargetGap: opt.gap })}
+              >
+                {opt.label}
               </button>
             ))}
           </div>

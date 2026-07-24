@@ -93,6 +93,19 @@ const DEFAULT_STATE = {
   transferHsTranscript: [],
   transferHsOtherCourses: [],
   transferHsOtherGpa: '',
+  // Ask Transfer Students Directly When They Plan to Transfer (see CLAUDE.md) — replaces the old
+  // assumption-based Transfer plan-length logic (1st year always got 2 years, 2nd/3rd year always
+  // got 1) with a direct question, Survey's own "When do you plan to transfer?": the number of
+  // FULL YEARS between the student's current year (schoolYear above) and their stated transfer
+  // target — 0 ("after this year"), 1 ("after my Nth+1 year"), or 2 ("after my Nth+2 year"). `null`
+  // means not yet answered — deliberately checked via `!== null`, not a truthy check, everywhere
+  // this is read, since 0 is itself a real, valid answer (this app's usual "0 is falsy" trap would
+  // silently misread "transferring after this year" as "unanswered"). Drives
+  // `resolveStageNames()`'s own gap-keyed lookup (trunkSteps.js's `TRANSFER_STAGE_PLAN_BY_GAP`) —
+  // plan length is now always a function of this real answer, never inferred from schoolYear
+  // alone. Resets to `null` whenever `educationLevel` or `schoolYear` changes (SurveyScreen.jsx),
+  // since the available options (and their real meaning) depend on the current schoolYear.
+  transferTargetGap: null,
   gpa: '', // Stage 1 self-reported this directly; Stage 2 (Transcript & GPA) now calculates it
   // instead — TranscriptScreen writes the converted 4.0-scale equivalent here as a string (e.g.
   // '3.7'), the exact same format/field the old input produced, so ProgramsStep/roadmapGenerator

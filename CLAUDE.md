@@ -5707,6 +5707,97 @@ whole thing fresh rather than only doing the described removal/reword.
   still pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing`
   (20/20) all stay clean.
 
+**Ask Transfer Students Directly When They Plan to Transfer — replaces the old assumption-based
+Transfer plan-length logic (1st year always got a 2-year plan, 2nd/3rd year always got just 1)
+with a direct Survey question, since plenty of students want to transfer after just one year
+regardless of their current year.**
+- **Task 1 — the question.** `SurveyScreen.jsx` gained "**When do you plan to transfer?**"
+  (Transfer-only, rendered once `state.schoolYear` is answered), with options relative to the
+  student's own current year via `TRANSFER_TARGET_OPTIONS[state.schoolYear]`: 1st year offers
+  "After this year" / "After my 2nd year" / "After my 3rd year"; 2nd year offers "After this year"
+  / "After my 3rd year" (no "2nd year" option, since that's the student's OWN current year); 3rd
+  year offers only "After this year" (this app's own existing `YEAR_OPTIONS.transfer` ceiling —
+  there's no "4th year" to target beyond it). The real stored value,
+  **`state.transferTargetGap`** (`AppContext.jsx`, `null`/0/1/2), is the GAP — the number of full
+  years between current and target — not the absolute target year itself, so it stays meaningful
+  independent of which current year produced it. **Required to complete the survey for Transfer**
+  (`isSurveyComplete`, `SurveyScreen.jsx`) — plan length now always depends on a real answer, so
+  leaving it blank can't silently fall through to a guessed default the way the old assumption did.
+  Checked via `!== null`, never a truthy check, everywhere it's read — 0 ("after this year") is
+  itself a real, valid answer, and this app's usual "0 is falsy" trap would otherwise misread it as
+  unanswered. Resets to `null` whenever `educationLevel` OR `schoolYear` changes, since the
+  available options (and their real meaning) depend on the current year.
+- **Task 2 — plan length is sized by the real gap, not schoolYear.** `trunkSteps.js`'s
+  `TRANSFER_STAGE_PLAN_BY_GAP` replaces the old schoolYear-keyed `STAGE_PLAN.transfer` entirely
+  (Task 3): `{ 0: ['compressed'], 1: ['current', 'application'], 2: ['exploration', 'current',
+  'application'] }`. `resolveStageNames(level, state)` (new, `trunkSteps.js`) is the one shared
+  place BOTH `roadmapGenerator.js` and `yearOverview.js` now resolve stage names from — extracted
+  specifically so Map 1 and Map 2 can never independently disagree about year count/names (the
+  same reasoning `yearOverview.js`'s own header comment already documented for reusing
+  TRUNK_STAGES/STAGE_PLAN in the first place); every level besides transfer still resolves exactly
+  the same way it always did (the old `STAGE_PLAN[level][schoolYear]` lookup, now just centralized
+  in one function instead of duplicated across two files).
+  - **Gap 0** (transferring after the CURRENT year) gets a new single **`compressed`** stage —
+    everything from the old `current` stage (researching target schools, building the transfer
+    list, connecting with an advisor) AND the old `application` stage (completing coursework,
+    requesting transcripts, submitting the application, financial aid) merged into one year, with
+    real submission timing left alone (a Fall-entry deadline lands where it lands regardless of
+    how much lead time the student had — what compresses is how early the research has to start,
+    not the deadline itself) and exactly one "Check your GPA" milestone, matching the invariant
+    every other stage in this file already holds.
+  - **Gap 1** reuses the exact original 2-stage `['current', 'application']` pattern, completely
+    unchanged — this was already correct content for a genuine "one more year" student, it was
+    just previously mislabeled as "every 1st-year student" regardless of their real target.
+  - **Gap 2** gets a new 3-stage `['exploration', 'current', 'application']` pattern — a genuinely
+    new, lightweight **`exploration`** stage (maintain GPA, start loosely exploring target schools,
+    get involved in activities that strengthen a transfer application, one GPA check) as the first
+    year, mirroring the same light-early/heavier-later shape Undergraduate's own existing
+    exploration → prep → application 3-stage pattern already establishes — followed by the
+    EXISTING `current` stage reused unchanged as the middle "prep" year (not a second, duplicated
+    copy of the same content under a different name) and the existing `application` stage as the
+    final year.
+  - **`DEFAULT_TRANSFER_GAP = 1`** is a defensive-only fallback (stale/incomplete localStorage
+    where `transferTargetGap` somehow never got set) — mirrors the old default's own "middle of
+    the road" spirit, genuinely unreachable via a normal path now that a fresh Transfer survey
+    can't be completed without a real answer.
+- **Task 3 — the old assumption is gone, not just superseded.** The old `STAGE_PLAN.transfer`
+  object (`{ 1: ['current','application'], 2: ['application'], 3: ['application'] }`) was deleted
+  outright, along with `DEFAULT_SCHOOL_YEAR.transfer` (dead once transfer's own stage resolution no
+  longer touches `schoolYear` at all) and **`TRANSFER_CAVEAT`** — the old "This plan assumes you're
+  applying to transfer this cycle..." banner shown whenever a transfer student was 2+ years out,
+  which existed ONLY to disclaim that exact assumption. Since plan length is now a real, directly-
+  asked answer instead of an assumption, there's nothing left to honestly caveat — `roadmapGenerator.js`'s
+  own `caveatNote` computation/return field and `Roadmap.jsx`'s corresponding `.caveat-banner`
+  render block were both removed (the shared `.caveat-banner` CSS class itself stays, still used
+  by Course Selection's own, unrelated scope-clarification banner; only the transfer-specific
+  scoped override inside `.roadmap-fullscreen-root` — dead once nothing renders a `.caveat-banner`
+  there anymore — was cleaned up too).
+- Verified with a dedicated 22-check Playwright suite covering the task's own 4 stated test
+  criteria directly: the question renders with the correct, current-year-relative option set at
+  all 3 current-year values; Continue is genuinely disabled until a real answer is given and
+  enabled the instant one is (confirmed `transferTargetGap` itself, not just the button state);
+  changing `schoolYear` resets the answer; a 1st-year student answering gap=0 produces a real
+  1-year Map 1 (with all 5 named tasks — research, build list, transcripts, submit, financial aid
+  — present and the exploration-only "Maintain a strong GPA foundation" text absent); gap=1
+  produces the existing 2-year "Current Year"/"Application Year" pattern; gap=2 produces a real
+  3-year "Exploration Year"/"Current Year"/"Application Year" plan; and — the direct proof the old
+  fixed assumption no longer overrides anything — a 2nd-year student answering gap=2 correctly
+  gets a full 3-year plan (the old logic would have forced just 1), while a 1st-year student
+  answering gap=0 correctly gets just 1 year (the old logic would have forced 2). A dedicated Node
+  script loading the real `generateRoadmap()`/`getYearOverview()` through Vite's own module loader
+  (the same technique `scripts/verify-spacing.mjs` already uses) confirmed zero date collisions
+  across every gap value at every current year before any of this was trusted. One pre-existing
+  test (`test-transfer-hs-transcript.js`) needed a real update — its own Transfer seeds never set
+  `transferTargetGap`, which now correctly reads as an incomplete survey (locking hub tiles that
+  used to unlock under the old, less strict gate) — fixed by seeding a real answer, the same
+  "update a pre-existing test after an intentional, expected change" pattern this suite has already
+  needed many times before, not a regression in the app itself. The full remaining pre-existing
+  regression suite (`test-current-major.js`, `test-major-copy-by-level.js`,
+  `test-program-copy-by-level.js`, `test-ai-profile-stage1.js`, `test-ai-profile-edge.js`,
+  `test-hub-chat-transition.js`, `test-international-student.js`, `test-testing-prefill-buttons.js`,
+  `test-transfer-hs-prefill.js`) all still pass with zero regressions; `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

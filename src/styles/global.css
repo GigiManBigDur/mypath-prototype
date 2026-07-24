@@ -4240,12 +4240,6 @@ button.card.passed:hover {
 }
 .roadmap-fullscreen-root .checkpoint-actions .complete-btn:disabled svg { opacity: 0.7; }
 .roadmap-fullscreen-root .eyebrow { color: var(--bloom-yellow); }
-.roadmap-fullscreen-root .caveat-banner {
-  background: var(--bloom-card);
-  border-color: var(--bloom-card-border);
-  border-left-color: var(--bloom-accent);
-  color: var(--bloom-ink-soft);
-}
 /* The panel's own Back/Start over/Add Task buttons — same values the
    `.app-shell-bloom` button overrides already use elsewhere, just scoped to
    this wrapper since Map 2 can't carry that class. */

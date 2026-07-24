@@ -1,7 +1,9 @@
 // The roadmap "trunk" is built from stages, not one flat list per education level. Each level
 // has a final stage (the existing single-year plan, unchanged) and zero or more earlier stages
 // prepended depending on how many years of runway the student has (STAGE_PLAN, keyed by
-// [level][schoolYear]). roadmapGenerator.js assigns each stage a yearOffset equal to its
+// [level][schoolYear] — EXCEPT transfer, which is keyed by the directly-asked gap between current
+// year and transfer target instead; see TRANSFER_STAGE_PLAN_BY_GAP and resolveStageNames() below).
+// roadmapGenerator.js assigns each stage a yearOffset equal to its
 // position in that sequence (0 = starts now, 1 = next year, ...) and applies it to every step's
 // date — so stage step dates below are written as plain { month, day } within their OWN year,
 // exactly like the original single-stage data.
@@ -434,6 +436,98 @@ export const TRUNK_STAGES = {
         },
       ],
     },
+    // Ask Transfer Students Directly When They Plan to Transfer (see CLAUDE.md) — the NEW gap=0
+    // 1-year plan: everything from `current` (research/list-building/advisor) AND `application`
+    // (coursework/transcripts/submission/financial aid) compressed into a single year, since a
+    // student transferring after their CURRENT year has no second year to spread this across.
+    // Real submission timing itself doesn't compress (a Fall-entry transfer deadline lands where
+    // it lands regardless of how much lead time the student had) — what compresses is how early
+    // the research/list-building has to start, not the deadline itself. Still exactly one "Check
+    // your GPA" milestone, matching every other stage in this file.
+    compressed: {
+      label: 'Transfer Year',
+      steps: [
+        {
+          id: 'tc-research', title: 'Research transfer requirements and credit policies at target schools', type: 'milestone', date: { month: 9, day: 1 },
+          desc: 'Check articulation agreements right away — with only one year, there\'s no time to discover late that a course won\'t transfer toward your intended major.',
+          resources: ["Target school's transfer credit equivalency page", 'Articulation agreement lookup (e.g. ASSIST for California)'],
+        },
+        {
+          id: 'tc-list', title: 'Build your transfer school list', type: 'milestone', date: { month: 9, day: 22 },
+          desc: 'Settle on your real list early — you\'ll need it to guide which coursework and transcripts matter most for the rest of this year.',
+          resources: [],
+        },
+        {
+          id: 'tc-advisor', title: 'Connect with a transfer advisor', type: 'procedure', date: { month: 10, day: 10 },
+          desc: 'A transfer advisor (at your current school or your target school) can help you map out exactly which credits will count — especially valuable with a compressed timeline.',
+          resources: [],
+        },
+        {
+          id: 'tc-coursework', title: 'Complete required transfer coursework', type: 'milestone', date: { month: 12, day: 1 },
+          desc: (ctx) => ctx.majorName
+            ? `Finish the prerequisite courses that count toward ${ctx.majorName} at your target schools — check each one's articulation agreement.`
+            : 'Finish the prerequisite courses your target major requires — check each school\'s articulation agreement.',
+          resources: ['Articulation agreement lookup', 'Transfer credit checklist'],
+        },
+        {
+          id: 'tc-transcripts', title: 'Request transcripts', type: 'procedure', date: { month: 12, day: 20 },
+          desc: 'Order official transcripts from every college you\'ve attended, sent directly to each target school.',
+          resources: ['Transcript request checklist'],
+        },
+        {
+          id: 'tc-gpa', title: 'Check your GPA — before you submit', type: 'milestone', date: { month: 1, day: 10 },
+          desc: 'Make sure your most recent transcript reflects your best work before you submit your transfer application.',
+          resources: [],
+        },
+        {
+          id: 'tc-submit', title: 'Submit transfer application', type: 'major', date: { month: 2, day: 1 },
+          desc: (ctx) => ctx.programNames.length
+            ? `Apply to your list: ${ctx.programNames.join(', ')} — carried over from Self-Discovery.`
+            : 'Submit your transfer applications with all required supplements.',
+          resources: ['Common App for Transfer', 'Transfer application checklist'],
+        },
+        {
+          id: 'tc-finaid', title: 'Submit financial aid forms', type: 'milestone', date: { month: 2, day: 15 },
+          desc: 'File FAFSA and/or CSS Profile as a transfer applicant — deadlines can differ from first-year deadlines.',
+          resources: ['studentaid.gov (official FAFSA site)', 'FAFSA checklist for transfer students'],
+        },
+        {
+          id: 'tc-final', title: finalGoalTitle, type: 'final', date: { month: 4, day: 15 },
+          desc: 'The finish line. Everything on this path was built to get you here.',
+          resources: [],
+        },
+      ],
+    },
+    // The NEW gap=2 3-year plan's own lightweight FIRST year — a genuine "just getting oriented"
+    // stage, not a repeat of `current`'s own immediate-pre-application research (that content is
+    // reused unchanged as the MIDDLE year of the 3-year plan, right before `application` — see
+    // TRANSFER_STAGE_PLAN_BY_GAP below). Mirrors the same light-early/heavier-later shape
+    // undergraduate's own exploration -> prep -> application 3-stage pattern already establishes.
+    exploration: {
+      label: 'Exploration Year',
+      steps: [
+        {
+          id: 'te1', title: 'Maintain a strong GPA foundation', type: 'milestone', date: { month: 12, day: 15 },
+          desc: 'Your GPA at your current school matters more for transfer admissions than almost anything else — start building a strong record now.',
+          resources: [],
+        },
+        {
+          id: 'te2', title: 'Start exploring which schools you might want to transfer to', type: 'milestone', date: { month: 2, day: 1 },
+          desc: 'No need to commit yet — just get a general sense of what\'s out there and what each school tends to look for in a transfer applicant.',
+          resources: [],
+        },
+        {
+          id: 'te3', title: 'Get involved in activities that will strengthen your transfer application', type: 'procedure', date: { month: 4, day: 1 },
+          desc: 'Clubs, research, work experience, or leadership roles — transfer admissions often weighs what you\'ve done with your time, not just your grades.',
+          resources: [],
+        },
+        {
+          id: 'te-gpa', title: 'Check your GPA — end of the year', type: 'milestone', date: { month: 5, day: 15 },
+          desc: 'Your GPA at your current school matters most for transfer admissions — check in as the year wraps up.',
+          resources: [],
+        },
+      ],
+    },
   },
 };
 
@@ -452,16 +546,68 @@ export const STAGE_PLAN = {
     3: ['prep', 'application'],
     4: ['application'],
   },
-  transfer: {
-    1: ['current', 'application'],
-    2: ['application'],
-    3: ['application'],
-  },
+  // Transfer is deliberately NOT here — see TRANSFER_STAGE_PLAN_BY_GAP below. It used to be keyed
+  // by current schoolYear the exact same way highschool/undergraduate still are (1 -> a 2-stage
+  // plan, 2/3 -> just the final year) — a real, confirmed-wrong ASSUMPTION that every 1st-year
+  // transfer student wants 2 years and every 2nd/3rd-year student only has 1, when plenty of
+  // students want to transfer after just one year regardless of which year they're currently in.
+  // "Ask Transfer Students Directly When They Plan to Transfer" (see CLAUDE.md) replaced this
+  // entirely with a direct question (state.transferTargetGap) — plan length is now a function of
+  // the actual GAP between the student's current year and their stated target, never inferred
+  // from current year alone.
 };
 
 // Fallback school year per level if state.schoolYear is somehow unset (defensive only — the
 // survey requires an answer, this just prevents a crash on stale/incomplete localStorage state).
-export const DEFAULT_SCHOOL_YEAR = { highschool: 12, undergraduate: 4, transfer: 2 };
+// No `transfer` entry — transfer's own plan length no longer depends on schoolYear at all (see
+// TRANSFER_STAGE_PLAN_BY_GAP/DEFAULT_TRANSFER_GAP below), so there's nothing left to fall back to
+// here for that level specifically.
+export const DEFAULT_SCHOOL_YEAR = { highschool: 12, undergraduate: 4 };
+
+// Ask Transfer Students Directly When They Plan to Transfer (see CLAUDE.md) — plan length for
+// Transfer is keyed by GAP (the number of full years between the student's CURRENT year and their
+// stated transfer target, state.transferTargetGap — 0/1/2, set by the Survey's own "When do you
+// plan to transfer?" question), not by current year the way every other level's STAGE_PLAN entry
+// still is. Gap 0 (transferring after the CURRENT year) gets the new `compressed` all-in-one
+// stage — no separate exploration year, since there isn't time. Gap 1 (transferring after ONE
+// more year) reuses the exact original 2-stage pattern unchanged (`current` then `application`) —
+// this was already correct for a genuine "1 more year" student, just previously mislabeled as "any
+// 1st-year student" regardless of their real target. Gap 2 (transferring after TWO more years)
+// gets a new, more gradual 3-stage pattern: a lightweight `exploration` year, then the same
+// `current` "prep" year reused as the middle stage, then `application` — mirroring the same
+// light-early/heavier-later shape undergraduate's own 3-stage exploration -> prep -> application
+// pattern already establishes, without duplicating `current`'s own content a second time under a
+// different name.
+export const TRANSFER_STAGE_PLAN_BY_GAP = {
+  0: ['compressed'],
+  1: ['current', 'application'],
+  2: ['exploration', 'current', 'application'],
+};
+
+// Defensive-only fallback (stale/incomplete localStorage state where transferTargetGap somehow
+// never got set) — mirrors the OLD default's own "middle of the road" spirit (the previous
+// DEFAULT_SCHOOL_YEAR.transfer was 2, which produced the OLD single-stage 'application'-only
+// plan); gap 1 is the closest real equivalent now, since it's this app's original, longest-
+// standing transfer pattern. Genuinely reachable only via stale state, never a normal path once a
+// student actually answers the new Survey question — see resolveStageNames() below for where it's
+// consulted, and isSurveyComplete() (SurveyScreen.jsx) for why a fresh Transfer survey can't be
+// completed without a real answer in the first place.
+export const DEFAULT_TRANSFER_GAP = 1;
+
+// The one shared place BOTH roadmapGenerator.js and yearOverview.js resolve "which stages does
+// this student's plan span" — extracted so the two views can never independently disagree about
+// year count/names (the same reasoning yearOverview.js's own header comment already documents for
+// why it reuses TRUNK_STAGES/STAGE_PLAN/DEFAULT_SCHOOL_YEAR in the first place). Transfer branches
+// off entirely into the gap-based lookup above; every other level is completely unchanged from
+// the original schoolYear-keyed STAGE_PLAN lookup.
+export function resolveStageNames(level, state) {
+  if (level === 'transfer') {
+    const gap = state.transferTargetGap;
+    return TRANSFER_STAGE_PLAN_BY_GAP[gap] ?? TRANSFER_STAGE_PLAN_BY_GAP[DEFAULT_TRANSFER_GAP];
+  }
+  const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
+  return STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
+}
 
 // Stage 0's own "what year is Course Selection actually FOR" label (e.g. "Freshman Year") — the
 // single shared source for both roadmapGenerator.js's course-request task title AND
@@ -479,7 +625,9 @@ export function getStage0TargetLabel(stageNames) {
   return stageNames.length > 1 ? TRUNK_STAGES.highschool[stageNames[0]].label : null;
 }
 
-// Shown on the Academic Plan when a transfer student is 2+ years out — the plan still uses the
-// single application-year trunk (transfer timelines vary too much to model precisely), so this
-// is an honest caveat rather than a fabricated multi-year transfer timeline.
-export const TRANSFER_CAVEAT = "This plan assumes you're applying to transfer this cycle — if you're planning to wait, check back closer to when you're ready to apply.";
+// TRANSFER_CAVEAT (formerly shown on the Academic Plan for any transfer student 2+ years out) was
+// removed by "Ask Transfer Students Directly When They Plan to Transfer" (see CLAUDE.md) — it
+// existed only to disclaim the OLD assumption-based plan-length logic ("this plan assumes you're
+// applying to transfer this cycle"), which no longer applies now that plan length is driven by a
+// real, directly-asked answer (state.transferTargetGap) instead of an assumption about current
+// year. There's nothing left to honestly caveat.

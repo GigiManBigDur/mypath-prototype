@@ -3,7 +3,7 @@ import { getCareerPool } from '../data/careers';
 import { getMergedPrograms } from '../data/programs';
 import { getSchoolDeadlineInfo, schoolRequiresSupplement, realDeadlineDate } from '../data/collegeDeadlines';
 import { findOpportunity, PROGRESSION_LADDERS } from '../data/opportunities';
-import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR, TRANSFER_CAVEAT, getStage0TargetLabel } from '../data/trunkSteps';
+import { TRUNK_STAGES, resolveStageNames, getStage0TargetLabel } from '../data/trunkSteps';
 import { BUILT_TRACKS, OPPORTUNITY_TRACKS } from '../data/interests';
 import { getCourseById, ESTIMATED_COURSE_REQUEST_WINDOW } from '../data/courses';
 import { getCourseById as getUCDavisCourseById } from '../data/ucdavisCourses';
@@ -76,8 +76,7 @@ export function generateRoadmap(state, yearWindow = null) {
     resources: [],
   };
 
-  const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
-  const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
+  const stageNames = resolveStageNames(level, state);
   const yearSpan = stageNames.length;
 
   // Single-step items — every core admissions/milestone task, flattened across however many
@@ -114,11 +113,6 @@ export function generateRoadmap(state, yearWindow = null) {
         };
       });
   });
-
-  // Transfer students 2+ years out still get the single application-year trunk (transfer
-  // timelines vary too much to model precisely) — flag that assumption instead of pretending
-  // otherwise.
-  const caveatNote = level === 'transfer' && schoolYear >= 2 ? TRANSFER_CAVEAT : null;
 
   // Looked up across EVERY opportunity track, not just getOpportunityTracks(state.interestTags)
   // (the narrow set derived from the student's own survey answers) — Opportunity Finder's "Browse
@@ -251,7 +245,6 @@ export function generateRoadmap(state, yearWindow = null) {
     spine,
     canvasHeight,
     canvasWidth,
-    caveatNote,
   };
 }
 

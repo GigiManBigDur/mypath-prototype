@@ -1,9 +1,9 @@
 // Map 1 (Year Overview) data — deliberately tiny and separate from roadmapGenerator.js/
 // roadmapLayout.js: it only needs to know WHICH years the plan spans and WHICH one is current,
-// never any individual task's date. Reuses the exact same stage-resolution data (TRUNK_STAGES/
-// STAGE_PLAN/DEFAULT_SCHOOL_YEAR) generateRoadmap() already uses, so the two views can never
-// disagree about how many years there are or what they're called.
-import { TRUNK_STAGES, STAGE_PLAN, DEFAULT_SCHOOL_YEAR } from '../data/trunkSteps';
+// never any individual task's date. Reuses the exact same stage-resolution helper
+// (resolveStageNames) generateRoadmap() already uses, so the two views can never disagree about
+// how many years there are or what they're called.
+import { TRUNK_STAGES, resolveStageNames } from '../data/trunkSteps';
 import { anchorDate, getEffectiveToday } from './dates';
 
 // stageIndex 0 is always "the year containing today" by construction — every stage gets
@@ -16,8 +16,7 @@ export function getYearOverview(state) {
   // while a testing override is active.
   const planStartDate = getEffectiveToday(state.dateOverride);
   const level = state.educationLevel;
-  const schoolYear = state.schoolYear ?? DEFAULT_SCHOOL_YEAR[level];
-  const stageNames = STAGE_PLAN[level][schoolYear] ?? STAGE_PLAN[level][DEFAULT_SCHOOL_YEAR[level]];
+  const stageNames = resolveStageNames(level, state);
 
   return stageNames.map((stageName, stageIndex) => ({
     stageIndex,
