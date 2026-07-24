@@ -55,25 +55,26 @@ export default function WeeklyTaskSuggestionPanel() {
       {
         onResult: (result) => {
           if (!result || !Array.isArray(result.tasks) || result.tasks.length === 0) return;
-          // Ensure Weekly AI Suggestions Cover Every Day, Including Weekends (see CLAUDE.md) —
-          // supersedes the immediately-prior fix's own "every task in a batch shares the SAME
-          // date" design: that made intra-batch clustering common, but it also meant a batch could
-          // (and, structurally, always did) leave most of the week with zero coverage. The CLIENT,
-          // not the model, is what guarantees "no gaps": task[i]'s real date is always
-          // Monday-of-this-week + i days (`startOfWeek()`, utils/dates.js — the same Monday
-          // `weeklyDigestSuggestionWeekOf` above is already keyed by), so index 0 always lands on
-          // Monday and index 6 always lands on Sunday regardless of which day "today" actually
-          // falls on within that week. `api/suggest-weekly.js`'s own schema now enforces EXACTLY 7
-          // tasks server-side (rejecting anything else before it ever reaches here), so `i % 7` is
-          // a defensive-only wrap for an array that should already be exactly this long — it can
-          // never produce a wrong index for the guaranteed-7 case, and degrades gracefully rather
-          // than crashing if that guarantee were ever violated.
-          const monday = startOfWeek(todayDate);
+          // Fix: Weekly Suggestions Generating Already-Passed Days (see CLAUDE.md) — supersedes
+          // the immediately-prior fix's own "task[i] = Monday-of-this-week + i" assignment, which
+          // always spanned the WHOLE Monday-Sunday week regardless of what day "today" actually
+          // is — a student opening this mid-week saw earlier-in-the-week tasks already marked
+          // overdue on first sight. Task dates are now anchored at TODAY, not Monday: task[i]'s
+          // real date is `today + i` days, so index 0 always lands on today itself and the set
+          // only ever reaches forward through the rest of the current week, never backward into
+          // already-passed days. `api/suggest-weekly.js`'s own schema now enforces EXACTLY
+          // `daysUntilEndOfWeek(today)` tasks server-side (rejecting any other count before it
+          // ever reaches here) — the same real day-of-week math the server independently computes
+          // from the identical `today` string this request already sends, so the two can never
+          // disagree about how many days remain. `result.tasks.length` (not a hardcoded 7) is
+          // used directly as the loop bound — correct for both the ordinary case (today is Monday,
+          // still the full 7) and every shorter remaining-week case alike, with no separate
+          // "how many days are left" computation duplicated on the client.
           const withDates = result.tasks.map((task, i) => ({
             id: makeTaskId('weekly-suggestion'),
             title: task.title,
             rationale: task.rationale,
-            date: toDateInputValue(realAddDays(monday, i % 7)),
+            date: toDateInputValue(realAddDays(todayDate, i)),
           }));
           patch({ pendingWeeklyDigestSuggestions: withDates });
         },

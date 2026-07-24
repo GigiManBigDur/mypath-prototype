@@ -6046,6 +6046,66 @@ same-date collision, from any source — see below).
   `test-thinking-indicator.js`) all still pass with zero regressions; `npm run build`/`npm run
   lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**Fix: Weekly Suggestions Generating Already-Passed Days — the generator now only ever proposes
+tasks for days that are still AHEAD of today, never for a day that's already passed this week.**
+The prior fix's own "Monday-of-this-week + i days" assignment always spanned the WHOLE Monday-
+Sunday week regardless of what day "today" actually is — a student opening this mid-week (e.g.
+today is the 24th) saw tasks dated the 20th-23rd already marked overdue on first sight, since
+those days had already passed by the time the batch was even generated.
+- **The server now computes exactly how many days are left, from the same `today` string the
+  client already sends** — `daysUntilEndOfWeek(todayStr)` (new, `api/suggest-weekly.js`), plain
+  day-of-week math (`getDay()`: 0=Sunday...6=Saturday) treating the week as always ending on
+  Sunday (matching `utils/dates.js`'s own Monday-based `startOfWeek()` on the client — Sunday is
+  that same week's 7th/last day): Monday → 7 (the whole week, unchanged from before), Wednesday →
+  5, Saturday → 2, Sunday itself → 1 (just today, the tightest possible case). `WEEKLY_TASKS_SCHEMA`
+  became `buildWeeklyTasksSchema(count)` — `minItems`/`maxItems` both set to this per-request count
+  rather than a fixed 7 — and `TOOL_DESCRIPTION`/`SYSTEM_PROMPT` became functions of `(count,
+  dayNames)` too, naming the exact remaining days by name (e.g. "Wednesday, Thursday, Friday,
+  Saturday, Sunday") and explicitly instructing the model never to generate a task for an
+  already-passed day. `validateProposal(input, expectedCount)` now takes the per-request count as
+  a parameter instead of a hardcoded `!== 7` check.
+- **The client mirrors the same anchor change**: `WeeklyTaskSuggestionPanel.jsx`'s date assignment
+  moved from `task[i]` = Monday-of-this-week + `i` days to `task[i]` = **today** + `i` days — index
+  0 always lands on today itself, and the set only ever reaches forward through the rest of the
+  current week, never backward into an already-passed day. `result.tasks.length` (not a hardcoded
+  7) is used directly as the loop bound, so this is correct for both the ordinary Monday case
+  (still the full 7) and every shorter remaining-week case alike, with no separate "how many days
+  are left" computation duplicated on the client — the server already computed it from the
+  identical `today` string this same request sent, so the two can never disagree.
+  `state.weeklyDigestSuggestionWeekOf`'s own trigger-guard logic (`startOfWeek()`-keyed, "once per
+  real calendar week") is completely unchanged — only which days WITHIN that triggered week get a
+  task changed, not when the trigger itself fires.
+- **The "at least one task per day" guarantee from the previous fix still holds, just scoped to
+  the days that are actually still ahead** — since the week always ends on Sunday and "remaining
+  days" always runs from today through that same Sunday inclusive, the weekend is still always
+  covered whenever it's genuinely still ahead (every day except when today itself is already past
+  Sunday, which is structurally impossible), matching this fix's own explicit "at least one task
+  per day rule... just applied only to the days that are actually still ahead."
+- Verified with two dedicated Node/Playwright suites. A 35-check Node test
+  (`test-suggest-weekly-server.js`, mocking `global.fetch`) confirms the server-side math directly
+  across 4 real dates (Monday/Wednesday/Saturday/Sunday): each produces the exact correct
+  remaining-day count in both the schema and the actual response, the system prompt names the
+  correct first remaining day and explicitly forbids already-passed days, a proposal with the
+  WRONG count for that date is rejected, and the per-task external-fact guardrail still works
+  correctly on a real mid-week (5-remaining) request. An 18-check Playwright suite
+  (`test-weekly-suggestions-full-week-coverage.js`, rewritten from the prior fix's own version)
+  covers this fix's own 2 stated criteria directly across the same 3 real dates: the generated
+  count exactly matches the real remaining-day count (not always 7), every assigned date is
+  distinct with no gaps, **no assigned date is ever earlier than today** (the core bug this fix
+  targets), the earliest date is exactly today itself, the latest never spills past that week's
+  real Sunday, and — the literal real-world symptom the bug report described — accepting the
+  first-generated suggestion and checking the "This Week" digest confirms it does NOT show up
+  under Overdue. The 3 other pre-existing weekly-suggestion test files
+  (`test-weekly-digest-suggestions.js`, `test-weekly-suggestions-roadmap-fix.js`,
+  `test-weekly-digest-edge-cases.js`) were each re-run unmodified and confirmed to still pass in
+  full — none of them made a day-of-week-specific assumption this fix would have broken. The full
+  remaining pre-existing regression suite (`test-transfer-gap.js`, `test-transfer-hs-transcript.js`,
+  `test-international-student.js`, `test-map-chat-widget.js`, `test-hub-chat-transition.js`,
+  `test-current-major.js`, `test-ai-profile-stage1.js`, `test-ai-profile-edge.js`,
+  `test-two-phase-e2e.js`, `test-keep-refining.js`, `test-thinking-indicator.js`) all still pass
+  with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
+  clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
