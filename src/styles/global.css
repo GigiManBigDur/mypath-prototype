@@ -2638,6 +2638,90 @@ button.card.passed:hover {
   .map-chat-panel { width: min(320px, calc(100vw - 24px)); max-height: min(420px, calc(100vh - 280px)); }
 }
 
+/* AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — a small, non-blocking
+   side panel, positioned top-left inside .roadmap-fullscreen-root (position: relative) so it never
+   collides with DateOverrideControl (fixed, top-right), MapChatWidget (absolute, bottom-left), or
+   the zoom-controls/bottom panel (both bottom-right/bottom-strip). Only rendered at all once there's
+   something to show (WeeklyTaskSuggestionPanel.jsx returns null otherwise) — no separate hidden/
+   collapsed state needed, unlike MapChatWidget's own toggle+panel pair, since this panel isn't
+   meant to be re-opened after acting on it the way a chat is. */
+.weekly-suggestion-panel {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 8;
+  width: min(320px, calc(100vw - 40px));
+  max-height: min(70vh, calc(100vh - 140px));
+  overflow-y: auto;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 16px;
+  box-shadow: var(--bloom-shadow-hover);
+  padding: 14px 16px 16px;
+}
+.weekly-suggestion-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bloom-ai);
+}
+.weekly-suggestion-title {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bloom-ink);
+  flex: 1;
+  min-width: 0;
+}
+.weekly-suggestion-dismiss-all {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--bloom-ink-soft);
+  display: flex;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.weekly-suggestion-dismiss-all:hover { color: var(--bloom-ink); }
+.weekly-suggestion-subtitle {
+  font-size: 12.5px;
+  color: var(--bloom-ink-soft);
+  margin: 6px 0 12px;
+}
+.weekly-suggestion-list { display: flex; flex-direction: column; gap: 10px; }
+.weekly-suggestion-card {
+  background: var(--bloom-bg);
+  border: 1px solid var(--bloom-card-border);
+  border-left: 3px solid var(--bloom-ai);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.weekly-suggestion-card-title {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bloom-ink);
+}
+.weekly-suggestion-card-rationale {
+  font-size: 12px;
+  color: var(--bloom-ink-soft);
+  margin: 4px 0 6px;
+}
+.weekly-suggestion-card-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bloom-ai);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+}
+.weekly-suggestion-card-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.weekly-suggestion-card-actions .btn { padding: 5px 12px; font-size: 12.5px; }
+
+@media (max-width: 640px) {
+  .weekly-suggestion-panel { left: 12px; top: 12px; width: min(280px, calc(100vw - 24px)); }
+}
+
 /* Bottom-anchored, collapsible panel — floats above the canvas rather than pushing it (that's
    why .roadmap-fullscreen-root's other children are all position:absolute too). Collapsing only
    animates .roadmap-panel-content's own box (max-height/opacity/padding); the panel itself keeps

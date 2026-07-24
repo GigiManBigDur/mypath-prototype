@@ -75,6 +75,21 @@ export function realDaysBetween(a, b) {
   return Math.round((a.getTime() - b.getTime()) / 86_400_000);
 }
 
+// AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — the one place this
+// app defines "which week" a given day belongs to, so Task 1's own "once per week, not every
+// visit" trigger has a single, stable value to compare against across visits. Monday-based (the
+// common convention): returns a real midnight `Date` for the Monday of `date`'s own week, so two
+// dates in the same real calendar week always resolve to the identical value regardless of which
+// day within that week they fall on.
+export function startOfWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export function formatDate(date) {
   return `${MONTH_ABBR[date.getMonth()]} ${date.getDate()}`;
 }

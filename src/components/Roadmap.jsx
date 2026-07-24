@@ -23,6 +23,7 @@ import { requestSuggestion } from '../utils/suggestions';
 import MascotWidget from './MascotWidget';
 import MapChatWidget from './MapChatWidget';
 import MilestonePlanningPanel from './MilestonePlanningPanel';
+import WeeklyTaskSuggestionPanel from './WeeklyTaskSuggestionPanel';
 
 // Palette repaint, Academic Plan batch (see CLAUDE.md) — a style-only reskin onto the shared
 // "bloom" tokens, layered strictly on top of the already-correct positioning/connector engine
@@ -554,6 +555,37 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
       if (item.hasBranch) flat.push(...item.branchSteps);
     });
 
+    // AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md), Task 3 — an
+    // accepted suggestion (state.weeklyDigestTasks) is merged in HERE, directly, rather than
+    // flowing through roadmapGenerator.js's spine builder the way every other core/opportunity/
+    // custom/ai-suggested item does — this is what keeps it out of the spatial roadmap entirely
+    // (it never becomes a spine/branch node, so it can't crowd Map 2's own canvas), while still
+    // going through the exact same completion/edit/remove mechanism (state.completedNodes/
+    // nodeDateOverrides/removedNodeIds, all keyed generically by id) every other digest entry
+    // already uses. `category: 'ai-suggested'` reuses the exact same visual marker
+    // (configFor -> CORE_TYPE_CONFIG['ai-suggested'], the sparkle-badge color) Stage 2's own
+    // standalone AI suggestions already established — Task 3's own explicit instruction, not a
+    // new marker invented for this feature.
+    (state.weeklyDigestTasks || [])
+      .filter((task) => !(state.removedNodeIds || {})[task.id])
+      .forEach((task) => {
+        const templateDate = parseDateInputValue(task.date);
+        const overrideValue = (state.nodeDateOverrides || {})[task.id];
+        const realDate = overrideValue ? parseDateInputValue(overrideValue) : templateDate;
+        flat.push({
+          id: task.id,
+          title: task.title,
+          category: 'ai-suggested',
+          required: false,
+          coreType: 'ai-suggested',
+          date: realDate,
+          due: formatDateWithYear(realDate),
+          desc: task.desc || 'A small, recurring task suggested for this week.',
+          resources: [],
+          steps: null,
+        });
+      });
+
     const overdue = [];
     const todayItems = [];
     const week = [];
@@ -573,7 +605,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     week.sort(byDate);
 
     return { overdue, today: todayItems, week };
-  }, [fullRoadmap, state.completedNodes]);
+  }, [fullRoadmap, state.completedNodes, state.weeklyDigestTasks, state.removedNodeIds, state.nodeDateOverrides]);
 
   const handleDigestToggle = (entry) => {
     if (entry.isCheckpoint) { setSelected(entry.item); return; }
@@ -1640,6 +1672,11 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
           touching it; nothing about this component reads or writes roadmapLayout.js's own
           date-to-y positions, the connector-line rendering, or the zoom/pan/drag handlers. */}
       <MapChatWidget />
+
+      {/* AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md), Task 2 — same
+          "plain sibling, never touches roadmapLayout.js" boundary as MapChatWidget above; fully
+          self-contained (owns its own once-per-week trigger and accept/dismiss state). */}
+      <WeeklyTaskSuggestionPanel />
     </div>
   );
 }

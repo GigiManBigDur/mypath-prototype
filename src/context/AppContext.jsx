@@ -245,6 +245,25 @@ const DEFAULT_STATE = {
   // `date` is a fixed, one-time value computed at accept time (see suggestionResolver.js) — not
   // recomputed on every render — so the chain's existing steps never shift underneath it.
   aiChainInsertions: {},
+  // AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — a SEPARATE trigger/
+  // acceptance pair from Stage 2's own single-task `pendingSuggestion`/`aiSuggestedTasks` above:
+  // this one fires at most once per real calendar WEEK (not per completed task), proposes a small
+  // SET of tasks at once (not one), and — per this feature's own explicit Task 3 — an accepted
+  // suggestion here NEVER becomes a spine/branch node on the spatial roadmap; it only ever appears
+  // in the "This Week" digest list. `weeklyDigestSuggestionWeekOf` is a plain 'YYYY-MM-DD' string
+  // (the Monday of the real week the trigger last fired, via `startOfWeek()`, utils/dates.js) or
+  // `null` before it's ever fired — compared against the CURRENT real week on every Academic Plan
+  // visit; a mismatch means a new week has started and it's safe to trigger again.
+  // `pendingWeeklyDigestSuggestions` is the array still awaiting a per-item Accept/Dismiss decision
+  // — `[{ id, title, rationale, date }]` — persisted (not ephemeral component state) so reopening
+  // the roadmap later the SAME week resumes showing whatever's still undecided, rather than losing
+  // it. `weeklyDigestTasks` is where an ACCEPTED one lands — `[{ id, title, date, desc }]`, the
+  // same shape `aiSuggestedTasks` uses, but read directly by Roadmap.jsx's own digest-grouping
+  // logic instead of `roadmapGenerator.js`'s spine builder, which is what keeps it out of the
+  // spatial view entirely.
+  weeklyDigestSuggestionWeekOf: null,
+  pendingWeeklyDigestSuggestions: [],
+  weeklyDigestTasks: [],
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

@@ -7,8 +7,10 @@ import { formatDateWithYear } from '../utils/dates';
 // `configFor`/`isDone`/`toggleDone`; this component just renders whatever groups it's handed and
 // forwards clicks back up via `onToggle`/`onOpen`. Task 2's own relative-label requirement
 // ("Tomorrow," "In 3 days") is the one piece of real logic that lives here, since it's purely
-// about display, not data.
-function relativeLabel(daysUntil) {
+// about display, not data. Exported (not just used internally) since AI-Generated Weekly Task
+// Suggestions in the Digest View (see CLAUDE.md) reuses the exact same day-label wording for its
+// own side panel's per-suggestion date preview, rather than a second, possibly-drifting copy.
+export function relativeLabel(daysUntil) {
   if (daysUntil < 0) {
     const n = Math.abs(daysUntil);
     return `${n} day${n === 1 ? '' : 's'} overdue`;

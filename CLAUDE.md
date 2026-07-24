@@ -5798,6 +5798,126 @@ regardless of their current year.**
   `test-transfer-hs-prefill.js`) all still pass with zero regressions; `npm run build`/`npm run
   lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**AI-Generated Weekly Task Suggestions in the Digest View — the fifth real AI integration in this
+app (`api/suggest-weekly.js`), a standalone Vercel serverless function, not a mode flag on
+`api/suggest.js`.** A genuinely different kind of request from Stage 2's own single-task
+`api/suggest.js` — it proposes a small SET of tasks at once, fires once per real calendar WEEK
+(not once per completed task with a written outcome), and has no single "triggering task" at all;
+`api/suggest.js`'s own handler actually requires one (`!triggeringTask` → 400), so reusing it as a
+mode flag wasn't viable even before considering this codebase's own "each Vercel function stays
+standalone" precedent.
+- **Task 1 — once per real calendar week, not every visit.** `src/utils/dates.js` gained
+  `startOfWeek(date)` (Monday-based) — the one place this app defines "which week" a day belongs
+  to. `state.weeklyDigestSuggestionWeekOf` (`AppContext.jsx`, a plain `'YYYY-MM-DD'` string or
+  `null`) is the Monday of the week the trigger last fired, persisted like everything else so it
+  survives reloads. `WeeklyTaskSuggestionPanel.jsx` (new, self-contained — reads `useApp()`
+  directly, no props from `Roadmap.jsx`, mirroring `MapChatWidget.jsx`'s own self-containment)
+  checks this on every mount: if the CURRENT real week's own Monday differs from the stored value,
+  it's a new week and the trigger fires; otherwise it's a no-op. A `useRef` guard
+  (`weeklyTriggerFiredRef`) additionally protects against React 18 StrictMode's dev-only double-
+  effect invocation — the same "a ref persists across the double-invoke of the SAME component
+  instance, a plain state comparison alone can't reliably prevent this" pattern this codebase has
+  already needed for other one-shot mount effects — and the state guard itself is set
+  SYNCHRONOUSLY before the async request starts, the same precedent Stage 2's own
+  `suggestionSourceTaskIds` already established, so this can never double-fire regardless of
+  timing, and a FAILED request still correctly prevents re-asking again that same week (no
+  infinite retry loop). Gated on `!!state.educationLevel` as a cheap, honest defensive check
+  (genuinely unreachable otherwise, since Academic Plan itself is hub-gated behind real program
+  selections, which require a completed survey).
+- **Task 2 — non-blocking, optional presentation.** The panel renders as a plain sibling inside
+  `.roadmap-fullscreen-root` (`Roadmap.jsx`), the exact same "new element added ALONGSIDE the
+  roadmap, never a modification to it" boundary `MapChatWidget.jsx` already established — it
+  touches none of `roadmapLayout.js`'s date-to-y positioning, connector-line rendering, or zoom/
+  pan/drag mechanics. Positioned top-left (`.weekly-suggestion-panel`, `position: absolute; top:
+  20px; left: 20px` inside the relatively-positioned fullscreen root) specifically because every
+  other floating element already claims a different corner — `DateOverrideControl` (fixed,
+  top-right), `MapChatWidget` (absolute, bottom-left), the zoom controls and bottom panel (bottom-
+  right/bottom-strip) — so this is the one open corner with zero collision risk. Unlike
+  `MapChatWidget`'s own always-mounted toggle+panel pair, this component returns `null` outright
+  whenever there's nothing pending (`state.pendingWeeklyDigestSuggestions.length === 0`) — no
+  separate collapsed/hidden visual state needed, since this panel isn't meant to be reopened after
+  being acted on the way a chat is.
+- **Task 3 — suggestions go to the digest view, not the spatial roadmap.**
+  `state.weeklyDigestTasks` (`AppContext.jsx`, `[{ id, title, date, desc }]`, the same shape
+  `aiSuggestedTasks` uses) is a deliberately SEPARATE array from `aiSuggestedTasks` — accepting a
+  suggestion here appends to THIS array, which `Roadmap.jsx`'s own `digestGroups` `useMemo` merges
+  in directly (respecting `removedNodeIds`/`nodeDateOverrides` exactly like `buildAiSuggestedItems`
+  already does for Stage 2's own standalone suggestions), rather than flowing through
+  `roadmapGenerator.js`'s spine builder the way every other core/opportunity/custom/ai-suggested
+  item does. This is the one thing that keeps it out of the spatial roadmap entirely — it can
+  never become a spine/branch node, so it can't crowd Map 2's own canvas with recurring daily-task
+  clutter, while still going through the exact same completion/edit/remove mechanism
+  (`state.completedNodes`/`nodeDateOverrides`/`removedNodeIds`, all keyed generically by id) every
+  other digest entry already uses — clicking its quick-check calls the identical `toggleDone(id)`,
+  and opening it calls the identical `setSelected(entry.item)` into the same generic detail modal.
+  **Reuses the exact same AI-suggested visual marker already established elsewhere**
+  (`category: 'ai-suggested'` → `configFor()` → `CORE_TYPE_CONFIG['ai-suggested']`, the sparkle-
+  badge color) — Task 3's own explicit instruction, not a new marker invented for this feature.
+  `DigestList.jsx`'s own `relativeLabel` helper was exported (not duplicated) so the side panel's
+  own per-suggestion date preview uses the identical day-label wording ("Today," "Tomorrow," "In N
+  days") the digest list itself already shows.
+- **Task 4 — the same suggest-then-confirm pattern, per item.** Each proposed task in the panel
+  gets its own Accept/Dismiss buttons — accepting one moves it from
+  `pendingWeeklyDigestSuggestions` into `weeklyDigestTasks` (nothing silent: only an explicit
+  Accept commits anything); dismissing one just drops it from the pending array. A single
+  dismiss-all (X) button clears every still-undecided suggestion at once — a real, decisive
+  dismissal (Task 2's own "dismissible"), not merely hiding the panel, which would otherwise just
+  reappear on the next visit this same week showing the identical stale set.
+- **`api/suggest-weekly.js`** mirrors `api/suggest.js`'s dual-provider Anthropic/OpenAI structure
+  closely (same CORS allowlist shape, same `AI_SUGGESTION_PROVIDER` env var — no separate provider
+  configuration needed, whichever provider already answers Stage 2 answers this too, same forced-
+  tool-call reliability approach), but with its own schema: `propose_weekly_tasks` returns
+  `{ tasks: [{ title, rationale, referencesExternalFact }, ...] }`, a 2-5 item array validated by a
+  new `validateProposal` (rejecting anything outside that range or missing a required field on any
+  item). The same external-fact guardrail (`applyGuardrails`) is applied PER TASK, not once for the
+  whole set, since a set can mix a purely generic task with one that does name something specific.
+  No `date` field in the schema at all — the model never picks dates, the CLIENT spreads accepted-
+  or-not proposals across the upcoming days of the week (`today`, `today+1`, ...) at the moment
+  they're first received, since there's no chain-attachment/spine-positioning risk here to protect
+  against the way Stage 2's own single-task suggestions needed a manual date-picker step for.
+  `SYSTEM_PROMPT` explicitly frames this as filling the gap between big milestones with small,
+  routine, day-to-day effort (studying, practicing, reviewing) — never duplicating a milestone
+  already tracked elsewhere in the plan.
+- **`src/utils/weeklyDigestSuggestions.js`** mirrors `suggestions.js`'s exact "fire-and-forget
+  fetch to this app's own Vercel proxy, `onResult`/`onError` callbacks, hardcoded absolute cross-
+  origin URL" shape — same reasoning as every other AI-calling client util in this app: neither the
+  Vite dev server nor GitHub Pages can run a serverless function, so every environment calls the
+  live Vercel deployment directly regardless of where the frontend is served from. Fails silently
+  on any error, matching this app's own established "a failed AI request never surfaces an error to
+  the student" posture.
+- Verified with two dedicated Playwright suites (17 + 9 checks) using `page.route()` to mock
+  `/api/suggest-weekly`: a first Map 2 visit in a fresh week fires exactly one request and shows
+  the panel with the real mocked suggestions, correctly persisting `weeklyDigestSuggestionWeekOf`
+  and `pendingWeeklyDigestSuggestions`; reopening later the SAME week (seeded with that same stored
+  week-of value) fires zero further requests and correctly resumes showing whatever's still
+  undecided; accepting one suggestion removes it from pending, adds it to `weeklyDigestTasks`,
+  confirms it does NOT render as a `.node-label` anywhere on the spatial roadmap view, DOES appear
+  in the "This Week" digest list carrying the real "AI Suggestion" tag, and its quick-check
+  checkbox correctly marks it complete via `state.completedNodes`; dismiss-all makes the panel
+  disappear entirely and clears the pending array; and a real roadmap interaction elsewhere on
+  screen (a zoom-control click) stays fully functional while the panel is open, confirming it never
+  blocks the roadmap. A second suite confirms a genuinely stale prior-week value correctly
+  re-triggers a fresh request; a failed request (mocked 500) produces zero page errors, no panel,
+  and still sets the week guard (no infinite retry loop) while the rest of the roadmap keeps
+  working normally; and no request ever fires without a real `educationLevel` set. A direct `grep`
+  across the built `dist/` bundle confirms zero occurrences of any API key or env var name, and
+  that `api/suggest-weekly.js` itself isn't bundled into the client build — only the client's own
+  endpoint URL string appears, exactly as expected. The full pre-existing regression suite
+  (`test-transfer-gap.js`, `test-transfer-hs-transcript.js`, `test-international-student.js`,
+  `test-map-chat-widget.js`, `test-hub-chat-transition.js`, `test-testing-prefill-buttons.js`,
+  `test-current-major.js`, `test-ai-profile-stage1.js`, `test-ai-profile-edge.js`,
+  `test-two-phase-e2e.js`, `test-keep-refining.js`, `test-thinking-indicator.js`) all still pass
+  with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
+  clean — this feature never opens `roadmapLayout.js` at all, only reuses `Roadmap.jsx`'s
+  already-existing digest-grouping/completion machinery.
+- **What still needs to happen before this is live**: `api/suggest-weekly.js` must actually be
+  deployed via `vercel deploy --prod` — per this file's own standing "deploys are opt-in only"
+  rule for anything beyond the automatic git-push-paired Vercel deploy, this should happen as part
+  of the normal proactive Vercel deploy step, same as every other AI serverless function addition
+  in this app's history. Until then, every trigger falls back exactly the way the graceful-failure
+  test above already demonstrates: the roadmap keeps working correctly, the week guard is still
+  set (no repeated failed attempts), and simply no suggestion panel appears.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
