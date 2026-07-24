@@ -77,15 +77,21 @@ export function realDaysBetween(a, b) {
 
 // AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — the one place this
 // app defines "which week" a given day belongs to, so Task 1's own "once per week, not every
-// visit" trigger has a single, stable value to compare against across visits. Monday-based (the
-// common convention): returns a real midnight `Date` for the Monday of `date`'s own week, so two
-// dates in the same real calendar week always resolve to the identical value regardless of which
-// day within that week they fall on.
-export function startOfWeek(date) {
+// visit" trigger has a single, stable value to compare against across visits.
+//
+// Anchor Weekly Task Generation to Sunday (see CLAUDE.md) — renamed from the original
+// Monday-based `startOfWeek()` (which this feature's own trigger was the only real caller of,
+// confirmed via a repo-wide search before renaming rather than assumed) to make the shift to a
+// Sunday-Saturday week explicit rather than silently changing an existing function's meaning.
+// Returns a real midnight `Date` for the SUNDAY of `date`'s own week (Sunday itself if `date` IS
+// a Sunday), so two dates in the same real Sunday-Saturday week always resolve to the identical
+// value regardless of which day within that week they fall on — this is what lets the weekly
+// trigger fire exactly once per week starting from Sunday (or, if Sunday is missed, whichever day
+// the student next logs in), never again until the following Sunday's own week begins.
+export function startOfWeekSunday(date) {
   const d = new Date(date);
   const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diffToMonday);
+  d.setDate(d.getDate() - day);
   d.setHours(0, 0, 0, 0);
   return d;
 }

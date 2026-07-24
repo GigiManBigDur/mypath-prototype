@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  getEffectiveToday, toDateInputValue, startOfWeek, realAddDays, realDaysBetween, parseDateInputValue,
+  getEffectiveToday, toDateInputValue, startOfWeekSunday, realAddDays, realDaysBetween, parseDateInputValue,
 } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
@@ -21,12 +21,23 @@ import { relativeLabel } from './DigestList';
 // against React 18 StrictMode's dev-only double-effect invocation (the same "a ref persists across
 // the double-invoke of the SAME component instance, a plain state comparison alone can't reliably
 // prevent this" pattern this codebase has already needed for other one-shot mount effects) —
-// `state.weeklyDigestSuggestionWeekOf` (a real, PERSISTED 'YYYY-MM-DD' string, the Monday of the
-// week the trigger last fired) is the one that actually prevents re-triggering across SEPARATE
-// visits/reloads within the same week. Comparing the CURRENT real week's own Monday
-// (`startOfWeek()`, utils/dates.js) against that stored value on every mount is what makes
-// "reopen later the same week -> no retrigger" and "reopen in a new week -> retrigger" both fall
-// out of one simple check, with no separate day-counting logic needed.
+// `state.weeklyDigestSuggestionWeekOf` (a real, PERSISTED 'YYYY-MM-DD' string) is the one that
+// actually prevents re-triggering across SEPARATE visits/reloads within the same week.
+//
+// Anchor Weekly Task Generation to Sunday (see CLAUDE.md) — the stored value is now the SUNDAY
+// that starts the current week (`startOfWeekSunday()`, utils/dates.js), not the old Monday. This
+// is what makes the whole "generate on Sunday, or on the next login after Sunday if it was
+// missed, whichever comes first — never again until the FOLLOWING Sunday" rule fall out of the
+// exact same simple comparison this trigger already used: opening the app ON Sunday itself
+// resolves `thisWeekSunday` to today, which won't match whatever the PRIOR week's Sunday was
+// stored as, so it fires (generating the full week ahead — see api/suggest-weekly.js's own
+// `daysUntilEndOfWeek`, which now treats Sunday as the FIRST day, 7 remaining); skipping Sunday
+// and next opening the app on, say, Tuesday still resolves to that SAME Sunday (Tuesday's own
+// week start), so it still fires then — generating only Tuesday through Saturday, never
+// retroactively for the already-passed Sunday/Monday, matching the previous fix's own "anchor at
+// today" date-assignment logic exactly. Once fired for a given Sunday, reopening any later day
+// that same week resolves to the identical stored value and correctly does not re-trigger, all
+// the way until the FOLLOWING Sunday's own week begins.
 export default function WeeklyTaskSuggestionPanel() {
   const { state, patch } = useApp();
   const weeklyTriggerFiredRef = useRef(false);
@@ -40,14 +51,14 @@ export default function WeeklyTaskSuggestionPanel() {
     // rather than assuming.
     if (!state.educationLevel) return;
 
-    const thisWeekMonday = toDateInputValue(startOfWeek(todayDate));
-    if (state.weeklyDigestSuggestionWeekOf === thisWeekMonday) return;
+    const thisWeekSunday = toDateInputValue(startOfWeekSunday(todayDate));
+    if (state.weeklyDigestSuggestionWeekOf === thisWeekSunday) return;
 
     // Set BEFORE the async request starts, synchronously — the same "guard set before the async
     // work begins, not after it resolves" precedent Stage 2's own `suggestionSourceTaskIds` already
     // established, so this can never double-fire regardless of timing.
     weeklyTriggerFiredRef.current = true;
-    patch({ weeklyDigestSuggestionWeekOf: thisWeekMonday });
+    patch({ weeklyDigestSuggestionWeekOf: thisWeekSunday });
 
     const profileSummary = compileSuggestionProfile(state, null);
     requestWeeklySuggestions(

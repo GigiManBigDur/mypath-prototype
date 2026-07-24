@@ -260,11 +260,16 @@ const DEFAULT_STATE = {
   // already does: a real spine item, the same sparkle-badge visual marker, and automatic
   // same-date clustering via the existing Date-Cluster feature if multiple land on one day — with
   // zero new code needed for any of that.
-  // `weeklyDigestSuggestionWeekOf` is a plain 'YYYY-MM-DD' string (the Monday of the real week the
-  // trigger last fired, via `startOfWeek()`, utils/dates.js) or `null` before it's ever fired —
-  // compared against the CURRENT real week on every Academic Plan visit; a mismatch means a new
-  // week has started and it's safe to trigger again. `pendingWeeklyDigestSuggestions` is the array
-  // still awaiting a per-item Accept/Dismiss decision — `[{ id, title, rationale, date }]` —
+  // `weeklyDigestSuggestionWeekOf` is a plain 'YYYY-MM-DD' string (the SUNDAY that starts the real
+  // week the trigger last fired for, via `startOfWeekSunday()`, utils/dates.js — see "Anchor
+  // Weekly Task Generation to Sunday," CLAUDE.md, for why the week is Sunday-anchored rather than
+  // the original Monday-anchored version) or `null` before it's ever fired — compared against the
+  // CURRENT real week's own Sunday on every Academic Plan visit; a mismatch means a new
+  // (Sunday-starting) week has begun and it's safe to trigger again — whether that visit happens
+  // to land ON that Sunday or on any later day that same week (a missed Sunday just means the
+  // trigger catches up the next time the student actually logs in).
+  // `pendingWeeklyDigestSuggestions` is the array still awaiting a per-item Accept/Dismiss
+  // decision — `[{ id, title, rationale, date }]` —
   // persisted (not ephemeral component state) so reopening the roadmap later the SAME week resumes
   // showing whatever's still undecided, rather than losing it.
   weeklyDigestSuggestionWeekOf: null,

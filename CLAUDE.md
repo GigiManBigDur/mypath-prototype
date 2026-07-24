@@ -6106,6 +6106,81 @@ those days had already passed by the time the batch was even generated.
   with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
   clean.
 
+**Anchor Weekly Task Generation to Sunday — refines WHEN the weekly trigger fires (not what it
+generates once it does): new suggestions now generate every Sunday for the upcoming week, or —
+if the student's first login after Sunday is a later day — at that catch-up point instead,
+still only for the remaining days of that same week.** The previous two fixes already established
+"anchor at today, only the remaining days, no already-passed days" as the right shape for WHAT
+gets generated; this one changes the definition of "week" itself so that shape naturally produces
+the Sunday-planning behavior being asked for here, with no separate scheduling mechanism needed.
+- **The week is now Sunday-through-Saturday, not Monday-through-Sunday.** `utils/dates.js`'s
+  `startOfWeek()` (Monday-anchored, confirmed via a repo-wide search to have exactly one real
+  caller — this feature's own trigger — before being changed) was renamed to
+  **`startOfWeekSunday()`** and reimplemented to return the Sunday that starts (or, if `date` IS a
+  Sunday, equals) the current week. `WeeklyTaskSuggestionPanel.jsx`'s own trigger-guard comparison
+  now reads `state.weeklyDigestSuggestionWeekOf` against `startOfWeekSunday(todayDate)` instead of
+  the old Monday-based value — everything else about the guard (the `useRef` StrictMode-double-
+  invoke protection, setting the guard synchronously before the async request starts) is
+  completely unchanged.
+- **This one change is what makes all 3 of this task's own behaviors fall out for free, with zero
+  new scheduling logic**: opening the app exactly ON Sunday resolves `thisWeekSunday` to today
+  itself, which won't match whatever the PRIOR week's own stored Sunday was, so it correctly
+  fires — and since `api/suggest-weekly.js`'s `daysUntilEndOfWeek(today)` now treats Sunday as the
+  FIRST day of the week (`7 - day`, with `day` from `getDay()`: 0=Sunday), a Sunday trigger
+  correctly asks for and generates the FULL 7-day week ahead, not just "1 day left" the way the
+  old Monday-anchored version would have computed. Skipping Sunday and next opening the app on,
+  say, Tuesday resolves to the SAME stored-value comparison (Tuesday's own week start is that same
+  Sunday, 2 days back) — since that Sunday hasn't been triggered for yet this cycle, it correctly
+  fires THEN instead, generating only Tuesday-through-Saturday (5 days) via the exact same
+  "anchor at today" date-assignment logic the prior fix already established — never retroactively
+  for the already-passed Sunday/Monday. Once fired for a given Sunday (whether the trigger itself
+  actually happened on that Sunday or on a later catch-up day), every other day that same week
+  resolves to the identical stored value and correctly does not re-trigger, all the way until the
+  FOLLOWING Sunday's own week begins.
+- **`daysUntilEndOfWeek(todayStr)` (`api/suggest-weekly.js`) simplified from a special-cased
+  formula to a single expression**: `7 - day` now handles both endpoints uniformly (Sunday → 7,
+  Saturday → 1) with no special-casing needed, unlike the old Monday-anchored version (which
+  needed an explicit `day === 0 ? 1 : 8 - day` branch for the Sunday-as-last-day case).
+  `SYSTEM_PROMPT`/`TOOL_DESCRIPTION`'s own "today through Sunday" wording was updated to "today
+  through Saturday," matching the new week boundary; `remainingDayNames()` itself needed no
+  changes, since it already just walks forward from today's own real weekday for `count` days,
+  independent of where the week is considered to start or end.
+- Verified with two dedicated suites. A 35-check Node test (`test-suggest-weekly-server.js`,
+  updated from the prior fix's own version) confirms the corrected day-math directly across 4 real
+  dates: Sunday now correctly requires the full 7 tasks (previously 1, under the old model —
+  confirmed this is a genuine, intentional flip, not a regression), Monday requires 6 (previously
+  7), Wednesday requires 4 (previously 5), and Saturday requires 1 (previously 2) — each rejecting
+  a proposal with the wrong count for that date, plus the per-task external-fact guardrail still
+  working correctly on a real mid-week request. A new 18-check Playwright suite
+  (`test-anchor-sunday-trigger.js`) drives the real UI end-to-end for all 3 of this task's own
+  stated criteria: a real Sunday login generates exactly 7 tasks spanning that Sunday through the
+  following Saturday and stores that Sunday as the trigger's own week-of value; a real 2-days-
+  later (Tuesday, same week) catch-up login — seeded with the trigger having last fired on the
+  PRIOR week's Sunday — correctly fires exactly once, generates exactly 5 tasks (Tuesday through
+  Saturday), confirms neither the already-passed Sunday nor Monday appears among them, and updates
+  the stored week-of value to reflect that week's own real Sunday (not the Tuesday it actually
+  fired on); a later same-week visit after EITHER the Sunday or the Tuesday case correctly does
+  NOT re-trigger; and the following real Sunday correctly starts a fresh cycle. A real, confirmed
+  gap was found and fixed while updating the pre-existing
+  `test-weekly-suggestions-full-week-coverage.js` suite: its own `expectedRemaining` helper was
+  still using the OLD Monday-anchored formula, meaning it was silently still validating the wrong
+  invariant against its own self-referential mock rather than the real, now-changed server
+  contract — the same "update a pre-existing test after an intentional, expected change" pattern
+  this suite has already needed many times before, just caught here specifically because the test
+  mocked its OWN copy of the day-math rather than exercising the real server function directly (a
+  reminder that a test mock's own internal assumptions need updating in step with the real
+  behavior it's meant to model, not just the assertions built on top of it) — fixed, re-verified
+  at 18/18. The 3 other pre-existing weekly-suggestion test files
+  (`test-weekly-digest-suggestions.js`, `test-weekly-suggestions-roadmap-fix.js`,
+  `test-weekly-digest-edge-cases.js`) were each re-run unmodified and confirmed to still pass in
+  full — none of them asserted a day-of-week-specific count this change would have broken. The full
+  remaining pre-existing regression suite (`test-transfer-gap.js`, `test-transfer-hs-transcript.js`,
+  `test-international-student.js`, `test-map-chat-widget.js`, `test-hub-chat-transition.js`,
+  `test-current-major.js`, `test-ai-profile-stage1.js`, `test-ai-profile-edge.js`,
+  `test-two-phase-e2e.js`, `test-keep-refining.js`, `test-thinking-indicator.js`) all still pass
+  with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
+  clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

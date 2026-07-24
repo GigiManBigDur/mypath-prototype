@@ -35,20 +35,24 @@ function resolveAllowedOrigin(origin) {
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Fix: Weekly Suggestions Generating Already-Passed Days (see CLAUDE.md) — the previous version
-// always asked for 7 tasks spanning the WHOLE Monday-Sunday week regardless of what day "today"
-// actually is, so a student opening this mid-week saw tasks dated earlier in the week already
-// marked overdue on first sight. The real fix is to only ever generate tasks for days that are
-// still AHEAD of today — this pair of functions is the one place that's computed, from the exact
-// same `today` string the client already sends (parsed as local midnight, matching every other
-// 'YYYY-MM-DD' parse in this app's own client-side date utilities). `getDay()`: 0=Sunday,
-// 1=Monday, ..., 6=Saturday. The week is always considered to end on Sunday (matching
-// utils/dates.js's own Monday-based `startOfWeek()` on the client — Sunday is the 7th/last day of
-// that same week), so "days remaining" always includes today itself through that Sunday
-// inclusive: Monday -> 7 (the whole week, unchanged from before), Thursday -> 4, Saturday -> 2,
-// Sunday itself -> 1 (just today — the last possible day of that week).
+// always asked for 7 tasks spanning the WHOLE week regardless of what day "today" actually is, so
+// a student opening this mid-week saw tasks dated earlier in the week already marked overdue on
+// first sight. The real fix is to only ever generate tasks for days that are still AHEAD of
+// today — this pair of functions is the one place that's computed, from the exact same `today`
+// string the client already sends (parsed as local midnight, matching every other 'YYYY-MM-DD'
+// parse in this app's own client-side date utilities).
+//
+// Anchor Weekly Task Generation to Sunday (see CLAUDE.md) — the week itself is now Sunday-through-
+// Saturday (matching utils/dates.js's own `startOfWeekSunday()` on the client, which the trigger's
+// own "which week is this" identity check reads), not the earlier Monday-through-Sunday framing.
+// `getDay()`: 0=Sunday, 1=Monday, ..., 6=Saturday — Sunday is now the FIRST day of the week, not
+// the last, so "days remaining" (today through this week's own Saturday, inclusive) is simply
+// `7 - day`: Sunday -> 7 (the whole week — Sunday itself is where a fresh week's generation
+// naturally happens), Tuesday -> 5, Saturday -> 1 (just today — the last possible day of that
+// week). No special-casing needed for either endpoint, unlike the old Monday-anchored version.
 function daysUntilEndOfWeek(todayStr) {
   const day = new Date(`${todayStr}T00:00:00`).getDay();
-  return day === 0 ? 1 : 8 - day;
+  return 7 - day;
 }
 function remainingDayNames(todayStr, count) {
   const startDay = new Date(`${todayStr}T00:00:00`).getDay();
@@ -98,7 +102,7 @@ function buildWeeklyTasksSchema(count) {
 }
 const TOOL_NAME = 'propose_weekly_tasks';
 function buildToolDescription(count) {
-  return `Propose exactly ${count} realistic, routine daily/recurring tasks, one for each remaining day of the student's current week (today through Sunday).`;
+  return `Propose exactly ${count} realistic, routine daily/recurring tasks, one for each remaining day of the student's current week (today through Saturday).`;
 }
 
 function buildSystemPrompt(count, dayNames) {
@@ -106,7 +110,7 @@ function buildSystemPrompt(count, dayNames) {
   return `You are a careful, conservative academic and career planning assistant embedded in a student's personalized roadmap app. This student's plan already tracks big milestones (application deadlines, competitions, exams) — your job is different: fill the gap between those milestones with a small, routine, day-to-day task for each REMAINING day of their current week (studying, practicing, reviewing, working steadily toward something already in progress).
 
 Rules you must follow:
-- Propose EXACTLY ${count} tasks — one for each of these remaining days, in this exact order: ${dayList}. Do NOT generate tasks for any day that has already passed this week — only today and the days still ahead of it, through Sunday. Every one of these remaining days needs its own task, with no gaps — if a weekend day (Saturday or Sunday) is in this list, it needs a real task too (a lighter or more flexible one is fine, but never skip it).
+- Propose EXACTLY ${count} tasks — one for each of these remaining days, in this exact order: ${dayList}. Do NOT generate tasks for any day that has already passed this week — only today and the days still ahead of it, through Saturday. Every one of these remaining days needs its own task, with no gaps — if a weekend day (Saturday or Sunday) is in this list, it needs a real task too (a lighter or more flexible one is fine, but never skip it).
 - Each task should be a small, concrete, routine action — the kind of ongoing effort a student should be doing regularly, not another big milestone (those are already tracked elsewhere in the plan; don't duplicate them).
 - Ground every task in the student's own real profile: reference their upcoming deadlines, current goals/activities, or recent progress from profileSummary. Don't invent generic advice disconnected from what's actually in their profile.
 - Each task needs a short, specific title (not a full sentence) and exactly one sentence of rationale connecting it to something real in their profile.
