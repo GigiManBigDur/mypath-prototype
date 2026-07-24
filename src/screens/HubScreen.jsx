@@ -481,10 +481,12 @@ export default function HubScreen() {
   };
 
   // Sign-Up: Country field (see CLAUDE.md) — the optional "preferred display name" field this
-  // greeting used to prefer over `username` was removed (replaced by `state.country`, plain data
-  // collection with no logic of its own yet), so the greeting now just reads `username` directly
-  // — it's guaranteed non-blank by the time a user can ever reach the hub (SignUpScreen's own
-  // `canContinue` gate), so there's no "not set yet" case to handle here either way.
+  // greeting used to prefer over `username` was removed (replaced by what's now `state.citizenship`
+  // — see "Real International Student Logic," CLAUDE.md, for why that field was later reworded/
+  // renamed from a plain "country" question into a real, logic-consuming citizenship one), so the
+  // greeting now just reads `username` directly — it's guaranteed non-blank by the time a user can
+  // ever reach the hub (SignUpScreen's own `canContinue` gate), so there's no "not set yet" case to
+  // handle here either way.
   const greetingName = state.username;
   const guidedProgress = getGuidedProgress(state, hasPartnerSchool);
 

@@ -5602,6 +5602,111 @@ developer/tester use, deliberately styled so neither reads as a real student-fac
     still pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing`
     (20/20) all stay clean.
 
+**Real International Student Logic: Citizenship + Current Location Together — replaces the
+Sign-Up "country" field's own placeholder framing with real, consuming logic, and generates real
+international-student tasks on the Academic Plan, branching on citizenship AND whether the
+student is already at a real US partner school.** Before this feature, `state.country` (Sign-Up's
+own "What country are you from?" field) was pure, unconsumed data collection — confirmed directly
+before starting, not assumed: a full-repo grep turned up no "Are you an international student?"
+question, no TOEFL/IELTS content, and no F-1/visa logic anywhere in this codebase. The task's own
+framing described these as already existing/redundant; they weren't, so this feature builds the
+whole thing fresh rather than only doing the described removal/reword.
+- **Task 1 — Singapore** was added to the citizenship options list (`CITIZENSHIP_OPTIONS`,
+  `SignUpScreen.jsx`, renamed from `COUNTRY_OPTIONS`) — 7 options now, still a small fixed list
+  (not every country), same `.pill-group` single-select shape the avatar picker already uses.
+- **Task 2 — the field itself was renamed, not just relabeled.** `state.country` became
+  `state.citizenship` throughout (`AppContext.jsx`'s `DEFAULT_STATE`, `SignUpScreen.jsx`'s local
+  state/patch call, `HubScreen.jsx`'s own stale comment) — a genuine rename, not a cosmetic label
+  change, since this field now drives real logic (below) and deserves a name that says what it
+  actually means. The question reads **"What is your citizenship?"** with the exact clarifying
+  subtext this feature's own spec asked for ("This is about your citizenship, not where you
+  currently live — for example, you might live in the US but hold citizenship elsewhere.") —
+  directly preventing the failure mode the old "what country are you from" phrasing invited: a
+  student already living/studying in the US answering "United States" despite holding a different
+  citizenship, which would have silently suppressed real international-student logic for them.
+- **Task 3 — there was no standalone "Are you an international student?" question to remove** (a
+  real, confirmed absence, not an oversight in this write-up) — international status has always
+  been meant to derive from citizenship alone, so this was never built as a second, independently-
+  answered field that could contradict it. `src/utils/internationalStudent.js` exports
+  `isInternationalStudent(state)` — `!!state.citizenship && state.citizenship !== 'United States'`
+  — the one place this derivation lives, consumed by `roadmapGenerator.js` (below). A blank/
+  unanswered citizenship (the field stays optional) deliberately never counts as international,
+  matching this app's own "don't guess" convention for every other optional field.
+- **Task 4 — `buildInternationalStudentItems(state, stageNames, planStartDate, dateOverrides,
+  removed)` (new, `roadmapGenerator.js`) is the one real task-generation piece, called
+  unconditionally alongside `applicationItems`/`personalStatementItem`/`apExamItems` inside
+  `generateRoadmap()`.** Unlike those three (highschool-only, Roslyn-catalog-specific), this
+  applies at **all 3 education levels** — TOEFL/IELTS and F-1 visa logistics are the same real
+  process whether applying to undergrad, grad school (`undergraduate`), or transferring
+  (`transfer`), so there's no honest reason to scope this to highschool alone the way Roslyn-
+  specific content is. Anchored at the plan's own FINAL stage (`stageNames.length - 1` — the same
+  "senior"/"application" stage `buildApplicationItems`/`buildPersonalStatementChain` already
+  anchor at for highschool, generalized here to whichever stage is actually last for the student's
+  own level), so a student years out from actually applying still gets these positioned on their
+  own future final year, same established precedent. Returns `[]` immediately when
+  `!isInternationalStudent(state)` — a genuine US citizen (or a blank citizenship) gets none of
+  this, unchanged from current behavior.
+  - **`hasPartnerSchool`** is recomputed fresh in this function (`state.currentSchool ===
+    'Roslyn High School' || state.currentSchool === 'UC Davis'`), matching this codebase's own
+    established per-file-recomputed-variable convention rather than threading it through as a
+    parameter.
+  - **NOT at a partner school** (applying from abroad for the first time) gets the full 4-item
+    process, in order: `intl-toefl-ielts` ("Register for and take the TOEFL or IELTS exam," Sept
+    20 template), `intl-i20-form` ("Receive your I-20 form from your accepted school," April 18),
+    `intl-sevis-fee` ("Pay the SEVIS I-901 fee," April 26), `intl-f1-visa-interview` ("Schedule
+    and attend your F-1 visa interview," May 18) — all `category: 'core', required: true`, plain
+    single-step items (`steps: null`), each with real resource links (ETS TOEFL/IELTS official
+    sites, US Dept. of State visa pages, the official SEVIS I-901 payment site). Every date was
+    checked directly against each education level's own real, always-present final-stage trunk
+    dates (`trunkSteps.js`'s `senior`/`application` step lists) before being picked — the same
+    collision-avoidance diligence "Fill Out the High School Academic Plan" already documents
+    elsewhere in this file (e.g. its own AP-exam-register Nov 8 vs. `sr-css-profile` Nov 5 note) —
+    confirmed via a dedicated Node script loading the real `generateRoadmap()` through Vite's own
+    module loader (the same technique `scripts/verify-spacing.mjs` already uses) across every
+    education level, both partner-school states, and a multi-year (9th-grade) highschool plan, not
+    just eyeballed. A coincidental collision with a per-school DYNAMIC date
+    (`buildApplicationItems`'s own real-calendar-resolved deadlines) is left to the Date-Cluster
+    feature's own graceful merge, matching that feature's own already-documented precedent for
+    exactly this situation.
+  - **ALREADY at a partner school** (already handled initial entry) gets a single, lighter
+    `intl-f1-status-check` item instead — "Check with your school's international student office
+    about maintaining or transferring your F-1 status" — deliberately `required: true` (this is a
+    real, legally-significant compliance check-in, not a nice-to-have, despite being visually
+    "lighter") but styled with the muted ink-soft tone (below) rather than the visa-sequence's
+    orange, matching the "light check-in" visual weight `track-status`/`procedure` already carry
+    elsewhere. Dated Aug 25 (10 days after Aug 15) — **deliberately earlier than
+    `buildPersonalStatementChain`'s own earliest-reachable step**, not picked arbitrarily: a first
+    attempt at Sept 25 was caught colliding with that chain's own dynamically-clamped first step
+    (`personal-statement-0`) during direct verification (not assumed safe) — that chain's 5 steps
+    spread across a window ending at a real Nov 20-anchored deadline and can compress arbitrarily
+    close to "today" if the app happens to be used very close to that deadline, so there's no
+    universal guarantee this exact date can never collide either, but Aug 25 sits safely before
+    that chain's ordinary real-world start under any normal usage — confirmed via the same direct
+    Node-script verification, re-run after the fix showed zero collision.
+- **`Roadmap.jsx` gained 5 new `CORE_TYPE_CONFIG` entries** to render these new coreTypes:
+  `toefl-ielts` (teal, `Languages` icon — the same 'milestone'-tier visual weight an AP exam or
+  supplement essay already carries), `i20-form`/`sevis-fee`/`f1-visa-interview` (all orange,
+  `FileCheck`/`Receipt`/`Plane` icons respectively — the same 'final'-tier weight
+  `college-application`/`enrollment` already use, since these are genuine non-optional legal-
+  process milestones on the way to actually enrolling), and `f1-status-check` (muted ink-soft,
+  `Eye` icon — the lighter single task's own quieter visual weight, matching `track-status`).
+- Verified with a dedicated 25-check Playwright suite covering every one of the task's own 5
+  stated test criteria directly: Singapore appears (and all 7 options render) on the real Sign-Up
+  screen, with the exact citizenship-vs-residence wording/subtext, and a real submission persists
+  `state.citizenship` correctly with no separate international-student field anywhere in state;
+  non-US citizenship with no partner school produces the full 4-task set (checked at both
+  Undergraduate and highschool levels); non-US citizenship at Roslyn High School OR UC Davis
+  produces only the lighter single task, with all 4 full-process tasks confirmed absent; US
+  citizenship produces zero international tasks at either partner-school state; and a genuinely
+  blank/unanswered citizenship also produces zero international tasks (confirming the "don't
+  guess" rule holds). The full pre-existing regression suite touching these files
+  (`test-transfer-hs-transcript.js`, `test-current-major.js`, `test-ai-profile-stage1.js`,
+  `test-ai-profile-edge.js`, `test-hub-chat-transition.js`, `test-hub-profile-tile-layout.js`,
+  `test-ai-chat.js`, `test-testing-prefill-buttons.js`, `test-transfer-hs-prefill.js`,
+  `test-major-copy-by-level.js`, `test-program-copy-by-level.js`, `test-map-chat-widget.js`) all
+  still pass with zero regressions; `npm run build`/`npm run lint`/`npm run verify:spacing`
+  (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

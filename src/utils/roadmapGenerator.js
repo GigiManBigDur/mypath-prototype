@@ -15,6 +15,7 @@ import {
 } from '../data/ucdavisQuarters';
 import { layoutRoadmap } from './roadmapLayout';
 import { anchorDate, formatDate, getEffectiveToday, realAddDays, realDaysBetween, parseDateInputValue } from './dates';
+import { isInternationalStudent } from './internationalStudent';
 
 // Single-stage label (unchanged behavior for the final-year case) vs. the multi-year label used
 // once earlier stages are prepended, so a freshman doesn't see "personalized senior-year plan".
@@ -171,10 +172,17 @@ export function generateRoadmap(state, yearWindow = null) {
     ? buildApExamItems(stageNames, state.selectedCourseIds, state.courseCheckpoints || {}, planStartDate, dateOverrides, removed)
     : [];
 
+  // Real International Student Logic: Citizenship + Current Location Together (see CLAUDE.md) —
+  // applies at every education level (unlike applicationItems/personalStatementItem/apExamItems
+  // above), since TOEFL/IELTS and F-1 visa logistics are the same real process whether applying
+  // to undergrad, grad school, or transferring — see buildInternationalStudentItems' own header
+  // comment for the full citizenship + partner-school branching.
+  const internationalItems = buildInternationalStudentItems(state, stageNames, planStartDate, dateOverrides, removed);
+
   const spineItems = [
     ...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems,
     ...applicationItems, ...(personalStatementItem ? [personalStatementItem] : []), ...apExamItems,
-    ...aiSuggestedItems,
+    ...internationalItems, ...aiSuggestedItems,
   ];
 
   // Scope to the selected year, if any. A non-current year uses that year's own start date as
@@ -948,6 +956,110 @@ function buildApExamItems(stageNames, selectedCourseIds, courseCheckpoints, plan
     if (checkpoint?.selectedCourseIds?.length) {
       addPairIfNeeded(checkpoint.selectedCourseIds, stageIndex + 1);
     }
+  }
+
+  return items;
+}
+
+// Real International Student Logic: Citizenship + Current Location Together (see CLAUDE.md) —
+// applies across all 3 education levels (unlike buildApplicationItems/buildApExamItems/
+// buildPersonalStatementChain above, which are highschool-only Roslyn-catalog-specific content):
+// standardized-testing/visa logistics are the same real-world process regardless of whether a
+// student is applying to undergrad, grad school, or transferring. Anchored at the plan's own
+// FINAL stage (stageNames.length - 1) — the same "senior"/"application" stage
+// buildApplicationItems/buildPersonalStatementChain already anchor at for highschool, generalized
+// to whichever stage is actually last for the student's own level, so a student years out from
+// actually applying still gets these positioned on their own future final year, same precedent.
+//
+// International status derives entirely from isInternationalStudent(state) (citizenship !== US) —
+// a blank/unanswered citizenship never triggers any of this, matching that field's own "don't
+// guess" contract. A genuine US citizen gets none of this, unchanged from current behavior.
+//
+// Two distinct task sets, not one generic "international student" bucket — whether the student is
+// ALREADY physically at a real US partner school (Roslyn High School or UC Davis — the same
+// `hasPartnerSchool` check every other partner-school-aware screen in this app already computes,
+// recomputed fresh here per this codebase's own per-file convention) changes which tasks actually
+// still apply:
+// - NOT yet at a partner school (applying from abroad for the first time): the full process —
+//   TOEFL/IELTS, then (once accepted) the F-1 visa entry sequence (I-20, SEVIS I-901 fee, the
+//   visa interview itself).
+// - ALREADY at a partner school (already handled initial entry into the US): none of the above
+//   applies again — a single, lighter "check with your school's international office" task
+//   instead, about maintaining/transferring status for their next real academic step.
+function buildInternationalStudentItems(state, stageNames, planStartDate, dateOverrides, removed) {
+  if (!isInternationalStudent(state)) return [];
+
+  const finalStageIndex = stageNames.length - 1;
+  const hasPartnerSchool = state.currentSchool === 'Roslyn High School' || state.currentSchool === 'UC Davis';
+  const items = [];
+
+  const addItem = (id, title, coreType, date, desc, resources) => {
+    if (removed[id]) return;
+    const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : date;
+    items.push({
+      id, title, category: 'core', required: true, coreType,
+      date: realDate, due: formatDate(realDate), desc, resources, steps: null,
+    });
+  };
+
+  if (!hasPartnerSchool) {
+    addItem(
+      'intl-toefl-ielts',
+      'Register for and take the TOEFL or IELTS exam',
+      'toefl-ielts',
+      anchorDate({ month: 9, day: 20, yearOffset: finalStageIndex }, planStartDate),
+      "Most US schools require English proficiency proof from international applicants — register early, since test dates fill up and scores can take a couple of weeks to arrive.",
+      ['ETS TOEFL (official)', 'IELTS (official)'],
+    );
+    // Dates deliberately don't land on `t6`/`pa-compare-aid`/transfer's own final-stage `t5`
+    // (trunkSteps.js) — checked directly against every education level's own final-stage trunk
+    // dates (senior/application) before picking these, the same collision-avoidance diligence
+    // "Fill Out the High School Academic Plan" already documents elsewhere in this file (e.g. the
+    // AP-exam-register Nov 8 vs. `sr-css-profile` Nov 5 note above). A coincidental collision with
+    // a per-school DYNAMIC date (buildApplicationItems, above — those resolve to real calendar
+    // dates that shift with "today") is left to the Date-Cluster feature's own graceful merge,
+    // same as that feature's own documented precedent.
+    addItem(
+      'intl-i20-form',
+      'Receive your I-20 form from your accepted school',
+      'i20-form',
+      anchorDate({ month: 4, day: 18, yearOffset: finalStageIndex }, planStartDate),
+      "Your accepted school's international student office issues this once you've confirmed enrollment and submitted the required financial documentation — you'll need it for every step that follows.",
+      ['US Department of State — Student Visa (official)'],
+    );
+    addItem(
+      'intl-sevis-fee',
+      'Pay the SEVIS I-901 fee',
+      'sevis-fee',
+      anchorDate({ month: 4, day: 26, yearOffset: finalStageIndex }, planStartDate),
+      "Required before your visa interview — pay online and keep the receipt, you'll need to show it at your interview.",
+      ['FMJfee.com — official SEVIS I-901 payment site'],
+    );
+    addItem(
+      'intl-f1-visa-interview',
+      'Schedule and attend your F-1 visa interview',
+      'f1-visa-interview',
+      anchorDate({ month: 5, day: 18, yearOffset: finalStageIndex }, planStartDate),
+      'Book this as early as possible — wait times at US embassies/consulates vary widely and can take weeks, especially during peak season.',
+      ['US Department of State — Visa Appointment Wait Times (official)'],
+    );
+  } else {
+    // Aug 25 (10 days after Aug 15), not Sept 25 — deliberately BEFORE
+    // `buildPersonalStatementChain`'s own earliest-reachable step date for a highschool senior
+    // (that chain's own 5 steps spread across a window ending at a Nov 20 deadline, naturally
+    // starting no earlier than ~day 27 after Aug 15 — this stays clear of it under ordinary
+    // real-world usage, though since that chain's OWN window can compress arbitrarily close to
+    // "today" if the app happens to be used very close to its own deadline, a coincidental
+    // same-day cluster is still possible in that edge case, same as this file's other dynamic-date
+    // collisions — left to the Date-Cluster feature's own graceful merge, not chased further).
+    addItem(
+      'intl-f1-status-check',
+      "Check with your school's international student office about maintaining or transferring your F-1 status",
+      'f1-status-check',
+      anchorDate({ month: 8, day: 25, yearOffset: finalStageIndex }, planStartDate),
+      "You've already handled initial entry into the US — this is just a check-in about what maintaining (or transferring) your F-1 status looks like for your next academic step.",
+      [],
+    );
   }
 
   return items;

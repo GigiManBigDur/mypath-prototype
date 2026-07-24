@@ -3,7 +3,7 @@ import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
-  ClipboardCheck, Archive, Eye, CreditCard,
+  ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -89,6 +89,21 @@ const CORE_TYPE_CONFIG = {
   // badge are the three simultaneous differentiators the build spec's own "clearly different from
   // Required (solid), Optional (hollow), and Custom (dotted)" instruction asked for.
   'ai-suggested': { label: 'AI Suggestion', color: 'var(--bloom-ai)', Icon: Sparkles },
+  // Real International Student Logic: Citizenship + Current Location Together (see CLAUDE.md) —
+  // 'toefl-ielts' reuses the teal 'milestone' tier (early, real admissions-prep work, same visual
+  // weight as an AP exam or a supplement essay). The 3-step F-1 entry sequence (I-20 -> SEVIS fee
+  // -> visa interview) all share the same 'final'-tier orange, matching 'college-application'/
+  // 'enrollment' — these are genuine, non-optional legal-process milestones on the way to actually
+  // enrolling, not routine logistics. 'f1-status-check' (the LIGHTER single task for a student
+  // already at a partner school) deliberately gets the muted ink-soft tone instead, the same
+  // "light check-in" visual weight 'track-status'/'procedure' already carry — still a solid
+  // required ring (this is a real, legally-significant check-in, not optional), just a quieter
+  // color befitting a single lighter task rather than a 4-step sequence.
+  'toefl-ielts': { label: 'English Proficiency Exam', color: 'var(--bloom-teal)', Icon: Languages },
+  'i20-form': { label: 'I-20 Form', color: 'var(--bloom-orange)', Icon: FileCheck },
+  'sevis-fee': { label: 'SEVIS Fee', color: 'var(--bloom-orange)', Icon: Receipt },
+  'f1-visa-interview': { label: 'Visa Interview', color: 'var(--bloom-orange)', Icon: Plane },
+  'f1-status-check': { label: 'Status Check-In', color: 'var(--bloom-ink-soft)', Icon: Eye },
 };
 // Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
 // a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.

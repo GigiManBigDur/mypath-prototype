@@ -21,12 +21,17 @@ const DEFAULT_STATE = {
   // optional, stored as a plain id string (one of SignUpScreen's own AVATAR_OPTIONS ids) rather
   // than a component reference, matching this codebase's existing "data holds icon NAMES, the
   // screen owns the name→component map" convention (see ProjectBuilderScreen's CATEGORY_ICONS) —
-  // null means skipped. `country` (see CLAUDE.md's own "Sign-Up: Country field" note) replaced
-  // the original optional "preferred display name" field — plain data collection ahead of a
-  // future Global Admission Intelligence feature, no logic reads this yet; '' means unset.
+  // null means skipped. `citizenship` (see CLAUDE.md's own "Real International Student Logic"
+  // note) replaced the original "Sign-Up: Country field" — that field was originally plain data
+  // collection ahead of a not-yet-built Global Admission Intelligence feature ('country', "What
+  // country are you from?"), no logic read it. It's now reworded/renamed to genuinely ask about
+  // citizenship (not current residence — a student can live in the US while holding citizenship
+  // elsewhere) since real logic now derives international-student status from it
+  // (isInternationalStudent(), utils/internationalStudent.js). '' means not answered — this
+  // stays optional, and a blank answer never triggers international-specific logic (don't guess).
   username: '',
   avatarIcon: null,
-  country: '',
+  citizenship: '',
   // Dashboard/Guide feature, Stage 2 — a one-shot navigation signal, not a durable field. Set by
   // HubScreen.jsx's Careers/Majors/Programs tiles right before navigating to `discovery`, so that
   // screen knows which of its 3 sub-steps to open on instead of always restarting at 'careers'.
