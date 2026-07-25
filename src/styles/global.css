@@ -2470,7 +2470,29 @@ button.card.passed:hover {
    Plan view, sharing `.roadmap-digest-wrap`'s own generic centered/scrollable positioning box with
    "This Week" (both fill the same `.roadmap-viewport-wrap` slot the pannable SVG canvas otherwise
    occupies), with its own inner width/layout below. */
-.daily-schedule-wrap { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 22px; }
+/* The 280px bottom padding is deliberate scroll "runway," not visual spacing — see
+   .schedule-timeline-wrap's own comment for why: it's what lets the outer .roadmap-digest-wrap
+   scroll far enough that even the timeline's own last hour (or a popover anchored near it) can be
+   pushed clear of the floating bottom panel, which otherwise permanently covers a fixed region of
+   the viewport regardless of scroll position. */
+/* `align-self: flex-start` is load-bearing, not cosmetic — a real, confirmed bug found via direct
+   measurement: `.roadmap-digest-wrap` (the shared ancestor "This Week" also uses) is a flex
+   container with the default `align-items: stretch`, which was silently clamping this element's
+   own RENDERED height to the container's cross-size (882px measured, vs. its real ~1628px worth
+   of content) — its true content still existed and pushed `.roadmap-digest-wrap`'s own
+   `scrollHeight` out, but not by the FULL real amount, since a stretched box with default
+   `overflow: visible` measures differently than one sized to its own content. `align-self:
+   flex-start` makes this one flex item size to its own real content height instead, so the
+   generous `padding-bottom` below reliably provides real scroll runway. */
+.daily-schedule-wrap {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  align-self: flex-start;
+  padding-bottom: 300px;
+}
 
 .daily-schedule-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .daily-schedule-nav-btn {
@@ -2554,101 +2576,226 @@ button.card.passed:hover {
 }
 .daily-schedule-due-add-btn:hover { transform: scale(1.1); }
 
-.daily-schedule-list { display: flex; flex-direction: column; gap: 8px; }
-.daily-schedule-block {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.daily-schedule-add-btn { align-self: flex-start; }
+
+/* Daily Schedule: Google Calendar-Style Timeline (see CLAUDE.md) — replaces the old flat list of
+   committed blocks with a real vertical, all-hours-visible timeline. 1px === 1 minute (HOUR_HEIGHT
+   = 60 in DailyScheduleView.jsx), which is what lets every geometry rule below stay a plain,
+   readable pixel value with no separate scale factor to keep in sync between JS and CSS.
+
+   Deliberately NOT its own internally-scrolling box (no `overflow-y: auto`/fixed `height` here) —
+   a real, confirmed layout bug during development: `.roadmap-panel` (the bottom info/legend panel)
+   is a SIBLING of `.roadmap-viewport-wrap`, floating `position: absolute` relative to
+   `.roadmap-fullscreen-root` — it occupies a fixed region of the actual VIEWPORT regardless of how
+   far any descendant scroll container is scrolled, since scrolling only moves CONTENT, never the
+   panel itself. A nested scroll region here could bring a late-day block/popover to the TOP of its
+   own small internal viewport, but that internal viewport's own on-screen position never changes,
+   so anything landing in its bottom ~60-80px stayed permanently covered by the panel — confirmed
+   directly: `locator.click()` on a Save button there timed out with Playwright reporting
+   `.roadmap-panel` intercepting the click, every retry, regardless of internal scroll position.
+   Letting the timeline participate in the SAME outer scroll `.roadmap-digest-wrap` already uses for
+   "This Week" (rather than a second, nested one) is what actually lets late-day content scroll
+   clear of the panel — the same reasoning `.roadmap-digest-wrap`'s own narrow-viewport media query
+   below already uses for a different fixed overlay (`DateOverrideControl`). See
+   `.daily-schedule-wrap`'s own generous `padding-bottom`, which is what supplies the extra
+   scrollable "runway" needed to push even the last hour of the day above the panel's fixed zone. */
+.schedule-timeline-wrap {
+  position: relative;
   background: var(--bloom-card);
   border: 1px solid var(--bloom-card-border);
-  border-radius: 10px;
-  padding: 10px 14px;
+  border-radius: 12px;
   box-shadow: var(--bloom-shadow);
-  flex-wrap: wrap;
 }
-.daily-schedule-block.done { opacity: 0.55; }
-.daily-schedule-block.done .daily-schedule-block-title { text-decoration: line-through; }
-.daily-schedule-block-checkbox {
+.schedule-timeline-inner { position: relative; cursor: crosshair; }
+.schedule-timeline-scroll-anchor { position: absolute; left: 0; width: 1px; height: 1px; pointer-events: none; }
+.schedule-timeline-hour-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--bloom-card-border);
+  pointer-events: none;
+}
+.schedule-timeline-hour-label {
+  position: absolute;
+  top: -7px;
+  left: 6px;
+  width: 44px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--bloom-ink-soft);
+  background: var(--bloom-card);
+  padding-right: 2px;
+}
+.schedule-timeline-halfhour-line {
+  position: absolute;
+  left: 52px;
+  right: 0;
+  border-top: 1px dashed var(--bloom-card-border);
+  pointer-events: none;
+}
+.schedule-timeline-now-line {
+  position: absolute;
+  left: 46px;
+  right: 0;
+  border-top: 2px solid var(--bloom-yellow);
+  pointer-events: none;
+  z-index: 3;
+}
+.schedule-timeline-now-dot {
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bloom-yellow);
+}
+.schedule-timeline-blocks-area {
+  position: absolute;
+  top: 0;
+  left: 52px;
+  right: 6px;
+  height: 100%;
+  pointer-events: none;
+}
+.schedule-timeline-empty-hint {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  margin: 0 !important;
+  pointer-events: none;
+}
+.schedule-timeline-block {
+  position: absolute;
+  pointer-events: auto;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-accent);
+  border-left: 3px solid var(--bloom-accent);
+  border-radius: 6px;
+  padding: 3px 6px;
+  overflow: hidden;
+  box-shadow: var(--bloom-shadow);
+  cursor: pointer;
+  z-index: 2;
+  transition: box-shadow 0.12s ease;
+}
+.schedule-timeline-block:hover { box-shadow: var(--bloom-shadow-hover); }
+.schedule-timeline-block.resizing { z-index: 4; user-select: none; }
+.schedule-timeline-block.done { opacity: 0.55; }
+.schedule-timeline-block.done .schedule-timeline-block-title { text-decoration: line-through; }
+.schedule-timeline-block-top { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.schedule-timeline-block-checkbox {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: none;
   background: none;
+  padding: 0;
   color: var(--bloom-ink-soft);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: color 0.15s ease, transform 0.1s ease;
 }
-.daily-schedule-block-checkbox:hover { color: var(--bloom-accent); }
-.daily-schedule-block-checkbox:active { transform: scale(0.88); }
-.daily-schedule-block-time {
+.schedule-timeline-block-checkbox:hover { color: var(--bloom-accent); }
+.schedule-timeline-block-time {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--bloom-ink-soft);
   white-space: nowrap;
-  min-width: 128px;
-}
-.daily-schedule-block-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+}
+.schedule-timeline-block-actions {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.schedule-timeline-block:hover .schedule-timeline-block-actions { opacity: 1; }
+.schedule-timeline-block-actions button {
   border: none;
   background: none;
-  padding: 0;
-  text-align: left;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-weight: 600;
-  font-size: 14.5px;
-  color: var(--bloom-ink);
-  cursor: default;
+  padding: 1px;
+  color: var(--bloom-ink-soft);
+  cursor: pointer;
+  display: flex;
 }
-.daily-schedule-block-title:not(:disabled) { cursor: pointer; }
-.daily-schedule-block-title:not(:disabled):hover { color: var(--bloom-accent); }
-.schedule-block-linked-icon { color: var(--bloom-accent); flex-shrink: 0; }
-.daily-schedule-block-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.daily-schedule-add-btn { align-self: flex-start; }
-
-/* Inline edit row (an existing block) and the manual add form share the same compact
-   time+time+title+actions layout — reused as one class rather than two near-identical rules. */
-.schedule-block-edit-row, .schedule-add-form {
+.schedule-timeline-block-actions button:hover { color: var(--bloom-accent); }
+.schedule-timeline-block-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  background: var(--bloom-card);
-  border: 1px solid var(--bloom-card-border);
-  border-radius: 10px;
-  padding: 10px 14px;
-  box-shadow: var(--bloom-shadow);
-}
-.schedule-block-edit-row input[type="time"],
-.schedule-add-form input[type="time"] {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 13px;
-  border: 1px solid var(--bloom-card-border);
-  border-radius: 6px;
-  padding: 5px 6px;
-  background: var(--bloom-bg);
+  gap: 4px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 12.5px;
   color: var(--bloom-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.schedule-block-edit-row input[type="text"],
-.schedule-add-form input[type="text"] {
-  flex: 1;
-  min-width: 140px;
+.schedule-block-linked-icon { color: var(--bloom-accent); flex-shrink: 0; }
+.schedule-timeline-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+/* The click-to-create-and-rename editor popover — a small floating card, not a full modal
+   overlay, so the timeline stays visible/scrollable behind it (Task 2/3's own "review, adjust"
+   flow doesn't need to block the rest of the view the way a real modal would). */
+.schedule-editor-popover {
+  position: absolute;
+  left: 56px;
+  width: 240px;
+  z-index: 5;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-accent);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: var(--bloom-shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: default;
+}
+.schedule-editor-title-input {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 14px;
+  font-weight: 600;
   border: 1px solid var(--bloom-card-border);
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 6px 8px;
   background: var(--bloom-bg);
   color: var(--bloom-ink);
 }
+.schedule-editor-row { display: flex; align-items: center; gap: 6px; }
+.schedule-editor-row input[type="time"] {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 6px;
+  padding: 4px 5px;
+  background: var(--bloom-bg);
+  color: var(--bloom-ink);
+  flex: 1;
+  min-width: 0;
+}
+.schedule-editor-row span { color: var(--bloom-ink-soft); }
+.schedule-editor-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.schedule-editor-actions .remove-btn { margin-right: auto; padding: 6px 8px; font-size: 11.5px; }
 
 /* The AI-proposed full-day schedule review panel — a distinct --bloom-ai accent (this app's
    established "AI-suggested content" color, see the AI-suggested spine-node section elsewhere in
@@ -2733,8 +2880,8 @@ button.card.passed:hover {
 .schedule-proposal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
 @media (max-width: 640px) {
-  .daily-schedule-block-time { min-width: 0; }
-  .daily-schedule-block { flex-wrap: wrap; }
+  .schedule-timeline-block-time { display: none; }
+  .schedule-editor-popover { left: 8px; right: 8px; width: auto; }
 }
 
 /* A sibling of .roadmap-viewport, not a child — keeps button clicks from being swallowed by the

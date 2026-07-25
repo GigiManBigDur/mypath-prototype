@@ -6308,6 +6308,144 @@ something is due.**
   unrelated to this feature, not regressions it introduced. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20, unaffected — this feature never opens `roadmapLayout.js`) all stay clean.
 
+**Daily Schedule: Google Calendar-Style Timeline — redesigns the committed-schedule area from a
+flat list into a real vertical, all-hours-visible timeline (click-to-create, drag-to-resize),
+matching the familiar Google Calendar day-view pattern. Deliberately a pure layout/interaction
+change: `state.dailySchedules`'s own shape, the AI-assist request/accept/reject flow, and the
+real-task-linkage mechanism (`linkedTaskId` -> `completedNodes`) are all completely untouched —
+`api/suggest-schedule.js`, `dailyScheduleSuggestions.js`, `Roadmap.jsx`, and `AppContext.jsx` were
+not touched at all this pass; every change is scoped to `DailyScheduleView.jsx` and its own CSS.**
+- **Task 1 — a real vertical timeline.** `HOUR_HEIGHT = 60` establishes a deliberate 1px === 1
+  minute scale, which is what keeps every geometry calculation (click position -> time, resize
+  drag -> duration, block `top`/`height`) a plain integer operation with no separate scale factor
+  to keep in sync between JS and CSS. All 24 hours render as absolutely-positioned rows (`12 AM`
+  through `11 PM`) inside a `TOTAL_MINUTES` (1440px)-tall `.schedule-timeline-inner`, with lighter
+  dashed half-hour lines and a live "now" indicator (only when `isViewingToday`) that advances via
+  the shared `useRealTimeTick()` hook (Real-Time Tracking's own established 60s re-render-nudge
+  convention, reused rather than a bespoke interval) — the same shared "what day is it" resolver
+  (`getEffectiveToday(state.dateOverride)`) every other today-aware feature in this app already
+  uses still gates which day counts as "today" for this indicator's own real device-clock minute,
+  keeping it consistent with an active testing date-override.
+- **Task 2 — click-to-create with an exact default 1-hour duration.** Clicking the timeline's own
+  background (any child of `.schedule-timeline-inner` that isn't a block, which stop-propagates
+  its own click) computes the exact clicked time via `getBoundingClientRect()` + `e.clientY`,
+  snapped to the nearest `SNAP_MINUTES` (15), and IMMEDIATELY commits a new real block to
+  `state.dailySchedules` — matching the task's own literal "clicking creates a block," not a draft
+  awaiting a separate save step, the same way a real calendar's own click-to-create behaves. The
+  block starts with a placeholder title (`'New Block'`) and opens the editor popover with that
+  title pre-selected (autofocus + `e.target.select()`), so renaming is the very next natural
+  action rather than a second explicit step.
+- **Task 3 — adjustable duration, two ways, both fully independent.** A dedicated resize handle
+  (`.schedule-timeline-resize-handle`, a thin strip at the block's own bottom edge) drives a real
+  pointer-capture drag: unlike `Roadmap.jsx`'s own canvas pan (which has to defer
+  `setPointerCapture` past a drag threshold specifically to avoid swallowing plain node clicks —
+  see that file's own documented landmine), this handle is dedicated to resizing ONLY, so it can
+  safely call `setPointerCapture` immediately on `pointerdown` with zero click-vs-drag ambiguity to
+  resolve. A local `resize` state (`{ id, startMin, currentEndMin }`) drives LIVE visual feedback
+  during the drag (the block's own rendered height updates every `pointermove`, snapped to 15-min
+  increments and clamped to a `MIN_DURATION_MINUTES` (15) floor from the start time); the real
+  `endTime` only commits to `state.dailySchedules` once, on `pointerup` — the same "buffer locally,
+  commit once" trade this codebase's other interactive editors already favor, avoiding a flood of
+  intermediate localStorage writes mid-drag. Separately, the SAME editor popover used for creation
+  also opens for any EXISTING block (via its own pencil icon, or by clicking an UNLINKED block's
+  body directly) with real, directly-editable start/end `<input type="time">` fields — Task 3's own
+  explicit "or editing the end time directly" — letting either method adjust a block's own length
+  after the fact, completely independently of the other.
+- **Task 4 — AI-suggested, manual, and task-linked blocks all render/behave identically within
+  the new layout, verified directly rather than assumed.** The AI-assist request/review flow
+  (`askAiToPlan`/`updateProposalBlock`/`acceptProposal`/`rejectProposal`) is byte-for-byte
+  unchanged — still a flat, directly-editable review list before commit, since that's a temporary
+  decision surface, not "the schedule" itself; once accepted, its blocks land in the exact same
+  `state.dailySchedules` shape a manually-created or timeline-clicked block does, so they render as
+  ordinary timeline blocks with zero special-casing. A block's own `linkedTaskId` (nullable) still
+  drives LIVE-derived completion from `state.completedNodes[linkedTaskId]` (never a second,
+  independently-tracked flag) — clicking a LINKED block's body opens the real task's own detail
+  modal (`onOpenTask`, unchanged), while its own dedicated pencil icon still opens the schedule
+  editor for adjusting ITS OWN time/title, preserving both interactions the flat-list version
+  already had. A deliberate, additive-only interval-graph-coloring layout
+  (`layoutWithColumns` — the same "closed-form column assignment for genuinely overlapping
+  intervals" technique, purpose-built for this file, not reused from elsewhere) renders any two
+  time-overlapping blocks side-by-side via percentage-based `left`/`width` splits within a shared
+  `.schedule-timeline-blocks-area`, rather than stacking them unclickably on top of each other — a
+  real, if secondary, robustness addition beyond the task's own explicit scope, since click-to-
+  create's own hit-testing (a click on empty background vs. an existing block) would otherwise make
+  a fully-occupied time slot impossible to add a second, genuinely overlapping block onto via a
+  direct click (reachable instead via the "+ Add Time Block" button, a due-task chip, or an AI
+  proposal, none of which depend on clicking a specific empty pixel).
+- **A real, confirmed layout bug was found and fixed while building this — not a cosmetic tweak,
+  a genuine unclickable-button defect caught via direct Playwright reproduction before being
+  trusted as fixed.** The first implementation gave `.schedule-timeline-wrap` its OWN nested
+  `overflow-y: auto` scroll region (a natural first instinct for "a tall timeline that needs to
+  scroll") — this turned out to be fundamentally incompatible with `Roadmap.jsx`'s own floating
+  bottom panel (`.roadmap-panel`), which is a SIBLING of `.roadmap-viewport-wrap`, `position:
+  absolute` relative to `.roadmap-fullscreen-root`, occupying a FIXED region of the real viewport
+  regardless of how far ANY descendant scroll container is scrolled — scrolling only ever moves
+  CONTENT, never the panel itself. A block/popover whose position happened to land in the nested
+  wrap's own bottom ~60-80px stayed PERMANENTLY covered by the panel, confirmed directly: Playwright
+  `locator.click()` on a real Save button timed out after 30s of retries, every attempt reporting
+  `.roadmap-panel` (or its own `.roadmap-panel-content` child) as intercepting the click — regardless
+  of scroll position, since the nested container's OWN on-screen box never moved, only its internal
+  content did. **Fixed by removing the nested scroll entirely** — the timeline now participates in
+  the SAME outer `.roadmap-digest-wrap` scroll "This Week" already uses (the one mechanism in this
+  app already confirmed to correctly reveal content past the panel, since scrolling THAT ancestor
+  genuinely moves everything, including where the timeline itself sits, relative to the panel's own
+  fixed position), with `.daily-schedule-wrap` given a deliberate `padding-bottom: 300px` — real
+  scroll "runway," not visual spacing — ensuring even the timeline's own last hour (or a popover
+  anchored near it) has enough room to be scrolled clear of the panel's fixed footprint before
+  hitting the natural end of the scrollable content.
+- **A second, independent bug in the SAME area was found and fixed during the same investigation**:
+  once padding-bottom was added, `.roadmap-digest-wrap`'s own flex layout (`display: flex;
+  justify-content: center;`, no explicit `flex-direction`, defaulting to `row` with the OFF-axis
+  default `align-items: stretch`) was silently CLAMPING `.daily-schedule-wrap`'s own rendered height
+  to the container's cross-size (measured directly: 882px rendered vs. its real ~1628px worth of
+  content, including the new padding) — meaning the added padding was computed correctly by CSS
+  (`getComputedStyle` confirmed `padding-bottom: 520px` was genuinely applied) but never actually
+  extended the ELEMENT's own rendered box, so the ancestor's own `scrollHeight` never grew to
+  provide the intended runway either. **`align-self: flex-start` on `.daily-schedule-wrap`** is the
+  actual fix — makes this ONE flex item size to its own real content height instead of stretching to
+  the container's cross-size, confirmed directly afterward (`dailyScheduleWrapHeight ===
+  dailyScheduleWrapScrollHeight`, both correctly reflecting the full real content including padding)
+  before the padding-bottom value itself was reduced back down to a real, no-longer-compensating-
+  for-a-different-bug 300px.
+- Verified two ways. A dedicated Node-level test (`api/suggest-schedule.js`'s own server logic,
+  mocking `global.fetch`) — unchanged from before this pass, confirming the AI-assist backend itself
+  needed zero changes for this redesign. A 34-check Playwright suite covers all 4 tasks end-to-end
+  against the real UI: all 24 hour labels render with correct AM/PM formatting and the page is
+  genuinely scrollable to reveal them; clicking at a computed, exact pixel offset creates a block at
+  EXACTLY that time (verified against real state, not just visual position) with the correct default
+  1-hour duration, confirmed at two different times (not a one-off fluke) and confirmed the editor
+  auto-opens pre-selected; dragging the resize handle both down (extend to a real, confirmed new
+  `endTime`) and back up (shrink, confirmed correctly) both commit real state changes, with the
+  block's own rendered height reflecting the new duration; directly editing the end-time field in
+  the popover also commits a real, correct `endTime`; a mocked AI-accepted schedule renders as real
+  timeline blocks at the correct pixel offset, stored in the identical `dailySchedules` shape; a
+  real due-today custom task's own linked block shows the linked icon, and toggling its checkbox
+  writes to the shared `completedNodes` map (confirmed by then checking "This Week" and seeing the
+  same task correctly drop out of that list); and two deliberately-overlapping seeded blocks render
+  side-by-side with zero horizontal pixel overlap, confirmed via real `getBoundingClientRect()`
+  comparison. **Two real, confirmed bugs surfaced and were fixed WHILE building the test suite
+  itself, not just the app** — worth documenting since both are easy to reintroduce when writing
+  future tests against this same screen: (1) `new Date().toISOString().slice(0, 10)` is UTC-based
+  and returned the WRONG calendar day in this development environment (Eastern time, evening),
+  silently causing every state assertion keyed by "today" to look up an empty/undefined value —
+  the app's own `toDateInputValue()` (`utils/dates.js`) uses local date components, and any test
+  computing "today" for a `dailySchedules`/similar lookup key must match that exactly, not
+  `toISOString()`; (2) a raw `page.mouse.click(x, y)` computed from a fixed `boundingBox()` +
+  minutes offset only reliably lands on a genuinely EARLY-day target (comfortably above where the
+  floating panel sits) — for interacting with an element that could be positioned later in the day
+  (the resize handle after a block has grown, a popover created via a "current time"-based default),
+  use the real Playwright `locator.scrollIntoViewIfNeeded()` method instead of a manual `scrollTop`
+  reset, since it correctly determines which DIRECTION to scroll (this timeline's own targets can
+  legitimately need scrolling DOWN, not just up, to clear the panel — a manual reset-to-0 only ever
+  helps the latter case). The full pre-existing regression suite (the same 39 files from the prior
+  Weekly Digest work) was re-run in full; the same 4 pre-existing failures already independently
+  confirmed via `git stash` to predate this session's work reappeared identically, plus one
+  additional, already-flaky, unrelated mascot-animation-timing check
+  (`test-ai-chat.js`'s own "shared mascot instance animates speaking" assertion) that passed cleanly
+  on an immediate re-run with zero code changes, confirming it as timing flakiness, not a
+  regression. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20, unaffected — this
+  pass never opens `roadmapLayout.js`) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

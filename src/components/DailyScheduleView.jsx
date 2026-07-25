@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, Plus, Trash2, Pencil, Link2, Circle, CheckCircle2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChevronLeft, ChevronRight, Sparkles, Plus, Trash2, Pencil, Link2, Circle, CheckCircle2,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
   getEffectiveToday, toDateInputValue, realAddDays, realDaysBetween, formatDateWithYear,
@@ -7,6 +9,7 @@ import {
 import { makeTaskId } from '../utils/ids';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestScheduleSuggestion } from '../utils/dailyScheduleSuggestions';
+import useRealTimeTick from '../hooks/useRealTimeTick';
 
 function formatTimeLabel(hhmm) {
   const [hStr, m] = hhmm.split(':');
@@ -16,12 +19,85 @@ function formatTimeLabel(hhmm) {
   return `${h12}:${m} ${period}`;
 }
 
+// Daily Schedule: Google Calendar-Style Timeline (see CLAUDE.md) — the layout/interaction primitives
+// the vertical timeline is built on. 1px === 1 minute at HOUR_HEIGHT=60, which is what makes every
+// pixel<->time conversion below a plain integer operation with no separate scale factor to track.
+const HOUR_HEIGHT = 60;
+const TOTAL_MINUTES = 24 * 60;
+const SNAP_MINUTES = 15;
+const DEFAULT_DURATION_MINUTES = 60;
+const MIN_DURATION_MINUTES = 15;
+const MIN_BLOCK_PX = 20;
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+function formatHourLabel(hour) {
+  if (hour === 0) return '12 AM';
+  if (hour === 12) return '12 PM';
+  return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
+}
+function hhmmToMinutes(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+function minutesToHHMM(mins) {
+  const clamped = Math.max(0, Math.min(1439, Math.round(mins)));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function snapMinutes(mins) {
+  const snapped = Math.round(mins / SNAP_MINUTES) * SNAP_MINUTES;
+  return Math.max(0, Math.min(1439, snapped));
+}
+
+// Simple interval-graph-coloring layout so genuinely overlapping blocks render side-by-side
+// (matching the same pattern a real calendar view uses) instead of stacking directly on top of
+// each other, which would make both unclickable/unreadable. Purely a rendering-position concern —
+// it never touches the blocks' own real startTime/endTime data, only computes a `col`/`cols` pair
+// per block for this one render pass.
+function layoutWithColumns(blocksWithMinutes) {
+  const sorted = [...blocksWithMinutes].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+  const active = [];
+  let currentGroup = [];
+  const result = [];
+  const closeGroup = () => {
+    if (currentGroup.length === 0) return;
+    const maxCol = Math.max(...currentGroup.map((b) => b.col)) + 1;
+    currentGroup.forEach((b) => { b.cols = maxCol; });
+    result.push(...currentGroup);
+    currentGroup = [];
+  };
+  sorted.forEach((block) => {
+    for (let i = active.length - 1; i >= 0; i -= 1) {
+      if (active[i].endMin <= block.startMin) active.splice(i, 1);
+    }
+    if (active.length === 0) closeGroup();
+    const usedCols = new Set(active.map((a) => a.col));
+    let col = 0;
+    while (usedCols.has(col)) col += 1;
+    active.push({ endMin: block.endMin, col });
+    currentGroup.push({ ...block, col, cols: 1 });
+  });
+  closeGroup();
+  return result;
+}
+
+function defaultCreateMinutes(isViewingToday) {
+  if (isViewingToday) return snapMinutes(new Date().getHours() * 60 + new Date().getMinutes());
+  return 9 * 60;
+}
+
 // Add a Daily Schedule Feature (AI-Assisted + Fully Manual) (see CLAUDE.md) — the third Academic
 // Plan view alongside the spatial "Roadmap" and the flat "This Week" digest, all three reachable
 // from the same `.roadmap-view-toggle` (Roadmap.jsx). Unlike those two (which only ever deal with
-// WHICH DAY something is due), this one deals with TIME OF DAY within one single day — a genuinely
-// new dimension, rendered as a plain sorted list of time blocks (Task 1's own "a list of time
-// slots... rather than the spatial spine/branch visual").
+// WHICH DAY something is due), this one deals with TIME OF DAY within one single day.
+//
+// Daily Schedule: Google Calendar-Style Timeline (see CLAUDE.md) redesigned the committed-schedule
+// area from a flat list into a real vertical timeline — a familiar Google Calendar day-view
+// pattern (all-hours-visible, click-to-create, drag-to-resize) — but this is deliberately a pure
+// layout/interaction change: `state.dailySchedules`'s own shape, the AI-assist request/accept/
+// reject flow, and the real-task-linkage mechanism (`linkedTaskId` -> `completedNodes`) are all
+// completely untouched. Only HOW committed blocks are displayed and created changed.
 //
 // Receives `flatPlanItems`/`isDone`/`toggleDone`/`onOpenTask` from Roadmap.jsx (the exact same
 // flattened spine+branch-steps array `digestGroups` already reads, and the exact same completion
@@ -29,7 +105,7 @@ function formatTimeLabel(hhmm) {
 // this is what guarantees Task 4's "same shared task data" requirement structurally, not just by
 // convention. Otherwise self-contained: reads `useApp()` directly for its own state
 // (`dailySchedules`/`pendingDailySchedule`) and owns its own local UI state (which day is being
-// viewed, the manual add/edit forms, the AI request's loading flag).
+// viewed, the timeline editor popover, the in-progress resize drag, the AI request's loading flag).
 export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, onOpenTask }) {
   const { state, patch } = useApp();
   const todayDate = getEffectiveToday(state.dateOverride);
@@ -38,15 +114,24 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   const isViewingToday = dateKey === toDateInputValue(todayDate);
 
   const [aiLoading, setAiLoading] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [draft, setDraft] = useState({ title: '', startTime: '', endTime: '', linkedTaskId: null });
-  const [editingId, setEditingId] = useState(null);
-  const [editDraft, setEditDraft] = useState({ title: '', startTime: '', endTime: '' });
+  const [editor, setEditor] = useState(null); // { id, isNew, title, startTime, endTime, linkedTaskId, anchorTop, popoverTop }
+  const [resize, setResize] = useState(null); // { id, startMin, currentEndMin }
+  const timelineRef = useRef(null);
+  const initialScrollTargetRef = useRef(null);
+  const editorPopoverRef = useRef(null);
 
   const dailySchedules = state.dailySchedules || {};
   const blocks = (dailySchedules[dateKey] || []).slice().sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
   const pending = state.pendingDailySchedule;
   const hasPendingForThisDay = pending && pending.date === dateKey;
+
+  // Live "now" line — recomputed every 60s via the shared tick hook (Real-Time Tracking's own
+  // established re-render-nudge convention), rather than a bespoke interval here.
+  const tick = useRealTimeTick();
+  const nowMinutes = useMemo(() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }, [tick]);
 
   // Task 1 — real tasks/opportunities actually due THIS day, pulled from the exact same flattened
   // task data "This Week" already reads (`flatPlanItems`, passed down from Roadmap.jsx's own
@@ -58,8 +143,45 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
     realDaysBetween(item.date, selectedDate) === 0 && !isDone(item.id) && !linkedIdsToday.has(item.id)
   ));
 
-  const goToDay = (offset) => setSelectedDate((d) => realAddDays(d, offset));
-  const goToToday = () => setSelectedDate(todayDate);
+  const laidOutBlocks = useMemo(() => {
+    const withMinutes = blocks.map((b) => ({
+      ...b, startMin: hhmmToMinutes(b.startTime), endMin: hhmmToMinutes(b.endTime),
+    }));
+    return layoutWithColumns(withMinutes);
+  }, [blocks]);
+
+  const goToDay = (offset) => { setSelectedDate((d) => realAddDays(d, offset)); setEditor(null); };
+  const goToToday = () => { setSelectedDate(todayDate); setEditor(null); };
+
+  // Task 1 (auto-scroll) — a fresh visit to a day scrolls near "now" if it's today (the same
+  // reasonable default a real calendar day view starts at), or a plain 7 AM otherwise, so the
+  // student doesn't land staring at midnight every time. Uses a real `scrollIntoView()` on a tiny
+  // invisible marker (`initialScrollTargetRef`) positioned at the target minute, rather than
+  // manually computing/setting a `scrollTop` on some specific ancestor — this timeline has no
+  // scroll container of its own (see `.schedule-timeline-wrap`'s own comment for why: the floating
+  // bottom panel occupies a fixed region of the real viewport that no amount of scrolling a NESTED
+  // container could ever clear), so the actual scrolling ancestor is `.roadmap-digest-wrap`, and
+  // `scrollIntoView()` walks up through however many real scrollable ancestors exist automatically
+  // rather than this component needing to know which one that is.
+  useEffect(() => {
+    initialScrollTargetRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateKey]);
+
+  // Opening the editor (via a timeline click, or the pencil icon on an existing block) scrolls it
+  // into view the same real way — same reasoning as above, plus this is what actually fixed a real,
+  // confirmed bug: a manually-computed nested-scroll version of this left a just-created block's
+  // own Save button permanently covered by the floating bottom panel whenever it landed in the
+  // wrap's own bottom ~60-80px, no matter how far it was "scrolled" internally (confirmed directly
+  // via Playwright: `locator.click()` timed out with `.roadmap-panel` reported as intercepting the
+  // click, on every retry). Deliberately keyed on the editor's own id, not the whole object — the
+  // popover doesn't move while its own fields are being typed into, so re-running this on every
+  // keystroke would just fight any scrolling the student does while it stays open for the SAME
+  // block.
+  useEffect(() => {
+    editorPopoverRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor?.id]);
 
   const isBlockDone = (block) => (block.linkedTaskId ? isDone(block.linkedTaskId) : !!block.completed);
 
@@ -75,48 +197,99 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   const removeBlock = (id) => {
     const nextDayBlocks = (dailySchedules[dateKey] || []).filter((b) => b.id !== id);
     patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
+    setEditor((ed) => (ed && ed.id === id ? null : ed));
   };
 
-  const startEdit = (block) => {
-    setEditingId(block.id);
-    setEditDraft({ title: block.title, startTime: block.startTime, endTime: block.endTime });
-  };
-  const saveEdit = () => {
-    if (!editDraft.title.trim() || !editDraft.startTime || !editDraft.endTime) return;
-    const nextDayBlocks = (dailySchedules[dateKey] || []).map((b) => (b.id === editingId
-      ? { ...b, title: editDraft.title.trim(), startTime: editDraft.startTime, endTime: editDraft.endTime }
-      : b));
-    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
-    setEditingId(null);
-  };
-
-  // Task 3 — fully manual, independent of AI. `openAddForm` is called two ways: blank (the "+ Add
-  // Time Block" button) or pre-filled from a real due-task reference (Task 1's own "starting
-  // reference," which doubles as the easiest way to create a real Task 4 linkage).
-  const openAddForm = (prefill) => {
-    setDraft(prefill || { title: '', startTime: '', endTime: '', linkedTaskId: null });
-    setShowAddForm(true);
-  };
-  const submitAdd = () => {
-    if (!draft.title.trim() || !draft.startTime || !draft.endTime) return;
+  // Task 2 — click-to-create with a default 1-hour duration. Clicking the timeline's own
+  // background (not an existing block, which stops propagation on its own click) immediately
+  // commits a new real block starting at the exact clicked (snapped-to-15-min) time — matching
+  // the task's own literal "clicking creates a block," not a draft awaiting a separate save step —
+  // then opens the editor popover, pre-selected, so the student can rename it right away.
+  const createBlockAt = (minutes, prefill = {}) => {
+    const startTime = minutesToHHMM(minutes);
+    const endTime = minutesToHHMM(Math.min(minutes + DEFAULT_DURATION_MINUTES, 1439));
     const newBlock = {
       id: makeTaskId('schedule-block'),
-      title: draft.title.trim(),
-      startTime: draft.startTime,
-      endTime: draft.endTime,
-      linkedTaskId: draft.linkedTaskId || null,
+      title: prefill.title || 'New Block',
+      startTime,
+      endTime,
+      linkedTaskId: prefill.linkedTaskId || null,
       completed: false,
     };
     patch({ dailySchedules: { ...dailySchedules, [dateKey]: [...(dailySchedules[dateKey] || []), newBlock] } });
-    setShowAddForm(false);
-    setDraft({ title: '', startTime: '', endTime: '', linkedTaskId: null });
+    setEditor({
+      id: newBlock.id, isNew: true, title: newBlock.title, startTime, endTime,
+      linkedTaskId: newBlock.linkedTaskId, anchorTop: minutes, popoverTop: hhmmToMinutes(endTime) + 6,
+    });
+  };
+
+  const handleTimelineClick = (e) => {
+    // A click while the editor is open just closes it (discarding any uncommitted local edits —
+    // the block itself, already real, is untouched) rather than also creating a second block in
+    // the same click; a later click can then create a new one.
+    if (editor) { setEditor(null); return; }
+    const rect = timelineRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    createBlockAt(snapMinutes(y));
+  };
+
+  const openEditorFor = (block) => {
+    setEditor({
+      id: block.id, isNew: false, title: block.title, startTime: block.startTime, endTime: block.endTime,
+      linkedTaskId: block.linkedTaskId,
+      anchorTop: hhmmToMinutes(block.startTime),
+      popoverTop: hhmmToMinutes(block.endTime) + 6,
+    });
+  };
+
+  // Task 3 — adjustable duration after creation, two ways: (1) editing the end time (or start
+  // time) directly in the popover below, or (2) dragging the block's own bottom edge.
+  const saveEditor = () => {
+    if (!editor) return;
+    if (!editor.title.trim() || !editor.startTime || !editor.endTime || editor.endTime <= editor.startTime) return;
+    const nextDayBlocks = (dailySchedules[dateKey] || []).map((b) => (b.id === editor.id
+      ? { ...b, title: editor.title.trim(), startTime: editor.startTime, endTime: editor.endTime }
+      : b));
+    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
+    setEditor(null);
+  };
+  const deleteEditorBlock = () => { if (editor) removeBlock(editor.id); };
+  const closeEditor = () => setEditor(null);
+
+  // Drag-to-resize the bottom edge. A dedicated handle (not the block body itself) can safely
+  // call setPointerCapture immediately on pointerdown — unlike Roadmap.jsx's own canvas pan (which
+  // has to defer capture past a drag threshold to avoid swallowing plain node clicks), this handle
+  // has no OTHER click meaning to protect, so there's no ambiguity to resolve.
+  const startResize = (e, block) => {
+    e.stopPropagation();
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setResize({ id: block.id, startMin: block.startMin, currentEndMin: block.endMin });
+  };
+  const onResizeMove = (e) => {
+    if (!resize) return;
+    e.stopPropagation();
+    const rect = timelineRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const snapped = snapMinutes(y);
+    const clamped = Math.max(resize.startMin + MIN_DURATION_MINUTES, Math.min(1439, snapped));
+    setResize((r) => (r ? { ...r, currentEndMin: clamped } : r));
+  };
+  const onResizeEnd = (e) => {
+    if (!resize) return;
+    e.stopPropagation();
+    const finalEndTime = minutesToHHMM(resize.currentEndMin);
+    const nextDayBlocks = (dailySchedules[dateKey] || []).map((b) => (b.id === resize.id ? { ...b, endTime: finalEndTime } : b));
+    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
+    setResize(null);
   };
 
   // Task 2 — explicit, opt-in AI assist. Never fires automatically; only ever in direct response
   // to this button. `dueTasks` are sent with their real `id`/`title` so the server can set a
   // proposal block's own `linkedTaskId` to a REAL id, never an invented one (see
   // api/suggest-schedule.js's own validateProposal, which falls back to null for anything that
-  // doesn't match one of these exact ids).
+  // doesn't match one of these exact ids). Unchanged by the timeline redesign — still a flat,
+  // directly-editable review list, since it's a temporary decision surface, not "the schedule."
   const askAiToPlan = () => {
     setAiLoading(true);
     const profileSummary = compileSuggestionProfile(state, null);
@@ -249,7 +422,7 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
                     <button
                       type="button"
                       className="daily-schedule-due-add-btn"
-                      onClick={() => openAddForm({ title: item.title, startTime: '', endTime: '', linkedTaskId: item.id })}
+                      onClick={() => createBlockAt(defaultCreateMinutes(isViewingToday), { title: item.title, linkedTaskId: item.id })}
                       title="Add a time block for this"
                     >
                       <Plus size={13} />
@@ -260,96 +433,141 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
             </div>
           )}
 
-          <div className="daily-schedule-list">
-            {blocks.length === 0 && !showAddForm && (
-              <p className="field-hint" style={{ margin: '8px 0 16px' }}>
-                No time blocks yet for this day — add one manually below, or ask AI to help plan it.
-              </p>
-            )}
-            {blocks.map((block) => (
-              <div className={`daily-schedule-block${isBlockDone(block) ? ' done' : ''}`} key={block.id}>
-                {editingId === block.id ? (
-                  <div className="schedule-block-edit-row">
-                    <input
-                      type="time"
-                      value={editDraft.startTime}
-                      onChange={(e) => setEditDraft((d) => ({ ...d, startTime: e.target.value }))}
-                    />
-                    <input
-                      type="time"
-                      value={editDraft.endTime}
-                      onChange={(e) => setEditDraft((d) => ({ ...d, endTime: e.target.value }))}
-                    />
-                    <input
-                      type="text"
-                      value={editDraft.title}
-                      onChange={(e) => setEditDraft((d) => ({ ...d, title: e.target.value }))}
-                    />
-                    <button type="button" className="btn btn-ghost" onClick={() => setEditingId(null)}>Cancel</button>
-                    <button type="button" className="btn btn-primary" onClick={saveEdit}>Save</button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="daily-schedule-block-checkbox"
-                      onClick={() => toggleBlockDone(block)}
-                      aria-label={isBlockDone(block) ? 'Mark incomplete' : 'Mark complete'}
-                    >
-                      {isBlockDone(block) ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-                    </button>
-                    <div className="daily-schedule-block-time">
-                      {formatTimeLabel(block.startTime)}–{formatTimeLabel(block.endTime)}
-                    </div>
-                    <button
-                      type="button"
-                      className="daily-schedule-block-title"
-                      onClick={() => (block.linkedTaskId ? onOpenTask(block.linkedTaskId) : null)}
-                      disabled={!block.linkedTaskId}
-                    >
-                      {block.title}
-                      {block.linkedTaskId && <Link2 size={12} className="schedule-block-linked-icon" />}
-                    </button>
-                    <div className="daily-schedule-block-actions">
-                      <button type="button" className="prior-exp-edit-btn" onClick={() => startEdit(block)} aria-label="Edit">
-                        <Pencil size={13} />
-                      </button>
-                      <button type="button" className="remove-btn" onClick={() => removeBlock(block.id)} aria-label="Remove">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </>
+          <div className="schedule-timeline-wrap">
+            <div
+              className="schedule-timeline-inner"
+              ref={timelineRef}
+              style={{ height: TOTAL_MINUTES }}
+              onClick={handleTimelineClick}
+            >
+              <div
+                ref={initialScrollTargetRef}
+                className="schedule-timeline-scroll-anchor"
+                style={{ top: isViewingToday ? nowMinutes : 7 * HOUR_HEIGHT }}
+              />
+              {HOURS.map((h) => (
+                <div key={h} className="schedule-timeline-hour-row" style={{ top: h * HOUR_HEIGHT, height: HOUR_HEIGHT }}>
+                  <span className="schedule-timeline-hour-label">{formatHourLabel(h)}</span>
+                </div>
+              ))}
+              {HOURS.map((h) => (
+                <div key={`half-${h}`} className="schedule-timeline-halfhour-line" style={{ top: h * HOUR_HEIGHT + HOUR_HEIGHT / 2 }} />
+              ))}
+              {isViewingToday && (
+                <div className="schedule-timeline-now-line" style={{ top: nowMinutes }}>
+                  <span className="schedule-timeline-now-dot" />
+                </div>
+              )}
+
+              <div className="schedule-timeline-blocks-area">
+                {laidOutBlocks.length === 0 && (
+                  <p className="field-hint schedule-timeline-empty-hint">
+                    No time blocks yet — click anywhere on the timeline to add one, or ask AI to help plan it.
+                  </p>
                 )}
+                {laidOutBlocks.map((block) => {
+                  const isResizing = resize && resize.id === block.id;
+                  const endMin = isResizing ? resize.currentEndMin : block.endMin;
+                  const heightPx = Math.max(endMin - block.startMin, MIN_BLOCK_PX);
+                  const leftPct = (block.col / block.cols) * 100;
+                  const widthPct = (1 / block.cols) * 100;
+                  return (
+                    <div
+                      key={block.id}
+                      className={`schedule-timeline-block${isBlockDone(block) ? ' done' : ''}${isResizing ? ' resizing' : ''}`}
+                      style={{
+                        top: block.startMin, height: heightPx,
+                        left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (block.linkedTaskId) onOpenTask(block.linkedTaskId);
+                        else openEditorFor(block);
+                      }}
+                    >
+                      <div className="schedule-timeline-block-top">
+                        <button
+                          type="button"
+                          className="schedule-timeline-block-checkbox"
+                          onClick={(e) => { e.stopPropagation(); toggleBlockDone(block); }}
+                          aria-label={isBlockDone(block) ? 'Mark incomplete' : 'Mark complete'}
+                        >
+                          {isBlockDone(block) ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+                        </button>
+                        <span className="schedule-timeline-block-time">
+                          {formatTimeLabel(block.startTime)}–{formatTimeLabel(minutesToHHMM(endMin))}
+                        </span>
+                        <div className="schedule-timeline-block-actions">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); openEditorFor(block); }} aria-label="Edit block">
+                            <Pencil size={11} />
+                          </button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); removeBlock(block.id); }} aria-label="Remove block">
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="schedule-timeline-block-title">
+                        {block.title}
+                        {block.linkedTaskId && <Link2 size={11} className="schedule-block-linked-icon" />}
+                      </div>
+                      <div
+                        className="schedule-timeline-resize-handle"
+                        onPointerDown={(e) => startResize(e, block)}
+                        onPointerMove={onResizeMove}
+                        onPointerUp={onResizeEnd}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+
+              {editor && (
+                <div ref={editorPopoverRef} className="schedule-editor-popover" style={{ top: editor.popoverTop }} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    className="schedule-editor-title-input"
+                    value={editor.title}
+                    autoFocus
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEditor((ed) => ({ ...ed, title: e.target.value }))}
+                    placeholder="Block title"
+                  />
+                  <div className="schedule-editor-row">
+                    <input
+                      type="time"
+                      value={editor.startTime}
+                      onChange={(e) => setEditor((ed) => ({ ...ed, startTime: e.target.value }))}
+                    />
+                    <span>–</span>
+                    <input
+                      type="time"
+                      value={editor.endTime}
+                      onChange={(e) => setEditor((ed) => ({ ...ed, endTime: e.target.value }))}
+                    />
+                  </div>
+                  {editor.linkedTaskId && (
+                    <span className="schedule-block-linked-tag"><Link2 size={11} /> Linked to a real task</span>
+                  )}
+                  <div className="schedule-editor-actions">
+                    <button type="button" className="remove-btn" onClick={deleteEditorBlock}>
+                      <Trash2 size={13} /> Delete
+                    </button>
+                    <button type="button" className="btn btn-ghost" onClick={closeEditor}>Close</button>
+                    <button type="button" className="btn btn-primary" onClick={saveEditor}>Save</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {showAddForm ? (
-            <div className="schedule-add-form">
-              <input
-                type="time"
-                value={draft.startTime}
-                onChange={(e) => setDraft((d) => ({ ...d, startTime: e.target.value }))}
-              />
-              <input
-                type="time"
-                value={draft.endTime}
-                onChange={(e) => setDraft((d) => ({ ...d, endTime: e.target.value }))}
-              />
-              <input
-                type="text"
-                placeholder="e.g. Robotics Club"
-                value={draft.title}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-              />
-              <button type="button" className="btn btn-ghost" onClick={() => setShowAddForm(false)}>Cancel</button>
-              <button type="button" className="btn btn-primary" onClick={submitAdd}>Add block</button>
-            </div>
-          ) : (
-            <button type="button" className="btn btn-ghost daily-schedule-add-btn" onClick={() => openAddForm(null)}>
-              <Plus size={14} /> Add Time Block
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn btn-ghost daily-schedule-add-btn"
+            onClick={() => createBlockAt(defaultCreateMinutes(isViewingToday))}
+          >
+            <Plus size={14} /> Add Time Block
+          </button>
         </>
       )}
     </div>
