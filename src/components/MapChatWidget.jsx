@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { useApp } from '../context/AppContext';
 import MascotIcon from './MascotIcon';
 import ChatConversation from './ChatConversation';
 import ChatTaskConfirmFooter from './ChatTaskConfirmFooter';
 import { useHubChat } from '../hooks/useHubChat';
-import { useMascotSpeech } from '../hooks/useMascotSpeech';
+import { stopSpeaking } from '../utils/speech';
 
 // Add a Small Embedded AI Chat Widget to Map 2 (see CLAUDE.md) — a compact, collapsed-by-default
 // entry point into the SAME conversation the hub's own "Ask MyPath AI anything" feature already
@@ -24,23 +23,27 @@ import { useMascotSpeech } from '../hooks/useMascotSpeech';
 // pointer-events, giving a smooth expand-from-the-corner/collapse-back-down animation without
 // needing an unmount-after-fade mechanism (`useModalExit`) — there's nothing here that needs to
 // stop existing between opens, unlike a portaled overlay.
+//
+// Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md), Task 1 — voice for this
+// chat is no longer auto-triggered on a new reply, so the mascot icons here no longer animate off
+// an auto-speak signal; `ChatConversation` renders its own per-message Play/Stop button instead.
+// Since `ChatConversation` stays MOUNTED even while this widget is collapsed (only a CSS class
+// hides it), its own unmount-triggered `stopSpeaking()` would never fire on a plain collapse — so
+// `handleClose` calls the shared `stopSpeaking()` primitive directly, the same "don't let it keep
+// talking once hidden" posture this app already holds everywhere else.
 export default function MapChatWidget() {
-  const { state } = useApp();
   const [open, setOpen] = useState(false);
-  // The latest reply's text, fed to useMascotSpeech below — kept separate from `chatHistory` so
-  // speech only ever triggers on a genuinely NEW reply arriving, the same convention
-  // HubChatPanel/BuildYourOwnView's own mascot-speech wiring already established. `open ? ... :
-  // null` stops the audio immediately the instant the widget is collapsed — the same "dismissing
-  // is just an ordinary 'the current line went away' change" contract every other caller of this
-  // hook already relies on.
-  const [speakingText, setSpeakingText] = useState(null);
-  const isSpeaking = useMascotSpeech(open ? speakingText : null, state.voiceMuted);
 
   const {
-    chatHistory, loading, sendMessage, goToBuildYourOwn,
+    chatHistory, loading, sendMessage, editMessage, goToBuildYourOwn,
     pendingTask, pickingDate, dateInput, dateError,
     startPickingDate, updateDateInput, dismissPendingTask, finalizeAddTask,
-  } = useHubChat(setSpeakingText);
+  } = useHubChat();
+
+  const handleClose = () => {
+    stopSpeaking();
+    setOpen(false);
+  };
 
   return (
     <>
@@ -51,17 +54,17 @@ export default function MapChatWidget() {
         aria-label="Ask MyPath AI anything"
         title="Ask MyPath AI anything"
       >
-        <MascotIcon size={30} speaking={isSpeaking} />
+        <MascotIcon size={30} />
       </button>
 
       <div className={`map-chat-panel${open ? ' map-chat-panel-open' : ''}`} aria-hidden={!open}>
         <div className="map-chat-header">
-          <MascotIcon size={36} speaking={isSpeaking} />
+          <MascotIcon size={36} />
           <div className="map-chat-header-text">
             <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)', margin: 0 }}>MyPath AI</div>
             <h2 className="map-chat-title">Ask me anything</h2>
           </div>
-          <button type="button" className="map-chat-close" onClick={() => setOpen(false)} aria-label="Close chat">
+          <button type="button" className="map-chat-close" onClick={handleClose} aria-label="Close chat">
             <X size={16} />
           </button>
         </div>
@@ -70,6 +73,7 @@ export default function MapChatWidget() {
           messages={chatHistory}
           loading={loading}
           onSend={sendMessage}
+          onEditMessage={editMessage}
           emptyHint="Ask about your plan, or anything about MyPath."
           renderMessageExtra={(m) => m.intent === 'redirect_build_your_own' && (
             <div className="chat-redirect-action">

@@ -6524,6 +6524,144 @@ weekly AI suggestions (see "Fix: Weekly AI Suggestions Missing from the Roadmap"
   `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20, unaffected — this fix never opens
   `roadmapLayout.js`) all stay clean.
 
+**Opt-In Voice Per Message in Chat + Editable Messages — real tester feedback was that auto-
+playing voice on every open-ended chat reply left no clean way to just stop unwanted speech. Voice
+in chat is now opt-in per message via a small Play/Stop button; the guided tutorial's own
+auto-speak dialogue is completely untouched.** Every open-ended chat surface in this app (the
+hub's own "Ask MyPath AI anything," the Map 2 embedded widget, Build Your Own's project
+conversation, and the milestone-scoped planning chat) already renders its message list through one
+shared component, `ChatConversation.jsx` — so both new pieces of this fix (Task 1's Play/Stop
+button, Task 4's editable messages) were added there ONCE, not duplicated across the 4 callers,
+matching this codebase's own established "extract once, every caller reads the identical
+behavior" precedent.
+- **Task 1 — a real per-message Play/Stop toggle, using `speech.js`'s own `speak`/`stopSpeaking`
+  directly, not the `useMascotSpeech` hook.** That hook is purpose-built for "a dialogue line
+  arrived, auto-speak it once," keyed on the TEXT actually changing — a manual replay button needs
+  to re-trigger the SAME text on a second click after being stopped, which `useMascotSpeech`'s own
+  new-key detection would silently ignore, so this needed its own small, direct `togglePlay`
+  function instead. `playingIndex` (local `useState` — safe since at most one `ChatConversation` is
+  ever mounted at a time in this app's single-screen architecture) tracks which message's audio is
+  current; clicking a DIFFERENT message's Play button while one is already playing works for free,
+  since `speak()` already stops whatever was playing before starting the new one — the UI's own
+  `playingIndex` switching to the new index is what reverts the OLD button to "Play" without
+  needing that old message's own `onEnd` to ever fire (which it may not, since a manual
+  `audio.pause()` never dispatches a real `ended` event). Disabled (not hidden) while
+  `state.voiceMuted` (read directly via `useApp()` inside `ChatConversation.jsx`, the same "read
+  shared state directly, don't thread a new prop through every caller" convention `MascotWidget`'s
+  own `voiceMuted` read already established) — a real, honest reflection that the global mute is
+  "a full on/off for all audio anywhere" (Task 3), not a second, independent mute concept.
+- **A real, confirmed bug caught while testing this: `playingIndex` must only become the clicked
+  index once real playback GENUINELY begins (`onStart`, tied to the audio element's own `playing`
+  event), never optimistically at the moment the button is clicked.** The first draft called
+  `setPlayingIndex(index)` synchronously before ever calling `speak()`, so the button showed "Stop"
+  instantly regardless of whether the underlying audio actually started (a bad/unplayable clip, a
+  network error, an autoplay-policy block) — misleading, since a "Stop" button implies something is
+  genuinely audible right now. This is the exact same lesson `useMascotSpeech.js` already documents
+  for its own `isSpeaking` state ("unlike the old SpeechSynthesis version's own approach...
+  optimistically flipping this the instant `speak()` is CALLED... would desync the mouth/expression
+  animation from when the student can actually hear anything") — just never applied to this new,
+  separate control the first time it was written. Fixed by moving `setPlayingIndex(index)` into
+  `speak()`'s own `onStart` callback.
+- **Task 2 — the guided tutorial/onboarding mascot dialogue is a completely separate code path
+  that was never touched.** The hub's own pointing/greeting sequence (`HubScreen.jsx`) and every
+  screen's own in-flow `MascotWidget.jsx` dialogue never render through `ChatConversation` at all —
+  they call `useMascotSpeech` directly, unmodified by this fix, and keep auto-speaking exactly as
+  before. The one real, necessary change this fix made to `HubScreen.jsx`/`MapChatWidget.jsx` is
+  unrelated to the tutorial itself: since both components previously reported the LATEST assistant
+  reply upward (via an `onAssistantReply` callback / local `speakingText` state) purely so their own
+  hub-mascot/widget-mascot instance could auto-speak the chat's replies, and chat no longer
+  auto-speaks at all, that reporting mechanism was removed entirely — `useHubChat(onAssistantReply)`
+  became `useHubChat()` (no more callback param), `HubChatPanel`'s own `onAssistantReply` prop was
+  dropped, and `HubScreen.jsx`'s `chatSpeakingText`/`isChatSpeaking` state and `MascotIcon`'s
+  `speaking={isSpeaking || isChatSpeaking}` both collapsed back to plain `speaking={isSpeaking}` —
+  `isSpeaking` itself (driven by the guided-sequence dialogue's own `useMascotSpeech` call) is
+  completely unchanged, so the mascot's mouth/body animation during onboarding is unaffected either
+  way. `BuildYourOwnView`/`MilestonePlanningPanel.jsx` had the identical `speakingText`/
+  `useMascotSpeech`/`setSpeakingText(...)` scaffolding removed the same way (their own header
+  mascot icon drops its `speaking` prop, keeping only `thinking` — the shared "AI is generating a
+  reply" animation every chat surface still uses via `ChatConversation`'s own `loading` prop,
+  untouched by this fix).
+- **A real, non-obvious consequence of removing chat's own auto-speak: some chat surfaces stay
+  MOUNTED during their own close/collapse transition, so a component's plain unmount-triggered
+  cleanup doesn't fire the instant the student "closes" it.** `ChatConversation`'s own
+  `useEffect(() => () => stopSpeaking(), [])` correctly stops any in-progress Play/Stop audio on a
+  genuine unmount (covers `BuildYourOwnView`/`MilestonePlanningPanel`, which really do unmount when
+  navigated away from), but `HubChatPanel` (the hub's chat) plays a `chat-exiting` CSS transition
+  before actually unmounting, and `MapChatWidget`'s own collapse is a pure CSS-class toggle with
+  the panel staying mounted the whole time — in both cases, clicking "close"/"X" wouldn't otherwise
+  stop a message's audio that happened to be mid-playback. Fixed by calling the shared
+  `stopSpeaking()` primitive directly at the actual close handlers: `HubScreen.jsx`'s `closeChat`
+  (which used to just clear the now-removed `chatSpeakingText`) and a new `handleClose` in
+  `MapChatWidget.jsx` (wrapping the pre-existing `setOpen(false)` at its `X` button) — the same
+  "don't let it keep talking once hidden" posture this app already holds everywhere else.
+- **Task 3 — the existing global mute toggle (top-right header) needed zero code changes at all.**
+  It already gates every real `speech.js` call app-wide via `state.voiceMuted`; the new per-message
+  Play button reads that same field directly (see Task 1 above) rather than introducing a second,
+  parallel mute concept, so muting still silences the tutorial, the new per-message button, and
+  everything else in one place, exactly as before this fix.
+- **Task 4 — editable sent messages, the standard "edit and regenerate" chat interaction.** Each
+  `role: 'user'` bubble gets a small pencil-icon button (only rendered when the caller actually
+  supplies a new, optional `onEditMessage` prop — every real chat surface does; omitting it just
+  means no edit button appears, a safe default for any future caller that doesn't need this).
+  Clicking it swaps that bubble into an inline text input (pre-filled with the original content,
+  autofocused, Enter to save / Escape to cancel) via local `editingIndex`/`editValue` state.
+  Saving calls `onEditMessage(index, newContent)` — `ChatConversation` itself has no opinion on how
+  regeneration happens, only that it's the caller's job, matching its own established "purely
+  presentational, callers own the meaning" boundary. **Each of the 3 independent chat-history-
+  management implementations (`useHubChat.js`, `BuildYourOwnView`, `MilestonePlanningPanel.jsx`)
+  got an analogous fix via the same small refactor**: the original `sendMessage` body was extracted
+  into a shared `sendFrom(baseHistory, trimmed)` helper (appends a user turn to `baseHistory`,
+  fires the real request, appends the reply), with `sendMessage = (trimmed) => sendFrom(chatHistory,
+  trimmed)` unchanged in behavior, and a new `editMessage = (index, newContent) =>
+  sendFrom(chatHistory.slice(0, index), newContent)` — truncating history to just BEFORE the edited
+  message and resending the corrected text as a new final turn, discarding the old reply and
+  anything that followed it (the standard "edit message" chat UX, matching e.g. how most chat
+  products handle this). `HubChatPanel.jsx`/`MapChatWidget.jsx` both destructure the new
+  `editMessage` from `useHubChat()` and pass it straight through as `onEditMessage`.
+- **CSS**: `.chat-bubble-actions`/`.chat-play-btn`/`.chat-edit-btn`/`.chat-edit-row`/
+  `.chat-edit-input`/`.chat-edit-actions` (all new, `global.css`) deliberately use
+  `rgba(0, 0, 0, ...)` + `color: inherit` rather than a fixed palette color — this single component
+  renders inside 4 visually distinct contexts (the hub's own bloom-scoped chat, the Map 2 widget,
+  Build Your Own, the milestone panel), and a relative, inherited color scheme is what lets one CSS
+  block look correct in all of them without needing per-context overrides.
+- Verified with two dedicated Playwright suites. A 23-check suite (using the Map 2 widget as the
+  test surface, mocking `/api/tts`/`/api/chat` with a real playable 16-bit PCM WAV) confirms: a
+  sent message's reply displays with zero auto-played audio and a visible Play button; clicking
+  Play fires a real request and the button flips to "Stop" only once real playback genuinely
+  starts (not optimistically); clicking Stop mid-playback halts it immediately with no further
+  request; re-clicking Play afterward re-triggers a fresh request; the Play button is disabled and
+  fires zero requests while `state.voiceMuted` is true; and editing a previously-sent message
+  correctly truncates the outgoing history (confirmed the old reply is discarded, not appended
+  after), sends the edited text, and produces exactly one fresh reply with no leftover turns. A
+  second, 3-check suite (using two independent `browser.newPage()` contexts, not two sequential
+  navigations on one shared page — see the test-harness note below) confirms the guided tutorial's
+  own dialogue still auto-triggers a real `/api/tts` request with zero clicks, and that muting still
+  silences it too, completely unaffected by this fix.
+- **Two real, confirmed non-app bugs were found and ruled out while building the test coverage for
+  this fix, neither of which required any app code changes**: an 8-bit unsigned PCM WAV (8000Hz)
+  reliably failed to fire a real `'playing'` event in headless Chromium during testing (masking the
+  `playingIndex` bug above under an unrelated symptom until isolated) — a 16-bit signed PCM WAV
+  (16000Hz) reliably works and was used in both new test files. Separately, reusing the same
+  Playwright `page` object across two sequential `goto()`/seed/`reload()` cycles let a slow in-flight
+  `/api/tts` fetch from the FIRST scenario resolve and increment a shared route-handler counter
+  AFTER it had been reset for the SECOND scenario — the same "seedAndGoto race" class of test-
+  harness artifact this codebase's own suite has already hit and fixed several times before (see
+  earlier entries in this file); confirmed via `git stash`/`git stash pop` that the identical race
+  reproduces byte-for-byte on the unmodified, pre-existing baseline, ruling out a regression from
+  this fix's own changes. Fixed at the test-harness level only (two separate `browser.newPage()`
+  contexts instead of one reused page), not in the app. The full pre-existing regression suite
+  (`test-anchor-sunday-trigger.js`, `test-international-student.js`, `test-transfer-gap.js`,
+  `test-transfer-hs-transcript.js`, `test-weekly-digest-edge-cases.js`,
+  `test-weekly-digest-suggestions.js`, `test-weekly-suggestions-full-week-coverage.js`,
+  `test-weekly-suggestions-roadmap-fix.js`, `test-daily-schedule-timeline.js`,
+  `test-daily-schedule-roadmap-sync.js`, plus the dedicated `api/suggest-weekly.js`/
+  `api/suggest-schedule.js` server-side suites) all still pass with zero regressions; `npm run
+  build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only
+  chat-related client files (`ChatConversation.jsx`, `HubChatPanel.jsx`, `MapChatWidget.jsx`,
+  `MilestonePlanningPanel.jsx`, `useHubChat.js`, `HubScreen.jsx`, `ProjectBuilderScreen.jsx`,
+  `global.css`) and never opens `roadmapLayout.js`, any `api/*.js` serverless function, or
+  `speech.js` itself.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -8769,3 +8907,24 @@ download). Cover at minimum:
   case left to check for a network call). Confirm once-only playback (`mascotSeenKeys`) is
   completely unaffected by the engine swap. Confirm no ElevenLabs API key or its env var name
   appears anywhere in `dist/`'s built output or the live rendered page source/network requests.
+
+- Opt-In Voice Per Message in Chat + Editable Messages: mock `/api/tts`/`/api/chat` and send a
+  chat message (Hub chat, Map 2 widget, Build Your Own, or the milestone-scoped chat — all 4 route
+  through the shared `ChatConversation.jsx`) — confirm the reply renders with a visible "Play"
+  button and ZERO automatic `/api/tts` request. Click Play and confirm a real request fires and the
+  button only switches to "Stop" once real playback genuinely begins (poll for it, don't assume
+  it's instant) — clicking it again mid-playback must stop audio immediately with no further
+  request. Separately, confirm the guided tutorial (the hub's own pointing/greeting dialogue, and
+  any in-flow `MascotWidget` line) still auto-triggers a real `/api/tts` request with zero clicks,
+  completely unaffected — and that the global mute toggle still silences that tutorial dialogue too
+  alongside the new per-message button. Confirm clicking a sent user message's edit (pencil) button,
+  changing its text, and resubmitting truncates the conversation history correctly (the old reply
+  and anything after it are discarded, not left dangling) and produces a genuinely new reply for the
+  edited text. If mocking playable audio for this, use a 16-bit signed PCM WAV — an 8-bit unsigned
+  WAV was confirmed to never fire a real `'playing'` event in headless Chromium during this
+  feature's own development. If a test needs two independent seeded scenarios in one file, use two
+  separate `browser.newPage()` contexts rather than reusing one page across sequential
+  `goto()`/reload() cycles — a slow in-flight request from the first scenario can otherwise resolve
+  after the second scenario's own state has already been seeded, a confirmed test-harness race
+  unrelated to the app itself (see this app's own "seedAndGoto race" precedent elsewhere in this
+  file).

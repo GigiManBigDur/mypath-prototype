@@ -3,7 +3,6 @@ import { X, MessageCircle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ChatConversation from './ChatConversation';
 import MascotIcon from './MascotIcon';
-import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useModalExit } from '../hooks/useModalExit';
 import { requestBuildYourOwnChatReply } from '../utils/buildYourOwnChatRequest';
 import { compileStudentProfile } from '../utils/profileCompiler';
@@ -31,15 +30,6 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
   // genuinely new one if the student keeps refining and reaches planReady again.
   const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
 
-  // Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md) — the latest reply's
-  // text, fed to useMascotSpeech below, kept separate from chatHistory so speech only ever
-  // triggers on a genuinely NEW reply arriving — the exact same convention BuildYourOwnView/
-  // HubChatPanel's own mascot-speech wiring already established. Task 3's own "reinforce the
-  // mascot's presence" is what motivates giving this panel its own MascotIcon/useMascotSpeech pair
-  // at all — this screen previously had neither.
-  const [speakingText, setSpeakingText] = useState(null);
-  const isSpeaking = useMascotSpeech(speakingText, state.voiceMuted);
-
   // Task 1/2 — a single, app-wide, persisted "have they ever used one of these chats before" flag
   // (not per-milestone — once a student understands the pattern once, they don't need it repeated
   // for every later overview task), the same "one-time, dismiss-once-ever" shape
@@ -63,9 +53,15 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
     });
   };
 
-  const sendMessage = (trimmed) => {
-    const history = chatHistory.map((m) => ({ role: m.role, content: m.content }));
-    const afterUser = [...chatHistory, { role: 'user', content: trimmed }];
+  // Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md) — `sendFrom` is shared by
+  // a normal send (from the full current history) and `editMessage` (from history truncated to
+  // just before the edited message), the same refactor `useHubChat.js`/`BuildYourOwnView` already
+  // apply. Voice is no longer auto-triggered here either — no more `setSpeakingText`/
+  // `useMascotSpeech` call — `ChatConversation` renders its own per-message Play/Stop button
+  // instead.
+  const sendFrom = (baseHistory, trimmed) => {
+    const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
+    const afterUser = [...baseHistory, { role: 'user', content: trimmed }];
     updateChatHistory(afterUser);
     setLoading(true);
     const profileSummary = compileStudentProfile(state);
@@ -85,9 +81,7 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
         onResult: (proposal) => {
           setLoading(false);
           if (!proposal || typeof proposal.reply !== 'string' || !proposal.reply.trim()) {
-            const fallback = "Sorry, I couldn't think of anything just now — try again.";
-            updateChatHistory([...afterUser, { role: 'assistant', content: fallback }]);
-            setSpeakingText(fallback);
+            updateChatHistory([...afterUser, { role: 'assistant', content: "Sorry, I couldn't think of anything just now — try again." }]);
             return;
           }
           updateChatHistory([...afterUser, {
@@ -96,17 +90,16 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
             planReady: proposal.planReady,
             milestones: proposal.milestones,
           }]);
-          setSpeakingText(proposal.reply);
         },
         onError: () => {
           setLoading(false);
-          const errorText = 'Sorry, something went wrong — try again in a moment.';
-          updateChatHistory([...afterUser, { role: 'assistant', content: errorText }]);
-          setSpeakingText(errorText);
+          updateChatHistory([...afterUser, { role: 'assistant', content: 'Sorry, something went wrong — try again in a moment.' }]);
         },
       },
     );
   };
+  const sendMessage = (trimmed) => sendFrom(chatHistory, trimmed);
+  const editMessage = (index, newContent) => sendFrom(chatHistory.slice(0, index), newContent);
 
   // Same "scan for the most recent ready turn" precedent BuildYourOwnView's own `latestReadyPlan`
   // already established — keeps refining if the student keeps talking after reaching a ready list.
@@ -136,10 +129,12 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
     <div className="milestone-planning-panel">
       {/* Task 3 — a small header pairing the mascot with a plain "MyPath AI" label, the same
           visual language BuildYourOwnView's own chat header already uses, so this reads as the
-          same familiar assistant rather than an unlabeled text box. `thinking`/`speaking` drive
-          the exact same animation states every other chat surface already does. */}
+          same familiar assistant rather than an unlabeled text box. `thinking` still drives the
+          same thinking animation every other chat surface already does; `speaking` was removed
+          (see Opt-In Voice Per Message in Chat, CLAUDE.md) — this chat no longer auto-triggers
+          voice on a new reply, so there's no more "a reply just arrived" signal to animate off. */}
       <div className="chat-header milestone-chat-header">
-        <MascotIcon size={40} thinking={loading} speaking={isSpeaking} />
+        <MascotIcon size={40} thinking={loading} />
         <div>
           <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)', margin: 0 }}>MyPath AI</div>
           <h2 className="hub-chat-title" style={{ fontSize: 15 }}>Planning this phase</h2>
@@ -156,6 +151,7 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
           messages={chatHistory}
           loading={loading}
           onSend={sendMessage}
+          onEditMessage={editMessage}
           onInputFocus={dismissFirstTimeUI}
           emptyHint={`What do you already know about how you'll approach "${milestone.title}"?`}
         />

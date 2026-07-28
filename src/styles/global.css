@@ -2225,6 +2225,67 @@ button.card.passed:hover {
 }
 .chat-bubble-loading { font-style: italic; color: var(--ink-soft); }
 .chat-redirect-action { margin-top: 8px; }
+
+/* Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md) — a small per-bubble action
+   row, shared across every real chat surface via ChatConversation.jsx (the one shared component
+   they all render through). `rgba(0,0,0,...)` + `color: inherit` deliberately, rather than a fixed
+   palette color, since the SAME bubble can be a colored user bubble (white text) or a light
+   assistant bubble (dark text) depending on which of this app's several chat palettes is active
+   (default/hub/map/bloom) — a semi-transparent black tint and inherited text color read correctly
+   against either without needing a per-palette override for these two new classes. */
+.chat-bubble-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.chat-play-btn, .chat-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.chat-play-btn:hover, .chat-edit-btn:hover { opacity: 1; background: rgba(0, 0, 0, 0.14); }
+.chat-play-btn:disabled { opacity: 0.35; cursor: default; }
+.chat-play-btn:disabled:hover { background: rgba(0, 0, 0, 0.08); }
+/* The "currently playing" state gets a real, distinct fill (not just a hover-style darken) so
+   it's unmistakable which message's audio (if any) is active right now. */
+.chat-play-btn.playing { background: var(--bloom-ai); color: #fff; opacity: 1; }
+.chat-edit-btn { padding: 3px 7px; }
+
+.chat-edit-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+.chat-edit-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  background: #fff;
+  color: var(--ink);
+}
+.chat-edit-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.chat-edit-actions button {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.1);
+  color: inherit;
+}
+.chat-edit-actions button:first-child { background: var(--bloom-accent); color: #fff; }
+.chat-edit-actions button:disabled { opacity: 0.4; cursor: default; }
 /* The one-action-at-a-time task-confirm card (Task 3/4) — same --bloom-ai left-border language
    the honesty note/Build Your Own card already use, so it reads as "AI-related" at a glance. */
 .chat-task-confirm {

@@ -10,11 +10,15 @@ import { getEffectiveToday, parseDateInputValue } from '../utils/dates';
 // second, smaller entry point (`MapChatWidget.jsx`, rendered on the Academic Plan) reads from and
 // writes to the EXACT SAME `state.chatHistory` through the EXACT SAME send/task-confirm mechanics
 // — not a second, independently-built implementation of the same conversation. Every caller gets:
-// the persisted conversation, a loading flag, `sendMessage`, the task-add confirm-then-date-pick
-// flow, and the Build-Your-Own redirect action — byte-for-byte what `HubChatPanel` already did,
-// just no longer tied to being called from exactly one place. `onAssistantReply` is optional (not
-// every caller needs to drive a mascot's speaking animation off it).
-export function useHubChat(onAssistantReply) {
+// the persisted conversation, a loading flag, `sendMessage`, `editMessage`, the task-add confirm-
+// then-date-pick flow, and the Build-Your-Own redirect action.
+//
+// Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md) — Task 1 removed the old
+// `onAssistantReply` callback entirely: this hook used to call it on every new reply specifically
+// to auto-trigger the mascot's speech (`setChatSpeakingText` in HubScreen.jsx/MapChatWidget.jsx);
+// voice is now opt-in per message instead, via a Play button `ChatConversation.jsx` renders
+// directly under each assistant bubble — this hook no longer has any opinion on speech at all.
+export function useHubChat() {
   const { state, patch } = useApp();
   const chatHistory = state.chatHistory || [];
   const [loading, setLoading] = useState(false);
@@ -23,9 +27,11 @@ export function useHubChat(onAssistantReply) {
   const [dateInput, setDateInput] = useState('');
   const [dateError, setDateError] = useState(null);
 
-  const sendMessage = (trimmed) => {
-    const history = chatHistory.map((m) => ({ role: m.role, content: m.content }));
-    const afterUser = [...chatHistory, { role: 'user', content: trimmed }];
+  // Shared by both a normal send (from the full current history) and an edit-and-resubmit (from
+  // history truncated to just before the edited message) — see `editMessage` below.
+  const sendFrom = (baseHistory, trimmed) => {
+    const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
+    const afterUser = [...baseHistory, { role: 'user', content: trimmed }];
     patch({ chatHistory: afterUser });
     setLoading(true);
     setPendingTask(null);
@@ -40,7 +46,6 @@ export function useHubChat(onAssistantReply) {
             return;
           }
           patch({ chatHistory: [...afterUser, { role: 'assistant', content: proposal.reply, intent: proposal.intent }] });
-          if (onAssistantReply) onAssistantReply(proposal.reply);
           if (proposal.intent === 'propose_task' && proposal.taskTitle) {
             setPendingTask({ title: proposal.taskTitle });
           }
@@ -52,6 +57,14 @@ export function useHubChat(onAssistantReply) {
       },
     );
   };
+
+  const sendMessage = (trimmed) => sendFrom(chatHistory, trimmed);
+
+  // Task 4 — editing a previously-sent user message discards it and everything that followed (that
+  // reply and any later turns were all based on the OLD wording), then resends the corrected text
+  // as a genuinely new final message, generating a fresh AI reply — the standard, expected "edit a
+  // sent message" chat interaction. `index` is the edited message's own position in `chatHistory`.
+  const editMessage = (index, newContent) => sendFrom(chatHistory.slice(0, index), newContent);
 
   const goToBuildYourOwn = () => patch({ screen: 'projectBuilder' });
 
@@ -86,6 +99,7 @@ export function useHubChat(onAssistantReply) {
     chatHistory,
     loading,
     sendMessage,
+    editMessage,
     goToBuildYourOwn,
     pendingTask,
     pickingDate,

@@ -17,6 +17,7 @@ import { compileStudentProfile } from '../utils/profileCompiler';
 import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dates';
 import { ADMISSIONS_CONTEXT_LINES, getMascotLine } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
+import { stopSpeaking } from '../utils/speech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
@@ -447,16 +448,6 @@ export default function HubScreen() {
   // drives the mascot's distinct "speaking" animation state.
   const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted);
 
-  // Polished Hub-to-Chat Transition (see CLAUDE.md) — the chat's own replies also speak through
-  // the SAME single mascot instance (it "stays anchored," never duplicated), via a second,
-  // independent useMascotSpeech call fed by whatever HubChatPanel reports up through
-  // `onAssistantReply`. The two never fire at once in practice — guided-sequence dialogue only
-  // ever renders while `chatPhase === 'hidden'`, chat replies only ever arrive while in chat mode
-  // — so ORing their two `isSpeaking` booleans together for MascotIcon's own `speaking` prop below
-  // is safe, not a race.
-  const [chatSpeakingText, setChatSpeakingText] = useState(null);
-  const isChatSpeaking = useMascotSpeech(chatSpeakingText, state.voiceMuted);
-
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it
     // once (as its initial subStep) and clears it right back to null on mount, the same
@@ -598,10 +589,16 @@ export default function HubScreen() {
     chatTransitionTimer.current = setTimeout(() => setChatPhase('chat'), TILE_EXIT_MS);
   };
   const closeChat = () => {
-    // Stopping speech the instant the reverse transition starts — the same "dismissing is just an
-    // ordinary 'the current line went away' change" contract useMascotSpeech already relies on
-    // everywhere else in this app.
-    setChatSpeakingText(null);
+    // Opt-In Voice Per Message in Chat (see CLAUDE.md) — chat audio is no longer driven by
+    // HubScreen's own useMascotSpeech call (there's no more auto-triggered "current reply" text to
+    // clear); a per-message Play button's own audio now lives entirely inside `ChatConversation`,
+    // which stops it on its own unmount. Calling the shared `stopSpeaking()` primitive directly
+    // here still stops any in-progress playback the INSTANT "Back to Hub" is clicked, rather than
+    // waiting the full exit-transition duration for that unmount to actually happen — the same
+    // "don't let it keep talking" posture this app already holds everywhere else, just reached via
+    // the underlying function instead of a React-state change now that there's no shared state left
+    // to clear for this.
+    stopSpeaking();
     setChatPhase('chat-exiting');
     chatTransitionTimer.current = setTimeout(() => setChatPhase('hidden'), CHAT_EXIT_MS);
   };
@@ -744,10 +741,13 @@ export default function HubScreen() {
                 line is genuinely new still gets a real paired pointing gesture at Academic Plan;
                 every visit after that (once `pointingTargetId` is `null`) keeps the mascot's
                 mouth/body animating (the SEPARATE `speaking` prop, untouched) without raising the
-                arm/wand toward a target that no longer means anything. Polished Hub-to-Chat
-                Transition — `speaking` now also ORs in `isChatSpeaking`, so the SAME mascot
-                instance animates for a chat reply too, without a second icon ever being rendered. */}
-            <MascotIcon size={150} speaking={isSpeaking || isChatSpeaking} pointing={pointingTargetId !== null && isSpeaking} pointAngle={pointAngle} />
+                arm/wand toward a target that no longer means anything. Opt-In Voice Per Message in
+                Chat (see CLAUDE.md) — `speaking` no longer ORs in a chat-reply flag: voice for open-
+                ended chat is opt-in per message now (a Play button inside `ChatConversation`, not
+                auto-triggered), so there's no more "a new chat reply arrived" signal for this
+                mascot to react to. The guided-tutorial dialogue's own `isSpeaking` is completely
+                unaffected — untouched by this fix, per its own explicit scope. */}
+            <MascotIcon size={150} speaking={isSpeaking} pointing={pointingTargetId !== null && isSpeaking} pointAngle={pointAngle} />
           </div>
           {/* Bug fix, found while building the Polished Hub-to-Chat Transition (see CLAUDE.md):
               conditionally NOT rendering this bubble at all while in chat mode (an earlier version
@@ -848,7 +848,6 @@ export default function HubScreen() {
           <HubChatPanel
             exiting={chatPhase === 'chat-exiting'}
             onBack={closeChat}
-            onAssistantReply={setChatSpeakingText}
           />
         )}
       </div>

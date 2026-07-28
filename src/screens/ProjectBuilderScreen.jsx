@@ -14,7 +14,6 @@ import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
 import MascotIcon from '../components/MascotIcon';
 import ChatConversation from '../components/ChatConversation';
-import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 
@@ -627,11 +626,6 @@ function BuildYourOwnView({
 }) {
   const chatHistory = state.buildYourOwnChatHistory || [];
   const [loading, setLoading] = useState(false);
-  // The latest reply's text, fed to useMascotSpeech below — kept separate from `chatHistory` so
-  // speech only ever triggers on a genuinely NEW reply arriving, matching HubChatPanel's own
-  // identical convention (see its own comment).
-  const [speakingText, setSpeakingText] = useState(null);
-  const isSpeaking = useMascotSpeech(speakingText, state.voiceMuted);
 
   // Add Explicit "Not Satisfied, Keep Refining" Option (see CLAUDE.md) — a dismiss for the
   // "Start This Project" footer that hides it WITHOUT touching any persisted data (the chat
@@ -660,9 +654,15 @@ function BuildYourOwnView({
     return null;
   }, [chatHistory]);
 
-  const sendMessage = (trimmed) => {
-    const history = chatHistory.map((m) => ({ role: m.role, content: m.content }));
-    const afterUser = [...chatHistory, { role: 'user', content: trimmed }];
+  // Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md) — `sendFrom` is shared by
+  // a normal send (from the full current history) and `editMessage` (from history truncated to
+  // just before the edited message), the same refactor `useHubChat.js` already applies to the hub/
+  // Map-2-widget conversation. Voice is no longer auto-triggered here either — no more
+  // `setSpeakingText`/`useMascotSpeech` call — `ChatConversation` renders its own per-message
+  // Play/Stop button instead.
+  const sendFrom = (baseHistory, trimmed) => {
+    const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
+    const afterUser = [...baseHistory, { role: 'user', content: trimmed }];
     patch({ buildYourOwnChatHistory: afterUser });
     setLoading(true);
     // Task 2 — the full Stage 1 profile (not the bounded Stage-2-only variant), same reasoning
@@ -689,7 +689,6 @@ function BuildYourOwnView({
               milestones: proposal.milestones,
             }],
           });
-          setSpeakingText(proposal.reply);
         },
         onError: () => {
           setLoading(false);
@@ -698,6 +697,8 @@ function BuildYourOwnView({
       },
     );
   };
+  const sendMessage = (trimmed) => sendFrom(chatHistory, trimmed);
+  const editMessage = (index, newContent) => sendFrom(chatHistory.slice(0, index), newContent);
 
   // Once the student has explicitly committed to a plan (clicked "Start This Project"), this
   // reuses ProjectTypeView exactly like every other project type/the old single-idea flow did —
@@ -744,7 +745,7 @@ function BuildYourOwnView({
       </p>
 
       <div className="chat-header" style={{ marginBottom: 16 }}>
-        <MascotIcon size={44} speaking={isSpeaking} />
+        <MascotIcon size={44} />
         <div>
           <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)', margin: 0 }}>MyPath AI</div>
           <h2 className="hub-chat-title" style={{ fontSize: 16 }}>Brainstorming partner</h2>
@@ -773,6 +774,7 @@ function BuildYourOwnView({
         messages={chatHistory}
         loading={loading}
         onSend={sendMessage}
+        onEditMessage={editMessage}
         emptyHint={chatHistory.length === 0 ? 'Or ask your own question below to get started.' : undefined}
         placeholder="Describe your own idea, or ask a question…"
         footer={latestReadyPlan && latestReadyPlan.sourceIndex !== dismissedReadyIndex && (

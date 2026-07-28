@@ -26,15 +26,20 @@ import { ArrowLeft } from 'lucide-react';
 // "Back to Hub" button, the exit-transition class).
 //
 // The mascot itself is NOT rendered here — it stays put in HubScreen's own `.hub-mascot-area` so
-// it visually "stays anchored" across the whole transition (Task 2). This component only reports
-// the latest reply's text upward via `onAssistantReply`, so HubScreen's own `useMascotSpeech` call
-// can drive the ONE shared mascot instance's speaking animation/voiceover.
-export default function HubChatPanel({ onBack, exiting, onAssistantReply }) {
+// it visually "stays anchored" across the whole transition (Task 2).
+//
+// Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md), Task 1 — voice for this
+// chat is no longer auto-triggered on a new reply, so this component no longer reports anything
+// upward for HubScreen's own mascot to auto-speak; `ChatConversation` now renders its own
+// per-message Play/Stop button instead, driven by `speech.js` directly. HubScreen's own guided-
+// tutorial dialogue (its pointing/greeting lines) is a completely separate code path and is
+// untouched by this — see Task 2 of that fix.
+export default function HubChatPanel({ onBack, exiting }) {
   const {
-    chatHistory, loading, sendMessage, goToBuildYourOwn,
+    chatHistory, loading, sendMessage, editMessage, goToBuildYourOwn,
     pendingTask, pickingDate, dateInput, dateError,
     startPickingDate, updateDateInput, dismissPendingTask, finalizeAddTask,
-  } = useHubChat(onAssistantReply);
+  } = useHubChat();
 
   return (
     <div className={`hub-chat-panel${exiting ? ' hub-chat-exit' : ''}`}>
@@ -52,6 +57,7 @@ export default function HubChatPanel({ onBack, exiting, onAssistantReply }) {
         messages={chatHistory}
         loading={loading}
         onSend={sendMessage}
+        onEditMessage={editMessage}
         emptyHint="Ask how something in MyPath works, what to do next, or have me add a task to your plan."
         renderMessageExtra={(m) => m.intent === 'redirect_build_your_own' && (
           <div className="chat-redirect-action">
