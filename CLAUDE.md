@@ -6725,6 +6725,55 @@ though they were all correctly positioned by real time.**
   `roadmapLayout.js`, `roadmapGenerator.js`, or the underlying `state.dailyScheduleBlocks` data
   shape; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**Follow-up fix: A Short Block's Content-Driven Height Can Still Visually Collide With the Next
+Block — the compact-content fix above reduced how much height a short block NEEDS, but never
+capped how far that need is allowed to grow when there's genuinely zero real time gap before
+whatever starts right after it.** Confirmed directly via a follow-up screenshot: a 10-real-minute
+"Travel and settle in for school" block (7:50-8:00), immediately followed by "School" starting
+exactly at 8:00, still needed its compact-mode floor (`MIN_BLOCK_PX=20`) to show its single-line
+content — but 20px is 10px MORE than the real 10-minute gap actually available, so the box's own
+bottom 10px extended straight into School's territory; since both share the same z-index and
+School (later start time) renders later in the DOM, School painted on top of that overlap,
+visually "swallowing" Travel's own tail — reading as one task blocking/covering another.
+- **The fix caps a block's own REST-state (non-resizing) rendered height to the real time gap
+  before the next block that could ever visually collide with it — never letting content-driven
+  minimums stretch a box past a genuine neighbor's start.** `computeMaxEndMins(blocksWithCols)`
+  (new, `DailyScheduleView.jsx`) computes, per block, the earliest start time among every OTHER
+  block whose horizontal column range ([left%, right%], from its already-assigned `col`/`cols`)
+  actually overlaps this one's own — reusing the SAME column assignment `layoutWithColumns`
+  already computes, not re-deriving time-overlap a second time. Two blocks in DIFFERENT columns
+  (already side-by-side, non-colliding by construction) never cap each other, since capping only
+  matters when two boxes could genuinely occupy the same screen space. The render loop then
+  computes `heightPx = Math.min(desiredHeightPx, block.maxEndMin - block.startMin)` — a short
+  block can now shrink SMALLER than its own ideal content-driven minimum when there's truly no
+  room, but can never grow larger than the real gap to whatever's next.
+- **Deliberately NOT applied while a block is being actively drag-resized.** Capping the LIVE
+  preview during a manual resize (which currently clamps only by the day's own 1439-minute
+  boundary, `onResizeMove`) would create a real data/display mismatch: the visual preview would
+  stop at the cap while the underlying `resize.currentEndMin` kept tracking the raw dragged value,
+  so releasing the drag could commit a real `endTime` different from what was just shown. Since
+  this specific bug is about already-generated/already-committed schedules (not live dragging),
+  the fix is scoped to the REST state only, leaving the existing, already-tested resize mechanic
+  completely untouched — a narrow, accepted limitation: a user COULD still manually drag one block
+  to deliberately overlap another, exactly as before this fix.
+- **Accepted tradeoff, not silently swept under the rug**: a genuinely tiny block with truly zero
+  gap before its neighbor (like the 10-minute Travel example) may still show some of its OWN
+  compact content clipped internally (its ~18px content need vs. a real 10px available gap) — but
+  it can never again visually bleed into a DIFFERENT block's own space. This is a strictly better
+  failure mode than the reported bug (confusing cross-block collision), and is the fundamental
+  limit of a 1px-per-minute view: there is no way to show more real content than the real minutes
+  available without either overlapping a neighbor or fabricating extra visual space that doesn't
+  correspond to real time.
+- Verified by extending the existing 26-check compact-blocks suite: the one assertion that no
+  longer held ("the 10-min block's content is not clipped" — now genuinely, correctly capped
+  smaller than its own compact-mode floor) was replaced with the actual regression check this fix
+  targets — a direct bounding-box comparison confirming the 10-minute block's own rendered box now
+  ends strictly before "School"'s box begins, with zero vertical overlap between the two different
+  tasks. The other two Daily Schedule suites (`test-daily-schedule-timeline.js`, 34 checks;
+  `test-daily-schedule-roadmap-sync.js`, 21 checks) both still pass fully unmodified; `npm run
+  build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only
+  `DailyScheduleView.jsx`, never `roadmapLayout.js`/`roadmapGenerator.js`/`global.css`.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9008,3 +9057,12 @@ download). Cover at minimum:
   case-insensitive SUBSTRING matching against the whole element, so a title like "Commute to
   school" will ambiguously also match a filter for "School" alone (confirmed directly: this
   produced a real `strict mode violation` resolving to 2 elements before being fixed).
+
+- Follow-up: A Short Block's Content-Driven Height Can Still Visually Collide With the Next Block:
+  seed a genuinely zero-gap sequence (e.g. a 10-real-minute block immediately followed by a
+  different, later task with no gap between them) and confirm via `boundingBox()` that the short
+  block's own rendered box ends strictly before the next block's box begins — this is the real
+  regression check, since a genuinely tiny block may still show some of its own compact content
+  clipped internally (an accepted, correct tradeoff when there's truly no real time available),
+  but must never again visually bleed into a DIFFERENT block's own space. Don't assert "zero
+  clipping" for a block this short — assert "zero cross-block overlap" instead.

@@ -100,6 +100,33 @@ function layoutWithColumns(blocksWithMinutes) {
   return result;
 }
 
+// Fix: A Short Block's Content-Driven Height Can Still Visually Collide With the Next Block (see
+// CLAUDE.md) — the compact-content fix above shrinks how much height a short block NEEDS, but
+// doesn't stop that need from exceeding how much real time is actually available before the next
+// thing starts (e.g. a 10-real-minute block immediately followed by another task, with zero real
+// gap between them) — in that case the compact floor still stretches the box past its own real
+// end time, straight into whatever comes next, which then paints on top of it (same z-index, later
+// DOM sibling wins) and visually "swallows" the earlier block's own tail. This computes, per block,
+// the earliest start time of any LATER block that shares its own horizontal column range (i.e.
+// could ever visually collide with it) — the render loop then caps that block's own displayed
+// height to never exceed the real gap to that neighbor, so a too-short block can shrink smaller
+// than its own ideal minimum, but can never grow into someone else's space.
+function computeMaxEndMins(blocksWithCols) {
+  return blocksWithCols.map((block) => {
+    const left = (block.col / block.cols) * 100;
+    const right = left + (100 / block.cols);
+    let maxEndMin = TOTAL_MINUTES;
+    blocksWithCols.forEach((other) => {
+      if (other === block || other.startMin <= block.startMin) return;
+      const otherLeft = (other.col / other.cols) * 100;
+      const otherRight = otherLeft + (100 / other.cols);
+      const overlaps = left < otherRight && otherLeft < right;
+      if (overlaps && other.startMin < maxEndMin) maxEndMin = other.startMin;
+    });
+    return { ...block, maxEndMin };
+  });
+}
+
 function defaultCreateMinutes(isViewingToday) {
   if (isViewingToday) return snapMinutes(new Date().getHours() * 60 + new Date().getMinutes());
   return 9 * 60;
@@ -198,7 +225,7 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
     const withMinutes = blocks.map((b) => ({
       ...b, startMin: hhmmToMinutes(b.startTime), endMin: hhmmToMinutes(b.endTime),
     }));
-    return layoutWithColumns(withMinutes);
+    return computeMaxEndMins(layoutWithColumns(withMinutes));
   }, [blocks]);
 
   const goToDay = (offset) => { setSelectedDate((d) => realAddDays(d, offset)); setEditor(null); };
@@ -529,7 +556,18 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
                   // 2-row layout, and vice versa — this reads off the SAME live `endMin` the
                   // height itself is computed from, so the two can never disagree mid-drag.
                   const isCompact = durationMin < COMPACT_THRESHOLD_MINUTES;
-                  const heightPx = Math.max(durationMin, isCompact ? MIN_BLOCK_PX : TWO_ROW_MIN_PX);
+                  const desiredHeightPx = Math.max(durationMin, isCompact ? MIN_BLOCK_PX : TWO_ROW_MIN_PX);
+                  // Fix: A Short Block's Content-Driven Height Can Still Visually Collide With the
+                  // Next Block (see CLAUDE.md) — cap the REST-state (not actively resizing) height
+                  // to the real gap before whatever horizontally-overlapping block starts next, so
+                  // a too-short block's own content-driven floor can never grow past a neighbor's
+                  // real start time. Deliberately NOT applied while `isResizing` — an active drag
+                  // still previews/commits the literal dragged value unclamped (matching this
+                  // component's existing, already-tested resize behavior), so what's shown mid-drag
+                  // always matches what gets written to state on release.
+                  const heightPx = isResizing
+                    ? desiredHeightPx
+                    : Math.max(Math.min(desiredHeightPx, block.maxEndMin - block.startMin), 4);
                   const leftPct = (block.col / block.cols) * 100;
                   const widthPct = (1 / block.cols) * 100;
                   return (
