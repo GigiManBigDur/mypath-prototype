@@ -113,6 +113,18 @@ export function formatDateWithYear(date) {
   return `${formatDate(date)}, ${date.getFullYear()}`;
 }
 
+// Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) — extracted from
+// DailyScheduleView.jsx's own local `formatTimeLabel` so Roadmap.jsx's detail modal can render the
+// same "8:00 AM" formatting for a schedule-block-originated task's own `scheduleTime`, without a
+// second, drifting copy of this logic.
+export function formatTimeOfDay(hhmm) {
+  const [hStr, m] = hhmm.split(':');
+  const h = Number(hStr);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m} ${period}`;
+}
+
 // Parses a plain 'YYYY-MM-DD' string (e.g. from <input type="date">) as LOCAL midnight — plain
 // `new Date('YYYY-MM-DD')` parses date-only ISO strings as UTC midnight, which silently shows as
 // the previous day in any timezone behind UTC. Used whenever a user-edited due date needs to

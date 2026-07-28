@@ -3,7 +3,7 @@ import {
   CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
-  ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock,
+  ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock, Clock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -11,6 +11,7 @@ import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
 import {
   formatDateWithYear, toDateInputValue, realDaysBetween, getEffectiveToday, realAddDays, parseDateInputValue,
+  formatTimeOfDay,
 } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
 import DigestList from './DigestList';
@@ -1420,6 +1421,17 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             </div>
             <h2 className="modal-title">{modalNode.title}</h2>
             <div className="modal-due">Due {formatDateWithYear(modalNode.date)}</div>
+
+            {/* Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) — a
+                task promoted from an unlinked Daily Schedule block carries its own real
+                `scheduleTime`, preserving the time-of-day detail that would otherwise be lost once
+                the task is viewed outside Daily Schedule itself. */}
+            {!selectedIsMilestoneSpecial && modalNode.scheduleTime && (
+              <div className="modal-schedule-time">
+                <Clock size={13} />
+                Scheduled {formatTimeOfDay(modalNode.scheduleTime.startTime)}–{formatTimeOfDay(modalNode.scheduleTime.endTime)}
+              </div>
+            )}
 
             {/* UC Davis Course Selection Stage 4's consolidated enrollment task carries a real
                 courseList array (one `CODE — Name` line per selected course) — rendered as an

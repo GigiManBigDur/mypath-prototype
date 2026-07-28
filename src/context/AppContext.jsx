@@ -276,20 +276,28 @@ const DEFAULT_STATE = {
   pendingWeeklyDigestSuggestions: [],
   // Add a Daily Schedule Feature (AI-Assisted + Fully Manual) (see CLAUDE.md) — a genuinely new
   // dimension for this app: TIME of day within a single date, distinct from every other spine/
-  // digest concept, which only ever deals with WHICH day something is due. `dailySchedules` is
-  // keyed by 'YYYY-MM-DD', each value a real, committed array of time blocks for that one day —
-  // `[{ id, startTime: 'HH:MM', endTime: 'HH:MM', title, linkedTaskId, completed }]` (24-hour
-  // `HH:MM` strings, the exact format a plain `<input type="time">` already produces/accepts, so
-  // no custom time-parsing UI was needed). `linkedTaskId` (nullable) is Task 4's own real-task
-  // connection: when set, the block's own completion is DERIVED live from
-  // `state.completedNodes[linkedTaskId]` (the same shared map every other spine/digest item
-  // already reads/writes via `toggleDone`), never a second, independently-tracked flag — this is
-  // what keeps a linked block and its real task's status in sync automatically, in both
-  // directions, with zero extra sync code (the same "one shared source of truth" principle
-  // already established between "This Week" and the spatial roadmap). `completed` is only ever
-  // read/written for an UNLINKED (`linkedTaskId: null`) block — a purely personal entry like
-  // "Dinner" with no corresponding real task to derive completion from.
-  dailySchedules: {},
+  // digest concept, which only ever deals with WHICH day something is due.
+  //
+  // Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) restructured this
+  // from a `{ [dateKey]: block[] }` nested dict into a plain FLAT array, `dailyScheduleBlocks`,
+  // mirroring `customTasks`'s own exact shape (each block carries its own real `date` field
+  // directly, the same "one shared array, not a second data source" precedent already established
+  // for `aiSuggestedTasks`) — this is what lets `roadmapGenerator.js` turn every UNLINKED block
+  // into a real spine item using the identical date-to-position path every other task already
+  // uses, rather than the old nested structure being invisible to the roadmap/"This Week" entirely.
+  // `dailyScheduleBlocks`: `[{ id, date: 'YYYY-MM-DD', startTime: 'HH:MM', endTime: 'HH:MM', title,
+  // linkedTaskId, desc? }]` (24-hour `HH:MM` strings, the exact format a plain `<input
+  // type="time">` already produces/accepts, so no custom time-parsing UI was needed).
+  // `linkedTaskId` (nullable) is Task 4's own real-task connection: when set, this block is a pure
+  // SCHEDULING ANNOTATION for an ALREADY-EXISTING spine item (never a second, duplicate spine item
+  // of its own); when null, the block IS the real task, and gets its own promoted spine item
+  // (`category: 'custom'`, the same visual language every other user-added task already uses).
+  // Either way, completion is ALWAYS derived live from `state.completedNodes[linkedTaskId || id]`
+  // — never a second, independently-tracked flag — which is what keeps a block and its real
+  // task's status in sync automatically, in both directions, with zero extra sync code (the same
+  // "one shared source of truth" principle already established between "This Week" and the
+  // spatial roadmap, and the same fix already applied once before for weekly AI suggestions).
+  dailyScheduleBlocks: [],
   // The one still-undecided AI-proposed FULL DAY schedule awaiting Accept/Reject (and optional
   // editing first) — `{ date, blocks: [{ id, startTime, endTime, title, linkedTaskId,
   // referencesExternalFact }] } | null`. Deliberately a single whole-day object (not a per-block

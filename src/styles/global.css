@@ -3287,6 +3287,21 @@ button.card.passed:hover {
 .modal-eyebrow { display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }
 .modal-title { font-family:'Fraunces', serif; font-size:22px; font-weight:600; margin:0 0 6px; line-height:1.2; }
 .modal-due { font-family:'IBM Plex Mono', monospace; font-size:12px; color: var(--ink-soft); margin-bottom: 16px; }
+/* Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) — a task promoted
+   from an unlinked Daily Schedule block's own time-of-day detail, exclusive to Roadmap.jsx's own
+   modal (the only place `modalNode.scheduleTime` is ever set), so it's styled directly with the
+   bloom tokens Map 2 already uses for its own exclusive classes rather than needing a separate
+   `.roadmap-fullscreen-root`-scoped override. */
+.modal-schedule-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bloom-accent);
+  margin-bottom: 16px;
+}
 .modal-desc { font-size:14px; line-height:1.55; color: var(--ink); margin-bottom:16px; }
 .modal-resources { font-size:13px; color: var(--ink-soft); margin-bottom:20px; }
 .modal-resources ul { margin:6px 0 0; padding-left:18px; }

@@ -4,20 +4,12 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  getEffectiveToday, toDateInputValue, realAddDays, realDaysBetween, formatDateWithYear,
+  getEffectiveToday, toDateInputValue, realAddDays, realDaysBetween, formatDateWithYear, formatTimeOfDay,
 } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestScheduleSuggestion } from '../utils/dailyScheduleSuggestions';
 import useRealTimeTick from '../hooks/useRealTimeTick';
-
-function formatTimeLabel(hhmm) {
-  const [hStr, m] = hhmm.split(':');
-  const h = Number(hStr);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m} ${period}`;
-}
 
 // Daily Schedule: Google Calendar-Style Timeline (see CLAUDE.md) — the layout/interaction primitives
 // the vertical timeline is built on. 1px === 1 minute at HOUR_HEIGHT=60, which is what makes every
@@ -94,17 +86,24 @@ function defaultCreateMinutes(isViewingToday) {
 //
 // Daily Schedule: Google Calendar-Style Timeline (see CLAUDE.md) redesigned the committed-schedule
 // area from a flat list into a real vertical timeline — a familiar Google Calendar day-view
-// pattern (all-hours-visible, click-to-create, drag-to-resize) — but this is deliberately a pure
-// layout/interaction change: `state.dailySchedules`'s own shape, the AI-assist request/accept/
-// reject flow, and the real-task-linkage mechanism (`linkedTaskId` -> `completedNodes`) are all
-// completely untouched. Only HOW committed blocks are displayed and created changed.
+// pattern (all-hours-visible, click-to-create, drag-to-resize) — a pure layout/interaction change
+// at the time, leaving `state.dailySchedules`'s own shape untouched.
+//
+// Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) is what changed the
+// underlying data shape: `state.dailySchedules` (a `{ [dateKey]: block[] }` nested dict, invisible
+// to the roadmap/"This Week") became `state.dailyScheduleBlocks`, a plain flat array mirroring
+// `customTasks`'s own exact shape — every UNLINKED block is now promoted into a real spine item
+// (`roadmapGenerator.js`'s `buildDailyScheduleItems`), and completion for EVERY block (linked or
+// not) is always derived from the shared `completedNodes` map, never a second, local flag. See
+// this file's own `effectiveDateKeyFor`/`rawBlocks`/`visibleBlocks` for how a day's own view stays
+// honest about a roadmap-side date-edit or removal without needing to physically move anything.
 //
 // Receives `flatPlanItems`/`isDone`/`toggleDone`/`onOpenTask` from Roadmap.jsx (the exact same
 // flattened spine+branch-steps array `digestGroups` already reads, and the exact same completion
 // functions every other spine/digest item already shares) rather than recomputing its own copy —
 // this is what guarantees Task 4's "same shared task data" requirement structurally, not just by
 // convention. Otherwise self-contained: reads `useApp()` directly for its own state
-// (`dailySchedules`/`pendingDailySchedule`) and owns its own local UI state (which day is being
+// (`dailyScheduleBlocks`/`pendingDailySchedule`) and owns its own local UI state (which day is being
 // viewed, the timeline editor popover, the in-progress resize drag, the AI request's loading flag).
 export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, onOpenTask }) {
   const { state, patch } = useApp();
@@ -120,8 +119,31 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   const initialScrollTargetRef = useRef(null);
   const editorPopoverRef = useRef(null);
 
-  const dailySchedules = state.dailySchedules || {};
-  const blocks = (dailySchedules[dateKey] || []).slice().sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+  // Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) — restructured
+  // from a `{ [dateKey]: block[] }` nested dict into a plain flat array (`state.dailyScheduleBlocks`,
+  // each block carrying its own real `date` field), mirroring `customTasks`'s own exact shape.
+  // `effectiveDateKeyFor` resolves which day a block is CURRENTLY considered to belong to: an
+  // UNLINKED block is now a real, promoted spine item (see roadmapGenerator.js's own
+  // `buildDailyScheduleItems`), so its date can be overridden from the roadmap's own generic
+  // date-edit input exactly like any other task — checking `nodeDateOverrides` here is what keeps
+  // Daily Schedule's own day view honest about that, without needing to physically move the block
+  // between "buckets" (there are no buckets anymore) whenever the roadmap edits its date. A LINKED
+  // block is a pure scheduling annotation for an ALREADY-existing task elsewhere on the plan (never
+  // its own spine item), so its own `date` is authoritative on its own — editing the underlying
+  // real task's date happens on THAT task, not this annotation.
+  const rawBlocks = state.dailyScheduleBlocks || [];
+  const nodeDateOverrides = state.nodeDateOverrides || {};
+  const removedNodeIds = state.removedNodeIds || {};
+  const effectiveDateKeyFor = (block) => (block.linkedTaskId ? block.date : (nodeDateOverrides[block.id] || block.date));
+  // A removed (via the roadmap's own generic "Remove task") UNLINKED block should disappear from
+  // Daily Schedule too — the same single removedNodeIds flag both views already read for every
+  // other task type. A linked block was never its own spine item, so it can't be "removed" this
+  // way — only the roadmap's own real task removal (targeting linkedTaskId, not this block's id)
+  // could ever affect it, and that's already handled generically wherever that task is rendered.
+  const visibleBlocks = rawBlocks.filter((b) => b.linkedTaskId || !removedNodeIds[b.id]);
+  const blocks = visibleBlocks
+    .filter((b) => effectiveDateKeyFor(b) === dateKey)
+    .sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
   const pending = state.pendingDailySchedule;
   const hasPendingForThisDay = pending && pending.date === dateKey;
 
@@ -137,8 +159,11 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   // task data "This Week" already reads (`flatPlanItems`, passed down from Roadmap.jsx's own
   // `fullRoadmap`). Only incomplete ones (a completed task has nothing left to schedule, same
   // "don't show what's already done" convention the digest list already established) and only
-  // ones not already linked to a block on this day (avoid an "add it again" duplicate prompt).
-  const linkedIdsToday = new Set(blocks.map((b) => b.linkedTaskId).filter(Boolean));
+  // ones not already covered by a block on this day (avoid an "add it again" duplicate prompt) —
+  // `b.linkedTaskId || b.id` covers both a block LINKED to some other real task, and an UNLINKED
+  // block that is now itself a real task (so it doesn't also show up as its own unclaimed
+  // reference chip once it's already scheduled).
+  const linkedIdsToday = new Set(blocks.map((b) => b.linkedTaskId || b.id));
   const dueToday = flatPlanItems.filter((item) => (
     realDaysBetween(item.date, selectedDate) === 0 && !isDone(item.id) && !linkedIdsToday.has(item.id)
   ));
@@ -183,21 +208,26 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor?.id]);
 
-  const isBlockDone = (block) => (block.linkedTaskId ? isDone(block.linkedTaskId) : !!block.completed);
+  // Completion is ALWAYS derived live from the shared `completedNodes` map now, never a second,
+  // independently-tracked local flag — a linked block reads/writes through its real task's own id;
+  // an unlinked block IS the real task since the roadmap-generator fix, so it reads/writes through
+  // its own id directly. Either way, this is the exact same "one shared source of truth" toggle
+  // every other spine/digest item already uses.
+  const isBlockDone = (block) => isDone(block.linkedTaskId || block.id);
+  const toggleBlockDone = (block) => toggleDone(block.linkedTaskId || block.id);
 
-  const toggleBlockDone = (block) => {
+  // A linked block has no spine item of its own — it's purely a scheduling annotation, so removing
+  // it is a real, direct delete from the array. An unlinked block IS a real, promoted spine item,
+  // so removing it goes through the exact same `removedNodeIds` flag the roadmap's own generic
+  // "Remove task" button already writes — one shared removal mechanism regardless of which view
+  // triggered it, not two parallel ones.
+  const removeBlock = (block) => {
     if (block.linkedTaskId) {
-      toggleDone(block.linkedTaskId);
-      return;
+      patch({ dailyScheduleBlocks: rawBlocks.filter((b) => b.id !== block.id) });
+    } else {
+      patch({ removedNodeIds: { ...removedNodeIds, [block.id]: true } });
     }
-    const nextDayBlocks = (dailySchedules[dateKey] || []).map((b) => (b.id === block.id ? { ...b, completed: !b.completed } : b));
-    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
-  };
-
-  const removeBlock = (id) => {
-    const nextDayBlocks = (dailySchedules[dateKey] || []).filter((b) => b.id !== id);
-    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
-    setEditor((ed) => (ed && ed.id === id ? null : ed));
+    setEditor((ed) => (ed && ed.id === block.id ? null : ed));
   };
 
   // Task 2 — click-to-create with a default 1-hour duration. Clicking the timeline's own
@@ -210,13 +240,13 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
     const endTime = minutesToHHMM(Math.min(minutes + DEFAULT_DURATION_MINUTES, 1439));
     const newBlock = {
       id: makeTaskId('schedule-block'),
+      date: dateKey,
       title: prefill.title || 'New Block',
       startTime,
       endTime,
       linkedTaskId: prefill.linkedTaskId || null,
-      completed: false,
     };
-    patch({ dailySchedules: { ...dailySchedules, [dateKey]: [...(dailySchedules[dateKey] || []), newBlock] } });
+    patch({ dailyScheduleBlocks: [...rawBlocks, newBlock] });
     setEditor({
       id: newBlock.id, isNew: true, title: newBlock.title, startTime, endTime,
       linkedTaskId: newBlock.linkedTaskId, anchorTop: minutes, popoverTop: hhmmToMinutes(endTime) + 6,
@@ -247,13 +277,14 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   const saveEditor = () => {
     if (!editor) return;
     if (!editor.title.trim() || !editor.startTime || !editor.endTime || editor.endTime <= editor.startTime) return;
-    const nextDayBlocks = (dailySchedules[dateKey] || []).map((b) => (b.id === editor.id
-      ? { ...b, title: editor.title.trim(), startTime: editor.startTime, endTime: editor.endTime }
-      : b));
-    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
+    patch({
+      dailyScheduleBlocks: rawBlocks.map((b) => (b.id === editor.id
+        ? { ...b, title: editor.title.trim(), startTime: editor.startTime, endTime: editor.endTime }
+        : b)),
+    });
     setEditor(null);
   };
-  const deleteEditorBlock = () => { if (editor) removeBlock(editor.id); };
+  const deleteEditorBlock = () => { if (editor) removeBlock({ id: editor.id, linkedTaskId: editor.linkedTaskId }); };
   const closeEditor = () => setEditor(null);
 
   // Drag-to-resize the bottom edge. A dedicated handle (not the block body itself) can safely
@@ -279,8 +310,7 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
     if (!resize) return;
     e.stopPropagation();
     const finalEndTime = minutesToHHMM(resize.currentEndMin);
-    const nextDayBlocks = (dailySchedules[dateKey] || []).map((b) => (b.id === resize.id ? { ...b, endTime: finalEndTime } : b));
-    patch({ dailySchedules: { ...dailySchedules, [dateKey]: nextDayBlocks } });
+    patch({ dailyScheduleBlocks: rawBlocks.map((b) => (b.id === resize.id ? { ...b, endTime: finalEndTime } : b)) });
     setResize(null);
   };
 
@@ -323,19 +353,19 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   };
   const rejectProposal = () => patch({ pendingDailySchedule: null });
   const acceptProposal = () => {
-    const existing = dailySchedules[dateKey] || [];
-    if (existing.length > 0 && !window.confirm('This will replace your existing schedule for this day. Continue?')) return;
+    if (blocks.length > 0 && !window.confirm('This will replace your existing schedule for this day. Continue?')) return;
+    const remaining = rawBlocks.filter((b) => effectiveDateKeyFor(b) !== dateKey);
     const realBlocks = pending.blocks.map((b) => ({
       id: makeTaskId('schedule-block'),
+      date: dateKey,
       title: b.title,
       startTime: b.startTime,
       endTime: b.endTime,
       linkedTaskId: b.linkedTaskId || null,
-      completed: false,
       ...(b.note ? { desc: b.note } : {}),
     }));
     patch({
-      dailySchedules: { ...dailySchedules, [dateKey]: realBlocks },
+      dailyScheduleBlocks: [...remaining, ...realBlocks],
       pendingDailySchedule: null,
     });
   };
@@ -495,13 +525,13 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
                           {isBlockDone(block) ? <CheckCircle2 size={13} /> : <Circle size={13} />}
                         </button>
                         <span className="schedule-timeline-block-time">
-                          {formatTimeLabel(block.startTime)}–{formatTimeLabel(minutesToHHMM(endMin))}
+                          {formatTimeOfDay(block.startTime)}–{formatTimeOfDay(minutesToHHMM(endMin))}
                         </span>
                         <div className="schedule-timeline-block-actions">
                           <button type="button" onClick={(e) => { e.stopPropagation(); openEditorFor(block); }} aria-label="Edit block">
                             <Pencil size={11} />
                           </button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); removeBlock(block.id); }} aria-label="Remove block">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); removeBlock(block); }} aria-label="Remove block">
                             <Trash2 size={11} />
                           </button>
                         </div>

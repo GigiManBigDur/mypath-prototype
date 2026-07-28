@@ -6446,6 +6446,84 @@ not touched at all this pass; every change is scoped to `DailyScheduleView.jsx` 
   regression. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20, unaffected — this
   pass never opens `roadmapLayout.js`) all stay clean.
 
+**Fix: Daily Schedule Tasks Missing from Roadmap and This Week — a task created within Daily
+Schedule (manually or via AI-assist) previously lived ONLY in `state.dailySchedules`, a nested
+`{ [dateKey]: block[] }` dict invisible to `roadmapGenerator.js` entirely, so it never appeared on
+the spatial roadmap or "This Week." Restructures the underlying data so every view is genuinely
+one lens on one shared array — the same principle already established and fixed once before for
+weekly AI suggestions (see "Fix: Weekly AI Suggestions Missing from the Roadmap" above).**
+- **The restructuring.** `state.dailySchedules` became `state.dailyScheduleBlocks` — a plain FLAT
+  array mirroring `customTasks`'s own exact shape (`[{ id, date: 'YYYY-MM-DD', startTime, endTime,
+  title, linkedTaskId, desc? }]`), each block now carrying its own real `date` field directly
+  rather than being implicitly identified by which dictionary bucket it lived under. This is what
+  lets `roadmapGenerator.js` turn an UNLINKED block into a real spine item through the exact same
+  date-to-position path every other task already uses — no new positioning concept, no changes to
+  `roadmapLayout.js` at all.
+  - **`buildDailyScheduleItems(dailyScheduleBlocks, dateOverrides, removed)`** (new,
+    `roadmapGenerator.js`, added to `spineItems` right alongside `buildCustomItems`/
+    `buildAiSuggestedItems`) filters to blocks with NO `linkedTaskId` — a linked block is a pure
+    SCHEDULING ANNOTATION for an ALREADY-existing task elsewhere on the plan (that task already has
+    its own spine item from whichever OTHER builder produced it), so promoting it too would create
+    a confusing duplicate node. An unlinked block, by contrast, IS the real task — it gets
+    `category: 'custom'` (the same "you added this" dotted-ring visual language every other
+    user-created task already uses, whether typed manually or accepted from Daily Schedule's own AI
+    proposal, matching how an accepted weekly-suggestion task is still just an ordinary task once
+    committed — no new visual category was invented) plus one addition, `scheduleTime: {
+    startTime, endTime }`, so the task's own time-of-day detail survives being viewed outside Daily
+    Schedule.
+  - **Completion is unified**: every block's done-state is now ALWAYS derived from
+    `state.completedNodes[linkedTaskId || id]` — never a second, locally-tracked flag. A linked
+    block already worked this way before this fix; an unlinked block now does too, since it's a
+    real spine item like any other. `DailyScheduleView.jsx`'s `isBlockDone`/`toggleBlockDone`
+    collapsed to one line each, since both cases now resolve identically.
+  - **Removal is unified the same way**: a linked block (no spine item of its own) is still a real,
+    direct delete from the array; an UNLINKED block now goes through the exact same
+    `removedNodeIds` flag the roadmap's own generic "Remove task" button already writes — one
+    shared removal mechanism regardless of which view triggered it, not two parallel ones. This
+    means a Daily-Schedule-created task removed via its OWN trash icon stays physically present in
+    `dailyScheduleBlocks` (soft-removed, exactly like a custom task removed via the roadmap stays in
+    `customTasks` forever too) — both views filter it out the same way.
+  - **Editing the due date generically works too, with no physical "move" needed.**
+    `Roadmap.jsx`'s existing generic date-edit (`nodeDateOverrides`) already applies to ANY spine
+    item's id with zero special-casing — so it already worked the moment the block became a real
+    spine item. The one piece that needed real thought: Daily Schedule's OWN day-by-day view has no
+    "buckets" to move an edited block between anymore, so `DailyScheduleView.jsx`'s
+    `effectiveDateKeyFor(block)` resolves which day a block CURRENTLY belongs to — for an unlinked
+    block, `nodeDateOverrides[block.id] || block.date` (checking the same override the roadmap
+    might have written); for a linked block, just `block.date` (its own scheduling annotation isn't
+    subject to the underlying task's own date edits, which happen on that task directly, not this
+    annotation). This is what lets editing a date from the roadmap correctly move which day Daily
+    Schedule shows the block under, without ever needing to physically relocate array entries.
+- **Verified with two dedicated Playwright suites plus updates to the pre-existing timeline suite.**
+  A new 21-check suite (`test-daily-schedule-roadmap-sync.js`) covers every explicit test criterion:
+  a manually-created block appears as a real roadmap node (with its real scheduled time-of-day
+  visible in the detail modal) and in "This Week"; marking it complete from the roadmap reflects
+  back as done in Daily Schedule, and completing it from Daily Schedule reflects everywhere else
+  (confirmed via "This Week" correctly dropping it, since the digest only lists incomplete items);
+  editing its due date from the roadmap correctly moves which day Daily Schedule shows it under,
+  with zero physical data relocation; removing it via the roadmap sets `removedNodeIds` (not a hard
+  delete) and hides it from both views; an AI-accepted (unlinked) block also appears on the roadmap
+  (as a real cluster marker here specifically, since two AI-proposed blocks legitimately shared the
+  exact same real date — correctly reusing the pre-existing Date-Cluster feature rather than a new
+  mechanism) and in "This Week"; and a LINKED block (the pre-existing case) is confirmed unchanged —
+  it never produces a duplicate spine item, the real underlying task still renders exactly once.
+  The pre-existing `test-daily-schedule-timeline.js` suite (the Google Calendar-style timeline
+  redesign's own 34-check UI coverage) was updated to seed/assert against the new
+  `dailyScheduleBlocks` flat shape instead of the old nested dict, plus one genuinely new thing this
+  restructuring surfaced: a block removed via Daily Schedule's own trash icon now stays physically
+  present (soft-removed) rather than vanishing from the array outright, so the test's own
+  `blocksForDate` helper needed updating to filter out `removedNodeIds`-flagged entries the same
+  way the app's own display logic already does, or a stale soft-removed entry could be mistaken for
+  a later, real one at the same array index — all 34 checks pass after that update. The obsolete
+  pre-timeline `test-daily-schedule.js` (superseded by the timeline redesign's own suite, using
+  retired classes like `.daily-schedule-block`/`.schedule-add-form` that no longer exist) was
+  retired outright rather than patched a second time, the same "delete an obsolete test rather than
+  patch it" precedent this codebase's own suite has already established for other superseded
+  mechanisms. `api/suggest-schedule.js`'s own dedicated server-side test suite was re-run unmodified
+  and still passes in full, confirming the AI-assist backend needed zero changes for this fix.
+  `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20, unaffected — this fix never opens
+  `roadmapLayout.js`) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

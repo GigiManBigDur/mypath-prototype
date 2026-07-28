@@ -128,6 +128,7 @@ export function generateRoadmap(state, yearWindow = null) {
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
   const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed, state.completedNodes || {});
   const aiSuggestedItems = buildAiSuggestedItems(state.aiSuggestedTasks || [], dateOverrides, removed);
+  const dailyScheduleItems = buildDailyScheduleItems(state.dailyScheduleBlocks || [], dateOverrides, removed);
 
   // Course Selection Stage 4 — highschool-only, same gating as every Course Selection screen
   // (Transcript & GPA / Course Selection are unreachable for undergraduate/transfer, so
@@ -176,7 +177,7 @@ export function generateRoadmap(state, yearWindow = null) {
   const spineItems = [
     ...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems,
     ...applicationItems, ...(personalStatementItem ? [personalStatementItem] : []), ...apExamItems,
-    ...internationalItems, ...aiSuggestedItems,
+    ...internationalItems, ...aiSuggestedItems, ...dailyScheduleItems,
   ];
 
   // Scope to the selected year, if any. A non-current year uses that year's own start date as
@@ -357,6 +358,41 @@ function buildAiSuggestedItems(aiSuggestedTasks, dateOverrides, removed) {
         desc: task.desc || 'Suggested based on something you reported.',
         resources: [],
         steps: null,
+      };
+    });
+}
+
+// Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) — a Daily Schedule
+// block with no `linkedTaskId` IS the real task (not a scheduling annotation for one that already
+// has its own spine item elsewhere), so it needs to be promoted into a real spine item too, or it
+// stays invisible to the roadmap/"This Week" exactly as it did before this fix. Mirrors
+// `buildCustomItems` almost exactly (single-step, `category: 'custom'` — the same "you added this"
+// visual language every other user-created task already uses, whether typed manually or accepted
+// from Daily Schedule's own AI-assist proposal, matching how an accepted weekly-suggestion task
+// is still just an ordinary task once committed) — the one addition is `scheduleTime`, a plain
+// `{ startTime, endTime }` pair carried through so Roadmap.jsx's detail modal can show the block's
+// own time-of-day detail, which a plain custom task never has. A LINKED block is deliberately
+// filtered out here — its real task already has its own spine item (built by whichever OTHER
+// builder produced it), so promoting it too would create a confusing duplicate node.
+function buildDailyScheduleItems(dailyScheduleBlocks, dateOverrides, removed) {
+  return (dailyScheduleBlocks || [])
+    .filter((block) => !block.linkedTaskId)
+    .filter((block) => !removed[block.id])
+    .map((block) => {
+      const templateDate = parseDateInputValue(block.date);
+      const realDate = dateOverrides[block.id] ? parseDateInputValue(dateOverrides[block.id]) : templateDate;
+      return {
+        id: block.id,
+        title: block.title,
+        category: 'custom',
+        required: false,
+        coreType: 'custom',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: block.desc || 'A task you added yourself.',
+        resources: [],
+        steps: null,
+        scheduleTime: { startTime: block.startTime, endTime: block.endTime },
       };
     });
 }
