@@ -19,7 +19,33 @@ const TOTAL_MINUTES = 24 * 60;
 const SNAP_MINUTES = 15;
 const DEFAULT_DURATION_MINUTES = 60;
 const MIN_DURATION_MINUTES = 15;
+// Fix: Blocks Shorter Than Their Own Content Get Visually Clipped/Crowded (see CLAUDE.md) — the
+// original two-row block layout (a checkbox+time row, then a separate title row below it) needs
+// real vertical space it was never actually given: measured directly (not guessed) at 6px padding
+// + an 18px checkbox-dictated row + a 16px title-text row = 40px of CONTENT, plus 2px more for
+// `.schedule-timeline-block`'s own 1px top+bottom border under `box-sizing: border-box` (the
+// border eats into the set height's own content area, confirmed directly — a block whose `height`
+// was set to exactly 40px still clipped by ~2px in testing) = 42px truly needed — but the block
+// was only ever given a 20px floor, so any block shorter than that (a normal "wake up," "get
+// ready," "travel home" chunk, all commonly 10-30 min) rendered a box physically smaller than its
+// own content, and since the box also has `overflow: hidden`, the title text got visually SLICED
+// mid-letter rather than cleanly hidden, reading as "blocks crammed/overlapping" even though they
+// were correctly positioned by real time. `COMPACT_THRESHOLD_MINUTES` (below which a block renders
+// a single combined time+title line instead of two stacked rows, matching how a real calendar
+// collapses short events) is set to the SAME value as `TWO_ROW_MIN_PX` deliberately — anything AT
+// or above the threshold already has natural height >= the 2-row floor by construction, so that
+// floor is a pure defensive no-op, never actually enlarging a "regular" block. `MIN_BLOCK_PX` (the
+// compact-mode floor) stays a small, deliberately modest 20px — comfortably fitting the compact
+// single line's own real ~18px content need (plus the same 2px border correction) with a couple px
+// of buffer, not stretched further, since any extra floor beyond real content need is what can
+// visually crowd into a block scheduled to start immediately after (this app's shortest creatable/
+// resizable block, MIN_DURATION_MINUTES=15, only ever needs a ~5px bump under this floor — small
+// enough that even a worst-case zero-gap neighbor only ever loses an imperceptible sliver, not real
+// content, unlike the ~22px shortfall the old single fixed floor produced against the old
+// two-row-only layout).
 const MIN_BLOCK_PX = 20;
+const TWO_ROW_MIN_PX = 44;
+const COMPACT_THRESHOLD_MINUTES = 44;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function formatHourLabel(hour) {
@@ -498,13 +524,18 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
                 {laidOutBlocks.map((block) => {
                   const isResizing = resize && resize.id === block.id;
                   const endMin = isResizing ? resize.currentEndMin : block.endMin;
-                  const heightPx = Math.max(endMin - block.startMin, MIN_BLOCK_PX);
+                  const durationMin = endMin - block.startMin;
+                  // A block dragged (or edited) past the threshold live-switches to the regular
+                  // 2-row layout, and vice versa — this reads off the SAME live `endMin` the
+                  // height itself is computed from, so the two can never disagree mid-drag.
+                  const isCompact = durationMin < COMPACT_THRESHOLD_MINUTES;
+                  const heightPx = Math.max(durationMin, isCompact ? MIN_BLOCK_PX : TWO_ROW_MIN_PX);
                   const leftPct = (block.col / block.cols) * 100;
                   const widthPct = (1 / block.cols) * 100;
                   return (
                     <div
                       key={block.id}
-                      className={`schedule-timeline-block${isBlockDone(block) ? ' done' : ''}${isResizing ? ' resizing' : ''}`}
+                      className={`schedule-timeline-block${isCompact ? ' compact' : ''}${isBlockDone(block) ? ' done' : ''}${isResizing ? ' resizing' : ''}`}
                       style={{
                         top: block.startMin, height: heightPx,
                         left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
@@ -515,31 +546,64 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
                         else openEditorFor(block);
                       }}
                     >
-                      <div className="schedule-timeline-block-top">
-                        <button
-                          type="button"
-                          className="schedule-timeline-block-checkbox"
-                          onClick={(e) => { e.stopPropagation(); toggleBlockDone(block); }}
-                          aria-label={isBlockDone(block) ? 'Mark incomplete' : 'Mark complete'}
+                      {isCompact ? (
+                        // Fix: Blocks Shorter Than Their Own Content Get Visually Clipped/Crowded
+                        // (see CLAUDE.md) — a real calendar collapses a short event's time+title
+                        // into ONE combined line rather than two stacked rows; the full time RANGE
+                        // and title are still available via this row's own native tooltip.
+                        <div
+                          className="schedule-timeline-block-compact-row"
+                          title={`${formatTimeOfDay(block.startTime)}–${formatTimeOfDay(minutesToHHMM(endMin))}: ${block.title}`}
                         >
-                          {isBlockDone(block) ? <CheckCircle2 size={13} /> : <Circle size={13} />}
-                        </button>
-                        <span className="schedule-timeline-block-time">
-                          {formatTimeOfDay(block.startTime)}–{formatTimeOfDay(minutesToHHMM(endMin))}
-                        </span>
-                        <div className="schedule-timeline-block-actions">
-                          <button type="button" onClick={(e) => { e.stopPropagation(); openEditorFor(block); }} aria-label="Edit block">
-                            <Pencil size={11} />
+                          <button
+                            type="button"
+                            className="schedule-timeline-block-checkbox schedule-timeline-block-checkbox-sm"
+                            onClick={(e) => { e.stopPropagation(); toggleBlockDone(block); }}
+                            aria-label={isBlockDone(block) ? 'Mark incomplete' : 'Mark complete'}
+                          >
+                            {isBlockDone(block) ? <CheckCircle2 size={11} /> : <Circle size={11} />}
                           </button>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); removeBlock(block); }} aria-label="Remove block">
-                            <Trash2 size={11} />
-                          </button>
+                          <span className="schedule-timeline-block-time-compact">{formatTimeOfDay(block.startTime)}</span>
+                          <span className="schedule-timeline-block-title-compact">{block.title}</span>
+                          {block.linkedTaskId && <Link2 size={10} className="schedule-block-linked-icon" />}
+                          <div className="schedule-timeline-block-actions">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); openEditorFor(block); }} aria-label="Edit block">
+                              <Pencil size={10} />
+                            </button>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); removeBlock(block); }} aria-label="Remove block">
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="schedule-timeline-block-title">
-                        {block.title}
-                        {block.linkedTaskId && <Link2 size={11} className="schedule-block-linked-icon" />}
-                      </div>
+                      ) : (
+                        <>
+                          <div className="schedule-timeline-block-top">
+                            <button
+                              type="button"
+                              className="schedule-timeline-block-checkbox"
+                              onClick={(e) => { e.stopPropagation(); toggleBlockDone(block); }}
+                              aria-label={isBlockDone(block) ? 'Mark incomplete' : 'Mark complete'}
+                            >
+                              {isBlockDone(block) ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+                            </button>
+                            <span className="schedule-timeline-block-time">
+                              {formatTimeOfDay(block.startTime)}–{formatTimeOfDay(minutesToHHMM(endMin))}
+                            </span>
+                            <div className="schedule-timeline-block-actions">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); openEditorFor(block); }} aria-label="Edit block">
+                                <Pencil size={11} />
+                              </button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); removeBlock(block); }} aria-label="Remove block">
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="schedule-timeline-block-title">
+                            {block.title}
+                            {block.linkedTaskId && <Link2 size={11} className="schedule-block-linked-icon" />}
+                          </div>
+                        </>
+                      )}
                       <div
                         className="schedule-timeline-resize-handle"
                         onPointerDown={(e) => startResize(e, block)}

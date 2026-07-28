@@ -2802,6 +2802,41 @@ button.card.passed:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Fix: Blocks Shorter Than Their Own Content Get Visually Clipped/Crowded (see CLAUDE.md) — a
+   block below COMPACT_THRESHOLD_MINUTES renders this single combined row instead of the two
+   stacked rows above, so its real content (~18px) actually fits within its own modest MIN_BLOCK_PX
+   floor (20px) instead of needing the ~39px a 2-row layout requires. */
+.schedule-timeline-block.compact { padding: 2px 6px; }
+.schedule-timeline-block-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  min-width: 0;
+}
+.schedule-timeline-block-checkbox-sm { width: 14px; height: 14px; }
+.schedule-timeline-block-time-compact {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bloom-ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.schedule-timeline-block-title-compact {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--bloom-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+.schedule-timeline-block.compact.done .schedule-timeline-block-title-compact { text-decoration: line-through; }
+.schedule-timeline-block.compact .schedule-timeline-block-actions { flex-shrink: 0; }
 .schedule-block-linked-icon { color: var(--bloom-accent); flex-shrink: 0; }
 .schedule-timeline-resize-handle {
   position: absolute;
@@ -2941,7 +2976,7 @@ button.card.passed:hover {
 .schedule-proposal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
 @media (max-width: 640px) {
-  .schedule-timeline-block-time { display: none; }
+  .schedule-timeline-block-time, .schedule-timeline-block-time-compact { display: none; }
   .schedule-editor-popover { left: 8px; right: 8px; width: auto; }
 }
 

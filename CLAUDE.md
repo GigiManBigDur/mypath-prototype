@@ -6662,6 +6662,69 @@ behavior" precedent.
   `global.css`) and never opens `roadmapLayout.js`, any `api/*.js` serverless function, or
   `speech.js` itself.
 
+**Fix: Blocks Shorter Than Their Own Content Get Visually Clipped/Crowded — Daily Schedule's
+own timeline blocks were rendering a fixed two-row layout (a checkbox+time row, then a separate
+title row below it) regardless of how short the block's real duration was, causing short blocks'
+own title text to visually slice mid-letter and read as several blocks crammed/overlapping, even
+though they were all correctly positioned by real time.**
+- **Root cause, confirmed by direct measurement, not guessed at.** `DailyScheduleView.jsx`'s block
+  height is a strict `1px = 1 minute` mapping (`HOUR_HEIGHT=60`) with a floor,
+  `MIN_BLOCK_PX = 20` — but the existing two-row layout's own real content (a checkbox-dictated
+  ~18px top row + a ~16px title row + 6px padding, PLUS 2px more because `.schedule-timeline-
+  block`'s own 1px top+bottom border eats into its `box-sizing: border-box` height) needs ~42px to
+  render without clipping — confirmed directly via a scratch diagnostic reading real
+  `getBoundingClientRect()`/`getComputedStyle()` values, not estimated. Since the block also has
+  `overflow: hidden`, any block shorter than ~42 real minutes (a normal "wake up," "get ready,"
+  "travel home + snack break" chunk — all commonly 10-30 min) rendered a box physically smaller
+  than its own content, and the excess got silently sliced off mid-letter rather than cleanly
+  hidden or truncated — the exact reported symptom (a 7:00-7:30/7:30-7:50/7:50-8:00 morning-routine
+  sequence reading as illegible, visually-colliding text).
+- **Why simply raising the height floor isn't safe on its own.** Blocks are positioned absolutely
+  by real start time (`top: startMin`); naively growing a short block's rendered height beyond its
+  own real duration would make its box's bottom edge extend past its true end time — straight into
+  whatever's scheduled immediately after it (a very real case: `layoutWithColumns`'s own interval-
+  graph-coloring only assigns separate horizontal columns to blocks that genuinely OVERLAP in time,
+  so two merely-adjacent, non-overlapping blocks — like the reported morning routine — always share
+  the same column/x-range, meaning any artificial vertical stretch would visually run into the very
+  next block, not empty space).
+- **The fix compacts CONTENT for short blocks instead of stretching the floor to fit the old
+  content.** Any block whose real (or live-resizing) duration is under `COMPACT_THRESHOLD_MINUTES`
+  (44) now renders a single combined time+title line — `.schedule-timeline-block-compact-row`, a
+  smaller 14px checkbox, 10-11px fonts, tighter 2px padding — needing only ~20px of real content,
+  comfortably under the UNCHANGED `MIN_BLOCK_PX = 20` floor with a couple px of buffer. The full
+  time range + title stay available via the row's own native `title` tooltip attribute. A block AT
+  or above the threshold keeps the original, byte-for-byte-unchanged two-row layout; `TWO_ROW_MIN_PX`
+  (44) is set to the SAME value as the threshold deliberately, so that floor is a pure defensive
+  no-op for "regular" blocks — anything qualifying for 2-row mode already has natural height >= the
+  floor by construction, never artificially stretched. This means the worst-case remaining overrun
+  (this app's own shortest creatable/resizable block, `MIN_DURATION_MINUTES=15`, bumped up to the
+  20px compact floor) is only ~5px — small enough that even a genuinely zero-gap neighbor only ever
+  loses an imperceptible sliver, nowhere near the ~22px shortfall the old single fixed floor
+  produced against the old two-row-only layout.
+- **Compact/regular mode is computed from the SAME live `endMin` the height itself already reads**
+  (accounting for an in-progress drag-resize), so dragging a compact block's own bottom edge past
+  the threshold live-switches it to the regular two-row layout mid-drag, and vice versa — no
+  separate state to keep in sync.
+- **A real, confirmed refinement caught before trusting the fix**: the first pass set both
+  `COMPACT_THRESHOLD_MINUTES`/`TWO_ROW_MIN_PX` to 40 (the estimated, not measured, 2-row content
+  need) — a dedicated Playwright check on a block at exactly that boundary caught real clipping
+  (`scrollHeight > clientHeight`), traced directly to the 2px border-eating-into-border-box-height
+  effect the initial estimate hadn't accounted for. Fixed by raising both to 44 (the measured 42px
+  need plus a small buffer), re-verified clean at the exact new boundary.
+- Verified with a dedicated 26-check Playwright suite reproducing the exact reported scenario (a
+  30/20/10-minute back-to-back morning routine followed by a 7-hour "School" block): all three short
+  blocks render in compact mode with zero content clipping (`scrollHeight` never exceeds
+  `clientHeight`) and zero vertical bounding-box overlap with each other; the School block keeps the
+  regular two-row layout, unaffected; the exact 43-vs-44-minute boundary switches modes correctly
+  with neither side clipped; a compact block's checkbox/click-to-edit/remove all still work
+  identically to a regular block; and dragging a compact block's resize handle past the threshold
+  live-switches it to the regular layout mid-drag, committing the real dragged end time on release.
+  The full pre-existing Daily Schedule regression suite (`test-daily-schedule-timeline.js`, 34
+  checks; `test-daily-schedule-roadmap-sync.js`, 21 checks) both still pass unmodified — this fix
+  touches only `DailyScheduleView.jsx`'s own block-rendering markup and `global.css`, never
+  `roadmapLayout.js`, `roadmapGenerator.js`, or the underlying `state.dailyScheduleBlocks` data
+  shape; `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -8928,3 +8991,20 @@ download). Cover at minimum:
   after the second scenario's own state has already been seeded, a confirmed test-harness race
   unrelated to the app itself (see this app's own "seedAndGoto race" precedent elsewhere in this
   file).
+
+- Fix: Blocks Shorter Than Their Own Content Get Visually Clipped/Crowded: seed several short,
+  back-to-back Daily Schedule blocks (e.g. 30/20/10-minute chunks with zero gap between them,
+  reproducing a morning-routine sequence) and confirm each renders with the `.compact` class and a
+  single combined time+title line, with zero content clipping — checked directly via
+  `element.scrollHeight > element.clientHeight` (the structural signature of the original bug,
+  since `overflow: hidden` silently clips excess rather than showing a scrollbar), not just a
+  screenshot. Confirm a block at or above the threshold (44 real minutes) keeps the original
+  two-row layout and is likewise unclipped, and that a block exactly at the 43-vs-44-minute
+  boundary switches modes correctly. Confirm a compact block's checkbox/edit/remove interactions
+  and drag-to-resize (including a live mode-switch mid-drag once dragged past the threshold) all
+  still work. When locating a specific block by title text, use an exact-match regex
+  (`new RegExp('^' + title + '$')`) against `.schedule-timeline-block-title-compact` or
+  `.schedule-timeline-block-title`, not Playwright's own `hasText` string option — that does
+  case-insensitive SUBSTRING matching against the whole element, so a title like "Commute to
+  school" will ambiguously also match a filter for "School" alone (confirmed directly: this
+  produced a real `strict mode violation` resolving to 2 elements before being fixed).
