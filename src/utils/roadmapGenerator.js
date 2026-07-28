@@ -191,7 +191,9 @@ export function generateRoadmap(state, yearWindow = null) {
   const scopedItems = yearWindow ? filterItemsToYear(spineItems, yearWindow.start, yearWindow.endExclusive) : spineItems;
   const layoutToday = isCurrentYearView ? today : { ...today, date: yearWindow.start };
 
-  const { today: laidToday, spine, canvasHeight, canvasWidth } = layoutRoadmap({ today: layoutToday, spineItems: scopedItems });
+  const {
+    today: laidToday, spine, canvasHeight, canvasWidth, axisTicks, axisTickX,
+  } = layoutRoadmap({ today: layoutToday, spineItems: scopedItems });
 
   const levelLabel = stageNames.length > 1 ? LEVEL_LABEL_MULTI_YEAR[level] : LEVEL_LABEL[level];
 
@@ -246,6 +248,8 @@ export function generateRoadmap(state, yearWindow = null) {
     spine,
     canvasHeight,
     canvasWidth,
+    axisTicks,
+    axisTickX,
   };
 }
 
@@ -1380,9 +1384,10 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiInser
   // recomputed here). Deliberately reuses the exact same "add to the array, then re-sort by real
   // date and recompute isLast" tail buildStepsChain's own sort already does, rather than trying to
   // splice at a remembered array index — this is what makes the inserted step connect into the
-  // SAME diagonal branch via the SAME date-driven positioning `layoutBranch`/roadmapLayout.js
-  // already use for every other step, with zero changes to that file. Respects removedNodeIds/
-  // nodeDateOverrides exactly like every other step, via the same per-id lookups.
+  // SAME chain via the SAME date-driven positioning `roadmapLayout.js` already uses for every
+  // other step (its own fixed lane, since the Fixed Lanes restructure — see that file), with zero
+  // changes to that file. Respects removedNodeIds/nodeDateOverrides exactly like every other step,
+  // via the same per-id lookups.
   const extraSteps = aiInsertedSteps
     .filter((s) => !removed[s.id])
     .map((s) => {

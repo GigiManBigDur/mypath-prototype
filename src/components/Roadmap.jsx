@@ -207,6 +207,16 @@ function line(x1, y1, x2, y2) {
   return `M ${x1} ${y1} L ${x2} ${y2}`;
 }
 
+// Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md), Task 4 — the spine ->
+// lane jog: a horizontal segment out to the lane's own x (staying at the anchor's own y), then a
+// vertical segment down to the lane's own first step (staying at the lane's own x) — never
+// diagonal. Every step AFTER the first already shares that same lane x with its own predecessor,
+// so the existing plain `line()` helper already renders those as pure vertical segments with zero
+// changes needed there.
+function rightAngleLine(x1, y1, x2, y2) {
+  return `M ${x1} ${y1} L ${x2} ${y1} L ${x2} ${y2}`;
+}
+
 // Bottom-right floating zoom-control stack needs to clear the bottom panel, which floats as an
 // overlay above the canvas rather than pushing it — these are just the two resting positions for
 // that stack (collapsed strip vs. expanded panel), not anything derived from real layout
@@ -900,6 +910,19 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 <stop offset="1" stopColor="var(--bloom-teal)" />
               </linearGradient>
             </defs>
+            {/* Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md), Task 5 —
+                an explicit, labeled time axis running down the canvas's own left edge (its own
+                reserved AXIS_WIDTH strip, see roadmapLayout.js), so vertical position is anchored
+                to a visible, readable ruler rather than implied spacing between nodes alone.
+                Rendered first (behind every real node/connector) since it's a background
+                reference, not interactive content — no click target, no entrance animation of its
+                own, matching how a real chart axis stays quiet relative to the data on top of it. */}
+            {(roadmap.axisTicks || []).map((tick) => (
+              <g key={tick.label} className="roadmap-axis-tick">
+                <line x1={roadmap.axisTickX - 8} y1={tick.y} x2={roadmap.axisTickX + 8} y2={tick.y} className="roadmap-axis-tick-mark" />
+                <text x={roadmap.axisTickX + 14} y={tick.y} className="roadmap-axis-tick-label">{tick.label}</text>
+              </g>
+            ))}
             {/* Spine connective line: today up through every spine item, in chronological order.
                 On first load only, each segment draws in via stroke-dashoffset instead of
                 appearing solid immediately — the `d`/coordinates themselves are untouched. Only
@@ -932,10 +955,11 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               );
             })}
 
-            {/* Each multi-step item's own isolated diagonal, plus the chain within it. Branch
-                lines keep their permanent dashed "6 6" pattern (that's how optional branches read
-                as distinct from the solid required spine), so their first-load reveal is a plain
-                opacity fade rather than the dash-offset draw (which would fight that pattern). */}
+            {/* Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md) — each
+                multi-step chain's own fixed lane, plus the chain within it. Branch lines keep
+                their permanent dashed "6 6" pattern (that's how optional branches read as distinct
+                from the solid required spine), so their first-load reveal is a plain opacity fade
+                rather than the dash-offset draw (which would fight that pattern). */}
             {roadmap.spine.filter((n) => n.hasBranch).map((n) => {
               const anchorIndex = roadmap.spine.indexOf(n);
               const anchorDelay = entranceDelay(anchorIndex, entranceEnabled);
@@ -952,11 +976,16 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               const anchorPos = renderPos(n);
               return (
                 <g key={`branch-${n.id}`}>
+                  {/* Task 4 — a right-angle jog (horizontal out to the lane, then vertical to the
+                      first step), never a direct diagonal. */}
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={line(anchorPos.x, anchorPos.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
+                  {/* Task 4 — within a lane, every later step shares its predecessor's own x (the
+                      lane's fixed x), so this same `line()` call already renders a pure vertical
+                      segment with zero changes needed here. */}
                   {n.branchSteps.slice(0, -1).map((s, i) => {
                     const next = n.branchSteps[i + 1];
                     return (
@@ -1019,8 +1048,9 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
 
             {/* Spine nodes: core (solid/required) and opportunity anchors (hollow/optional).
                 labelSide alternates per item (spine x is always dead-center) so consecutive spine
-                labels don't all pile onto one side, and a branch always peels opposite its own
-                anchor's label — see roadmapLayout.js. */}
+                labels don't all pile onto one side; a chain anchor's own labelSide is forced away
+                from its own lane's side instead (see roadmapLayout.js), so the lane's own
+                right-angle jog never crosses the anchor's own label text. */}
             {roadmap.spine.map((n, i) => {
               // Real-Time Tracking feature, Task 3 (see CLAUDE.md) — the item that coincides with
               // "today" renders as part of the combined "today" marker below instead of a second,
@@ -1042,10 +1072,10 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                   {/* Map 2 is always scoped to a single year now (see the year-filtering fix), so
                       an in-canvas "— Freshman Year —" divider would just be redundantly labeling
                       the one year already being viewed — Map 1 already communicates which year is
-                      which. `n.stageLabel` itself is left untouched in roadmapGenerator.js/
-                      roadmapLayout.js (including the collision-avoidance space it still reserves
-                      in `placedLabels`) — only this visible render is removed, so no node's
-                      position shifts as a side effect of this change. */}
+                      which. `n.stageLabel` itself is left untouched in roadmapGenerator.js — only
+                      this visible render is removed, so no node's position shifts as a side effect
+                      of this change (the Fixed Lanes restructure's own roadmapLayout.js no longer
+                      does any collision-based reservation for it at all — see that file). */}
                   <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
                     {/* Invisible hit target, sized to match the click-pulse animation's peak
                         scale (1.22× the ring — 18 for required, 16 for everything else) — a

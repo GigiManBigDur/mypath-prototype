@@ -1,187 +1,143 @@
-// One unified vertical spine, not separate trunk/branch/chip concepts. Every item — required
-// core admissions tasks and every selected opportunity's starting point alike — is positioned on
-// the spine by real date (today at the bottom, later dates higher up), same "latitude = time"
-// principle used everywhere else in this app. A light minimum-gap pass nudges spine items apart
-// when two real dates land too close together to read.
+// Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (HOI4-Style) (see CLAUDE.md) — replaces
+// the old diagonal-branch, per-label-collision-avoidance system with a strategy-game-tech-tree
+// layout: every multi-step chain (an opportunity or project with 2+ total steps) holds one FIXED
+// horizontal lane for its entire sequence, connected to the spine by a single right-angle jog and
+// to its own later steps by pure vertical lines, with lanes reused once a chain finishes and an
+// explicit labeled time axis running down the canvas's own left edge.
 //
-// Multi-step items (currently only opportunities — core tasks are always single-step, see
-// trunkSteps.js) get their own diagonal sub-branch peeling off the spine, positioned by the same
-// time principle. Each branch is computed against a running list of every label already placed
-// (every earlier spine item, and every earlier branch's own steps) and nudges itself further out
-// along its own diagonal whenever it would collide — so a chain never has to fight over lateral
-// space with another chain's steps, it just routes around them.
+// THE ONE RULE THAT MUST NOT BREAK: every node's vertical position is still governed by the exact
+// same rule it always has been — real date, scaled by PIXELS_PER_DAY, with the MIN_SPINE_GAP floor
+// applying only for a genuine 0-1-real-day gap (or to preserve real-date order against a prior
+// floored run's own accumulated drift — see that fix's own history below). `layoutSequenceByDate`
+// is now the ONE canonical function expressing this rule, shared by the spine (Pass 1, anchored at
+// "today") AND every chain's own steps (anchored at the chain's own already-computed spine
+// position instead) — this REPLACES the old, genuinely different MIN_BRANCH_GAP-based vertical
+// rule branches used to have, per this restructure's own explicit instruction to use "the existing
+// shared date-to-y function" for every node, not two different rules for spine vs. branch. This
+// restructure changes HORIZONTAL placement and connector SHAPE only — `npm run verify:spacing`
+// (which only ever exercises spine-only inputs, no chains) is untouched by any of this and must
+// keep passing byte-for-byte identically, since Pass 1 itself was not touched at all.
+//
+// This is also what makes the whole old per-label collision-avoidance system (placedLabels,
+// intersects, NUDGE_STEP/MAX_NUDGES, BRANCH_SLOPES, BRANCH_SPACING_MULTIPLIER) unnecessary and
+// removed entirely: since each chain now owns one exclusive, fixed horizontal lane for its whole
+// lifetime (never shared with another chain that's genuinely concurrent with it — see the lane
+// assignment below), and same-lane steps are already guaranteed at least MIN_SPINE_GAP vertical
+// separation by the same date-to-y rule the spine relies on for its own readability, there is no
+// remaining case where two chains' own labels could collide with each other. LANE_GAP/LANE_WIDTH
+// are deliberately fixed, generous design constants (not derived from real text measurement) —
+// matching the tech-tree reference's own rigid, evenly-spaced parallel-column aesthetic, a
+// deliberate simplification rather than an oversight.
 
 import { realDaysBetween } from './dates';
 
 const TOP_MARGIN = 90;
 const BOTTOM_MARGIN = 90;
-const LABEL_BUFFER = 300; // horizontal room for node/branch label text extending outward from center
-// Exported so Roadmap.jsx's default-zoom calculation (cap the initial view to a ~2-year window
-// anchored at today, see fitView) can convert a day-span into the same pixel units this file
-// positions everything in, instead of hardcoding a second copy that could drift out of sync.
-// Raised from 20 specifically so MIN_SPINE_GAP can be a real 60px (see below) while
-// 2 * PIXELS_PER_DAY (64) still clears it — the rate itself doesn't otherwise need to change; this
-// is purely a side effect of the floor request. Every day-to-day increase beyond the floor is
-// still exactly PIXELS_PER_DAY px, same "adding rate" as before, just at this new value.
+// Horizontal room beyond the outermost lane, for that lane's own label text extending further
+// outward (away from the spine) — same role the old LABEL_BUFFER played for the diagonal system,
+// just applied to a fixed lane's own extent now instead of an organically-grown branch's.
+const LABEL_BUFFER = 300;
 export const PIXELS_PER_DAY = 32;
-// The floor must apply ONLY when two spine items are 0 or 1 real day apart — anything 2+ days
-// apart uses pure `PIXELS_PER_DAY * daysBetween` math with zero flooring (see the withPosition
-// loop below). This is a literal 60, not derived from PIXELS_PER_DAY like it used to be — 60 was
-// requested directly. It must still stay strictly under 2 * PIXELS_PER_DAY (64) or a 2-day gap
-// would render smaller than or equal to the 0/1-day floor, inverting the ordering the "only floor
-// at <=1 day" rule exists to guarantee — PIXELS_PER_DAY was raised (see above) specifically to
-// keep that true. If you change this value again, re-check it against 2 * PIXELS_PER_DAY before
-// assuming it's safe.
+// The floor must apply ONLY when two items positioned by the SAME date-to-y call are 0 or 1 real
+// day apart — anything 2+ days apart uses pure `PIXELS_PER_DAY * daysBetween` math with zero
+// flooring. This is a literal 60, not derived from PIXELS_PER_DAY — see the historical note in
+// `layoutSequenceByDate` below for why, and CLAUDE.md's own "MIN_SPINE_GAP's floor must trigger
+// ONLY when..." section for the full history. It must stay strictly under 2 * PIXELS_PER_DAY (64)
+// or a genuine 2-day gap would render smaller than or equal to the 0/1-day floor, inverting the
+// ordering the "only floor at <=1 day" rule exists to guarantee.
 const MIN_SPINE_GAP = 60;
-const MIN_BRANCH_GAP = 46;
-// Alternating per-segment slope (horizontal px per vertical px for THAT segment only) — using one
-// constant slope for a whole branch makes every point in it exactly colinear with the anchor, so
-// "connect step to previous step" and "connect every step straight back to the anchor" render as
-// the same single straight ray. Alternating slopes give each segment its own direction, so the
-// chain actually bends at every node instead of looking like one long spoke.
-// LEFT AT ITS ORIGINAL VALUES ON PURPOSE — do not bump this up to widen branches. `rel` (used for
-// both the collision-avoidance nudge loop AND `y`) is derived independently of slope, but the
-// nudge loop's OUTCOME (how many times it fires) is not: widening x here changes which label
-// boxes collide, which can change how many times a step gets nudged, which changes its final
-// `rel` and therefore its `y` — verified empirically (a dense FBLA/DECA test plan) to shift `y`
-// for a real subset of steps. BRANCH_SPACING_MULTIPLIER below widens branches instead, applied
-// only to each step's already-finalized `x` after every collision decision is locked in, so the
-// nudge loop keeps making the exact same decisions (and therefore the exact same `y`) it always
-// has — see the proof in layoutBranch's own comment.
-const BRANCH_SLOPES = [0.65, 0.2];
-// Uniformly stretches every branch's x further from the spine, applied only after layoutBranch's
-// nudge loop has already finalized rel/y using the untouched BRANCH_SLOPES above — see the proof
-// there for why this can only ever increase separation between labels, never introduce a new
-// overlap. Doubling gives noticeably more horizontal breathing room on both sides.
-const BRANCH_SPACING_MULTIPLIER = 2;
 
-// Rough label-block geometry, used only to decide "would these two labels visually collide" —
-// doesn't need to be pixel-perfect, just a safe overestimate (IBM Plex Sans at 13px averages
-// under 6.3px/char, so this errs generous).
-const CHAR_PX = 6.3;
-const LABEL_PAD = 16;
-const LABEL_BLOCK_HEIGHT = 30;
-const SPINE_EDGE_GAP = 26;
-const BRANCH_EDGE_GAP = 20;
-const NUDGE_STEP = 18;
-const MAX_NUDGES = 80;
-// intersects() below treats two boxes as colliding if they come within this many px of each
-// other, not just on literal overlap. Without it, two labels whose true edges land a few px
-// apart (e.g. an opportunity's own branch step landing close to an UNRELATED spine node it
-// shares no chain with — the two boxes' real edges came within 16px in one observed case) count
-// as "not colliding" and never get nudged apart, even though that reads as visually cramped/
-// touching on screen. This is the one thing standing between "no rectangle overlap" and "a
-// human would call this a comfortable gap" — it doesn't touch rel/y/BRANCH_SLOPES math at all,
-// only whether the EXISTING nudge loop decides to fire.
-const COLLISION_PADDING = 24;
+// Fixed-lane constants (this restructure) — LANE_GAP is the distance from the spine's own
+// centerline to the first lane's own node column on either side (chosen generously enough that a
+// lane's own dot/label never lands under a real spine item's own label, which extends from x=0 by
+// a small fixed offset); LANE_WIDTH is the pitch between consecutive same-side lanes (chosen
+// generously enough that a chain step's own label, extending further outward from its lane,
+// doesn't reach the next lane over). Both were verified visually against real dense multi-chain
+// plans during this restructure's own staged build/test process, not assumed correct on paper.
+const LANE_GAP = 280;
+const LANE_WIDTH = 260;
+// Task 5 — a reserved strip on the canvas's own LEFT edge for the labeled time axis, added purely
+// as EXTRA width beyond the spine's own symmetric centerX (see below) — this guarantees the axis
+// always has real, dedicated room and never competes for space with an actual lane/label, and
+// leaves the canvas's own RIGHT-side extent completely unaffected by the axis's existence.
+const AXIS_WIDTH = 90;
+const AXIS_TICK_X = 22;
 
-function labelWidth(text) {
-  return text.length * CHAR_PX + LABEL_PAD;
-}
+// Fix: AI-Suggested Node's Horizontal Position Doesn't Match Its Branch (see CLAUDE.md) — an
+// accepted AI suggestion can land BETWEEN the anchor and a chain's own original first step,
+// becoming the new `steps[0]`. That fix no longer matters for HORIZONTAL position now that a
+// chain's steps all share one fixed lane `x` regardless of which one sorts first — but it still
+// matters for the chain's own vertical spacing: the original bug was that `steps[0]`'s own gap
+// from the anchor collapsed to a flat constant regardless of real elapsed time, when what should
+// happen is `steps[0]` gets positioned by its OWN real date relative to the anchor, exactly like
+// every other step. `layoutSequenceByDate` already does this correctly and uniformly for every
+// step (there's no special-cased `base` to get wrong anymore) — kept here only as a historical
+// note, since a future reader diffing this file's own history might otherwise wonder why the old
+// `aiSuggested`-gated `base` special-case is gone: it's gone because the bug it fixed can no
+// longer occur under the new, uniform layoutSequenceByDate rule.
 
-// A label reads two lines (title, due) of possibly different lengths — use whichever is wider.
-function blockWidth(title, due) {
-  return Math.max(labelWidth(title), labelWidth(`${due} XXXXXXXXXXXXXX`));
-}
-
-function labelBBox(x, y, side, width, edgeGap) {
-  const left = side > 0 ? x + edgeGap : x - edgeGap - width;
-  return { left, right: left + width, top: y - LABEL_BLOCK_HEIGHT / 2, bottom: y + LABEL_BLOCK_HEIGHT / 2 };
-}
-
-// Stage dividers ("— Sophomore Year —") render centered on the spine, just below their node —
-// registered here too so a nearby branch routes around them like any other label.
-function centeredLabelBBox(x, y, text) {
-  const width = labelWidth(text);
-  return { left: x - width / 2, right: x + width / 2, top: y - 10, bottom: y + 10 };
-}
-
-function intersects(a, b) {
-  return a.left - COLLISION_PADDING < b.right
-    && b.left - COLLISION_PADDING < a.right
-    && a.top - COLLISION_PADDING < b.bottom
-    && b.top - COLLISION_PADDING < a.bottom;
-}
-
-// Positions one item's step chain as a genuine connected path — each step's x is accumulated
-// incrementally from the PREVIOUS step's x (not computed fresh from the anchor every time), using
-// an alternating slope per segment so the path actually bends at each node instead of tracing one
-// straight ray. `side` is +1 (right) or -1 (left). Coordinates are relative to the parent spine
-// node at (0, anchorY) and get shifted into final canvas space later, alongside everything else.
-// `placedLabels` accumulates every label bbox placed so far (across every item, not just this
-// branch) so each step can route around anything already on the canvas — including labels from
-// other chains — instead of only avoiding itself.
+// Positions a chronologically-sorted sequence of `{ t, ...rest }` entries (t = real days from
+// "today", ascending) relative to an arbitrary anchor point (anchorT, anchorY), using
+// PIXELS_PER_DAY scaling with the confirmed MIN_SPINE_GAP floor. This is the ONE canonical
+// "date determines y" function now, used identically for:
+//   - The spine (anchorT=0, anchorY=0) — this exactly reproduces the spine's own original Pass 1
+//     loop, confirmed by direct comparison against the pre-restructure code before this file was
+//     rewritten, which is what makes `npm run verify:spacing` (spine-only inputs) pass byte-for-
+//     byte identically without needing any changes of its own.
+//   - Each chain's own steps (anchored at that chain's own already-computed spine position instead
+//     of "today" itself) — this REPLACES the old MIN_BRANCH_GAP-based rule branches used to use
+//     (which floored at a flat 46px regardless of real day-gap, unlike the spine's stricter
+//     "only floor at 0-1 real days apart" rule) with the identical spine rule, per this
+//     restructure's own explicit instruction to use one shared date-to-y function everywhere.
 //
-// Every collision decision below (rel/y, the nudge loop, what gets pushed to placedLabels) runs
-// entirely in this "narrow" coordinate system, using the original BRANCH_SLOPES — none of that
-// changed for the wider-spacing tweak. Only the RETURNED x is widened, by a flat
-// BRANCH_SPACING_MULTIPLIER applied once at the very end. This is safe rather than cosmetic
-// hand-waving: every already-validated non-overlap in this function falls into one of three
-// cases, and multiplying every branch step's x by the same K>1 (y, spine positions at x=0, and
-// label widths/edgeGap all held fixed) can only ever widen that gap, never close it —
-//   1. Same-side boxes not overlapping because one is fully left of the other (x1+width1 <= x2):
-//      scaling both by K preserves x1*K+width1 <= x2*K whenever x2 > x1 >= 0 and K > 1, since the
-//      required gap (width1) doesn't grow but the actual gap (x2-x1) does.
-//   2. Opposite-side boxes: one side's x values are ~positive, the other's ~negative, so they're
-//      already separated by construction — scaling in place (each side keeps its own sign)
-//      only pushes them further apart.
-//   3. A branch box vs. a same-side spine label (fixed at x=0, never scaled): moving the branch
-//      step further from x=0 only increases its distance from the spine label.
-// In short: scaling here can't introduce a new overlap between anything that didn't already
-// overlap before scaling, so the "no label overlaps" invariant this file already guaranteed keeps
-// holding — and because rel/y are computed before this multiply ever applies, every node's
-// vertical position is provably untouched by it.
-// Fix: AI-Suggested Node's Horizontal Position Doesn't Match Its Branch (see CLAUDE.md) — `base`
-// is normally `steps[0].date` (the array's own first branch step), which makes that step's own
-// `rel` collapse to exactly `MIN_BRANCH_GAP` (a flat constant — `realDaysBetween(base, base)` is
-// always 0), regardless of how far it really is from the anchor in time. That's invisible for a
-// template chain (every real opportunity's own first prep step has always gotten this same flat
-// treatment, and nobody could tell), but an accepted AI suggestion can land BETWEEN the anchor and
-// the chain's own original first prep step — becoming the new `steps[0]` — and inherits that same
-// flat, near-spine offset that used to belong to a step several real days later. The step after it
-// (still measured relative to the ai-step's own date) then LOOKS like it resets the fan's origin,
-// rather than continuing an already-progressing diagonal.
-//
-// Fixed narrowly: `base` is only ever the ANCHOR's real date (passed in as `anchorDate`) instead
-// of `steps[0].date` when `steps[0]` is itself an ai-inserted step — every other case (no AI
-// insertion at all, or one that lands anywhere OTHER than array index 0) is completely
-// byte-for-byte unaffected, since `steps[0].date` is exactly what `anchorDate` would already
-// collapse to whenever `steps[0]` isn't ai-suggested... no, that's not true in general (the
-// anchor's own date is always earlier than steps[0]'s), which is exactly why this is scoped to the
-// `aiSuggested` case specifically, rather than changed globally — a global change would uniformly
-// shift EVERY existing template chain's branch further from the spine (every real opportunity's
-// prep-step-to-anchor gap is several real days, not near-zero), which is a much bigger, riskier
-// change than this narrow bug calls for. This does NOT change the relative spacing between any
-// other pair of consecutive steps — every `rel_i - rel_{i-1}` for i >= 1 telescopes down to
-// `PIXELS_PER_DAY * realDaysBetween(step_i.date, step_{i-1}.date)` regardless of what `base` is,
-// so only the array's own first entry's absolute offset (and therefore where the rest of the fan
-// starts from) is affected.
-function layoutBranch(steps, anchorY, side, placedLabels, anchorDate) {
-  const base = steps[0].aiSuggested ? anchorDate : steps[0].date;
-  let prevRel = 0;
-  let prevX = 0;
-  return steps.map((step, i) => {
-    let rel = MIN_BRANCH_GAP + realDaysBetween(step.date, base) * PIXELS_PER_DAY;
-    if (i > 0 && rel - prevRel < MIN_BRANCH_GAP) rel = prevRel + MIN_BRANCH_GAP;
-
-    const slope = BRANCH_SLOPES[i % BRANCH_SLOPES.length];
-    const width = blockWidth(step.title, step.due);
-    let x = prevX + side * (rel - prevRel) * slope;
-    let y = anchorY - rel;
-    let bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
-    let guard = 0;
-    while (guard < MAX_NUDGES && placedLabels.some((p) => intersects(p, bbox))) {
-      rel += NUDGE_STEP;
-      x = prevX + side * (rel - prevRel) * slope;
-      y = anchorY - rel;
-      bbox = labelBBox(x, y, side, width, BRANCH_EDGE_GAP);
-      guard += 1;
-    }
-    placedLabels.push(bbox);
-    prevRel = rel;
-    prevX = x;
-    return { ...step, x: x * BRANCH_SPACING_MULTIPLIER, y };
+// The floor logic itself (comparing TRUE day-gap to the immediately preceding entry, OR whether
+// the true position would otherwise land less negative than the accumulated `prevY` minus
+// MIN_SPINE_GAP) is unchanged from the spine's own original, hard-won logic — see CLAUDE.md's own
+// "MIN_SPINE_GAP's floor must trigger ONLY when..." and "Fill Out the High School Academic Plan"
+// sections for the full history of why both conditions are needed (a single day-gap check alone
+// doesn't prevent a compounding-drift order inversion across a RUN of 3+ close-together entries).
+function layoutSequenceByDate(entries, anchorT, anchorY) {
+  let prevY = anchorY;
+  let prevT = anchorT;
+  return entries.map((entry) => {
+    const { t } = entry;
+    const trueY = anchorY - (t - anchorT) * PIXELS_PER_DAY;
+    const needsFloor = (t - prevT) <= 1 || trueY > prevY - MIN_SPINE_GAP;
+    const y = needsFloor ? prevY - MIN_SPINE_GAP : trueY;
+    prevY = y;
+    prevT = t;
+    return { ...entry, y };
   });
+}
+
+// Task 5 — one tick per real calendar month spanning every date actually referenced by this
+// roadmap (every spine item's own date, plus every one of its steps' dates, plus "today" itself as
+// a floor) — walked directly from real Date objects, not reverse-engineered from pixel positions,
+// so this can never disagree with where real content actually renders. Each tick's own y uses the
+// exact same (unfloored) date-to-y mapping as the spine's own anchor point — ticks are always at
+// least 28 real days apart, i.e. at least 896px at PIXELS_PER_DAY=32, far past MIN_SPINE_GAP, so
+// there's never a reason to floor one tick against another.
+function buildAxisTicks(spineItems, todayDate, yShift) {
+  const allDates = [todayDate];
+  spineItems.forEach((item) => {
+    allDates.push(item.date);
+    (item.steps || []).forEach((s) => allDates.push(s.date));
+  });
+  const minDate = new Date(Math.min(...allDates.map((d) => d.getTime())));
+  const maxDate = new Date(Math.max(...allDates.map((d) => d.getTime())));
+
+  const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+  const ticks = [];
+  let guard = 0;
+  while (cursor <= end && guard < 60) { // a single-year view never legitimately needs more than ~14
+    const t = realDaysBetween(cursor, todayDate);
+    const y = -t * PIXELS_PER_DAY + yShift;
+    ticks.push({ y, label: cursor.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) });
+    cursor.setMonth(cursor.getMonth() + 1);
+    guard += 1;
+  }
+  return ticks;
 }
 
 export function layoutRoadmap({ today, spineItems }) {
@@ -191,84 +147,72 @@ export function layoutRoadmap({ today, spineItems }) {
     .map((item) => ({ item, t: daysFromToday(item.date) }))
     .sort((a, b) => a.t - b.t);
 
-  // Pass 1: raw date-proportional y (today = 0, future = negative/upward) for every spine item,
-  // with a forward min-gap pass that only ever pushes items further from "now" — never reorders
-  // them — plus which side each item's OWN label renders on (labelSide alternates; spine x is
-  // always dead-center, so without alternating, every spine label would permanently claim the
-  // same side, guaranteeing a collision with any branch that happens to peel toward it).
-  //
-  // The primary floor decision compares TRUE day-gap (`t - prevT`, both real `daysFromToday`
-  // values) to the previous item's real date, NOT the previous item's rendered `prevY` —
-  // comparing against `prevY` was the ORIGINAL historical bug: if an earlier item had already
-  // been floored (pushed further from its true position), that drift carried into `prevY`, so a
-  // LATER pair of items that were genuinely several real days apart could still get floored
-  // again, simply because the earlier drift hadn't been "paid off" yet. Using the true day-gap
-  // for the FLOOR decision means only a pair that is ACTUALLY 0 or 1 real days apart ever floors
-  // for that REASON — but this alone doesn't fully prevent order inversion.
-  //
-  // A SECOND, later-discovered gap in that same original fix (see CLAUDE.md — Fill Out the High
-  // School Academic Plan): a RUN of 3+ consecutive 0-1-day-apart items still compounds — each
-  // pairwise floor is individually correct (60px pushed relative to the PREVIOUS item), but the
-  // push accumulates across the whole run (60px × run length). If a run is long enough, that
-  // accumulated total can exceed what a LATER, genuinely-2+-day-apart item's own TRUE (unfloored)
-  // position would place it at — and since that later item's floor decision only ever looks at
-  // its OWN immediate predecessor's real date (correctly finding no reason to floor on its own
-  // terms), it renders using its true, unflored y — which can end up LESS negative (rendering as
-  // if EARLIER) than the run's own drift-inflated final position, inverting their visual order
-  // even though every INDIVIDUAL pairwise decision was correct in isolation. Confirmed directly:
-  // a real 3-item run (each pair 0-1 real days apart) followed by a 2-real-day-apart item produced
-  // an 84px inversion on a real, dense generated plan — small compounding cases can even hide
-  // inside this codebase's own pre-existing regression test, which checked the GAP'S MAGNITUDE
-  // but never its DIRECTION (see verify-spacing.mjs's own updated comment).
-  //
-  // The fix: floor whenever EITHER the original day-based condition applies, OR the item's own
-  // true position would otherwise land less negative than (i.e. rendering "before") the
-  // accumulated `prevY` minus the same MIN_SPINE_GAP — this can only ever trigger to PRESERVE
-  // ordering, never to re-introduce the original prevY-cascade bug: it goes false on its own the
-  // moment a real date gap grows large enough to clear whatever drift came before it (confirmed by
-  // the isolated 0-7-day table below being completely unaffected — for those, prevY always starts
-  // at exactly 0, so this second condition can only ever agree with, never override, the day-based
-  // one).
-  //
-  // All spine labels get placed into `placedLabels` up front, in this same pass, before any
-  // branch is laid out — a branch needs to know about EVERY spine label (including ones later in
-  // time than its own anchor) to route around them, not just the ones already processed.
-  let prevY = 0;
-  let prevT = 0;
-  let sideToggle = 0;
-  const placedLabels = [];
-  const withPosition = withT.map(({ item, t }) => {
-    const trueY = -t * PIXELS_PER_DAY;
-    const needsFloor = t - prevT <= 1 || trueY > prevY - MIN_SPINE_GAP;
-    const y = needsFloor ? prevY - MIN_SPINE_GAP : trueY;
-    prevY = y;
-    prevT = t;
+  // Pass 1: spine y — the spine's own original formula, expressed through the shared helper above
+  // with anchorT=0/anchorY=0 (today's own coordinates before any canvas shift) — byte-for-byte the
+  // same seed values (`prevY=0`, `prevT=0`) the original hardcoded loop used.
+  const positionedSpine = layoutSequenceByDate(withT, 0, 0);
 
+  // labelSide alternation — unchanged mechanism (spine x is always 0, so without alternating,
+  // every spine label would permanently claim the same side). A chain's own anchor gets this
+  // overridden below, forced away from its own lane's side specifically.
+  let sideToggle = 0;
+  const withPosition = positionedSpine.map(({ item, t, y }) => {
     const labelSide = sideToggle % 2 === 0 ? 1 : -1;
     sideToggle += 1;
-
-    placedLabels.push(labelBBox(0, y, labelSide, blockWidth(item.title, item.due), SPINE_EDGE_GAP));
-    if (item.stageLabel) placedLabels.push(centeredLabelBBox(0, y + 46, `— ${item.stageLabel} —`));
-
-    return { item, y, labelSide };
+    return { item, t, y, labelSide };
   });
 
-  // Pass 2: lay out each item's branch (if any) against the complete spine label set, plus every
-  // other branch's steps placed so far — each chain routes around everything already on the
-  // canvas instead of just avoiding itself.
-  const rawPositioned = withPosition.map(({ item, y, labelSide }) => {
-    // `>= 1`, not `> 1` — a chain with exactly one branch step (e.g. a freshly-grown Project
-    // Builder project with 2 total revealed steps: one anchor + one branch step) still needs its
-    // one step rendered as a real branch point, not silently dropped. Every opportunity in
-    // practice has 2+ prepSteps, so this is a no-op for existing chains; it only fixes what was
-    // previously a latent "one-step chains vanish" bug.
+  // Task 2/3 — fixed-lane assignment for every chain (an item with >=1 real step beyond its own
+  // spine anchor — the "one revealed step already needs a real branch" fix already established
+  // this threshold, unchanged here), processed in start-time order: reuse the lowest-numbered lane
+  // whose previous occupant has already finished (its own last step's date) by this chain's own
+  // start, otherwise claim a brand-new lane, alternating new lanes left/right of the spine for
+  // visual balance. A lane, once created, keeps its side/column position forever — only WHICH
+  // chain currently occupies it changes over time.
+  const chainEntries = withPosition.filter(({ item }) => item.steps && item.steps.length >= 1);
+  const lanes = []; // [{ endT, side, indexOnSide }]
+  const laneByItem = new Map();
+  let newLaneToggle = 0;
+  chainEntries
+    .slice()
+    .sort((a, b) => a.t - b.t)
+    .forEach(({ item, t }) => {
+      const lastStepT = daysFromToday(item.steps[item.steps.length - 1].date);
+      let lane = lanes.find((l) => l.endT <= t);
+      if (lane) {
+        lane.endT = lastStepT;
+      } else {
+        const side = newLaneToggle % 2 === 0 ? 1 : -1;
+        const indexOnSide = lanes.filter((l) => l.side === side).length;
+        lane = { endT: lastStepT, side, indexOnSide };
+        lanes.push(lane);
+        newLaneToggle += 1;
+      }
+      laneByItem.set(item, lane);
+    });
+  const laneX = (lane) => lane.side * (LANE_GAP + lane.indexOnSide * LANE_WIDTH);
+
+  // Pass 2: place each chain's own steps in its assigned lane — a single fixed x for the whole
+  // chain, vertical position via the SAME layoutSequenceByDate rule the spine uses, anchored at
+  // the chain's own already-computed spine position (not "today") so a chain step's absolute y is
+  // still ultimately just real-days-from-today, scaled identically to everything else. A chain
+  // anchor's own label is forced to point AWAY from its own lane (never the same side its lane
+  // occupies) — Task 4's right-angle connector jogs from the anchor straight out to the lane, so
+  // if the anchor's own label pointed the same direction, that jog would run straight through the
+  // label's own text.
+  const rawPositioned = withPosition.map(({ item, t, y, labelSide }) => {
     const hasBranch = !!(item.steps && item.steps.length >= 1);
-    let branchSteps = null;
-    const side = hasBranch ? -labelSide : 0;
-    if (hasBranch) {
-      branchSteps = layoutBranch(item.steps, y, side, placedLabels, item.date);
+    if (!hasBranch) {
+      return { ...item, x: 0, y, hasBranch, side: 0, labelSide, branchSteps: null };
     }
-    return { ...item, x: 0, y, hasBranch, side, labelSide, branchSteps };
+    const lane = laneByItem.get(item);
+    const thisLaneX = laneX(lane);
+    const stepEntries = item.steps.map((step) => ({ step, t: daysFromToday(step.date) }));
+    const positionedSteps = layoutSequenceByDate(stepEntries, t, y);
+    const branchSteps = positionedSteps.map(({ step, y: sy }) => ({ ...step, x: thisLaneX, y: sy }));
+    return {
+      ...item, x: 0, y, hasBranch, side: lane.side, labelSide: -lane.side, branchSteps,
+    };
   });
 
   const todayNode = { ...today, x: 0, y: 0 };
@@ -288,26 +232,33 @@ export function layoutRoadmap({ today, spineItems }) {
     if (n.branchSteps) n.branchSteps.forEach((s) => account(s.x, s.y));
   });
 
-  // The spine sits at whatever x keeps every branch (and its labels) on-canvas — this is what
-  // lets the canvas scale to however dense/wide the selected opportunities make it, instead of
-  // assuming a fixed frame.
+  // The spine sits at whatever x keeps every lane on-canvas — this is what lets the canvas scale
+  // to however many concurrent lanes the selected opportunities/projects actually need, instead of
+  // assuming a fixed frame. AXIS_WIDTH is added as EXTRA width purely on the left (leftShift, not
+  // centerX itself), so the axis gets guaranteed dedicated room without touching the right side's
+  // own extent at all.
   const centerX = Math.round(Math.max(-minX, maxX) + LABEL_BUFFER);
+  const leftShift = centerX + AXIS_WIDTH;
   const yShift = TOP_MARGIN - minY;
 
-  todayNode.x = centerX;
+  todayNode.x = leftShift;
   todayNode.y += yShift;
 
   const spine = rawPositioned.map((n) => ({
     ...n,
-    x: n.x + centerX,
+    x: n.x + leftShift,
     y: n.y + yShift,
     branchSteps: n.branchSteps
-      ? n.branchSteps.map((s) => ({ ...s, x: s.x + centerX, y: s.y + yShift }))
+      ? n.branchSteps.map((s) => ({ ...s, x: s.x + leftShift, y: s.y + yShift }))
       : null,
   }));
 
   const canvasHeight = Math.round(maxY - minY + TOP_MARGIN + BOTTOM_MARGIN);
-  const canvasWidth = Math.round(centerX * 2);
+  const canvasWidth = Math.round(centerX * 2 + AXIS_WIDTH);
 
-  return { today: todayNode, spine, canvasHeight, canvasWidth };
+  const axisTicks = buildAxisTicks(spineItems, today.date, yShift);
+
+  return {
+    today: todayNode, spine, canvasHeight, canvasWidth, axisTicks, axisTickX: AXIS_TICK_X,
+  };
 }

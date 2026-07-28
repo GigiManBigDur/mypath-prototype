@@ -6774,6 +6774,140 @@ visually "swallowing" Travel's own tail — reading as one task blocking/coverin
   build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only
   `DailyScheduleView.jsx`, never `roadmapLayout.js`/`roadmapGenerator.js`/`global.css`.
 
+**Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (HOI4-Style) — replaces the diagonal-
+branch, per-label-collision-avoidance layout with a strategy-game-tech-tree system: every
+multi-step chain holds one fixed horizontal lane for its whole sequence, connects to the spine and
+to its own later steps with right-angle connectors instead of a diagonal fan, reuses a lane once a
+chain finishes, and adds an explicit labeled time axis running down the canvas's own left edge.**
+- **The one rule that could not break: every node's real-date-to-vertical-position math is
+  byte-for-byte unchanged.** `roadmapLayout.js`'s own Pass 1 (the spine's y computation) was not
+  touched at all — `npm run verify:spacing` (which only ever exercises spine-only inputs, no
+  chains) was re-run after the full rewrite and passed 20/20, identically to before. What DID
+  change is that chain steps now go through the exact SAME rule the spine already used
+  (`PIXELS_PER_DAY` scaling + the `MIN_SPINE_GAP` floor for a genuine 0-1-real-day gap, or to
+  preserve real-date order against a prior floored run's own accumulated drift) — this REPLACES
+  the old, genuinely different `MIN_BRANCH_GAP`-based rule branch steps used to follow (a flat
+  46px floor regardless of real day-gap, unlike the spine's stricter "only floor at 0-1 real days
+  apart" rule), per this restructure's own explicit instruction to use one shared date-to-y
+  function everywhere rather than two different ones. `layoutSequenceByDate(entries, anchorT,
+  anchorY)` is the one new canonical function expressing this rule — called with `anchorT=0,
+  anchorY=0` for the spine (byte-for-byte reproducing the original hardcoded Pass-1 loop, confirmed
+  directly), and called again per-chain with `anchorT`/`anchorY` set to that chain's own
+  already-computed spine position (not "today") for its own steps.
+- **Task 2/3 — fixed-lane assignment, with reuse, via a classic "lowest-numbered available room"
+  interval-scheduling algorithm.** Every chain (an item with `steps.length >= 1` beyond its own
+  spine anchor — the same "≥1 not >1" threshold this codebase's own one-step-Project-Builder fix
+  already established) is processed in start-time order: the lowest-numbered existing lane whose
+  previous occupant has already finished (its own last step's real date) by this chain's own start
+  is reused; if none qualifies, a brand-new lane is created, alternating new lanes left/right of
+  the spine for visual balance. A lane, once created, keeps its own side/column position forever —
+  only WHICH chain currently occupies it changes over time. This is what makes "a chain that
+  finished in September can have its lane reused by an unrelated chain starting in April" fall out
+  naturally from the algorithm rather than needing special-casing.
+- **Task 4 — right-angle connectors only.** `rightAngleLine(x1, y1, x2, y2)` (`Roadmap.jsx`) draws
+  `M x1 y1 L x2 y1 L x2 y2` — a horizontal jog from the spine anchor out to the lane's own x
+  (staying at the anchor's own y), then a vertical segment down/up to the first step's own y
+  (staying at the lane's x) — used for the ONE spine→lane connector per chain. Every LATER
+  connector within that same lane needed ZERO code changes at all: since every step in a chain now
+  shares the identical fixed lane x by construction, the pre-existing plain `line(x1,y1,x2,y2)`
+  helper (`M x1 y1 L x2 y2`) already renders a pure vertical segment the moment `x1 === x2` — this
+  is a direct, structural consequence of the fixed-lane design, not a separate connector-shape
+  decision that needed its own implementation.
+- **A chain anchor's own label is forced away from its own lane's side** (`labelSide: -lane.side`
+  in `roadmapLayout.js`, overriding the generic alternating `labelSide` every other spine item still
+  gets) — without this, a chain anchor whose own generic alternating label happened to point the
+  SAME direction as its lane would have its connector's own horizontal jog run straight through the
+  anchor's own label text. This is the direct descendant of the OLD diagonal system's own `side =
+  -labelSide` relationship (a branch always peeled opposite its own anchor's label) — same
+  relationship, just now driving the REVERSE direction (the lane decides first, the label points
+  away from it, rather than the label deciding first and the branch peeling away from that).
+- **The whole old per-label collision-avoidance system is gone, not adapted** — `placedLabels`,
+  `intersects`, `NUDGE_STEP`/`MAX_NUDGES`, `BRANCH_SLOPES`, `BRANCH_SPACING_MULTIPLIER`,
+  `labelBBox`/`centeredLabelBBox`/`blockWidth`/`labelWidth`/`CHAR_PX`/`LABEL_PAD` are all removed
+  entirely. Since each chain now owns one exclusive, fixed horizontal lane for its whole lifetime
+  (never shared with another chain that's genuinely concurrent with it — see the lane algorithm
+  above) and same-lane steps are already guaranteed at least `MIN_SPINE_GAP` vertical separation by
+  the same rule the spine itself relies on for readability, there is no remaining case where two
+  chains' own labels could collide with each other — the entire class of bug this old system
+  existed to prevent structurally cannot occur anymore. `LANE_GAP` (280, spine-center to lane 0)
+  and `LANE_WIDTH` (260, pitch between consecutive same-side lanes) are deliberately fixed,
+  generous design constants — not derived from real text measurement — matching the tech-tree
+  reference's own rigid, evenly-spaced parallel-column aesthetic, a deliberate simplification
+  rather than an oversight; verified generously sufficient via a dedicated cross-node label overlap
+  check (see verification below), not just assumed correct on paper.
+- **Task 5 — an explicit, labeled time axis.** `buildAxisTicks(spineItems, todayDate, yShift)`
+  (`roadmapLayout.js`) walks every real calendar-month boundary spanning every date actually
+  referenced anywhere in the roadmap (every spine item's own date, every one of its steps' dates,
+  plus "today" itself as a floor) — computed directly from real `Date` objects, never
+  reverse-engineered from pixel positions, so it can never disagree with where real content
+  actually renders. Each tick's own y uses the exact same (unfloored) date-to-y mapping as
+  everything else — ticks are always at least 28 real days apart (896+px at `PIXELS_PER_DAY=32`),
+  far past `MIN_SPINE_GAP`, so there's never a reason to floor one tick against another. Rendered
+  along the canvas's own LEFT edge, in a reserved `AXIS_WIDTH` (90px) strip added purely as EXTRA
+  width beyond the spine's own symmetric `centerX` — this guarantees the axis always has real,
+  dedicated room and never competes for space with an actual lane/label, and leaves the canvas's
+  own RIGHT-side extent completely unaffected (confirmed this doesn't disturb the pre-existing "You
+  are here" marker's own left/right label-placement heuristic, which reads `today.x` vs.
+  `canvasWidth/2` — the heuristic now always resolves toward the right, since the axis strip shifts
+  `today.x` past the literal midpoint, but the right side's own real extent is untouched, so this
+  is a safe, non-clipping consequence rather than a bug). Tick marks/labels render first in the SVG
+  (behind every real node/connector) with their own quiet, muted styling
+  (`.roadmap-axis-tick-mark`/`.roadmap-axis-tick-label`, global.css) — background reference chrome,
+  not interactive content, matching how a real chart axis stays visually quiet relative to the data
+  drawn on top of it.
+- **Task 6 — everything else verified unchanged, not just assumed.** Click-to-modal, mark-complete
+  (writes a real `completedNodes` change), date editing (writes a real `nodeDateOverrides` entry),
+  zoom/pan/drag (canvas transform genuinely changes on a real zoom-in click), and the
+  Required/Optional/Custom/You-are-here ring legend were all directly re-verified against the
+  restructured component, not left to "should still work" assumption — none of that rendering
+  code was touched at all, only the x/y a chain's own steps resolve to and the connector's own
+  path shape.
+- **Built and tested in the exact staged sequence requested, each stage confirmed before moving
+  on**, using a dedicated Node-level test loading the REAL `roadmapLayout.js` through Vite's own
+  module loader (the same `ssrLoadModule` technique `scripts/verify-spacing.mjs` already
+  established) for precise, deterministic algorithmic verification, plus real Playwright/browser
+  checks for visual/rendering confirmation:
+  1. **A single chain in isolation** (10 checks) — confirms `hasBranch`, every step sharing the
+     identical fixed lane x, correct chronological ordering, PIXELS_PER_DAY-proportional gaps
+     within the lane, and the anchor's own label pointing away from its lane — plus a real
+     screenshot confirming the right-angle jog (horizontal from spine, then vertical through the
+     lane) renders exactly as designed, using a real "Register for DECA" chain.
+  2. **Lane reuse — two sequential, non-overlapping chains** (6 checks) — confirms two chains with
+     a genuine gap between them (one fully finished before the next starts) resolve to the
+     IDENTICAL lane x and side, while a third, genuinely CONCURRENT chain correctly does NOT reuse
+     that lane and lands on the opposite side (the alternating new-lane rule).
+  3. **Genuine concurrency across 3+ chains** (4 checks) — three mutually-overlapping chains
+     correctly resolve to three MUTUALLY DISTINCT lane positions; once all three finish, a new
+     chain correctly reuses the LOWEST-numbered lane specifically (not just "any" free lane); a
+     chain concurrent with only SOME of an active set correctly reuses the ONE lane that's
+     actually free, without colliding with the lanes still genuinely in use — directly confirming
+     the "lowest-numbered available room" algorithm, not just "reuse happens eventually."
+  4. **The full multi-chain view together** (13 checks, real app data — 3 real opportunities on a
+     real senior-year plan, date-pinned via `state.dateOverride` for determinism) — zero page
+     errors, the axis renders real, distinct month ticks spaced ~900-990px apart (confirming it
+     uses the identical `PIXELS_PER_DAY` scale as every other node, not a disconnected value), and
+     every Task 6 regression (click/modal, mark-complete, date-edit, zoom) holds. A further
+     dedicated cross-node label-overlap check (grouping `.node-label`/`.node-due` bounding boxes by
+     parent, checked at native 1:1 canvas scale — the same rigor this codebase's own dense-roadmap
+     tests already established) confirmed zero collisions across 45 real labels on this scenario,
+     and zero collisions across 27 labels on an even denser 6-opportunity, multi-year (9th-grade)
+     plan — plus a separate check confirming a started Project Builder project (a different chain-
+     building code path, `buildProjectChain`) integrates correctly with the new lane system
+     alongside a real opportunity chain, with zero collisions there either.
+  `npm run verify:spacing` was re-run after EVERY stage (not just once at the end), staying 20/20
+  throughout. The full pre-existing regression suite available this session
+  (`test-anchor-sunday-trigger.js`, `test-international-student.js`, `test-transfer-gap.js`,
+  `test-transfer-hs-transcript.js`, `test-weekly-digest-edge-cases.js`,
+  `test-weekly-digest-suggestions.js`, `test-weekly-suggestions-full-week-coverage.js`,
+  `test-weekly-suggestions-roadmap-fix.js`, `test-daily-schedule-timeline.js`,
+  `test-daily-schedule-roadmap-sync.js`, `test-daily-schedule-compact-blocks.js`,
+  `test-chat-voice-opt-in-edit.js`, `test-guided-tutorial-unaffected.js`) all still pass with zero
+  regressions, confirming `branchSteps`'s own field shape (still a plain array of `{id, title,
+  date, ...}` objects, just with different x/y underneath) stayed fully compatible with every
+  OTHER consumer that reads it for non-visual purposes (`profileCompiler.js`, `HubScreen.jsx`'s
+  `countPlanTasks`, `ProjectBuilderScreen.jsx`'s own started-project lookups) — none of them needed
+  any changes at all. `npm run build`/`npm run lint` both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9066,3 +9200,31 @@ download). Cover at minimum:
   clipped internally (an accepted, correct tradeoff when there's truly no real time available),
   but must never again visually bleed into a DIFFERENT block's own space. Don't assert "zero
   clipping" for a block this short — assert "zero cross-block overlap" instead.
+
+- Map 2 Restructure: Fixed Lanes + Right-Angle Connectors: after touching `roadmapLayout.js`,
+  ALWAYS run `npm run verify:spacing` first (spine-only, must stay 20/20 byte-for-byte) before
+  anything else — it's the one guardrail proving Pass 1 (the spine's own date-to-y math) is
+  untouched regardless of what changed in the lane/connector logic. For the lane algorithm itself,
+  write a dedicated Node script loading the real `roadmapLayout.js` through Vite's own
+  `ssrLoadModule` (same technique `scripts/verify-spacing.mjs` uses — plain `node` can't resolve
+  this file's extension-less relative imports) with fully synthetic, hand-picked chain start/end
+  dates — this gives deterministic, exact control over concurrency/sequencing that real opportunity
+  template dates can't easily provide. Test lane reuse (two chains with a real gap between them
+  should resolve to the IDENTICAL lane x), genuine concurrency (overlapping chains must get
+  MUTUALLY DISTINCT lanes), and specifically the "lowest-numbered available lane" rule (once
+  several concurrent chains finish, a new one should reuse the LOWEST index that's free, not just
+  any free one) — a test that only checks "some reuse happened" can pass even if the algorithm
+  picks the wrong lane. For visual/rendering confirmation, seed a real opportunity via
+  `state.selectedOpportunityIds` (e.g. `'deca'`) — the default ~45-day auto-fit view often won't
+  show a chain dated later in the year, so click "Zoom out" (`.zoom-btn[aria-label="Zoom out"]`)
+  several times first, or locate a real node label and zoom in centered on it via repeated
+  `page.mouse.wheel(0, -100)` calls at that cursor position (Playwright's `mouse.wheel` fires ONE
+  wheel event per call — the zoom handler applies a fixed 1.12x factor per event regardless of
+  the deltaY magnitude passed, so a single large wheel call doesn't zoom in further than a small
+  one; call it repeatedly instead). To rigorously check for cross-node label overlap (not just
+  eyeballing a screenshot), reset the canvas to native scale (`.roadmap-canvas-inner`'s inline
+  `transform` to `scale(1)`) and compare every `.node-label`/`.node-due` pair's bounding boxes
+  directly via `getBoundingClientRect()`, the same technique this codebase's own dense-roadmap
+  tests already established — zoomed-out screenshots can visually compress genuinely-fine spacing
+  into what LOOKS like an overlap, so this check has to run at 1:1, not whatever the default fit
+  zoom happens to be.

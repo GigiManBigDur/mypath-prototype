@@ -3377,6 +3377,19 @@ button.card.passed:hover {
 .node-due-tag { font-weight: 700; letter-spacing: 0.02em; }
 .stage-label { font-family:'IBM Plex Sans'; font-size:11px; font-weight:600; fill: var(--stone); letter-spacing: 0.03em; text-transform: uppercase; }
 
+/* Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md), Task 5 — the labeled
+   time axis running down the canvas's own left edge (roadmapLayout.js's own AXIS_WIDTH strip).
+   Deliberately quiet/muted relative to real node labels (.node-label/.node-due) — this is
+   background reference chrome, not interactive content. */
+.roadmap-axis-tick-mark { stroke: var(--bloom-card-border); stroke-width: 1.5; }
+.roadmap-axis-tick-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--bloom-ink-soft);
+  dominant-baseline: middle;
+}
+
 .overlay { position:fixed; inset:0; background: rgba(30,61,50,0.35); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
 .modal { background: var(--card); max-width:420px; width:100%; border-radius:6px; padding:26px; position:relative; border:1px solid var(--paper-line); max-height: 85vh; overflow-y: auto; }
 .modal-close { position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer; color: var(--ink-soft); }
