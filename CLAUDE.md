@@ -6908,6 +6908,76 @@ chain finishes, and adds an explicit labeled time axis running down the canvas's
   `countPlanTasks`, `ProjectBuilderScreen.jsx`'s own started-project lookups) — none of them needed
   any changes at all. `npm run build`/`npm run lint` both stay clean.
 
+**Delete Overlapping Node Labels + Persistent "Due Today" Reminder — Map 2's always-visible
+title+due-date text next to every node was removed entirely (clicking a node already opens its
+real detail modal, so the inline label was redundant with that, not just visually noisy — and on
+a chain with several same-dated steps, or a real cluster, those labels stacked into an unreadable
+block of overlapping text); the "X is due today"/"N tasks due today" text is replaced by a genuine,
+non-dismissible reminder floating on the side of the screen.**
+- **Every node type's always-visible `<text className="node-label">`/`<text className="node-
+  due">` is gone** — lane/branch steps, spine nodes (required/optional/custom/ai-suggested alike),
+  and non-today cluster markers ("N tasks") all now render as plain colored dots with zero inline
+  text; clicking any of them still opens the exact same real detail modal (full title/date/desc)
+  as before, completely unchanged. The plain "You are here" marker (no today-collision) and the
+  one-time celebratory "You are here — nice, you finished/everything due today is done!" messages
+  are DELIBERATELY KEPT — both are unique, single-instance text (never repeated across multiple
+  nearby nodes), so they were never the kind of overlapping clutter this fix targets.
+- **The "X is due today."/"N tasks due today." label specifically is replaced by a new persistent
+  side panel, not just deleted** — `DueTodayReminder.jsx` (new component), rendered as a plain
+  `.roadmap-fullscreen-root` sibling alongside `MapChatWidget`/`WeeklyTaskSuggestionPanel`,
+  vertically centered on the right edge (the one open "side of the screen" spot left — every
+  corner is already claimed by another floating control: `DateOverrideControl` top-right,
+  `MapChatWidget` bottom-left, the zoom controls/bottom panel bottom-right,
+  `WeeklyTaskSuggestionPanel` top-left). Rendered UNCONDITIONALLY (not gated on `mapMode`), so it
+  stays up across the Roadmap/This Week/Daily Schedule sub-views alike — switching views can't make
+  a required reminder disappear.
+- **Deliberately has NO dismiss/close control anywhere on the component** — the ONLY way it can
+  ever go away is by actually marking the underlying task(s) complete. This falls out structurally,
+  not from any explicit dismiss logic: `dueTodayIncomplete` (`Roadmap.jsx`) is derived fresh on
+  every render from the exact same `todayCollision`/`todayCluster` data the (now-removed) inline
+  label already used, filtered to whichever of those items `isDone()` still reads as incomplete —
+  the moment the real task is completed (via this reminder's own clickable title, which opens the
+  identical real modal any other node click would, and its own real "Mark complete" button), that
+  filter naturally drops it and the component returns `null`. Clicking the reminder's own title is
+  literally `onOpenItem={setSelected}` — the same function every other node's own `onClick` already
+  calls, not a second, parallel "open" mechanism.
+- **A new `data-node-id` (and, for a single real item, `data-node-title`) attribute was added to
+  every node type** — invisible, never rendered as text, but a genuinely useful byproduct of
+  removing the visible labels: it gives tests (and any future tooling) a stable way to locate a
+  specific node or verify its real generated title without needing visible text to search for.
+  `data-node-title` is deliberately omitted on a multi-item cluster marker (there's no single title
+  to expose — a cluster's own real member titles are only ever checked via its expand-list modal's
+  `.cluster-item-title` rows, unaffected by any of this).
+- **A real, confirmed consequence of this fix**: several pre-existing test files located nodes by
+  matching `.node-label` text, or scanned `document.body.innerText` broadly to verify a real
+  generated task's title appeared somewhere on Map 2 — both approaches necessarily broke the moment
+  visible label text was removed (confirmed directly: 4 pre-existing files started failing).
+  `test-daily-schedule-roadmap-sync.js` and `test-weekly-suggestions-roadmap-fix.js` had their own
+  `.node-badge`/`.node-label` locators rewritten to use `[data-node-id="<real-id>"]` (the real id,
+  either seeded directly by the test or read from state after creation); `test-international-
+  student.js` and `test-transfer-gap.js` had their own `document.body.innerText` content-existence
+  checks rewritten to scan `[...document.querySelectorAll('[data-node-title]')].map(el =>
+  el.getAttribute('data-node-title')).join(' | ')` instead — a minimal, surgical swap that
+  preserves every existing `.includes()`/regex assertion completely unchanged, since only the TEXT
+  SOURCE changed, not what's being tested for. Two of these files also had OTHER, unrelated
+  `innerText` checks (the Sign-Up screen's own citizenship question wording, Map 1's own year-
+  marker labels) that were correctly left untouched, since neither of those screens was affected by
+  this fix at all — confirmed by checking each one's own real context (which screen/`planYearIndex`
+  it runs against) before deciding whether it needed updating, not blindly find-and-replacing every
+  occurrence of the same string.
+- Verified with a dedicated 14-check Playwright suite: at most one `.node-label` remains anywhere
+  on the canvas (the plain "You are here" marker); clicking any node still opens the real modal
+  with its real title; a real 2-item cluster shows no inline "2 tasks" text but its count-badge
+  marker still renders and still opens the real expand-list modal on click; a real task due today
+  produces a visible reminder naming it, with zero close/dismiss controls found anywhere on the
+  component; the reminder survives switching to "This Week" and back (no dismiss-by-navigation);
+  and marking the real task complete (via the reminder's own clickable title → the real modal → the
+  real "Mark complete" button) causes the reminder to disappear as a direct, verified consequence —
+  not from any separate dismiss action. The full regression suite available this session (14 files,
+  including the 2 rewritten above) all pass with zero further regressions; `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20, unaffected — this fix never opens `roadmapLayout.js`, only
+  `Roadmap.jsx`'s own rendering) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9228,3 +9298,24 @@ download). Cover at minimum:
   tests already established — zoomed-out screenshots can visually compress genuinely-fine spacing
   into what LOOKS like an overlap, so this check has to run at 1:1, not whatever the default fit
   zoom happens to be.
+
+- Delete Overlapping Node Labels + Persistent "Due Today" Reminder: confirm no `.node-label` text
+  renders anywhere on Map 2 except the plain "You are here" marker, and confirm clicking any node
+  still opens its real detail modal with the correct title. When writing (or updating) a test that
+  needs to locate a SPECIFIC node, use its real `data-node-id` attribute (seeded directly, or read
+  from state after creation) rather than matching now-removed visible text — `[data-node-id="<real
+  id>"]` works for every node type, including a today-collision marker (which reuses the real
+  colliding item's own id) and a multi-item cluster (whose own synthetic id is always
+  `cluster-<first-item-id>`, so `[data-node-id^="cluster-"]` reliably finds any real cluster marker
+  regardless of its members). For a broader "does this real generated title appear somewhere on
+  the roadmap" content check (as opposed to locating one specific node), scan
+  `[...document.querySelectorAll('[data-node-title]')].map(el => el.getAttribute('data-node-
+  title')).join(' | ')` instead of `document.body.innerText` — but check which SCREEN a given
+  `document.body.innerText` call is actually auditing before changing it: Map 1
+  (`.year-overview-label`), the Sign-Up screen, and other non-Map-2 screens were never affected by
+  this fix and still use real, unchanged visible text. To verify the new "Due Today" reminder
+  itself: seed a real task dated to a pinned `state.dateOverride`, confirm `.due-today-reminder`
+  renders naming it with zero close/dismiss buttons anywhere on the component, confirm it survives
+  switching between the Roadmap/This Week/Daily Schedule sub-views, and confirm it disappears ONLY
+  after actually marking the task complete via its own real "Mark complete" button — never via a
+  dismiss action, since the component has none.

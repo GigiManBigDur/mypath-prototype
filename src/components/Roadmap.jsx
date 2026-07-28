@@ -23,6 +23,7 @@ import { compileSuggestionProfile } from '../utils/profileCompiler';
 import { requestSuggestion } from '../utils/suggestions';
 import MascotWidget from './MascotWidget';
 import MapChatWidget from './MapChatWidget';
+import DueTodayReminder from './DueTodayReminder';
 import MilestonePlanningPanel from './MilestonePlanningPanel';
 import WeeklyTaskSuggestionPanel from './WeeklyTaskSuggestionPanel';
 import DailyScheduleView from './DailyScheduleView';
@@ -296,6 +297,18 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     cluster.items.forEach((item) => clusterByMemberId.set(item.id, cluster));
   });
   const todayCluster = (roadmap.dateClusters || []).find((c) => c.isToday) || null;
+  // Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see CLAUDE.md) — reuses this
+  // exact same todayCollision/todayCluster data (never re-derived) to drive the new persistent
+  // side reminder below, filtered to whichever of those items are still incomplete — a task
+  // already done today has nothing left to remind about. This is what makes the reminder
+  // disappear the instant every real due-today task is marked complete, with no dismiss action of
+  // its own: it's a pure function of live state, recomputed on every render like everything else
+  // in this component.
+  const dueTodayIncomplete = todayCluster
+    ? todayCluster.items.filter((item) => !isDone(item.id))
+    : todayCollision && !todayCollisionDone
+      ? [todayCollision]
+      : [];
   // A clustered item's own branch (if it has one, e.g. an opportunity anchor sharing a date with
   // something else) still renders normally via the branch-rendering loops below — those loops
   // filter `roadmap.spine` independently and never go through the main spine-skip. But its own
@@ -1010,10 +1023,21 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               return n.branchSteps.map((s, i) => {
                 const cfg = configFor(s);
                 const done = isDone(s.id);
-                const labelX = n.side > 0 ? 20 : -20;
                 const delay = entranceEnabled ? anchorDelay + (i + 1) * ENTRANCE_STEP_MS : 0;
                 return (
-                  <g key={s.id} className="node-badge" onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
+                  // Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see
+                  // CLAUDE.md) — the always-visible title+due text next to every lane step was
+                  // removed entirely: a chain with many same-dated steps (e.g. several tasks all
+                  // due the same day) stacked so many labels so close together that they became a
+                  // solid, unreadable block of overlapping text. Clicking a node already opens its
+                  // real detail modal (full title/date/desc), so the inline label was redundant
+                  // with that, not just visually noisy. Every node type now carries a plain
+                  // `data-node-id` attribute (the real spine/step/cluster id) and, for a single
+                  // real item (never a multi-item cluster, which has no ONE title to expose),
+                  // `data-node-title` too — both invisible, never rendered as text — specifically
+                  // so tests (and any future tooling) can reliably locate a node or verify its real
+                  // generated content without needing visible label text to search for.
+                  <g key={s.id} className="node-badge" data-node-id={s.id} data-node-title={s.title} onClick={() => setSelected(s)} transform={`translate(${s.x},${s.y})`}>
                     {/* Invisible hit target, sized to match the click-pulse animation's peak
                         scale (1.22× the r=13 ring) — kept as a plain sibling, not inside
                         .node-pop, so the actual clickable area is always this size, not just
@@ -1036,11 +1060,6 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         <Sparkles className="ai-suggestion-badge" x="5" y="-17" size={9} color="var(--bloom-ai)" />
                       )}
                     </g>
-                    <text className="node-label" x={labelX} y="4" textAnchor={n.side > 0 ? 'start' : 'end'}>{s.title}</text>
-                    <text className="node-due" x={labelX} y="17" textAnchor={n.side > 0 ? 'start' : 'end'}>
-                      <tspan className="node-due-tag" fill={cfg.color}>{s.category === 'project' ? s.projectLabel : cfg.label}</tspan>
-                      {' · '}{formatDateWithYear(s.date)}
-                    </text>
                   </g>
                 );
               });
@@ -1065,7 +1084,6 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               if (clusterByMemberId.has(n.id)) return null;
               const cfg = configFor(n);
               const done = isDone(n.id);
-              const isLeft = n.labelSide < 0;
               const delay = entranceDelay(i, entranceEnabled);
               return (
                 <g key={n.id}>
@@ -1076,7 +1094,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                       this visible render is removed, so no node's position shifts as a side effect
                       of this change (the Fixed Lanes restructure's own roadmapLayout.js no longer
                       does any collision-based reservation for it at all — see that file). */}
-                  <g className="node-badge" onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
+                  <g className="node-badge" data-node-id={n.id} data-node-title={n.title} onClick={() => setSelected(n)} transform={`translate(${n.x},${n.y})`}>
                     {/* Invisible hit target, sized to match the click-pulse animation's peak
                         scale (1.22× the ring — 18 for required, 16 for everything else) — a
                         plain sibling of .node-pop, not inside it, so it's always this size
@@ -1145,11 +1163,6 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       )}
                     </g>
-                    <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{n.title}</text>
-                    <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
-                      <tspan className="node-due-tag" fill={cfg.color}>{n.category === 'project' ? n.projectLabel : cfg.label}</tspan>
-                      {' · '}{formatDateWithYear(n.date)}{n.hasBranch ? ` · ${n.totalSteps ?? n.branchSteps.length} steps` : ''}
-                    </text>
                   </g>
                 </g>
               );
@@ -1163,10 +1176,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             {(roadmap.dateClusters || []).filter((c) => !c.isToday).map((cluster) => {
               const anchor = cluster.items[0];
               const allDone = cluster.items.every((item) => isDone(item.id));
-              const isLeft = anchor.labelSide < 0;
               const delay = entranceDelay(roadmap.spine.indexOf(anchor), entranceEnabled);
               return (
-                <g key={cluster.id} className="node-badge" onClick={() => setSelectedCluster(cluster)} transform={`translate(${anchor.x},${anchor.y})`}>
+                // Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see
+                // CLAUDE.md) — the always-visible "N tasks" + date label is removed; clicking
+                // already opens the real expand-list modal showing every real task's own title
+                // and date, so the inline label was redundant clutter, exactly the kind that used
+                // to visually collide with a neighboring lane's own labels.
+                <g key={cluster.id} className="node-badge" data-node-id={cluster.id} onClick={() => setSelectedCluster(cluster)} transform={`translate(${anchor.x},${anchor.y})`}>
                   <circle className="hit-target" r="24" fill="none" pointerEvents="all" />
                   <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
                     <circle className="node-halo" r="26" fill={CLUSTER_CONFIG.color} opacity="0.16" />
@@ -1177,11 +1194,6 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                     <circle className="cluster-count-badge-bg" cx="14" cy="-14" r="9" />
                     <text className="cluster-count-badge-text" x="14" y="-14" textAnchor="middle" dominantBaseline="central">{cluster.items.length}</text>
                   </g>
-                  <text className="node-label" x={isLeft ? -26 : 26} y="2" textAnchor={isLeft ? 'end' : 'start'} fontWeight="600">{cluster.items.length} tasks</text>
-                  <text className="node-due" x={isLeft ? -26 : 26} y="18" textAnchor={isLeft ? 'end' : 'start'}>
-                    <tspan className="node-due-tag" fill={CLUSTER_CONFIG.color}>{CLUSTER_CONFIG.label}</tspan>
-                    {' · '}{formatDateWithYear(cluster.date)}
-                  </text>
                 </g>
               );
             })}
@@ -1204,6 +1216,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 return (
                   <g
                     className="node-badge"
+                    data-node-id={todayCluster.id}
                     onClick={() => setSelectedCluster(todayCluster)}
                     transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
                   >
@@ -1215,13 +1228,25 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                       <circle className="cluster-count-badge-bg cluster-count-badge-today" cx="14" cy="-14" r="9" />
                       <text className="cluster-count-badge-text" x="14" y="-14" textAnchor="middle" dominantBaseline="central">{todayCluster.items.length}</text>
                     </g>
-                    <text className="node-label" x={labelX} y="2" textAnchor={labelAnchor} fontWeight="600">
-                      {allDone ? 'You are here — nice, everything due today is done!' : `${todayCluster.items.length} tasks due today`}
-                    </text>
-                    <text className="node-due" x={labelX} y="18" textAnchor={labelAnchor}>
-                      <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
-                      {' · '}{formatDateWithYear(roadmap.today.date)}
-                    </text>
+                    {/* Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see
+                        CLAUDE.md) — the "N tasks due today" label is gone from the canvas
+                        entirely, replaced by the new persistent <DueTodayReminder> panel on the
+                        side of the screen (see below), which — unlike this inline text — can't be
+                        missed and stays up until every one of those tasks is actually marked
+                        complete. The one-time celebratory "everything due today is done!" message
+                        is kept (it's a unique, non-repeating moment, not the kind of
+                        many-tasks-at-once clutter this fix targets). */}
+                    {allDone && (
+                      <>
+                        <text className="node-label" x={labelX} y="2" textAnchor={labelAnchor} fontWeight="600">
+                          You are here — nice, everything due today is done!
+                        </text>
+                        <text className="node-due" x={labelX} y="18" textAnchor={labelAnchor}>
+                          <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
+                          {' · '}{formatDateWithYear(roadmap.today.date)}
+                        </text>
+                      </>
+                    )}
                   </g>
                 );
               }
@@ -1229,23 +1254,34 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // Real-Time Tracking feature, Task 3 (see CLAUDE.md):
               //   - No collision: the original "You are here" marker, byte-for-byte unchanged.
               //   - Incomplete collision: a combined "due today" marker — a Bell icon (one glyph
-              //     representing "something is due today") in place of the Compass, labeled with
-              //     the real task's own name. Clicking opens the REAL task's own modal (full
-              //     date-edit/remove/mark-complete), not a plain info-only "today" modal — it's
-              //     still a genuinely actionable node, just rendered at today's position.
+              //     representing "something is due today") in place of the Compass. Clicking opens
+              //     the REAL task's own modal (full date-edit/remove/mark-complete), not a plain
+              //     info-only "today" modal — it's still a genuinely actionable node, just
+              //     rendered at today's position.
               //   - Complete collision: "You are here" stays the PRIMARY identity (per the task's
               //     own explicit "keep the marker as You are here" instruction) — same Compass
               //     icon, same gold ring — with a small celebratory Sparkles accent layered on top
               //     and the label naming what got finished today. Clicking still opens the real
               //     task's own modal (e.g. to undo, if marked done by mistake).
+              //
+              // Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see CLAUDE.md)
+              // — the "X is due today." label is no longer rendered inline at all (`label: null`
+              // for that case) — it's replaced by the new persistent <DueTodayReminder> panel on
+              // the side of the screen, which stays up until the real task is marked complete,
+              // rather than a canvas label that's easy to miss and just as easy to ignore. The
+              // plain "You are here" and the one-time celebratory "nice, you finished X today!"
+              // messages are both kept unchanged — neither is the kind of clutter this fix
+              // targets, since there's only ever one of either at a time.
               const label = !todayCollision
                 ? 'You are here'
                 : todayCollisionDone
                   ? `You are here — nice, you finished "${todayCollision.title}" today!`
-                  : `${todayCollision.title} is due today.`;
+                  : null;
               return (
                 <g
                   className="node-badge"
+                  data-node-id={todayCollision ? todayCollision.id : 'today'}
+                  data-node-title={todayCollision ? todayCollision.title : 'You are here'}
                   onClick={() => setSelected(todayCollision || { ...roadmap.today, isToday: true })}
                   transform={`translate(${roadmap.today.x},${roadmap.today.y})`}
                 >
@@ -1267,11 +1303,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                       <Sparkles className="today-sparkle-accent" x="7" y="-19" size={13} color="var(--bloom-yellow)" />
                     )}
                   </g>
-                  <text className="node-label" x={labelX} y="2" textAnchor={labelAnchor} fontWeight="600">{label}</text>
-                  <text className="node-due" x={labelX} y="18" textAnchor={labelAnchor}>
-                    <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
-                    {' · '}{formatDateWithYear(roadmap.today.date)}
-                  </text>
+                  {label && (
+                    <>
+                      <text className="node-label" x={labelX} y="2" textAnchor={labelAnchor} fontWeight="600">{label}</text>
+                      <text className="node-due" x={labelX} y="18" textAnchor={labelAnchor}>
+                        <tspan className="node-due-tag" fill="var(--bloom-yellow)">Today</tspan>
+                        {' · '}{formatDateWithYear(roadmap.today.date)}
+                      </text>
+                    </>
+                  )}
                 </g>
               );
             })()}
@@ -1752,6 +1792,16 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
           "plain sibling, never touches roadmapLayout.js" boundary as MapChatWidget above; fully
           self-contained (owns its own once-per-week trigger and accept/dismiss state). */}
       <WeeklyTaskSuggestionPanel />
+
+      {/* Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see CLAUDE.md) — a
+          plain sibling too, same "never touches roadmapLayout.js" boundary; rendered
+          UNCONDITIONALLY (not gated on `mapMode`) so it stays up across the Roadmap/This Week/
+          Daily Schedule sub-views alike — it shouldn't be possible to make a required reminder
+          disappear just by switching views. Positioned vertically centered on the right (see its
+          own CSS) specifically because every corner of this screen is already claimed by another
+          floating control (DateOverrideControl top-right, MapChatWidget bottom-left, the zoom
+          controls/bottom panel bottom-right, WeeklyTaskSuggestionPanel top-left). */}
+      <DueTodayReminder items={dueTodayIncomplete} onOpenItem={setSelected} />
     </div>
   );
 }
