@@ -3541,6 +3541,28 @@ button.card.passed:hover {
 .milestone-ready-preview li { margin-bottom: 4px; }
 .milestone-date-picker { margin-top: 12px; padding: 14px 16px; background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 6px; }
 
+/* Fix: Diagnose Build Your Own's Overviews Broken After Generalization (see CLAUDE.md) — a
+   planned overview milestone's own granular subSteps, shown as a compact in-modal checklist
+   instead of separate lane nodes (there's no nested-lane concept in roadmapLayout.js). Reuses
+   this modal's own existing card/border language (matching `.milestone-ready-preview` right
+   above), not a new visual system. */
+.modal-substep-checklist {
+  margin: 4px 0 8px; padding: 12px 14px; background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border); border-radius: 6px;
+}
+.modal-substep-checklist-heading { font-size: 12.5px; font-weight: 600; color: var(--bloom-ink-soft); margin-bottom: 8px; }
+.modal-substep-checklist ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.modal-substep-checklist li {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bloom-ink);
+}
+.modal-substep-checklist li.done { color: var(--bloom-ink-soft); text-decoration: line-through; }
+.modal-substep-checkbox {
+  display: flex; align-items: center; justify-content: center; background: none; border: none;
+  padding: 0; cursor: pointer; color: var(--bloom-accent); flex-shrink: 0;
+}
+.modal-substep-title { flex: 1; }
+.modal-substep-due { font-size: 11.5px; color: var(--bloom-ink-soft); flex-shrink: 0; }
+
 /* Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md). Task 3's own mascot
    header reuses BuildYourOwnView's exact `.chat-header` shape (already shared across the two
    files, no new class needed there) — just a smaller MascotIcon (40 vs. 44) to fit this narrower

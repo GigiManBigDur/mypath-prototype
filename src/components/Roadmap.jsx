@@ -902,6 +902,16 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   const selectedIsLocked = !!modalNode?.locked;
   const milestoneNeedsPlanning = selectedIsMilestone && !selectedIsLocked && !!liveMilestone
     && (liveMilestone.subSteps || []).length === 0 && !isDone(modalNode.id);
+  // Fix: Diagnose Build Your Own's Overviews Broken After Generalization (see CLAUDE.md) — once a
+  // milestone HAS real granular subSteps (planned via the scoped chat), those no longer render as
+  // separate lane/branch nodes at all (roadmapGenerator.js's buildOverviewMilestoneChains keeps
+  // them as plain data now, matching how a curated 1:1 Overview never had further nodes of its own
+  // either) — so an UNLOCKED Overview with real subSteps needs its own in-modal checklist (below)
+  // instead of just falling through to the plain generic content. Gated on `!selectedIsLocked`
+  // (a locked node never shows its checklist, only the preview banner) but NOT on `isDone` — a
+  // fully-completed Overview still gets to show its checklist, now with every item checked off.
+  const milestoneHasSubSteps = selectedIsMilestone && !selectedIsLocked && !!liveMilestone
+    && (liveMilestone.subSteps || []).length > 0;
   // A locked node gets to show a real PREVIEW of its own content (title/due date/desc) — "what it
   // is," per this generalization's own Task 3 wording — so only `milestoneNeedsPlanning` hides the
   // desc paragraph entirely (nothing real to preview yet, the planning chat takes over instead).
@@ -1592,6 +1602,39 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 ("what it is"); only `milestoneNeedsPlanning` (nothing real to preview yet) hides
                 this paragraph entirely. */}
             {!hideDescPreview && <p className="modal-desc">{modalNode.desc}</p>}
+
+            {/* Fix: Diagnose Build Your Own's Overviews Broken After Generalization (see
+                CLAUDE.md) — an unlocked Overview with real planned subSteps shows them as an
+                in-modal checklist (each with its own due date, checkable independently via the
+                exact same toggleDone every other node already uses) instead of separate lane
+                nodes. This is additive, ALONGSIDE the normal resources/edit-row/outcome/complete-
+                toggle content below (not a replacement for it) — a student can still edit this
+                Overview's own due date, remove it, leave an outcome note, or mark the WHOLE thing
+                done directly, exactly as any other node already allows. */}
+            {milestoneHasSubSteps && (
+              <div className="modal-substep-checklist">
+                <div className="modal-substep-checklist-heading">Steps in this phase:</div>
+                <ul>
+                  {liveMilestone.subSteps.filter((s) => !state.removedNodeIds?.[s.id]).map((s) => {
+                    const stepDone = isDone(s.id);
+                    return (
+                      <li key={s.id} className={stepDone ? 'done' : undefined}>
+                        <button
+                          type="button"
+                          className="modal-substep-checkbox"
+                          onClick={() => toggleDone(s.id)}
+                          aria-label={stepDone ? `Mark "${s.title}" incomplete` : `Mark "${s.title}" complete`}
+                        >
+                          {stepDone ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+                        </button>
+                        <span className="modal-substep-title">{s.title}</span>
+                        <span className="modal-substep-due">{formatDateWithYear(parseDateInputValue(s.date))}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
 
             {!hideInteractiveControls && modalNode.resources && modalNode.resources.length > 0 && (
               <div className="modal-resources">

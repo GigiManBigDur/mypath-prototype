@@ -5195,7 +5195,15 @@ generic message a real network hiccup would.
 **Build Your Own: Two-Phase Generation — replaces one large, all-at-once granular-plan generation
 with a small overview pass plus separate, smaller, on-demand detail passes per phase, likely fixing
 the generation errors the prior all-granular approach hit and making the plan more realistic (later
-phases genuinely can't be usefully detailed until earlier ones are actually done).**
+phases genuinely can't be usefully detailed until earlier ones are actually done). SUPERSEDED for
+Task 2's own SHAPE/positioning claims — see "Fix: Diagnose Build Your Own's Overviews Broken After
+Generalization" further below: `buildOverviewMilestoneChains` no longer produces one independent
+top-level spine item per milestone (each individually entering its own lane assignment); it now
+produces the same single anchor-plus-branchSteps chain, in ONE shared lane, that a curated
+opportunity chain already uses. Task 2's own "no separate anchor... Locking is computed FRESH...
+from completedNodes" framing below is otherwise still accurate — only the "each phase becomes its
+own [independent] spine item" positioning claim was wrong in practice, per that later fix's own
+diagnosis.**
 - **Task 1 — `api/build-your-own-chat.js` now has TWO system prompts sharing one schema/tool/
   validation/guardrail pipeline.** `OVERVIEW_SYSTEM_PROMPT` (the original, top-level conversation)
   reverts the milestone-count guidance from the prior fix's 15-25+ granular items back down to a
@@ -7234,13 +7242,20 @@ and every other opportunity's own real prep chain) included, not just AI-generat
   Related to Existing Chains" section above) right before destructuring `[anchor, ...branchSteps]`
   — so locking always reflects whichever step genuinely ends up first/next chronologically, not
   original array order, correctly handling a user's own date edit or an inserted step reordering
-  the sequence. **Deliberately NOT the same function Build Your Own's own
-  `buildOverviewMilestoneChains` uses internally** — that one is interleaved with its own
-  cursor-based date computation and a richer "done" definition (a milestone can ALSO count as
-  done once every one of its own subSteps is complete, not just its own id), so extracting a
-  byte-identical shared helper there would mean restructuring an already-working, separately-
-  tested mechanism for no real benefit; both places implement the identical RULE, just via two
-  independently-written code paths. An escalation-year chain (year 2+ of a recurring opportunity)
+  the sequence. **Originally left un-shared with Build Your Own's own `buildOverviewMilestoneChains`
+  — a real, confirmed mistake, corrected by "Fix: Diagnose Build Your Own's Overviews Broken After
+  Generalization" further below.** The reasoning at the time ("that one is interleaved with its own
+  cursor-based date computation and a richer 'done' definition, so extracting a byte-identical
+  shared helper would mean restructuring an already-working, separately-tested mechanism for no
+  real benefit") turned out to be wrong in a way that mattered: leaving Build Your Own on its OWN
+  independent per-milestone-top-level-item shape (rather than this shared anchor+branchSteps-in-
+  one-lane shape) meant a Build Your Own project's overviews never actually shared a lane with each
+  other the way a curated chain's do — see that later fix's own diagnosis for the full mechanism.
+  `buildOverviewMilestoneChains` now calls this exact same `applyOverviewLocking` function too,
+  just with its own richer "done" predicate (a milestone can ALSO count as done once every one of
+  its own subSteps is complete, not just its own id) passed in as the customizable `isDoneCheck`
+  argument — this is what the customizable-predicate design was already built to support, it just
+  hadn't been reused there yet. An escalation-year chain (year 2+ of a recurring opportunity)
   gets its own INDEPENDENT lock sequence, scoped to just that year's own steps — its own Overview
   1 unlocks immediately regardless of whether an earlier year's chain is done, matching how each
   escalation-year chain is already a fully separate top-level spine item.
@@ -7350,6 +7365,91 @@ and every other opportunity's own real prep chain) included, not just AI-generat
   `npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20 throughout — this whole
   generalization pass never opens `roadmapLayout.js` at all, only adds data (`locked`/
   `lockedReason`/`dueDate`) that flows through its already-existing, unmodified date-to-y math.
+
+**Fix: Diagnose Build Your Own's Overviews Broken After Generalization — the "Generalize the
+Overview/Lock System" pass above added a real shared lock helper for curated chains but never
+migrated Build Your Own's own PRE-EXISTING overview system onto it, leaving two separate
+implementations that produced two genuinely DIFFERENT Map 2 shapes for the same conceptual
+feature.**
+- **Diagnosis, confirmed by reading both code paths side by side, not assumed.** A curated
+  opportunity chain (`buildFirstYearChain`/`buildEscalationChain`) has always produced ONE
+  top-level spine item (the promoted first step, "Overview 1") plus a `.steps` array holding the
+  REST of its real steps ("Overview 2..N") — `roadmapLayout.js`'s lane algorithm sees this as one
+  chain (`item.steps.length >= 1`) and pulls the WHOLE thing into ONE shared lane. Build Your
+  Own's own `buildOverviewMilestoneChains`, unchanged by the earlier generalization pass, instead
+  pushed EACH overview milestone as its OWN INDEPENDENT top-level spine item — with its own
+  `id`/`date`/`locked` — never grouped together at all. Since `roadmapLayout.js`'s lane assignment
+  evaluates every top-level `spineItems` entry INDIVIDUALLY, and a milestone's own `.steps` was
+  only ever populated once THAT SPECIFIC milestone had been given granular `subSteps` via the
+  scoped per-phase planning chat (empty for every fresh milestone, the ordinary state for most of
+  a project's life), the confirmed, concrete effect was: every milestone with zero subSteps
+  rendered as a bare, disconnected SPINE POINT scattered among core/custom/other tasks — never
+  grouped as "one project, N phases" the way a curated chain always visibly is — and the moment
+  ONE milestone happened to gain subSteps, only THAT milestone got pulled into its own ISOLATED
+  lane, still completely disconnected from its own sibling phases. The lock RULE itself (computed
+  via a second, independently-written `previousDone`/`isLocked` walk inside
+  `buildOverviewMilestoneChains`) and the modal's own preview behavior (`selectedIsLocked =
+  !!modalNode?.locked`, already generic since it just reads whichever function set `.locked`)
+  happened to still work correctly in isolation — the actual, confirmed break was the SHAPE/
+  POSITIONING mismatch, not the lock logic or the preview UI.
+- **The fix migrates `buildOverviewMilestoneChains` onto the exact same single-chain shape**
+  (one promoted anchor + a `.steps` array of the rest, sharing ONE lane) `buildFirstYearChain`/
+  `buildEscalationChain` already use, calling the SAME shared `applyOverviewLocking` helper those
+  functions call — the ONE unified overview/lock implementation both curated chains and Build
+  Your Own projects now go through. The only remaining Build-Your-Own-specific piece is the "done"
+  predicate passed INTO that shared helper (`applyOverviewLocking` was already designed to accept
+  a customizable `isDoneCheck` for exactly this reason): a milestone counts as done either directly
+  (`completedNodes[id]`) or, once it has real subSteps, once every one of those is complete —
+  preserving the ORIGINAL Build Your Own rule byte-for-byte, just expressed through the shared
+  function instead of a second, parallel walk. `milestoneMeta` is now set on EVERY step in the
+  chain (anchor and branch steps alike, not just the promoted one), so clicking ANY Overview of a
+  Build Your Own project — not only the first — correctly resolves `liveMilestone` via the modal's
+  existing lookup.
+- **A milestone's own granular subSteps (once planned) no longer render as separate lane/branch
+  nodes at all** — kept as plain data on each resolved step (used by the shared lock predicate and
+  Roadmap.jsx's own new checklist, below), never turned into a nested branch of their own, since
+  `roadmapLayout.js` has no concept of a branch step having its OWN further branch. This actually
+  CORRECTS a second, previously-undiscovered discrepancy from the original "sub-tasks live inside,
+  never sprawled across the lane as individual nodes" requirement — Build Your Own's own planned
+  subSteps used to render as visible branch nodes in their own mini-lane before this fix, which was
+  never actually consistent with that stated goal (it just went unnoticed since the original
+  generalization pass deliberately scoped itself to curated chains only, where this concern is
+  trivially satisfied by the 1:1 mapping).
+- **`Roadmap.jsx` gained a new `milestoneHasSubSteps` case**, alongside the existing
+  `milestoneNeedsPlanning`/`selectedIsLocked` ones: an UNLOCKED Overview with real planned
+  subSteps now shows a compact in-modal checklist (`.modal-substep-checklist`) — each subStep with
+  its own real due date and an independent checkbox wired straight to the same `toggleDone` every
+  other node already uses — ADDITIVE alongside the normal resources/edit-row/outcome-note/
+  complete-toggle content below it (not a replacement), so a student can still edit the Overview's
+  own due date, remove it, leave an outcome note, or mark the WHOLE phase done directly regardless
+  of whether every individual subStep has been checked off — preserving the exact "either/or"
+  completion flexibility the original rule already established.
+- **A real, deliberate NON-fix, confirmed correct rather than assumed**: an Overview with ZERO
+  subSteps of its own (the ordinary state for most phases most of the time) still shows the
+  PRE-EXISTING `MilestonePlanningPanel` scoped AI chat once unlocked, exactly as it always has —
+  this is a genuine, intentional Build-Your-Own-specific design (a curated Overview never has this
+  state at all, since it always has real content from the moment it's generated) that predates and
+  is unrelated to this shape/lock unification; it was NOT changed, and confirming it still behaves
+  identically was itself part of this fix's own verification, not something broken by it.
+- Verified two ways. A dedicated Node-level test (13 checks, loading the real
+  `generateRoadmap`/`roadmapGenerator.js` through Vite's own `ssrLoadModule`) confirms: a fresh
+  Build Your Own project now produces exactly ONE top-level spine item (not N independent ones)
+  with 3 real branch steps sharing one lane; Overview 1 is unlocked and Overviews 2-4 are locked;
+  completing Overview 1 unlocks exactly Overview 2; a milestone with 2 real subSteps correctly
+  counts as done (unlocking the next Overview) once BOTH are complete, but NOT once only one is;
+  and a curated DECA chain resolves completely unaffected, in a genuinely different lane from the
+  Build Your Own project on the same plan. A dedicated 12-check Playwright suite against the real
+  rendered UI confirms: an Overview with real subSteps shows the in-modal checklist (both real
+  subSteps, each independently checkable, writing real `completedNodes` entries) alongside the
+  still-present generic complete-toggle; checking off both subSteps unlocks the next Overview
+  (confirmed via its locked-notice disappearing, its ring losing the dimmed/Lock treatment, and it
+  correctly falling through to its OWN real state — the pre-existing planning-chat case, since it
+  has no subSteps of its own); a not-yet-reached Overview stays locked with the real preview/
+  locked-notice/dimmed-ring treatment; and all three Overviews render at the exact same lane `x`
+  with genuinely distinct `y` positions matching their own real, distinct due dates. `npm run
+  build`/`npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20 throughout — this
+  fix never opens `roadmapLayout.js`, only changes which data shape `roadmapGenerator.js` feeds
+  into its already-existing, unmodified lane/date-to-y math.
 
 ## Design tokens
 
@@ -9767,3 +9867,26 @@ download). Cover at minimum:
   Re-run `npm run verify:spacing` (must stay 20/20 — this generalization never opens
   `roadmapLayout.js`, only adds `locked`/`lockedReason`/`dueDate` data that flows through its
   already-existing date-to-y math) both before and after any related change.
+
+- Fix: Diagnose Build Your Own's Overviews Broken After Generalization: seed a real Build Your Own
+  project directly (`state.startedProjects`, `overviewMilestones` with real `dueDate`s spread
+  across several days) alongside a real curated opportunity on the SAME plan, and confirm the
+  project now resolves to exactly ONE top-level spine item (`roadmap.spine.filter(n => n.category
+  === 'project').length === 1`, not one per milestone) with its later milestones sharing the
+  IDENTICAL lane `x` as its own anchor — the direct, structural proof of the fix (the old bug
+  produced N independent items, each with its own possibly-different `x`, or no `x`/lane at all).
+  Confirm Overview 1 unlocked, Overviews 2+ locked, exactly mirroring a curated chain's own
+  behavior. Give ONE milestone real `subSteps` (bypassing the separate, pre-existing, unrelated
+  "needs the AI planning chat" case — that's untouched by this fix and isn't what it's testing) and
+  confirm its modal shows a real `.modal-substep-checklist` with one row per subStep, each
+  independently checkable via `toggleDone`, alongside the still-present generic complete-toggle;
+  checking off ALL of that milestone's own subSteps (without ever directly toggling the milestone's
+  own id) should unlock the next Overview, confirming the shared `applyOverviewLocking` predicate
+  correctly re-derives "done" from subStep completion. Confirm a milestone with NO subSteps of its
+  own still shows the pre-existing `MilestonePlanningPanel` once unlocked (this is correct,
+  unrelated, intentional behavior — don't mistake it for a regression). A dedicated Node-level test
+  loading the real `roadmapGenerator.js` through Vite's own `ssrLoadModule` is the fastest way to
+  check the underlying shape/lock rules precisely across several completion-state combinations.
+  Re-run `npm run verify:spacing` (must stay 20/20 — this fix never opens `roadmapLayout.js`, only
+  changes which shape `roadmapGenerator.js` feeds into it) both before and after any related
+  change.

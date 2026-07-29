@@ -496,29 +496,37 @@ function buildProjectChain(project, dateOverrides, removed) {
 // (courses.js) already takes for a different kind of unknowable-in-advance date.
 const ESTIMATED_MILESTONE_SPACING_DAYS = 21;
 
-// Two-Phase Generation (see CLAUDE.md), Tasks 2/5 — each overview phase becomes its OWN spine
-// item, in sequence, mirroring an opportunity chain's own shape exactly: the phase's own title/id
-// IS the promoted anchor node (playing the same role an opportunity's own first prep step plays —
-// e.g. "Register for DECA" is never a separate summary node either), with its later-generated
-// granular `subSteps` (Task 4) becoming its diagonal branch once they exist. A phase with no
-// subSteps yet renders as a plain point, exactly like a freshly-started curated project — the
-// moment its steps are generated, it becomes a real branch, same connector/isLast machinery as
-// everywhere else in this file.
+// Fix: Diagnose Build Your Own's Overviews Broken After Generalization (see CLAUDE.md) — this
+// function used to build ONE INDEPENDENT top-level spine item PER milestone, each individually
+// deciding for itself whether it qualified for `roadmapLayout.js`'s lane system (only once THAT
+// specific milestone had its own granular `subSteps` planned). A curated opportunity chain, by
+// contrast, has always been ONE top-level item (the promoted first step) plus a `.steps` array of
+// the rest, pulled into ONE shared lane. The practical, confirmed bug: a fresh Build Your Own
+// project's own milestones (all still subStep-less, the ordinary state until the student opens the
+// scoped per-phase planning chat) rendered as bare, disconnected SPINE POINTS scattered among core/
+// custom tasks — never grouped as "one project, N phases" the way a curated chain always is — and
+// once ONE milestone happened to gain subSteps, only THAT milestone got pulled into its own
+// isolated lane, still disconnected from its own sibling phases.
 //
-// Locking (Task 2's own "only the first overview milestone is unlocked; every subsequent one is
-// locked until the one before it is marked complete") is computed FRESH every time this runs, from
-// `completedNodes` — the exact same "unlock is just a function of current real state, never a
-// separately-stored flag that could drift out of sync" precedent this app's own hub tiles
-// (`unlock: (state) => ...`, HubScreen.jsx) already established, extended here to spine nodes
-// instead of hub tiles. A phase counts as done when EITHER its own anchor is marked complete
-// directly (the same generic `toggleDone` every other node already supports — useful for a phase
-// with no subSteps yet, or one the student considers done regardless of subStep completion) OR,
-// once it has real subSteps, all of them are complete — matching Task 5's own explicit "or the
-// milestone itself" wording.
+// This function now produces the EXACT SAME single-chain shape buildFirstYearChain/
+// buildEscalationChain already use — one promoted anchor (Overview 1) + a `.steps` array of the
+// rest, sharing ONE lane — and uses the SAME shared `applyOverviewLocking` helper those functions
+// call, instead of a second, independently-maintained lock walk. This is the ONE unified overview/
+// lock implementation both curated chains and Build Your Own projects now go through; the only
+// remaining Build-Your-Own-specific piece is the "done" predicate passed into that shared helper
+// (a milestone can ALSO count as done once every one of its own subSteps is complete, not just its
+// own id — a curated chain's own predicate never needs this, since a curated Overview never has
+// its own further subSteps at all).
+//
+// A milestone's own granular `subSteps` (Task 4 of the original generalization) are kept as plain
+// DATA here, never turned into further lane/branch nodes of their own — there's no nested-lane
+// concept in roadmapLayout.js, and "Overview nodes only in the lane, granular sub-tasks visible
+// only once the student opens it" (the original generalization's own Task 2) applies to a planned
+// Build Your Own milestone exactly the same way it already does to a curated 1:1 chain. Roadmap.jsx
+// renders these as an in-modal checklist instead (see its own `milestoneHasSubSteps` case).
 //
 // Dating: milestone 0 always has a REAL date — `project.startDate`, the date picked when "Start
-// This Project" was confirmed. Generalize the Overview/lock system to Every Multi-Step Chain (see
-// CLAUDE.md), Task 4 — every LATER milestone now ALSO gets its own real, explicit `m.dueDate`,
+// This Project" was confirmed. Every LATER milestone gets its own real, explicit `m.dueDate`,
 // assigned by the AI's own overview generation at project-creation time (ProjectBuilderScreen.jsx's
 // `confirmStart`, via `computeMilestoneDueDates`) rather than an implicit sequence position alone —
 // this is what determines that milestone's own height on Map 2, completely independent of whether
@@ -530,75 +538,81 @@ const ESTIMATED_MILESTONE_SPACING_DAYS = 21;
 // placeholder above — an honest, clearly-a-guess gap for a phase nobody has actually thought
 // through the timing of yet, kept only for that legacy fallback path.
 function buildOverviewMilestoneChains(project, dateOverrides, removed, completedNodes) {
-  const milestones = project.overviewMilestones || [];
+  const milestones = (project.overviewMilestones || []).filter((m) => !removed[m.id]);
   if (milestones.length === 0) return [];
 
-  const items = [];
   let cursor = parseDateInputValue(project.startDate);
-  let previousDone = true; // milestone 0 is always unlocked, regardless of any "previous" concept
+  const resolved = milestones.map((m) => {
+    const impliedDate = m.dueDate ? parseDateInputValue(m.dueDate) : cursor;
+    const realDate = dateOverrides[m.id] ? parseDateInputValue(dateOverrides[m.id]) : impliedDate;
+    const subSteps = (m.subSteps || []).filter((s) => !removed[s.id]);
 
-  milestones.forEach((m, i) => {
-    const anchorDate = m.dueDate ? parseDateInputValue(m.dueDate) : cursor;
-
-    let branchSteps = [];
-    if (m.subSteps && m.subSteps.length) {
-      branchSteps = m.subSteps
-        .filter((s) => !removed[s.id])
-        .map((s) => {
-          const real = dateOverrides[s.id] ? parseDateInputValue(dateOverrides[s.id]) : parseDateInputValue(s.date);
-          return { id: s.id, title: s.title, date: real, due: formatDate(real), desc: s.desc || '', resources: [] };
-        });
-      branchSteps.sort((a, b) => a.date.getTime() - b.date.getTime());
-      branchSteps = branchSteps.map((s, idx) => ({
-        ...s,
-        category: 'project',
-        isLast: idx === branchSteps.length - 1,
-        aiSuggested: true,
-        projectLabel: `${project.projectName} · ${m.title}`,
-      }));
-    }
-
-    const milestoneDone = !!completedNodes[m.id]
-      || (branchSteps.length > 0 && branchSteps.every((s) => !!completedNodes[s.id]));
-    const isLocked = !previousDone;
-    const realAnchorDate = dateOverrides[m.id] ? parseDateInputValue(dateOverrides[m.id]) : anchorDate;
-
-    if (!removed[m.id]) {
-      items.push({
-        id: m.id,
-        title: m.title,
-        category: 'project',
-        required: false,
-        coreType: 'project',
-        date: realAnchorDate,
-        due: formatDate(realAnchorDate),
-        desc: m.desc || `Part of your ${project.projectName} project.`,
-        resources: [],
-        projectLabel: `${project.projectName} · Phase ${i + 1} of ${milestones.length}`,
-        aiSuggested: true,
-        locked: isLocked,
-        lockedReason: isLocked ? `Complete "${milestones[i - 1].title}" first` : null,
-        milestoneMeta: { projectId: project.id, milestoneId: m.id },
-        steps: branchSteps.length ? branchSteps : null,
-      });
-    }
-
-    // Advance the cursor for the NEXT phase — see this function's own header comment for why this
-    // is computed fresh every time rather than stored.
+    // Advance the cursor for the NEXT milestone (the legacy fallback path only — see this
+    // function's own header comment) before moving on.
     if (m.targetDate) {
       cursor = realAddDays(parseDateInputValue(m.targetDate), 1);
-    } else if (branchSteps.length) {
-      cursor = realAddDays(branchSteps[branchSteps.length - 1].date, 1);
+    } else if (subSteps.length) {
+      const lastSubDate = subSteps.reduce((latest, s) => {
+        const d = parseDateInputValue(s.date);
+        return d > latest ? d : latest;
+      }, parseDateInputValue(subSteps[0].date));
+      cursor = realAddDays(lastSubDate, 1);
     } else {
-      cursor = realAddDays(anchorDate, ESTIMATED_MILESTONE_SPACING_DAYS);
+      cursor = realAddDays(impliedDate, ESTIMATED_MILESTONE_SPACING_DAYS);
     }
-    // A removed phase doesn't block the sequence forever — treat it as "resolved" so the next one
-    // can still unlock, the same way a removed required trunk task doesn't get to permanently gate
-    // anything else either.
-    previousDone = milestoneDone || !!removed[m.id];
+
+    return {
+      id: m.id,
+      title: m.title,
+      date: realDate,
+      due: formatDate(realDate),
+      desc: m.desc || `Part of your ${project.projectName} project.`,
+      resources: [],
+      milestoneMeta: { projectId: project.id, milestoneId: m.id },
+      // Kept as plain data for the shared lock predicate below and Roadmap.jsx's own in-modal
+      // checklist — never turned into a roadmapLayout.js branch/lane node of its own.
+      subSteps,
+    };
   });
 
-  return items;
+  resolved.sort((a, b) => a.date.getTime() - b.date.getTime());
+  const total = resolved.length;
+  let steps = resolved.map((s, i) => ({
+    ...s,
+    category: 'project',
+    isLast: i === total - 1,
+    projectLabel: `${project.projectName} · Phase ${i + 1} of ${total}`,
+    aiSuggested: true,
+  }));
+
+  // The ONE shared lock rule (see roadmapGenerator.js's applyOverviewLocking) — the only
+  // Build-Your-Own-specific piece left is this "done" predicate, which preserves the ORIGINAL
+  // rule: a milestone counts as done either directly (completedNodes[id]) or, once it has real
+  // subSteps, once every one of THOSE is complete.
+  steps = applyOverviewLocking(steps, (s) => (
+    !!completedNodes[s.id] || (s.subSteps.length > 0 && s.subSteps.every((sub) => !!completedNodes[sub.id]))
+  ));
+
+  const [anchor, ...branchSteps] = steps;
+
+  return [{
+    id: anchor.id,
+    title: anchor.title,
+    category: 'project',
+    required: false,
+    coreType: 'project',
+    date: anchor.date,
+    due: anchor.due,
+    desc: anchor.desc,
+    resources: anchor.resources,
+    projectLabel: anchor.projectLabel,
+    aiSuggested: true,
+    locked: anchor.locked,
+    lockedReason: anchor.lockedReason,
+    milestoneMeta: anchor.milestoneMeta,
+    subSteps: anchor.subSteps,
+    steps: branchSteps.length ? branchSteps : null,
+  }];
 }
 
 // Course Selection Stage 4 — wires Stage 3's course selections into real, dated, single-step
