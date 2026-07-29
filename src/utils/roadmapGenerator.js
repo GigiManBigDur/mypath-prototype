@@ -529,33 +529,49 @@ const ESTIMATED_MILESTONE_SPACING_DAYS = 21;
 // This Project" was confirmed. Every LATER milestone gets its own real, explicit `m.dueDate`,
 // assigned by the AI's own overview generation at project-creation time (ProjectBuilderScreen.jsx's
 // `confirmStart`, via `computeMilestoneDueDates`) rather than an implicit sequence position alone —
-// this is what determines that milestone's own height on Map 2, completely independent of whether
-// its own subSteps have been planned yet. `m.dueDate` is used directly whenever present; the
-// running CURSOR below is now purely a FALLBACK for an old-shape project created before this fix
-// (no `dueDate` on its milestones at all) — once a phase's own granular steps exist, the cursor
-// advances to the day after its own real, student-picked `targetDate` (see
-// MilestonePlanningPanel.jsx); until then, it advances by the fixed ESTIMATED_MILESTONE_SPACING_DAYS
-// placeholder above — an honest, clearly-a-guess gap for a phase nobody has actually thought
-// through the timing of yet, kept only for that legacy fallback path.
+// this is what determines that milestone's own height on Map 2, BEFORE its own subSteps exist.
+// `m.dueDate` is used directly whenever present; the running CURSOR below is now purely a FALLBACK
+// for an old-shape project created before that fix (no `dueDate` on its milestones at all) — until
+// a phase's own granular steps exist, the cursor advances by the fixed
+// ESTIMATED_MILESTONE_SPACING_DAYS placeholder above — an honest, clearly-a-guess gap for a phase
+// nobody has actually thought through the timing of yet, kept only for that legacy fallback path.
+//
+// Fix: Overview Due Dates Can Predate Their Own Sub-Tasks (see CLAUDE.md) — an Overview's real date
+// means "when this phase is ACTUALLY COMPLETE," not a start marker, so it can never legitimately
+// sit BEFORE a sub-task it depends on. `m.dueDate` (or the legacy cursor) is only ever the BEST
+// AVAILABLE GUESS before real subSteps exist — the moment they do, the true completion date is a
+// deterministic function of THEM, not a separate guess made before they ever existed: the LATEST
+// (maximum) real subStep date always wins over `m.dueDate` from that point forward, regardless of
+// which one is later, the same "derive it automatically rather than trust a separate guess to stay
+// consistent" principle every other date-reasoning fix in this app already applies. This can
+// reorder a milestone relative to its own siblings (the `resolved.sort` below already re-sorts by
+// final resolved date, matching the same "position is a function of final resolved date, re-sorted
+// as needed" precedent an opportunity chain's own steps already follow) — a deliberate, accepted
+// consequence of always trusting the most concrete data available over an earlier guess.
 function buildOverviewMilestoneChains(project, dateOverrides, removed, completedNodes) {
   const milestones = (project.overviewMilestones || []).filter((m) => !removed[m.id]);
   if (milestones.length === 0) return [];
 
   let cursor = parseDateInputValue(project.startDate);
   const resolved = milestones.map((m) => {
-    const impliedDate = m.dueDate ? parseDateInputValue(m.dueDate) : cursor;
-    const realDate = dateOverrides[m.id] ? parseDateInputValue(dateOverrides[m.id]) : impliedDate;
     const subSteps = (m.subSteps || []).filter((s) => !removed[s.id]);
+    const lastSubDate = subSteps.length
+      ? subSteps.reduce((latest, s) => {
+        const d = parseDateInputValue(s.date);
+        return d > latest ? d : latest;
+      }, parseDateInputValue(subSteps[0].date))
+      : null;
+
+    // Real subSteps, once they exist, always determine the true completion date — never the
+    // earlier AI guess (`m.dueDate`)/cursor fallback, which only ever applied before they existed.
+    const impliedDate = lastSubDate || (m.dueDate ? parseDateInputValue(m.dueDate) : cursor);
+    const realDate = dateOverrides[m.id] ? parseDateInputValue(dateOverrides[m.id]) : impliedDate;
 
     // Advance the cursor for the NEXT milestone (the legacy fallback path only — see this
     // function's own header comment) before moving on.
     if (m.targetDate) {
       cursor = realAddDays(parseDateInputValue(m.targetDate), 1);
-    } else if (subSteps.length) {
-      const lastSubDate = subSteps.reduce((latest, s) => {
-        const d = parseDateInputValue(s.date);
-        return d > latest ? d : latest;
-      }, parseDateInputValue(subSteps[0].date));
+    } else if (lastSubDate) {
       cursor = realAddDays(lastSubDate, 1);
     } else {
       cursor = realAddDays(impliedDate, ESTIMATED_MILESTONE_SPACING_DAYS);

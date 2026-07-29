@@ -7512,6 +7512,61 @@ above was first built (it only ever supported checking items off).**
   `npm run verify:spacing` stayed 20/20 — this feature never touches `roadmapGenerator.js` or
   `roadmapLayout.js` at all, only `Roadmap.jsx`'s own modal wiring and the new checklist component.
 
+**Fix: Overview Due Dates Can Predate Their Own Sub-Tasks — an Overview could show a date earlier
+than a sub-task required to complete it (e.g. the phase itself due Jul 30, one of its own real
+sub-tasks not due until Jul 31), a real contradiction: you can't finish a phase before its own
+prerequisites are done.**
+- **Task 1 — clarified what an Overview's date MEANS.** An Overview's real date represents when
+  that phase is ACTUALLY COMPLETE, not a start marker — its position on Map 2 should reflect this
+  consistently. Before this fix, `buildOverviewMilestoneChains` always preferred the AI's own
+  provisional `m.dueDate` (assigned once, at project-creation time, before any real sub-task
+  existed — see "Generalize the Overview/Lock System to Every Multi-Step Chain," Task 4) with
+  nothing ever correcting it once real sub-task dates became known — a genuine, real gap, not a
+  hypothetical one: a phase's own granular sub-tasks (planned later, once the student actually
+  opens that phase) can easily land LATER than whatever the AI guessed the whole phase would be
+  done by, before any of that detail existed to inform the guess.
+- **Task 2 — two-stage date assignment, implemented directly in `buildOverviewMilestoneChains`
+  (`roadmapGenerator.js`).** Before a milestone has real `subSteps`, `m.dueDate` (or the legacy
+  cursor fallback) stays exactly as it already worked — a reasonable placeholder, per this task's
+  own explicit "this is fine as a placeholder" framing. The MOMENT real `subSteps` exist, though,
+  the milestone's own real date is recomputed as the LATEST (maximum) date among them — `m.dueDate`
+  is never consulted again from that point forward, regardless of whether it was earlier OR later
+  than that maximum; the same "derive it automatically rather than trust a separate guess to stay
+  consistent" principle every other date-reasoning fix in this file already applies (the `dueDate`-
+  from-AI-offsets fix itself, the chain-attachment "student picks the date, not the AI" fix, etc.).
+  This is a pure DERIVATION, recomputed fresh every time `generateRoadmap()` runs (which is itself
+  re-run by a `useMemo` keyed on `state` on every change) — nothing is written back into `m.dueDate`
+  or any other persisted field, so "its position on Map 2 updates correctly" (Task 2's own test
+  criterion) falls out automatically the instant a new subStep is added/edited/removed, with no
+  separate "recalculate and save" step needed anywhere.
+- **A manual `nodeDateOverrides` edit on the Overview's own date still wins over this auto-derived
+  value** — a deliberate, unchanged precedence (an explicit user edit is a different, later action
+  than "the AI's original guess never got corrected," which is the specific bug this fix targets)
+  — the same "override always wins" convention every other node in this app already follows.
+- **This can reorder a milestone relative to its own siblings** — if one phase's real completion
+  (via its own subSteps) ends up later than a sibling's still-provisional guess, the existing
+  `resolved.sort()` (unchanged) naturally re-sorts them into the new, correct chronological order,
+  which can shift WHICH milestone is currently "Overview 1" vs. "Overview 2" etc. This is the exact
+  same "position is a function of final resolved date, re-sorted as needed" precedent an
+  opportunity chain's own steps already follow (see the AI-chain-attachment fix's own re-sort, and
+  the "Fix: Same-Date Starter Tasks" section above) — a deliberate, accepted consequence of always
+  trusting the most concrete data available over an earlier guess, not a new kind of instability.
+- Verified two ways. A dedicated Node-level test (6 checks, loading the real
+  `generateRoadmap`/`roadmapGenerator.js` through Vite's own `ssrLoadModule`) confirms: a milestone
+  whose real subSteps land LATER than its own original `dueDate` guess resolves to that later date,
+  not the stale guess; no node anywhere in a real chain ever predates any of its own subSteps (the
+  literal contradiction this fix targets); a milestone with no subSteps yet still uses its
+  unmodified provisional guess; a milestone whose subSteps land EARLIER than its own guess still
+  correctly adopts the (earlier) subStep-derived date once they exist — subSteps are unconditionally
+  authoritative, not just when convenient; and a manual `nodeDateOverrides` edit still wins over the
+  auto-derived value. A real rendered-UI Playwright check (4 checks) seeds a real subStep landing
+  later than the original guess and confirms the Overview's own rendered Map 2 `y` position
+  genuinely changes, and its detail modal's own displayed due date reflects the corrected date, not
+  the stale one. `npm run build`/`npm run lint` both stay clean; `npm run verify:spacing` stayed
+  20/20 — this fix never opens `roadmapLayout.js`, only changes which date `roadmapGenerator.js`
+  resolves for a milestone before feeding it into that file's already-existing, unmodified
+  date-to-y math.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9965,3 +10020,19 @@ download). Cover at minimum:
   it, the new steps should be APPENDED to the existing subSteps array (not replacing it). `npm run
   build`/`npm run lint`/`npm run verify:spacing` (20/20 — this feature never opens
   `roadmapGenerator.js`/`roadmapLayout.js` at all) should all stay clean.
+
+- Fix: Overview Due Dates Can Predate Their Own Sub-Tasks: seed a Build Your Own milestone with a
+  provisional `dueDate` (e.g. day 2 from the project's own start date), then give it a real
+  subStep dated LATER (e.g. day 4) and confirm `generateRoadmap()`'s resolved node for that
+  milestone now uses day 4, not the stale day-2 guess — check this both at the layout-math level
+  (a Node script loading the real `roadmapGenerator.js` through Vite's own `ssrLoadModule`) and by
+  seeding the same scenario through the real UI and confirming the node's own rendered Map 2 `y`
+  position changes and its modal's own displayed due date updates to match. Also confirm: a
+  milestone with NO subSteps yet still uses its own untouched provisional guess (this fix must not
+  regress the "before sub-tasks are generated... fine as a placeholder" case); a milestone whose
+  subSteps are all EARLIER than its own guess still adopts that earlier subStep-derived date
+  (subSteps are unconditionally authoritative once they exist, not just when they happen to be
+  later); and a manual `nodeDateOverrides` edit on the Overview still wins over the auto-derived
+  value. Re-run `npm run verify:spacing` (must stay 20/20 — this fix never opens
+  `roadmapLayout.js`, only changes which date `roadmapGenerator.js` resolves before feeding it in)
+  both before and after any related change.
