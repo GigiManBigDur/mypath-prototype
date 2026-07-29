@@ -7149,6 +7149,64 @@ all (every OTHER consumer of the chain's data shape — `profileCompiler.js`, `H
   and after every edit in this pass — this fix never touches Pass 1 (the spine's own date-to-y
   math), only Pass 2's horizontal placement and Roadmap.jsx's connector-drawing code.
 
+**Fix: Same-Date Starter Tasks in Different Lanes Not Aligning — a real, confirmed regression the
+fix immediately above introduced without noticing.** Height (`y`) is supposed to be purely a
+function of a node's own real date, via one shared date-to-y rule, regardless of which lane a node
+lives in — but once a chain's starter task stopped rendering on the shared spine column, Pass 1
+(`roadmapLayout.js`) was still computing its `y` through the SAME running-floor sequence every
+genuine spine item shares: `layoutSequenceByDate`'s own "compare this entry's real day-gap to the
+IMMEDIATELY PRECEDING entry in one merged chronological list" state, applied across every top-level
+spine item (spine and chain anchors alike, walked together in one pass). Two DIFFERENT chains'
+starter tasks landing on the exact same real date — purely because they happened to sort as
+adjacent entries in that merged list — got floored `MIN_SPINE_GAP` (60px) apart from each other,
+even though they render in two different lanes and never actually shared any visual space to begin
+with. Confirmed directly, not assumed: a scratch Node script loading the real `roadmapLayout.js`
+(the same `ssrLoadModule` technique `scripts/verify-spacing.mjs` already uses) showed two same-date
+chain anchors landing 60px apart before this fix; a real rendered-UI check (two real opportunities,
+`nodeDateOverrides` forcing both starter tasks to the identical date) showed the same 60px
+misalignment on the live app, and — confirmed via `git stash`/`git stash pop` — the exact same
+scenario aligns perfectly once this fix is applied.
+- **The fix splits Pass 1 into two independent sub-passes instead of one shared running-floor
+  sequence across every spine item regardless of kind.** Genuine spine items (no branch — the ONLY
+  ones still rendered in the single shared x=0 spine column) keep the exact ORIGINAL floor-based
+  anti-collision rule, computed only AMONG THEMSELVES in date order — `spineOnlyEntries` filters
+  chain anchors out of this sequence entirely before it ever runs, not just skips over them mid-walk.
+  This is what makes `npm run verify:spacing` stay byte-for-byte unaffected: every input it exercises
+  has zero chain items, so filtering a zero-length set out of the shared sequence changes nothing.
+  Chain anchors (`hasBranch`, i.e. `item.steps.length >= 1`) instead get the PURE, unfloored
+  date-to-y value directly — `y = -t * PIXELS_PER_DAY`, the exact formula `layoutSequenceByDate`
+  itself would already produce for a lone entry that never triggers a floor — with no running
+  "compare to whatever came before it" state at all. Since chain anchors no longer share the
+  spine's x=0 column (the immediately-preceding fix relocated every one of them into its own fixed
+  lane), there's no genuine visual-collision risk left to floor against, and using the plain formula
+  is what guarantees the real invariant this fix exists for: ANY two nodes — spine or lane, any
+  lane — that share the exact same real date now compute to the identical `y`, always, regardless
+  of what else happens to be on the plan or where it sorts in processing order. Both sub-passes are
+  computed against the SAME `anchorT=0, anchorY=0` origin ("today"), so a genuine spine item that
+  never gets floored and a chain anchor sharing its date align too — the invariant isn't
+  chain-to-chain only, it's "any two nodes, any lane, real date is the only input."
+- **Everything downstream (Pass 2a's per-chain step layout, Pass 2b/2c's lane-x assignment, dynamic
+  lane widening) is completely unaffected in structure** — they still read `t`/`y` off the merged,
+  re-sorted array exactly as before; only WHERE that `y` value came from changed. A chain's own
+  internal step sequencing (`stepsWithY = layoutSequenceByDate(stepEntries, t, y)`, seeded from the
+  anchor's now-pure `y`) still applies the exact same floor logic for genuinely close-together steps
+  WITHIN that one chain — this fix only removes the (buggy) floor-entanglement BETWEEN a chain
+  anchor and whatever else happened to sort next to it in the old merged pass, not the anti-overlap
+  protection a chain's own steps still need among themselves.
+- Verified three ways: a dedicated Node script (5 chain-layout scenarios, 8 checks) confirms two
+  same-date chain anchors land in different lanes but at the identical `y`; three same-date chain
+  anchors all align at one `y` across three distinct lanes; a genuine core (non-chain) spine item
+  sharing a date with a chain anchor also aligns (confirming the invariant isn't chain-to-chain
+  only); chains with genuinely different dates still render at correctly different, ordered `y`
+  values; and a chain's own internal step spacing (5 real days from its anchor = 160px) is
+  completely unaffected. A real rendered-UI Playwright check (seeding two real opportunities with
+  `nodeDateOverrides` forcing both starter tasks to the same real date) confirms the identical
+  alignment on the live app, that the two nodes land in genuinely different lanes (different
+  rendered `x`), and that clicking one still opens its own correct, independent detail modal.
+  `npm run build`/`npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20 both before
+  and after this fix — it never touches spine-only positioning, only how a chain anchor's `y` is
+  computed relative to everything else on the plan.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9522,3 +9580,21 @@ download). Cover at minimum:
   with a real vertical leg). Confirm clicking the relocated starter task still opens its real
   detail modal. Re-run `npm run verify:spacing` (must stay 20/20 — this fix never touches Pass 1's
   spine math, only Pass 2's horizontal placement) both before and after any related change.
+
+- Fix: Same-Date Starter Tasks in Different Lanes Not Aligning: seed two real, multi-step
+  opportunities (e.g. `deca` and `science-olympiad`) and use `state.nodeDateOverrides` to force
+  both promoted starter tasks (`deca-prep-0`/`science-olympiad-prep-0`) to the exact same real
+  date — pick an override date clearly EARLIER than either chain's own remaining (unoverridden)
+  steps, or `buildFirstYearChain`'s own "re-sort steps by real date" step could promote a
+  DIFFERENT step to the anchor position instead of the one you meant to test. Confirm both
+  starter tasks render in genuinely different lanes (different `x`, read from each node's own
+  `transform` attribute) but at the IDENTICAL `y`. For the layout-math level, a Node script
+  loading the real `roadmapLayout.js` through Vite's own `ssrLoadModule` (same technique
+  `scripts/verify-spacing.mjs` uses) is the fastest way to check this precisely — construct 2-3
+  synthetic chain items sharing one date and confirm their resulting `y` values are exactly equal
+  while their `x` values differ; also confirm a genuine core (non-chain) item sharing that same
+  date aligns too (the invariant is "any node, any lane," not chain-to-chain only), and that
+  chains with genuinely DIFFERENT dates still render at correctly different, real-date-ordered
+  `y` values (this fix must not collapse everything to one height). Re-run `npm run
+  verify:spacing` (must stay 20/20 — this fix never touches the genuine spine-only floor sequence,
+  only decouples chain anchors from sharing it) both before and after any related change.

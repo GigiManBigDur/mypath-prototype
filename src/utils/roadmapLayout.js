@@ -29,6 +29,23 @@
 // task's own Y position (still `chainLayouts`' already-computed `y`, from Pass 2a, untouched) —
 // only where it renders horizontally.
 //
+// Fix: Same-Date Starter Tasks in Different Lanes Not Aligning (see CLAUDE.md) — a real, confirmed
+// regression the fix immediately above introduced without noticing: once a chain's starter task
+// stopped rendering on the shared spine column, Pass 1 was still computing its `y` through the
+// SAME running-floor sequence every genuine spine item shares (`layoutSequenceByDate`'s own
+// "compare to the previous entry in this merged chronological list" state) — so two DIFFERENT
+// chains' starter tasks landing on the exact same real date, purely because they happened to sort
+// as adjacent entries in that merged list, got floored 60px apart from each other even though they
+// render in two different lanes and never shared any real visual space to begin with. Fixed by
+// splitting Pass 1 into two independent sub-passes (see the code below): genuine spine items (the
+// only ones still sharing a single rendered column) keep the exact original floor-based sequence,
+// applied only among themselves; chain anchors get the plain, unfloored `y = -t * PIXELS_PER_DAY`
+// formula directly, with no dependence on iteration order at all. This is what guarantees the real
+// invariant the bug report asked for: ANY two nodes — spine or lane, any lane — that share the
+// exact same real date now compute to the identical y, always, regardless of what else is on the
+// plan. `npm run verify:spacing` (spine-only inputs, zero chain items) is unaffected, since
+// filtering a zero-length chain set out of the shared floor sequence changes nothing about it.
+//
 // THE ONE RULE THAT MUST NOT BREAK: every node's vertical position is still governed by the exact
 // same rule it always has been — real date, scaled by PIXELS_PER_DAY, with the MIN_SPINE_GAP floor
 // applying only for a genuine 0-1-real-day gap (or to preserve real-date order against a prior
@@ -208,13 +225,43 @@ export function layoutRoadmap({ today, spineItems }) {
   const daysFromToday = (date) => realDaysBetween(date, today.date);
 
   const withT = spineItems
-    .map((item) => ({ item, t: daysFromToday(item.date) }))
+    .map((item) => ({
+      item,
+      t: daysFromToday(item.date),
+      hasBranch: !!(item.steps && item.steps.length >= 1),
+    }))
     .sort((a, b) => a.t - b.t);
 
-  // Pass 1: spine y — the spine's own original formula, expressed through the shared helper above
-  // with anchorT=0/anchorY=0 (today's own coordinates before any canvas shift) — byte-for-byte the
-  // same seed values (`prevY=0`, `prevT=0`) the original hardcoded loop used.
-  const positionedSpine = layoutSequenceByDate(withT, 0, 0);
+  // Fix: Same-Date Starter Tasks in Different Lanes Not Aligning (see CLAUDE.md) — Pass 1 now
+  // computes y in two separate passes instead of one shared running-floor sequence across every
+  // spine item regardless of kind:
+  //   - Genuine spine items (no branch — still rendered in the single shared x=0 spine column)
+  //     keep the ORIGINAL floor-based anti-collision rule, applied only AMONG THEMSELVES in date
+  //     order (chain anchors are filtered out of this sequence entirely, not just skipped over) —
+  //     they're the only ones still at real risk of visually overlapping each other, since they're
+  //     the only ones still sharing one rendered column. Whenever no chain items exist at all
+  //     (every input `npm run verify:spacing` exercises), this is byte-for-byte the original Pass 1
+  //     computation — filtering out zero entries changes nothing.
+  //   - Chain anchors (`hasBranch`, i.e. an item with `steps.length >= 1`) instead get the PURE,
+  //     unfloored date-to-y value — `y = -t * PIXELS_PER_DAY`, the exact same formula
+  //     `layoutSequenceByDate` itself would compute for a lone entry that never triggers a floor —
+  //     directly, with no running "compare to the previous item" state at all. Chain anchors no
+  //     longer share the spine's x=0 column (Pass 2c below relocates every one of them into its own
+  //     fixed lane), so there's no genuine visual-collision risk left to floor against, and giving
+  //     them the plain formula is what guarantees the actual invariant this fix exists for: ANY two
+  //     nodes that share the exact same real date compute to the IDENTICAL y, regardless of which
+  //     lane (or the spine itself) either one lives in — a pure function of each node's own date,
+  //     never dependent on what else happens to be nearby in processing order. Before this fix, a
+  //     chain anchor's y came from the same shared running-floor sequence as every OTHER item
+  //     (spine and chain anchors alike, merged and walked in one chronological pass) — so two
+  //     same-date anchors landing as adjacent entries in that merged list got needlessly floored
+  //     60px apart from each other, purely as an artifact of iteration order, not because they ever
+  //     shared any real rendered space (they render in two different lanes).
+  const spineOnlyEntries = withT.filter((e) => !e.hasBranch);
+  const chainOnlyEntries = withT.filter((e) => e.hasBranch);
+  const positionedSpineOnly = layoutSequenceByDate(spineOnlyEntries, 0, 0);
+  const positionedChainOnly = chainOnlyEntries.map((e) => ({ ...e, y: -e.t * PIXELS_PER_DAY }));
+  const positionedSpine = [...positionedSpineOnly, ...positionedChainOnly].sort((a, b) => a.t - b.t);
 
   // labelSide alternation — unchanged mechanism (spine x is always 0, so without alternating,
   // every spine label would permanently claim the same side). A chain's own anchor gets this
