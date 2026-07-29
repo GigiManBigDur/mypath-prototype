@@ -6978,6 +6978,76 @@ non-dismissible reminder floating on the side of the screen.**
   lint`/`npm run verify:spacing` (20/20, unaffected — this fix never opens `roadmapLayout.js`, only
   `Roadmap.jsx`'s own rendering) all stay clean.
 
+**Map 2 Restructure follow-up: unconditional lane rule + dynamic lane widening — a refinement
+pass on the Fixed Lanes + Right-Angle Connectors restructure above, adding one genuinely new
+mechanism (dynamic per-lane widening) and explicitly confirming one rule that was already true
+but not yet directly tested (every chain unconditionally gets a lane, no exceptions).**
+- **Task 2 confirmed, not changed** — `hasBranch = !!(item.steps && item.steps.length >= 1)` was
+  already unconditional from the very first version of this restructure (no "only if it would
+  otherwise collide" branch ever existed) — this pass adds direct test coverage proving it (a
+  chain with zero real crowding risk nearby still gets a lane; a genuinely single-step item, with
+  `steps: null`, still correctly stays on the spine) rather than changing any code.
+- **Task 4 — genuine dynamic lane widening, the real new work.** Two ADJACENT same-side lanes
+  (index i-1 and i) only risk a real visual collision when their own real content shares
+  overlapping vertical (y) territory — two lanes whose chains were never concurrent never overlap
+  in y either, so the base `LANE_WIDTH` (260px) is always enough for them. `requiredLaneGap(prevYs,
+  ys)` (`roadmapLayout.js`) measures this directly from real, final (post-floor) node y-positions:
+  it returns the plain base `LANE_WIDTH` whenever the two lanes' y-ranges don't overlap at all (the
+  common case), and widens it — `LANE_WIDTH + (denseCount - DENSITY_THRESHOLD) * EXTRA_GAP_PER_
+  NODE` — whenever they do, where `denseCount` is how many real node y-positions (pooled across
+  both lanes) fall inside their shared overlapping window. `DENSITY_THRESHOLD` (3) tolerates a
+  couple of incidentally-overlapping nodes before widening kicks in at all; `EXTRA_GAP_PER_NODE`
+  (36) is the additional clearance each node beyond that threshold adds.
+- **This required restructuring `layoutRoadmap()`'s own Pass 2 into three explicit sub-passes**,
+  since dynamic widening needs to know every lane's own real content BEFORE committing to any
+  lane's final x — impossible with the original single-pass "assign lane -> immediately compute x
+  -> lay out steps at that x" flow:
+  1. **Pass 2a** computes every chain's own step Y positions first, entirely independent of final
+     lane x (`layoutSequenceByDate` never reads x at all, so this can run before horizontal
+     placement is decided) — this is also what makes it structurally impossible for the widening
+     pass to feed back into or perturb any node's own vertical position: Y is fully resolved before
+     X computation even begins.
+  2. **Pass 2b** pools every real step-y by `(side, indexOnSide)` — across every chain that has
+     EVER occupied a given lane index, i.e. through reuse — then walks each side's own lane indices
+     in order (0, 1, 2, ...), accumulating each lane's final x from the previous (inner) lane's own
+     final x plus whatever `requiredLaneGap` decides. Lane index 0 always sits at the fixed
+     `LANE_GAP` from the spine, unaffected by widening — Task 4 is specifically about NEIGHBORING
+     lanes, not a lane's own base distance from the spine.
+  3. **Pass 2c** applies each lane's own final x to every one of its steps — unchanged from before
+     in spirit, just reading from the newly-computed per-lane x map instead of a flat formula.
+- **A real, confirmed test-construction pitfall, not a bug in the implementation**: new lanes
+  alternate sides regardless of concurrency (Task 3's own "alternate new lanes left/right for
+  visual balance," unchanged) — so two chains that are simply concurrent with EACH OTHER usually
+  land on OPPOSITE sides (being lane-creations 1 and 2), not the same side, which an early version
+  of this feature's own test suite wrongly assumed. Getting two SAME-side, adjacent-index lanes to
+  test widening between requires a third "dummy" chain inserted specifically to absorb the
+  opposite-side slot, so the chain actually being measured lands on the same side as the first one,
+  at the next index out. A second test pitfall: every final `x` coordinate already includes the
+  canvas's own `leftShift`, so any two positions must be compared via a DIFFERENCE (which cancels
+  the shift out), never via a raw comparison against the unshifted `LANE_GAP`/`LANE_WIDTH`
+  constants directly.
+- Verified in the exact staged sequence requested, re-running `npm run verify:spacing` after every
+  stage (stayed 20/20 throughout, confirming the Pass 2 restructure never touched Pass 1's spine
+  math): Stage 1 (10 checks) re-confirmed the unconditional lane rule plus a single chain's own
+  right-angle jog; Stage 2/3 (4 checks) re-confirmed lane reuse and genuine concurrency are
+  unaffected by the Pass 2 restructure (the ASSIGNMENT algorithm itself — which lane index/side a
+  chain gets — was untouched; only how each assigned lane's final x gets computed changed); Stage 4
+  (10 checks) is the new work — a genuinely non-overlapping sparse control case confirmed the exact
+  unwidened base pitch (260px), while a densely-packed 15-step chain next to the same topology
+  confirmed a real, formula-matching widened gap (476px, exactly `260 + (9-3)*36`) — with a direct
+  check that every dense step's own y still follows the completely unmodified `PIXELS_PER_DAY`
+  rule, and that an opposite-side lane's own distance from the spine stays at the plain base
+  `LANE_GAP` regardless of how dense its neighbor is. The full multi-chain view (8 checks, a real
+  dense 6-opportunity high-school freshman plan) confirmed zero page errors, real axis ticks
+  correctly spaced ~900-990px apart (one real month at the unchanged `PIXELS_PER_DAY` scale), and
+  every Task 7 regression (click-to-modal, zoom, the ring-style legend) holds — plus a rigorous
+  cross-node ring-overlap check (native 1:1 canvas scale, the same technique this codebase's own
+  dense-roadmap tests already established) confirmed zero overlaps across 27 real node rings. The
+  full pre-existing regression suite available this session (10 files spanning Daily Schedule, the
+  weekly digest, international-student/transfer-gap content checks, chat voice, and the prior Map 2
+  restructure's own stage tests) all pass with zero regressions; `npm run build`/`npm run lint`
+  both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9319,3 +9389,19 @@ download). Cover at minimum:
   switching between the Roadmap/This Week/Daily Schedule sub-views, and confirm it disappears ONLY
   after actually marking the task complete via its own real "Mark complete" button — never via a
   dismiss action, since the component has none.
+
+- Map 2 Restructure follow-up (unconditional lane rule + dynamic widening): as with the original
+  restructure, run `npm run verify:spacing` first after touching `roadmapLayout.js` (must stay
+  20/20). For testing dynamic lane widening specifically, use a real Node script loading
+  `roadmapLayout.js` through Vite's own `ssrLoadModule` with fully synthetic, hand-picked dates —
+  and remember TWO real pitfalls found building this feature's own test suite: (1) new lanes
+  alternate sides regardless of concurrency, so two chains that are simply concurrent with each
+  other usually land on OPPOSITE sides, not the same one — to reliably test two SAME-side adjacent
+  lanes, insert a third "dummy" chain specifically to absorb the opposite-side slot first; (2)
+  every final `x` already includes the canvas's own `leftShift`, so compare two lane positions via
+  a DIFFERENCE (which cancels the shift out), never via a raw comparison against the unshifted
+  `LANE_GAP`/`LANE_WIDTH` constants directly. To get an exact expected gap value for a dense-vs-
+  sparse comparison, don't hand-compute the day-based overlap window — read each step's own real,
+  final `y` directly from the test's own `layoutRoadmap()` call and count how many fall inside the
+  actual overlap window; per-chain floor effects can shift which real day-offsets land where in a
+  way that's easy to miscount by hand.

@@ -3,7 +3,20 @@
 // layout: every multi-step chain (an opportunity or project with 2+ total steps) holds one FIXED
 // horizontal lane for its entire sequence, connected to the spine by a single right-angle jog and
 // to its own later steps by pure vertical lines, with lanes reused once a chain finishes and an
-// explicit labeled time axis running down the canvas's own left edge.
+// explicit labeled time axis running down the canvas's own left edge. IMPORTANT DIRECTIONAL NOTE:
+// the tech-tree reference this is modeled on flows top-to-bottom (earliest at the top); this app's
+// own roadmap is the opposite by long-standing design — "You are here" (today, earliest) sits at
+// the BOTTOM, later dates render HIGHER (smaller/more-negative y) — this restructure only borrows
+// the reference's lane/connector/axis CONCEPTS, never its top-to-bottom flow direction, which
+// stays exactly as it always has been (unchanged Pass 1, see below).
+//
+// Follow-up pass (same restructure, same file) — Task 2 made the "has sub-steps -> lane" rule
+// UNCONDITIONAL (every chain gets a lane regardless of whether a collision would otherwise occur
+// — already true from the very first version of this file, `hasBranch = steps.length >= 1` always
+// routes into the lane system with zero conditional collision-check, confirmed and left
+// unchanged), and Task 4 added genuine DYNAMIC lane widening (`requiredLaneGap`, below) — two
+// same-side adjacent lanes now widen their own shared gap based on how much their real content
+// actually overlaps vertically, rather than always using one uniform fixed pitch.
 //
 // THE ONE RULE THAT MUST NOT BREAK: every node's vertical position is still governed by the exact
 // same rule it always has been — real date, scaled by PIXELS_PER_DAY, with the MIN_SPINE_GAP floor
@@ -16,7 +29,10 @@
 // shared date-to-y function" for every node, not two different rules for spine vs. branch. This
 // restructure changes HORIZONTAL placement and connector SHAPE only — `npm run verify:spacing`
 // (which only ever exercises spine-only inputs, no chains) is untouched by any of this and must
-// keep passing byte-for-byte identically, since Pass 1 itself was not touched at all.
+// keep passing byte-for-byte identically, since Pass 1 itself was not touched at all. The dynamic
+// widening pass computes Y positions for every chain FIRST, entirely independent of final lane X
+// (`layoutSequenceByDate` never reads x), and only decides horizontal placement afterward — so it
+// cannot possibly feed back into or perturb any node's own vertical position either.
 //
 // This is also what makes the whole old per-label collision-avoidance system (placedLabels,
 // intersects, NUDGE_STEP/MAX_NUDGES, BRANCH_SLOPES, BRANCH_SPACING_MULTIPLIER) unnecessary and
@@ -25,9 +41,10 @@
 // assignment below), and same-lane steps are already guaranteed at least MIN_SPINE_GAP vertical
 // separation by the same date-to-y rule the spine relies on for its own readability, there is no
 // remaining case where two chains' own labels could collide with each other. LANE_GAP/LANE_WIDTH
-// are deliberately fixed, generous design constants (not derived from real text measurement) —
-// matching the tech-tree reference's own rigid, evenly-spaced parallel-column aesthetic, a
-// deliberate simplification rather than an oversight.
+// are the BASE pitch (not derived from real text measurement, matching the tech-tree reference's
+// own rigid, evenly-spaced parallel-column aesthetic) — genuinely widened only between two
+// ADJACENT lanes whose real content actually shares overlapping vertical territory (see
+// `requiredLaneGap`), not a blanket increase applied everywhere regardless of need.
 
 import { realDaysBetween } from './dates';
 
@@ -50,12 +67,48 @@ const MIN_SPINE_GAP = 60;
 // Fixed-lane constants (this restructure) — LANE_GAP is the distance from the spine's own
 // centerline to the first lane's own node column on either side (chosen generously enough that a
 // lane's own dot/label never lands under a real spine item's own label, which extends from x=0 by
-// a small fixed offset); LANE_WIDTH is the pitch between consecutive same-side lanes (chosen
-// generously enough that a chain step's own label, extending further outward from its lane,
-// doesn't reach the next lane over). Both were verified visually against real dense multi-chain
-// plans during this restructure's own staged build/test process, not assumed correct on paper.
+// a small fixed offset); LANE_WIDTH is the BASE pitch between consecutive same-side lanes (chosen
+// generously enough for the common case), DYNAMICALLY widened further (see `requiredLaneGap`
+// below) whenever a neighboring lane's own real content is dense enough to need more room. Both
+// were verified visually against real dense multi-chain plans during this restructure's own
+// staged build/test process, not assumed correct on paper.
 const LANE_GAP = 280;
 const LANE_WIDTH = 260;
+// Task 4 — dynamic lane widening. Two ADJACENT same-side lanes (index i-1 and i) only risk a real
+// visual collision when their own real content shares overlapping vertical (y) territory — two
+// lanes whose own chains never overlap in time never overlap in y either, so the base LANE_WIDTH
+// is always enough for them (confirmed by `requiredLaneGap` itself, which returns the plain base
+// value whenever no y-overlap exists at all — this is a pure ADDITION on top of the base case, not
+// a replacement of it). When they DO overlap, "dense" is measured directly from how many real
+// node y-positions (post-floor, i.e. their true rendered positions) fall inside that shared
+// window — DENSITY_THRESHOLD is the number of overlapping nodes tolerated before widening kicks
+// in at all (a couple of incidentally-overlapping nodes between two lanes isn't a real crowding
+// problem), and EXTRA_GAP_PER_NODE is how much additional clearance each node beyond that
+// threshold adds. Both are real, hand-picked design constants, verified visually (see this
+// feature's own staged build/test process) against a genuinely dense chain next to a sparse one.
+const DENSITY_THRESHOLD = 3;
+const EXTRA_GAP_PER_NODE = 36;
+
+// Task 4 — the required horizontal gap between one lane's own content (`prevYs`, the INNER,
+// already-placed neighbor) and the next lane out (`ys`) — the base `LANE_WIDTH` whenever their
+// real y-ranges don't overlap at all (the common case — most adjacent lanes were never even
+// concurrent), widened per real overlapping node beyond `DENSITY_THRESHOLD` otherwise. Never
+// mutates either array; a pure function of two real y-position lists, so it can be (and is, in
+// this file's own dev-time test suite) verified in total isolation from the rest of the layout.
+function requiredLaneGap(prevYs, ys) {
+  if (!prevYs || prevYs.length === 0 || !ys || ys.length === 0) return LANE_WIDTH;
+  const prevMin = Math.min(...prevYs);
+  const prevMax = Math.max(...prevYs);
+  const curMin = Math.min(...ys);
+  const curMax = Math.max(...ys);
+  const overlaps = prevMin <= curMax && curMin <= prevMax;
+  if (!overlaps) return LANE_WIDTH;
+  const overlapTop = Math.max(prevMin, curMin);
+  const overlapBottom = Math.min(prevMax, curMax);
+  const denseCount = [...prevYs, ...ys].filter((y) => y >= overlapTop && y <= overlapBottom).length;
+  const extra = Math.max(0, denseCount - DENSITY_THRESHOLD) * EXTRA_GAP_PER_NODE;
+  return LANE_WIDTH + extra;
+}
 // Task 5 — a reserved strip on the canvas's own LEFT edge for the labeled time axis, added purely
 // as EXTRA width beyond the spine's own symmetric centerX (see below) — this guarantees the axis
 // always has real, dedicated room and never competes for space with an actual lane/label, and
@@ -162,13 +215,18 @@ export function layoutRoadmap({ today, spineItems }) {
     return { item, t, y, labelSide };
   });
 
-  // Task 2/3 — fixed-lane assignment for every chain (an item with >=1 real step beyond its own
+  // Task 2/3 — fixed-lane assignment for EVERY chain (an item with >=1 real step beyond its own
   // spine anchor — the "one revealed step already needs a real branch" fix already established
-  // this threshold, unchanged here), processed in start-time order: reuse the lowest-numbered lane
-  // whose previous occupant has already finished (its own last step's date) by this chain's own
-  // start, otherwise claim a brand-new lane, alternating new lanes left/right of the spine for
-  // visual balance. A lane, once created, keeps its side/column position forever — only WHICH
-  // chain currently occupies it changes over time.
+  // this threshold, unchanged here). This is an UNCONDITIONAL rule with no exceptions: any task
+  // with sub-steps is always pulled into its own lane, regardless of whether it would otherwise
+  // collide with anything — there is no "only if crowded" branch here at all, since the whole
+  // point of a fixed lane is to eliminate that risk structurally, not just reduce it in some
+  // cases. Genuinely single-step tasks (`item.steps` null/empty) are the ONLY thing that ever
+  // stays on the spine. Processed in start-time order: reuse the lowest-numbered lane whose
+  // previous occupant has already finished (its own last step's date) by this chain's own start,
+  // otherwise claim a brand-new lane, alternating new lanes left/right of the spine for visual
+  // balance. A lane, once created, keeps its side/column position forever — only WHICH chain
+  // currently occupies it changes over time.
   const chainEntries = withPosition.filter(({ item }) => item.steps && item.steps.length >= 1);
   const lanes = []; // [{ endT, side, indexOnSide }]
   const laneByItem = new Map();
@@ -190,26 +248,64 @@ export function layoutRoadmap({ today, spineItems }) {
       }
       laneByItem.set(item, lane);
     });
-  const laneX = (lane) => lane.side * (LANE_GAP + lane.indexOnSide * LANE_WIDTH);
 
-  // Pass 2: place each chain's own steps in its assigned lane — a single fixed x for the whole
-  // chain, vertical position via the SAME layoutSequenceByDate rule the spine uses, anchored at
-  // the chain's own already-computed spine position (not "today") so a chain step's absolute y is
-  // still ultimately just real-days-from-today, scaled identically to everything else. A chain
-  // anchor's own label is forced to point AWAY from its own lane (never the same side its lane
-  // occupies) — Task 4's right-angle connector jogs from the anchor straight out to the lane, so
-  // if the anchor's own label pointed the same direction, that jog would run straight through the
-  // label's own text.
-  const rawPositioned = withPosition.map(({ item, t, y, labelSide }) => {
+  // Pass 2a: compute each chain's own step Y positions FIRST, independent of final lane X —
+  // `layoutSequenceByDate` never reads x, so this can run before horizontal placement is decided
+  // at all. This is what lets Task 4's dynamic widening measure each lane's own REAL rendered
+  // content density before committing to a final x, rather than assuming a uniform pitch.
+  const chainLayouts = withPosition.map(({ item, t, y, labelSide }) => {
     const hasBranch = !!(item.steps && item.steps.length >= 1);
+    if (!hasBranch) return { item, y, labelSide, hasBranch, lane: null, stepsWithY: null };
+    const lane = laneByItem.get(item);
+    const stepEntries = item.steps.map((step) => ({ step, t: daysFromToday(step.date) }));
+    const stepsWithY = layoutSequenceByDate(stepEntries, t, y);
+    return { item, y, labelSide, hasBranch, lane, stepsWithY };
+  });
+
+  // Task 4 — pool every real step y (across every chain that has EVER occupied a given lane
+  // index, i.e. through reuse) by (side, indexOnSide), so density is measured from real, final
+  // rendered positions, not assumed. A lane's own anchor point is NOT included — the anchor
+  // itself renders on the spine (x=0), never inside the lane's own column, so it contributes no
+  // real content there to protect against.
+  const laneContentY = new Map(); // `${side}:${index}` -> [y, y, ...]
+  chainLayouts.forEach(({ lane, stepsWithY }) => {
+    if (!lane) return;
+    const key = `${lane.side}:${lane.indexOnSide}`;
+    if (!laneContentY.has(key)) laneContentY.set(key, []);
+    laneContentY.get(key).push(...stepsWithY.map((s) => s.y));
+  });
+
+  // Pass 2b: walk each side's own lane indices in order (0, 1, 2, ...), accumulating each lane's
+  // final x from the previous (inner) lane's own final x plus whatever `requiredLaneGap` decides
+  // — the plain base LANE_WIDTH whenever the two don't share real overlapping content, widened
+  // per dense overlapping node otherwise. Index 0 always sits at the fixed LANE_GAP from the
+  // spine, unaffected by this widening (Task 4 is specifically about NEIGHBORING lanes, not a
+  // lane's own distance from the spine).
+  const laneXBySideIndex = new Map();
+  [1, -1].forEach((side) => {
+    const indices = [...new Set(lanes.filter((l) => l.side === side).map((l) => l.indexOnSide))]
+      .sort((a, b) => a - b);
+    let prevX = 0;
+    let prevYs = null;
+    indices.forEach((index, i) => {
+      const ys = laneContentY.get(`${side}:${index}`) || [];
+      const x = i === 0 ? side * LANE_GAP : prevX + side * requiredLaneGap(prevYs, ys);
+      laneXBySideIndex.set(`${side}:${index}`, x);
+      prevX = x;
+      prevYs = ys;
+    });
+  });
+
+  // Pass 2c: apply each lane's own final x to every one of its steps. A chain anchor's own label
+  // is forced to point AWAY from its own lane (never the same side its lane occupies) — Task 5's
+  // right-angle connector jogs from the anchor straight out to the lane, so if the anchor's own
+  // label pointed the same direction, that jog would run straight through the label's own text.
+  const rawPositioned = chainLayouts.map(({ item, y, labelSide, hasBranch, lane, stepsWithY }) => {
     if (!hasBranch) {
       return { ...item, x: 0, y, hasBranch, side: 0, labelSide, branchSteps: null };
     }
-    const lane = laneByItem.get(item);
-    const thisLaneX = laneX(lane);
-    const stepEntries = item.steps.map((step) => ({ step, t: daysFromToday(step.date) }));
-    const positionedSteps = layoutSequenceByDate(stepEntries, t, y);
-    const branchSteps = positionedSteps.map(({ step, y: sy }) => ({ ...step, x: thisLaneX, y: sy }));
+    const thisLaneX = laneXBySideIndex.get(`${lane.side}:${lane.indexOnSide}`);
+    const branchSteps = stepsWithY.map(({ step, y: sy }) => ({ ...step, x: thisLaneX, y: sy }));
     return {
       ...item, x: 0, y, hasBranch, side: lane.side, labelSide: -lane.side, branchSteps,
     };
