@@ -7048,6 +7048,107 @@ but not yet directly tested (every chain unconditionally gets a lane, no excepti
   restructure's own stage tests) all pass with zero regressions; `npm run build`/`npm run lint`
   both stay clean.
 
+**Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine — the lane restructure above
+correctly moved a chain's LATER steps into its own lane, but left the chain's own promoted first
+step (e.g. "Register for DECA") still rendering directly on the spine, a leftover of the
+pre-lane architecture where that promoted step was genuinely the spine anchor.** Per the
+"Restructure: opportunity chains have no separate anchor node" section earlier in this file,
+`roadmapGenerator.js`'s chain builders (`buildFirstYearChain`/`buildEscalationChain`/
+`buildProjectChain`, etc.) have always promoted a chain's own first real step directly onto the
+top-level spine item (`item` itself carries that step's real id/title/date; `item.steps` holds
+only the steps AFTER it) — this fix does not touch that promotion or `item.steps`' own content at
+all (every OTHER consumer of the chain's data shape — `profileCompiler.js`, `HubScreen.jsx`'s
+`countPlanTasks`, `AcademicPlanScreen.jsx`'s `flatPlanItems`/digest/`DailyScheduleView` — reads
+`item` + `item.branchSteps` exactly as it always has, confirmed unaffected). This is purely a
+**rendering/layout** fix, scoped to `roadmapLayout.js` and `Roadmap.jsx`.
+- **`roadmapLayout.js`'s Pass 2c now sets a chain's own `x` to `thisLaneX` (the same lane x every
+  one of its `branchSteps` already uses), not `0`.** This is the single line that matters: since
+  `Roadmap.jsx`'s main spine-node rendering loop already renders every `roadmap.spine` entry
+  generically at `transform="translate(n.x, n.y)"` (whatever ring style `configFor(n)` resolves —
+  solid/hollow/dotted, unaffected), changing this one coordinate is what moves the starter task's
+  own visible ring off the spine and into its lane, with **zero changes needed to that rendering
+  loop itself**. The starter task's own `y` (its real date's position, computed in Pass 2a,
+  entirely independent of lane-x assignment) is completely untouched — this fix only ever changes
+  WHERE a chain's first step renders horizontally, never WHEN. Pass 2's own density-pooling
+  (`laneContentY`, Task 4's dynamic lane widening) now also includes the starter task's own `y`
+  in what it pools per lane (it used to be excluded, on the — now outdated — assumption that it
+  always rendered on the spine, contributing no real content to a lane's own crowding).
+- **`Roadmap.jsx`'s spine-connector line now always uses the spine's own fixed centerline x
+  (`SPINE_X = roadmap.today.x`) for BOTH endpoints of every solid connecting segment, never an
+  item's own `x` directly** — a non-chain item's `x` already equals `SPINE_X` (a harmless no-op),
+  but a chain item's own `x` is now its lane position, and using it directly would draw a diagonal
+  line straight into a lane instead of keeping the spine itself perfectly straight. The spine
+  therefore still reads as one continuous, unbroken vertical line all the way up — it just has no
+  real NODE rendered at a chain's own y anymore, only a virtual waypoint the branch's own jog
+  reaches out from.
+- **The right-angle jog's own destination changed from `n.branchSteps[0]` to `n` itself** (the
+  chain item, now positioned inside its own lane) — and since both the jog's start (the spine
+  waypoint, at the chain's own real `y`) and its destination (the starter task, at that SAME real
+  `y`) share the identical y-coordinate, the jog is now, in practice, always a pure HORIZONTAL
+  reach (the "vertical" leg of `rightAngleLine`'s own `M x1 y1 L x2 y1 L x2 y2` shape collapses to
+  zero length) — `rightAngleLine` itself needed no changes, since it already handles this
+  degenerate case correctly. The within-lane connector chain (previously `n.branchSteps.slice(0,
+  -1)`, connecting only the REAL steps after the starter) now starts from a `laneSequence = [n,
+  ...n.branchSteps]` array instead — so the starter task's own position is the FIRST stop in the
+  same pure-vertical connector sequence every later real step already used, with zero changes
+  needed to the actual `line()` calls themselves (they already draw a pure vertical segment
+  whenever both endpoints share an x, which they now do from the very first hop).
+- **`renderPos(item)` — the function resolving where a chain's own branch connector should
+  originate from, accounting for the Date-Cluster feature's own possible override — was
+  repurposed for its "not clustered" branch**: it used to return `{x: item.x, y: item.y}` (correct
+  under the old architecture, where `item.x` was always the spine's own `0`), which would now
+  incorrectly resolve to the chain's own LANE position (the jog would go from the lane back to
+  itself, a zero-length no-op, losing the visual connection to the spine entirely). It now returns
+  `{x: SPINE_X, y: item.y}` instead — the real spine waypoint. `renderPos` has exactly one real
+  caller in this file (the branch connector's own anchor-position computation), so this change is
+  safely scoped; its clustered branches are unaffected (see below).
+- **A chain item can no longer participate in date-clustering or the today-collision merge at
+  all — a real, deliberate exclusion, not an oversight.** `roadmapGenerator.js`'s `dateGroups`/
+  `dateClusters` computation and its `todayMatches`/`todayCollision` computation both now filter
+  to `!item.hasBranch` before grouping. The reasoning: both of those mechanisms exist specifically
+  to merge multiple SPINE-RESIDENT items that would otherwise visually collide at the exact same
+  shared (x=0, y) position — but a chain item no longer sits at a shared spine position at all
+  (its real content now lives in its own dedicated lane, at a unique x), so there's structurally
+  nothing left for it to visually collide WITH at that position; and a cluster's own shared marker
+  (rendered at `cluster.items[0].x/y`) assumes every member sits at a valid on-spine position,
+  which a chain's own `.x` no longer is. Confirmed this is a clean, no-special-casing-needed
+  exclusion: `Roadmap.jsx`'s main spine-node loop's existing `if (todayCollision && n.id ===
+  todayCollision.id) return null;`/`if (clusterByMemberId.has(n.id)) return null;` skip checks
+  simply never match a chain item anymore (since neither collection can ever contain one), so a
+  chain always falls through to its normal render branch — no new branch needed there. A chain
+  whose own starter-task date happens to land exactly on real "today" still connects correctly:
+  the jog's own start point (the spine waypoint at that y) coincidentally equals "You are here"'s
+  own position in that case, so the jog visually appears to emanate directly from the "You are
+  here" marker itself, reaching out to the chain's lane — this falls out naturally from the
+  `SPINE_X`-based waypoint computation, with no special-casing needed for it either.
+- Verified at the layout-math level (a dedicated Node script loading the real `roadmapLayout.js`
+  through Vite's own `ssrLoadModule`, the same technique `scripts/verify-spacing.mjs` already
+  uses): a DECA-like and a Science-Olympiad-like chain both resolve their own starter-task `x` to
+  something other than the spine centerline, exactly matching their own first `branchSteps[0].x`
+  (same lane); the two concurrent chains land in genuinely different lanes; and the starter task's
+  own `y` is confirmed to sit exactly `10 * PIXELS_PER_DAY` above "today" — i.e. completely
+  unaffected by this fix, which only ever touches `x`. Verified against the real running app with a
+  dedicated Playwright suite (11 checks): real nodes exist for both DECA's and Science Olympiad's
+  own starter tasks (found by their real, stable ids — `deca-prep-0`/`science-olympiad-prep-0`),
+  both render OFF the spine's own real centerline x (read directly from "today"'s own `transform`
+  attribute) and in two different lanes from each other; clicking the starter task opens its real
+  detail modal (confirming it's still a genuine, independently clickable node, not just a visual
+  relocation); and every one of DECA's own later real steps (`deca-prep-1`/`-2`/`-3`) shares the
+  identical lane x the starter task itself uses. A second, dedicated geometry-focused Playwright
+  suite (5 checks) confirms directly from the rendered SVG's own `d` path attributes: every solid
+  spine-connector segment is a pure vertical line (`x1 === x2`, never diagonal); a real right-angle
+  jog path exists whose own endpoint lands exactly on the DECA starter task's real position; and
+  that jog's own START point is both the spine's real centerline x AND the starter task's own real
+  y (confirming it's genuinely just a horizontal reach now, per the analysis above). The full
+  pre-existing regression suite available this session (`test-daily-schedule-roadmap-sync.js`,
+  `test-weekly-suggestions-roadmap-fix.js`, `test-international-student.js`,
+  `test-transfer-gap.js`, `test-daily-schedule-timeline.js`,
+  `test-daily-schedule-compact-blocks.js`, `test-chat-voice-opt-in-edit.js`,
+  `test-guided-tutorial-unaffected.js` — 168 checks total) all pass with zero regressions;
+  `npm run build`/`npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20 both before
+  and after every edit in this pass — this fix never touches Pass 1 (the spine's own date-to-y
+  math), only Pass 2's horizontal placement and Roadmap.jsx's connector-drawing code.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9405,3 +9506,19 @@ download). Cover at minimum:
   final `y` directly from the test's own `layoutRoadmap()` call and count how many fall inside the
   actual overlap window; per-chain floor effects can shift which real day-offsets land where in a
   way that's easy to miscount by hand.
+
+- Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine: seed a real, multi-step
+  opportunity (e.g. `deca` or `science-olympiad`) and confirm its own promoted first step
+  (`<opp-id>-prep-0`, a real, stable `data-node-id`) renders OFF the spine's own real centerline
+  x — read directly from the "You are here" marker's own `data-node-id="today"` `transform`
+  attribute, not assumed — and shares the exact same lane x every one of its later real steps
+  (`<opp-id>-prep-1`, `-2`, ...) already use. Confirm two concurrent chains land in genuinely
+  different lanes. Confirm the spine's own solid connecting line (every `path[stroke="url(#rm-
+  spine-gradient)"]`) is STILL a pure vertical line end to end (`x1 === x2` on every segment) —
+  this fix must never make the spine itself diagonal. Confirm a real right-angle-jog path (`path[
+  stroke-dasharray="6 6"]`) exists whose own endpoint lands exactly on the starter task's real
+  position, and that its own start point is both the spine's real centerline x and the starter
+  task's own real y (it should read as a pure horizontal reach now, not a diagonal or an L-shape
+  with a real vertical leg). Confirm clicking the relocated starter task still opens its real
+  detail modal. Re-run `npm run verify:spacing` (must stay 20/20 — this fix never touches Pass 1's
+  spine math, only Pass 2's horizontal placement) both before and after any related change.

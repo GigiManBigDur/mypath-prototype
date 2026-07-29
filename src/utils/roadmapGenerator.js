@@ -207,8 +207,15 @@ export function generateRoadmap(state, yearWindow = null) {
   // decides how to fold each cluster's members into one marker instead of rendering them
   // individually. Scoped to top-level spine items only (not branch sub-steps, which have no
   // marker of their own to cluster with — matching `todayCollision`'s own existing scope).
+  // Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md) — a chain
+  // item (`hasBranch`) no longer sits at a shared, spine-resident position at all (its own real
+  // content now lives inside its dedicated lane — see roadmapLayout.js's Pass 2c), so it can never
+  // genuinely visually collide with another top-level item the way two spine-resident nodes can;
+  // excluded from clustering entirely rather than risking a cluster's own shared marker resolving
+  // to a chain's lane position (clusters render at `cluster.items[0]`'s own x/y, which assumes an
+  // on-spine position).
   const dateGroups = new Map();
-  spine.forEach((item) => {
+  spine.filter((item) => !item.hasBranch).forEach((item) => {
     const key = item.date.toDateString();
     if (!dateGroups.has(key)) dateGroups.set(key, []);
     dateGroups.get(key).push(item);
@@ -231,8 +238,14 @@ export function generateRoadmap(state, yearWindow = null) {
   // date matches a single item (`todayMatches.length === 1`) — 2+ matches is now a date CLUSTER
   // instead (see `dateClusters` above, `isToday: true` entry), which gets its own distinct
   // cluster-flagged-as-today treatment rather than reusing this single-item merge shape.
+  // Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md) — same
+  // reasoning as `dateGroups` above: a chain item no longer occupies a real spine position, so it
+  // can never merge with "You are here" the way a genuine spine-resident item can. Its own
+  // right-angle jog still originates cleanly from the spine's own centerline at exactly this y —
+  // including, coincidentally, from "You are here" itself when the chain's own date is today —
+  // with no special-casing needed here.
   const todayMatches = isCurrentYearView
-    ? spine.filter((item) => realDaysBetween(item.date, laidToday.date) === 0)
+    ? spine.filter((item) => !item.hasBranch && realDaysBetween(item.date, laidToday.date) === 0)
     : [];
   const todayCollision = todayMatches.length === 1 ? todayMatches[0] : null;
 

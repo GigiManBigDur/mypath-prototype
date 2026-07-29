@@ -297,6 +297,12 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     cluster.items.forEach((item) => clusterByMemberId.set(item.id, cluster));
   });
   const todayCluster = (roadmap.dateClusters || []).find((c) => c.isToday) || null;
+  // Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md) — the
+  // spine's own fixed centerline x, in final (shifted) canvas coordinates. "Today" always sits
+  // exactly here (roadmapLayout.js's own `todayNode.x = leftShift`), so it's the one reliable
+  // reference for "where the spine's own connecting line runs" now that a chain item's own `x` no
+  // longer means that (it's the chain's lane x instead — see roadmapLayout.js's Pass 2c).
+  const SPINE_X = roadmap.today.x;
   // Delete Overlapping Node Labels + Persistent "Due Today" Reminder (see CLAUDE.md) — reuses this
   // exact same todayCollision/todayCluster data (never re-derived) to drive the new persistent
   // side reminder below, filtered to whichever of those items are still incomplete — a task
@@ -323,9 +329,19 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   // "You are here" marker at that exact position, not wherever its first member's raw date-math
   // happened to land. This never touches roadmapLayout.js's actual layout math, only which
   // already-computed (x,y) a clustered item's branch anchor reads for its own render.
+  //
+  // Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md) — in
+  // practice this function is now only ever called on a chain item (`n`, in the branch-rendering
+  // loop below), and a chain item can never actually be clustered anymore (roadmapGenerator.js
+  // excludes `hasBranch` items from `dateClusters` entirely, since they no longer sit at a shared
+  // spine position to collide at) — so the "not clustered" branch here is the one that matters:
+  // it resolves to the spine's own fixed centerline (SPINE_X) at the item's own y, a virtual
+  // waypoint on the spine's line, NOT `item.x` (which is now the item's own LANE position, per
+  // roadmapLayout.js's Pass 2c) — this is the real starting point for the right-angle jog reaching
+  // out to the chain's own lane. The clustered branches are kept only as defensive fallbacks.
   const renderPos = (item) => {
     const cluster = clusterByMemberId.get(item.id);
-    if (!cluster) return { x: item.x, y: item.y };
+    if (!cluster) return { x: SPINE_X, y: item.y };
     if (cluster.isToday) return { x: roadmap.today.x, y: roadmap.today.y };
     return { x: cluster.items[0].x, y: cluster.items[0].y };
   };
@@ -943,15 +959,21 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 filtered view has no real "today" position worth connecting to (its internal
                 `today` node is a virtual per-year layout epoch, not a real point in time — see
                 roadmapGenerator.js's `layoutToday`), so this segment and the marker below are
-                both gated on the same `roadmap.showToday` flag. */}
+                both gated on the same `roadmap.showToday` flag.
+                Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md)
+                — every segment here always uses the spine's own fixed centerline (SPINE_X) for
+                BOTH endpoints, never an item's own `x` directly: a non-chain item's `x` already
+                equals SPINE_X (harmless no-op), but a chain item's own `x` is now its LANE
+                position (roadmapLayout.js's Pass 2c) — using it here would draw a diagonal line
+                straight into a lane instead of keeping the spine itself perfectly straight. */}
             {roadmap.showToday && (
               <path
                 className={entranceEnabled ? 'roadmap-draw-line' : undefined}
                 style={entranceEnabled ? {
-                  '--seg-length': segLength(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y),
+                  '--seg-length': segLength(SPINE_X, roadmap.today.y, SPINE_X, roadmap.spine[0]?.y ?? roadmap.today.y),
                   animationDelay: '0ms',
                 } : undefined}
-                d={line(roadmap.today.x, roadmap.today.y, roadmap.spine[0]?.x ?? roadmap.today.x, roadmap.spine[0]?.y ?? roadmap.today.y)}
+                d={line(SPINE_X, roadmap.today.y, SPINE_X, roadmap.spine[0]?.y ?? roadmap.today.y)}
                 stroke="url(#rm-spine-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.85"
               />
             )}
@@ -962,8 +984,8 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 <path
                   key={`sp-${n.id}`}
                   className={entranceEnabled ? 'roadmap-draw-line' : undefined}
-                  style={entranceEnabled ? { '--seg-length': segLength(n.x, n.y, next.x, next.y), animationDelay: `${delay}ms` } : undefined}
-                  d={line(n.x, n.y, next.x, next.y)} stroke="url(#rm-spine-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.85"
+                  style={entranceEnabled ? { '--seg-length': segLength(SPINE_X, n.y, SPINE_X, next.y), animationDelay: `${delay}ms` } : undefined}
+                  d={line(SPINE_X, n.y, SPINE_X, next.y)} stroke="url(#rm-spine-gradient)" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.85"
                 />
               );
             })}
@@ -972,7 +994,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 multi-step chain's own fixed lane, plus the chain within it. Branch lines keep
                 their permanent dashed "6 6" pattern (that's how optional branches read as distinct
                 from the solid required spine), so their first-load reveal is a plain opacity fade
-                rather than the dash-offset draw (which would fight that pattern). */}
+                rather than the dash-offset draw (which would fight that pattern).
+                Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md)
+                — the chain's own promoted first step (`n` itself, e.g. "Register for DECA") no
+                longer renders on the spine at all; it now sits INSIDE this same lane, at the exact
+                same x every `branchSteps` entry already uses (roadmapLayout.js's Pass 2c). So the
+                jog's own DESTINATION is `n`'s own (now-lane) position, not `n.branchSteps[0]`'s —
+                and the within-lane connector chain below now starts from `n` itself, prepended
+                onto `branchSteps`, rather than starting from `branchSteps[0]`. */}
             {roadmap.spine.filter((n) => n.hasBranch).map((n) => {
               const anchorIndex = roadmap.spine.indexOf(n);
               const anchorDelay = entranceDelay(anchorIndex, entranceEnabled);
@@ -982,28 +1011,33 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // for a project, the generic fallback otherwise), so a whole chain (line + every
               // node in it) reads as one consistent interest-colored unit, not just its dots.
               const branchColor = configFor(n).color;
-              // Date-cluster feature (see CLAUDE.md) — if `n` itself is a clustered item, its own
-              // marker no longer renders at `n.x`/`n.y` (see the main spine-skip above); the
-              // branch's first segment has to start from the cluster's own shared marker position
-              // instead, or it would visually originate from an empty point on the canvas.
+              // Date-cluster feature (see CLAUDE.md) — `n` can no longer actually be clustered
+              // (roadmapGenerator.js excludes chain items from `dateClusters` entirely — see that
+              // file), so this always resolves to the spine's own fixed centerline (SPINE_X) at
+              // `n`'s own y: a virtual waypoint on the spine's line, which is where the jog starts.
               const anchorPos = renderPos(n);
+              // The starter task itself (now in the lane) is the first stop in this chain's own
+              // vertical sequence; every real branch step follows it.
+              const laneSequence = [n, ...n.branchSteps];
               return (
                 <g key={`branch-${n.id}`}>
-                  {/* Task 4 — a right-angle jog (horizontal out to the lane, then vertical to the
-                      first step), never a direct diagonal. */}
+                  {/* Task 4 — a right-angle jog from the spine's own line straight out to the
+                      lane's x, landing exactly on the starter task's own position (both endpoints
+                      share the anchor's own y, so this is really just a horizontal segment now —
+                      `rightAngleLine` still works correctly for that degenerate case). */}
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.branchSteps[0].x, n.branchSteps[0].y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.x, n.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
-                  {/* Task 4 — within a lane, every later step shares its predecessor's own x (the
-                      lane's fixed x), so this same `line()` call already renders a pure vertical
-                      segment with zero changes needed here. */}
-                  {n.branchSteps.slice(0, -1).map((s, i) => {
-                    const next = n.branchSteps[i + 1];
+                  {/* Task 4 — within a lane, every consecutive pair (starting from the starter task
+                      itself) shares the same x (the lane's fixed x), so this same `line()` call
+                      already renders a pure vertical segment with zero changes needed here. */}
+                  {laneSequence.slice(0, -1).map((s, i) => {
+                    const next = laneSequence[i + 1];
                     return (
                       <path
-                        key={`bs-${s.id}`}
+                        key={`bs-${next.id}`}
                         className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                         style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
                         d={line(s.x, s.y, next.x, next.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"

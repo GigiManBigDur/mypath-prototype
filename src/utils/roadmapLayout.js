@@ -18,6 +18,17 @@
 // same-side adjacent lanes now widen their own shared gap based on how much their real content
 // actually overlaps vertically, rather than always using one uniform fixed pitch.
 //
+// Fix: Starter Task of a Multi-Step Chain Still Sitting on the Spine (see CLAUDE.md) — the lane
+// restructure above correctly moved a chain's LATER steps into its lane, but left the chain's own
+// promoted first step (the "starter task" — e.g. "Register for DECA") rendering on the spine
+// itself at x=0, a leftover of the pre-lane architecture where that promoted step WAS the genuine
+// spine anchor. Now the starter task is pulled fully into the SAME lane its later steps already
+// occupy (Pass 2c below sets its own `x` to the lane's x, not 0) — the spine has no real node for
+// it at all anymore, only a right-angle jog (drawn by Roadmap.jsx, using the spine's fixed
+// centerline x for the jog's own start point) reaching out to it. This never touches the starter
+// task's own Y position (still `chainLayouts`' already-computed `y`, from Pass 2a, untouched) —
+// only where it renders horizontally.
+//
 // THE ONE RULE THAT MUST NOT BREAK: every node's vertical position is still governed by the exact
 // same rule it always has been — real date, scaled by PIXELS_PER_DAY, with the MIN_SPINE_GAP floor
 // applying only for a genuine 0-1-real-day gap (or to preserve real-date order against a prior
@@ -264,15 +275,16 @@ export function layoutRoadmap({ today, spineItems }) {
 
   // Task 4 — pool every real step y (across every chain that has EVER occupied a given lane
   // index, i.e. through reuse) by (side, indexOnSide), so density is measured from real, final
-  // rendered positions, not assumed. A lane's own anchor point is NOT included — the anchor
-  // itself renders on the spine (x=0), never inside the lane's own column, so it contributes no
-  // real content there to protect against.
+  // rendered positions, not assumed. Fix: Starter Task of a Multi-Step Chain Still Sitting on the
+  // Spine (see CLAUDE.md) — the chain's own anchor/starter task now renders INSIDE the lane too
+  // (Pass 2c below), so its own `y` is pooled here alongside its later steps' — it used to be
+  // excluded on the (now outdated) assumption that it always rendered on the spine at x=0.
   const laneContentY = new Map(); // `${side}:${index}` -> [y, y, ...]
-  chainLayouts.forEach(({ lane, stepsWithY }) => {
+  chainLayouts.forEach(({ y, lane, stepsWithY }) => {
     if (!lane) return;
     const key = `${lane.side}:${lane.indexOnSide}`;
     if (!laneContentY.has(key)) laneContentY.set(key, []);
-    laneContentY.get(key).push(...stepsWithY.map((s) => s.y));
+    laneContentY.get(key).push(y, ...stepsWithY.map((s) => s.y));
   });
 
   // Pass 2b: walk each side's own lane indices in order (0, 1, 2, ...), accumulating each lane's
@@ -296,10 +308,17 @@ export function layoutRoadmap({ today, spineItems }) {
     });
   });
 
-  // Pass 2c: apply each lane's own final x to every one of its steps. A chain anchor's own label
-  // is forced to point AWAY from its own lane (never the same side its lane occupies) — Task 5's
-  // right-angle connector jogs from the anchor straight out to the lane, so if the anchor's own
-  // label pointed the same direction, that jog would run straight through the label's own text.
+  // Pass 2c: apply each lane's own final x to every one of its steps — AND to the chain's own
+  // anchor/starter task itself (Fix: Starter Task of a Multi-Step Chain Still Sitting on the
+  // Spine, see CLAUDE.md): `x: thisLaneX`, not `x: 0`, so it renders inside the same lane as its
+  // later steps rather than as a separate node on the spine. The spine itself keeps a virtual
+  // waypoint at this item's own `y` (Roadmap.jsx's spine-connector line always uses the spine's
+  // fixed centerline x, never an item's own x, so it stays a straight line through this point
+  // regardless), with a single right-angle jog reaching out from there to the anchor's new lane
+  // position. A chain anchor's own label is forced to point AWAY from its own lane (never the
+  // same side its lane occupies) — the right-angle connector jogs from the spine straight out to
+  // the lane, so if the anchor's own label pointed the same direction, that jog would run
+  // straight through the label's own text.
   const rawPositioned = chainLayouts.map(({ item, y, labelSide, hasBranch, lane, stepsWithY }) => {
     if (!hasBranch) {
       return { ...item, x: 0, y, hasBranch, side: 0, labelSide, branchSteps: null };
@@ -307,7 +326,7 @@ export function layoutRoadmap({ today, spineItems }) {
     const thisLaneX = laneXBySideIndex.get(`${lane.side}:${lane.indexOnSide}`);
     const branchSteps = stepsWithY.map(({ step, y: sy }) => ({ ...step, x: thisLaneX, y: sy }));
     return {
-      ...item, x: 0, y, hasBranch, side: lane.side, labelSide: -lane.side, branchSteps,
+      ...item, x: thisLaneX, y, hasBranch, side: lane.side, labelSide: -lane.side, branchSteps,
     };
   });
 
