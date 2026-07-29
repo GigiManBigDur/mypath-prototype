@@ -3563,6 +3563,31 @@ button.card.passed:hover {
 .modal-substep-title { flex: 1; }
 .modal-substep-due { font-size: 11.5px; color: var(--bloom-ink-soft); flex-shrink: 0; }
 
+/* "Steps in this phase" gained real editing — a small icon-button pair (edit/remove) per row,
+   an inline edit row that swaps a step's own title/date fields in place, an "Add a step" form,
+   and an "Ask AI to add steps" toggle reusing MilestonePlanningPanel's own already-established
+   chat styling. */
+.modal-substep-icon-btn {
+  display: flex; align-items: center; justify-content: center; background: none; border: none;
+  padding: 2px; cursor: pointer; color: var(--bloom-ink-soft); flex-shrink: 0; border-radius: 4px;
+}
+.modal-substep-icon-btn:hover { color: var(--bloom-ink); background: var(--bloom-card-border); }
+.modal-substep-editing { flex-wrap: wrap; }
+.modal-substep-edit-title, .modal-substep-add-form input[type="text"] {
+  flex: 1; min-width: 120px; font-size: 13px; padding: 4px 8px; border-radius: 4px;
+  border: 1px solid var(--bloom-card-border); background: var(--bloom-bg); color: var(--bloom-ink);
+}
+.modal-substep-edit-date, .modal-substep-add-form input[type="date"] {
+  font-size: 12px; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-bg); color: var(--bloom-ink); flex-shrink: 0;
+}
+.modal-substep-checklist-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.modal-substep-checklist-actions .btn { font-size: 12.5px; padding: 5px 10px; }
+.modal-substep-add-form {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+}
+.modal-substep-add-form .btn { font-size: 12.5px; padding: 5px 10px; }
+
 /* Make the Overview-Task Chat More Obviously Interactive (see CLAUDE.md). Task 3's own mascot
    header reuses BuildYourOwnView's exact `.chat-header` shape (already shared across the two
    files, no new class needed there) — just a smaller MascotIcon (40 vs. 44) to fit this narrower

@@ -7451,6 +7451,67 @@ feature.**
   fix never opens `roadmapLayout.js`, only changes which data shape `roadmapGenerator.js` feeds
   into its already-existing, unmodified lane/date-to-y math.
 
+**"Steps in this phase" gained real editing — a student can edit or remove any existing subStep,
+add one of their own manually, or ask the AI to add more, none of which existed when the checklist
+above was first built (it only ever supported checking items off).**
+- **`src/components/MilestoneSubStepChecklist.jsx` (new)** — the checklist was extracted out of
+  `Roadmap.jsx`'s own giant modal body into its own component specifically because this feature
+  needs real local state (which subStep is mid-edit, the manual add-step form, whether the ask-AI
+  panel is open) — `Roadmap.jsx` renders it with `key={modalNode.id}`, so all of that state gets a
+  clean slate the moment the student selects a DIFFERENT node, rather than needing to be reset by
+  hand inside an already-very-large single-file component. Reads/writes `state.startedProjects`
+  directly via `useApp()` (the same self-sufficient pattern `MilestonePlanningPanel.jsx` already
+  established), receiving only `project`/`milestone`/`anchorDate`/`isDone`/`toggleDone` as props —
+  `toggleDone` in particular is the EXACT SAME function every other checkbox in this app already
+  uses, so checking a subStep off here still correctly triggers `maybeTriggerSuggestion` etc.
+  - **Edit** — a pencil icon per row swaps that ONE row into an inline title-text-input + date-
+    input pair (Save/Cancel), writing directly into that subStep's own object in
+    `milestone.subSteps` — no new modal, no full-row replace-the-whole-list dance.
+  - **Remove** — a trash icon per row filters that subStep out of the array outright (not the
+    generic `removedNodeIds` flag every top-level roadmap NODE uses for a soft-delete — a subStep
+    is plain data living inside one milestone's own object, not a roadmap node in its own right
+    anymore, so there's nothing for that flag to mark). Its own dangling `completedNodes` entry is
+    cleaned up at the same time, matching this app's own general "don't leave a stale key behind"
+    hygiene (e.g. `updateTaskOutcome` deleting a key outright on a blank note).
+  - **Add a step manually** — a small inline form (title text + date, matching this modal's own
+    visual weight rather than stacking a second full-screen modal on top of the node detail one)
+    appends a new subStep with a real `makeTaskId('milestone-step')` id — the same id generator
+    every other user-created task in this app already uses.
+  - **Ask AI to add steps** — reuses `MilestonePlanningPanel` — the EXACT SAME scoped chat/
+    conversation (`milestone.chatHistory`) that may have generated the list in the first place —
+    rather than a second, parallel chat implementation, with an `onAttach` that APPENDS whatever
+    the model proposes instead of replacing the list (`appendAiSubSteps`, mirroring
+    `attachMilestoneSubSteps`'s own real-date-spreading math via the same `realAddDays`/
+    `realDaysBetween` utilities). Anchored at the LAST existing subStep's own date (not the
+    milestone's overall anchor date), so the panel's own pre-existing "must be after X" validation
+    correctly requires new steps to land chronologically after everything already there.
+  - **A real, confirmed bug was found and fixed BEFORE shipping this, not after**: since a
+    milestone that already has subSteps necessarily ALREADY has an old `planReady: true` message
+    sitting in its own persisted `chatHistory` (from whichever earlier round originally created
+    them), reopening `MilestonePlanningPanel` for "add more" via that SAME conversation would
+    otherwise immediately surface that STALE old ready-response (and its own commit button) before
+    the student ever asks for anything new — silently letting them re-append the exact same steps
+    a second time. Confirmed directly via a scratch Playwright check before fixing anything (a
+    `.milestone-ready-preview` really did render immediately on open, with zero new messages sent).
+    Fixed with a new optional `readyFloorIndex` prop on `MilestonePlanningPanel.jsx` (default `0`
+    — a complete no-op for that component's ORIGINAL "first planning" caller, whose chatHistory is
+    genuinely empty at the moment it first opens): its own backward scan for the latest ready
+    response now stops at this floor instead of index 0. `MilestoneSubStepChecklist` snapshots
+    `milestone.chatHistory.length` ONCE, in local state, the moment "Ask AI to add steps" is
+    clicked — deliberately NOT a live-recomputed value read fresh on every render, which would
+    keep pace with the growing conversation and incorrectly exclude the very reply the student
+    just received the instant it arrived.
+- Verified with a dedicated 12-check Playwright suite (mocking `/api/build-your-own-chat`):
+  editing a subStep's title writes the real new value into `state` and re-renders correctly;
+  manually adding a step writes a real new subStep with the typed title/date; removing a step
+  drops it from `state` and the rendered list; opening "Ask AI to add steps" against a milestone
+  whose subSteps were originally created via a real prior conversation shows ZERO stale "Proposed
+  steps" preview until a genuinely new message is sent (the direct proof of the `readyFloorIndex`
+  fix); and confirming a fresh mocked response correctly APPENDS 2 new subSteps alongside the 2
+  already there (4 total), not replacing them. `npm run build`/`npm run lint` both stay clean;
+  `npm run verify:spacing` stayed 20/20 — this feature never touches `roadmapGenerator.js` or
+  `roadmapLayout.js` at all, only `Roadmap.jsx`'s own modal wiring and the new checklist component.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9890,3 +9951,17 @@ download). Cover at minimum:
   Re-run `npm run verify:spacing` (must stay 20/20 — this fix never opens `roadmapLayout.js`, only
   changes which shape `roadmapGenerator.js` feeds into it) both before and after any related
   change.
+
+- "Steps in this phase" real editing: seed a Build Your Own milestone with real subSteps AND a
+  real prior `chatHistory` entry already containing `planReady: true` (i.e., subSteps that were
+  genuinely generated by an earlier AI planning round, not hand-seeded in isolation — this is the
+  scenario the `readyFloorIndex` fix specifically targets). Confirm editing a step's title/date via
+  its pencil icon writes the real new value into `state.startedProjects[...].overviewMilestones[...
+  ].subSteps`; confirm the trash icon removes it from both state and the rendered list; confirm
+  "Add a step" writes a real new subStep with the typed title/date. Mock `/api/build-your-own-chat`
+  and click "Ask AI to add steps" — critically, confirm `.milestone-ready-preview` does NOT render
+  immediately (that would mean the stale, already-committed plan from the ORIGINAL round leaked
+  back in) — only after sending a genuinely new message should a fresh preview appear; confirming
+  it, the new steps should be APPENDED to the existing subSteps array (not replacing it). `npm run
+  build`/`npm run lint`/`npm run verify:spacing` (20/20 — this feature never opens
+  `roadmapGenerator.js`/`roadmapLayout.js` at all) should all stay clean.

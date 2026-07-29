@@ -25,6 +25,7 @@ import MascotWidget from './MascotWidget';
 import MapChatWidget from './MapChatWidget';
 import DueTodayReminder from './DueTodayReminder';
 import MilestonePlanningPanel from './MilestonePlanningPanel';
+import MilestoneSubStepChecklist from './MilestoneSubStepChecklist';
 import WeeklyTaskSuggestionPanel from './WeeklyTaskSuggestionPanel';
 import DailyScheduleView from './DailyScheduleView';
 
@@ -1605,35 +1606,25 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
 
             {/* Fix: Diagnose Build Your Own's Overviews Broken After Generalization (see
                 CLAUDE.md) — an unlocked Overview with real planned subSteps shows them as an
-                in-modal checklist (each with its own due date, checkable independently via the
-                exact same toggleDone every other node already uses) instead of separate lane
-                nodes. This is additive, ALONGSIDE the normal resources/edit-row/outcome/complete-
-                toggle content below (not a replacement for it) — a student can still edit this
-                Overview's own due date, remove it, leave an outcome note, or mark the WHOLE thing
-                done directly, exactly as any other node already allows. */}
+                in-modal checklist instead of separate lane nodes. This is additive, ALONGSIDE the
+                normal resources/edit-row/outcome/complete-toggle content below (not a replacement
+                for it) — a student can still edit this Overview's own due date, remove it, leave
+                an outcome note, or mark the WHOLE thing done directly, exactly as any other node
+                already allows. Extracted into its own component (MilestoneSubStepChecklist) once
+                it gained real editing/adding/"ask AI for more" — its own local state (which step
+                is mid-edit, the add-step form, the ask-AI panel) gets a clean slate on every
+                DIFFERENT node selection via `key={modalNode.id}`, rather than threading yet more
+                useState calls directly into this already-large component and resetting them by
+                hand. */}
             {milestoneHasSubSteps && (
-              <div className="modal-substep-checklist">
-                <div className="modal-substep-checklist-heading">Steps in this phase:</div>
-                <ul>
-                  {liveMilestone.subSteps.filter((s) => !state.removedNodeIds?.[s.id]).map((s) => {
-                    const stepDone = isDone(s.id);
-                    return (
-                      <li key={s.id} className={stepDone ? 'done' : undefined}>
-                        <button
-                          type="button"
-                          className="modal-substep-checkbox"
-                          onClick={() => toggleDone(s.id)}
-                          aria-label={stepDone ? `Mark "${s.title}" incomplete` : `Mark "${s.title}" complete`}
-                        >
-                          {stepDone ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-                        </button>
-                        <span className="modal-substep-title">{s.title}</span>
-                        <span className="modal-substep-due">{formatDateWithYear(parseDateInputValue(s.date))}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+              <MilestoneSubStepChecklist
+                key={modalNode.id}
+                project={milestoneOwnerProject}
+                milestone={liveMilestone}
+                anchorDate={modalNode.date}
+                isDone={isDone}
+                toggleDone={toggleDone}
+              />
             )}
 
             {!hideInteractiveControls && modalNode.resources && modalNode.resources.length > 0 && (

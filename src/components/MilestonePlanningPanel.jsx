@@ -18,7 +18,21 @@ import { parseDateInputValue, realDaysBetween, formatDateWithYear } from '../uti
 // original project-level one — `milestone.chatHistory` (persisted on the milestone object itself,
 // inside `state.startedProjects`), not `state.buildYourOwnChatHistory` — since it's about a
 // specific phase, not the whole project, and needs its own independent back-and-forth.
-export default function MilestonePlanningPanel({ project, milestone, anchorDate, onAttach }) {
+// "Steps in this phase" gained "ask AI to add more" (see MilestoneSubStepChecklist.jsx) — that
+// caller reuses this SAME component/conversation for a milestone that already has real subSteps,
+// meaning `milestone.chatHistory` already contains an OLDER `planReady: true` message from
+// whichever earlier round originally created them. `readyFloorIndex` (default 0 — a no-op for
+// this component's ORIGINAL "first planning" caller, whose chatHistory is empty at the moment it
+// first opens) is a real, confirmed bug fix: without it, reopening this panel for "add more"
+// would immediately surface that STALE old ready-response (and its own "Set a target date & add
+// these steps" button) before the student ever asks for anything new, letting them silently
+// re-append the exact same steps that were already committed once. The caller snapshots
+// `milestone.chatHistory.length` ONCE, at the moment it opens this panel (not recomputed on every
+// render) — a live-recomputed floor would keep pace with the growing history and incorrectly
+// exclude the very reply the student JUST received.
+export default function MilestonePlanningPanel({
+  project, milestone, anchorDate, onAttach, readyFloorIndex = 0,
+}) {
   const { state, patch } = useApp();
   const [loading, setLoading] = useState(false);
   const [pickingDate, setPickingDate] = useState(false);
@@ -105,7 +119,7 @@ export default function MilestonePlanningPanel({ project, milestone, anchorDate,
   // already established — keeps refining if the student keeps talking after reaching a ready list.
   let latestReadySteps = null;
   let latestReadySourceIndex = -1;
-  for (let i = chatHistory.length - 1; i >= 0; i--) {
+  for (let i = chatHistory.length - 1; i >= readyFloorIndex; i--) {
     const m = chatHistory[i];
     if (m.role === 'assistant' && m.planReady && m.milestones?.length) {
       latestReadySteps = m.milestones;
