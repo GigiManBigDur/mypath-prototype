@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
+  CheckCircle2, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
   ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock, Clock,
+  Footprints, Leaf, Sparkle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -47,7 +48,15 @@ import DailyScheduleView from './DailyScheduleView';
 // when one is known.
 const CORE_TYPE_CONFIG = {
   today: { label: 'You are here', color: 'var(--bloom-yellow)', Icon: Compass },
-  procedure: { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Circle },
+  // Map 2 Visual Richness Pass (see CLAUDE.md), Task 3 — was the same bare `Circle` almost every
+  // OTHER icon in this whole config already avoids repeating (every other real coreType below
+  // has its own distinct, purposeful icon) — reused here (and by `BRANCH_STEP_CONFIG` below) as
+  // the one genuinely generic "routine step along the way" icon, since `Circle` is ALSO this
+  // app's own universal "not yet done" checkbox glyph elsewhere (DigestList, the substep
+  // checklist) — using it a second time as the coreType icon itself read as a redundant double
+  // meaning ("empty circle" inside an already-empty-ring). `Footprints` reads as "a step on your
+  // path" without inventing semantics this genuinely generic tier doesn't have.
+  procedure: { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Footprints },
   milestone: { label: 'Milestone', color: 'var(--bloom-teal)', Icon: MapPin },
   major: { label: 'Major Goal', color: 'var(--bloom-yellow)', Icon: Star },
   final: { label: 'Final Goal', color: 'var(--bloom-orange)', Icon: Flag },
@@ -113,7 +122,11 @@ const CORE_TYPE_CONFIG = {
 // Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
 // a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.
 const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: 'var(--bloom-ink-soft)', Icon: ListChecks };
-const BRANCH_STEP_CONFIG = { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Circle };
+// Map 2 Visual Richness Pass (see CLAUDE.md), Task 3 — same `Footprints` swap as `procedure`
+// above, and for the identical reason: a chain's own middle (not-yet-last) step is the other
+// genuinely generic "routine step" tier in this file, and it shared the exact same bare `Circle`
+// this whole config otherwise avoids repeating everywhere else.
+const BRANCH_STEP_CONFIG = { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Footprints };
 const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: 'var(--bloom-orange)', Icon: Flag };
 // A student-added task, not part of the built-in plan — reuses bloom-ink-soft (already a shared
 // design token) rather than introducing a new color, but gets its own icon and a dotted ring (in
@@ -217,6 +230,37 @@ function line(x1, y1, x2, y2) {
 // changes needed there.
 function rightAngleLine(x1, y1, x2, y2) {
   return `M ${x1} ${y1} L ${x2} ${y1} L ${x2} ${y2}`;
+}
+
+// Map 2 Visual Richness Pass (see CLAUDE.md), Task 4 — a small leaf/sprig decoration "growing off"
+// a connector segment, purely derived from that segment's own two ALREADY-COMPUTED endpoints (no
+// new positioning math, nothing roadmapLayout.js produced changes) — just the segment's own
+// midpoint, nudged a fixed distance to one side along its perpendicular, plus the segment's own
+// real angle so the leaf glyph can be rotated to sit naturally along it rather than always
+// pointing straight up regardless of whether the segment it's decorating is vertical (every
+// within-lane step-to-step connector) or horizontal (a lane's own jog out from the spine, always
+// horizontal by construction — see the "Fix: Starter Task..." section).
+function leafSpot(x1, y1, x2, y2, side) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const offset = 12 * side;
+  return {
+    x: (x1 + x2) / 2 + (-dy / len) * offset,
+    y: (y1 + y2) / 2 + (dx / len) * offset,
+    angle: (Math.atan2(dy, dx) * 180) / Math.PI,
+    length: len,
+  };
+}
+
+// A tiny deterministic pseudo-random generator (not Math.random()) so the ambient background
+// particles below get a fixed, stable scatter across a given canvas size instead of visibly
+// reshuffling on every unrelated re-render (e.g. marking a node complete) — the same "compute
+// once, memoize on the real inputs that should change it" discipline this component already
+// applies to `flatPlanItems`/`digestGroups` above.
+function seededRandom(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
 }
 
 // Bottom-right floating zoom-control stack needs to clear the bottom panel, which floats as an
@@ -603,6 +647,25 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     return flat;
   }, [fullRoadmap]);
 
+  // Map 2 Visual Richness Pass (see CLAUDE.md), Task 4 — a fixed, capped scatter of purely
+  // decorative floating particles across the canvas, giving the background a gentle ambient life
+  // (per the reference image) without touching any real content's position. Deterministic
+  // (`seededRandom`, not `Math.random()`) and memoized on the canvas's own real dimensions, so the
+  // scatter stays stable across ordinary re-renders (e.g. marking a node complete) and only
+  // reshuffles if the plan's own content genuinely changes the canvas size — the same "recompute
+  // only when the real inputs that should drive it change" discipline `flatPlanItems` above
+  // already follows. Capped at a fixed count regardless of how tall the canvas is, so a dense
+  // multi-year plan's much taller canvas never means proportionally more particles cluttering it.
+  const AMBIENT_PARTICLE_COUNT = 22;
+  const ambientParticles = useMemo(() => Array.from({ length: AMBIENT_PARTICLE_COUNT }, (_, i) => ({
+    x: seededRandom(i * 3.11 + 1) * roadmap.canvasWidth,
+    y: seededRandom(i * 7.73 + 2) * roadmap.canvasHeight,
+    r: 1.5 + seededRandom(i * 5.29 + 3) * 2.5,
+    delay: seededRandom(i * 2.17 + 4) * 6,
+    duration: 6 + seededRandom(i * 9.41 + 5) * 4,
+    sparkle: seededRandom(i * 4.03 + 6) > 0.72,
+  })), [roadmap.canvasWidth, roadmap.canvasHeight]);
+
   // Digest/Checklist feature (see CLAUDE.md), Task 1 — the exact same underlying task data as the
   // Roadmap view (`fullRoadmap.spine` plus every `hasBranch` item's own `branchSteps` — the
   // identical flattening `HubScreen.jsx`'s own `countPlanTasks` already uses for its "Tasks
@@ -958,18 +1021,79 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
           >
             <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
-            {/* Comprehensive Map 2 redesign (see CLAUDE.md), item 2 — the spine gets a genuine
-                decorative gradient (today's own accent green fading toward teal higher up the
-                canvas) rather than one flat color, using `gradientUnits="userSpaceOnUse"` so the
-                gradient is anchored to real canvas y-coordinates (today's own y at the bottom,
-                0 at the top) instead of each individual segment's own bounding box — this is a
-                pure paint-server definition, it doesn't change any segment's `d`/x/y at all. */}
+            {/* Map 2 Visual Richness Pass (see CLAUDE.md), Task 1 — a real 3-stop "journey"
+                gradient (cool green/teal near "You are here" -> a middle purple -> a warm gold
+                further along) replaces the old flat 2-stop teal fade, still using
+                `gradientUnits="userSpaceOnUse"` so it's anchored to real canvas y-coordinates
+                (today's own y at the bottom, 0 at the top) rather than each segment's own
+                bounding box — a pure paint-server definition, it doesn't change any segment's
+                `d`/x/y at all, only what PAINTS the already-correct path. */}
             <defs>
               <linearGradient id="rm-spine-gradient" gradientUnits="userSpaceOnUse" x1="0" y1={roadmap.canvasHeight} x2="0" y2="0">
-                <stop offset="0" stopColor="var(--bloom-accent)" />
-                <stop offset="1" stopColor="var(--bloom-teal)" />
+                {/* Task 5 — "a subtle shimmer on the connector gradient": each stop's own
+                    `stop-opacity` breathes gently (never `stop-color`, which would visibly shift
+                    the journey's own teal->purple->gold hue at each point rather than just
+                    glimmering) via a plain CSS animation, staggered per-stop so the shimmer reads
+                    as gently traveling along the spine rather than the whole line pulsing at once. */}
+                <stop className="rm-gradient-shimmer-stop" offset="0" stopColor="var(--bloom-accent)" stopOpacity="1" style={{ animationDelay: '0s' }} />
+                <stop className="rm-gradient-shimmer-stop" offset="0.5" stopColor="var(--bloom-purple)" stopOpacity="1" style={{ animationDelay: '1.3s' }} />
+                <stop className="rm-gradient-shimmer-stop" offset="1" stopColor="var(--bloom-yellow)" stopOpacity="1" style={{ animationDelay: '2.6s' }} />
               </linearGradient>
+              {/* Task 1 — each chain's own lane connector gets a per-lane gradient too, a soft
+                  opacity shimmer along its own real vertical extent (anchor's y through its own
+                  last step's y) rather than one flat `branchColor` — "a smooth gradient that
+                  shifts along the timeline," applied per-connector. Deliberately kept in the
+                  SAME hue as the chain's own real track color (not swapped to the global
+                  teal/purple/gold above) — that color is real, meaningful interest-area coding
+                  (see configFor's own Task-2 comment below), and a generic position-based
+                  gradient would blur it away; varying OPACITY instead of hue keeps that meaning
+                  fully intact while still giving the connector a genuine gradient sweep. */}
+              {roadmap.spine.filter((n) => n.hasBranch).map((n) => {
+                const laneColor = configFor(n).color;
+                const laneSteps = [n, ...n.branchSteps];
+                const laneTopY = laneSteps[laneSteps.length - 1].y;
+                return (
+                  <linearGradient key={`grad-${n.id}`} id={`rm-lane-gradient-${n.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={n.y} x2="0" y2={laneTopY}>
+                    {/* Deliberately NOT shimmer-animated like the spine gradient's stops above —
+                        these two stops intentionally hold DIFFERENT base opacities (0.55/1, Task
+                        1's own "opacity sweep along its own real length") and an absolute-value
+                        shimmer keyframe would override/flatten that difference at rest, the exact
+                        "a CSS animation fully overrides the property it targets, discarding
+                        whatever base value was there" trap this file's own node-halo comment
+                        already documents avoiding for the same reason. */}
+                    <stop offset="0" stopColor={laneColor} stopOpacity="0.55" />
+                    <stop offset="1" stopColor={laneColor} stopOpacity="1" />
+                  </linearGradient>
+                );
+              })}
             </defs>
+            {/* Map 2 Visual Richness Pass (see CLAUDE.md), Task 4/5 — a background scatter of small
+                floating particles/sparkles, purely decorative (`pointer-events: none`) and rendered
+                FIRST (behind the axis, spine, every real node/connector) so it never competes with
+                or obscures real content, matching the axis ticks' own "background reference, drawn
+                first" precedent right below. Each drifts up/down and fades gently via its own CSS
+                animation, staggered per-particle so the whole field never pulses in lockstep. */}
+            <g className="ambient-particles" aria-hidden="true">
+              {ambientParticles.map((p, i) => (
+                p.sparkle ? (
+                  <Sparkle
+                    key={`particle-${i}`}
+                    className="ambient-particle ambient-particle-sparkle"
+                    x={p.x - p.r * 2} y={p.y - p.r * 2} size={p.r * 4}
+                    color="var(--bloom-yellow)"
+                    style={{ animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s` }}
+                  />
+                ) : (
+                  <circle
+                    key={`particle-${i}`}
+                    className="ambient-particle"
+                    cx={p.x} cy={p.y} r={p.r}
+                    fill="var(--bloom-purple)"
+                    style={{ animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s` }}
+                  />
+                )
+              ))}
+            </g>
             {/* Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md), Task 5 —
                 an explicit, labeled time axis running down the canvas's own left edge (its own
                 reserved AXIS_WIDTH strip, see roadmapLayout.js), so vertical position is anchored
@@ -1040,8 +1164,10 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // Task 2 — the connecting line itself reads the SAME resolved color as the anchor's
               // own ring (configFor(n).color — track-colored for a real opportunity, bloom-purple
               // for a project, the generic fallback otherwise), so a whole chain (line + every
-              // node in it) reads as one consistent interest-colored unit, not just its dots.
-              const branchColor = configFor(n).color;
+              // node in it) reads as one consistent interest-colored unit, not just its dots. Map 2
+              // Visual Richness Pass, Task 1 — that color is now read via the per-lane gradient
+              // defined in `<defs>` above (`rm-lane-gradient-${n.id}`, itself built from this exact
+              // same `configFor(n).color`), not recomputed a second time here.
               // Date-cluster feature (see CLAUDE.md) — `n` can no longer actually be clustered
               // (roadmapGenerator.js excludes chain items from `dateClusters` entirely — see that
               // file), so this always resolves to the spine's own fixed centerline (SPINE_X) at
@@ -1050,6 +1176,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // The starter task itself (now in the lane) is the first stop in this chain's own
               // vertical sequence; every real branch step follows it.
               const laneSequence = [n, ...n.branchSteps];
+              // Map 2 Visual Richness Pass, Task 4 — one small leaf/sprig per connector segment,
+              // only where the segment is long enough to actually have visible room for one (a
+              // floored/near-zero-length gap would just crowd a leaf on top of its own two
+              // endpoints) — purely decorative, positioned from the segment's own already-real
+              // endpoints via `leafSpot`, never a reason for any segment to change its own `d`.
+              const MIN_LEAF_SEGMENT = 34;
+              const jogLeaf = leafSpot(anchorPos.x, anchorPos.y, n.x, n.y, 1);
               return (
                 <g key={`branch-${n.id}`}>
                   {/* Task 4 — a right-angle jog from the spine's own line straight out to the
@@ -1059,20 +1192,42 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.x, n.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.x, n.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
+                  {jogLeaf.length > MIN_LEAF_SEGMENT && (
+                    <Leaf
+                      className="lane-leaf" x={jogLeaf.x - 6} y={jogLeaf.y - 6} size={12}
+                      color="var(--bloom-green)" opacity="0.55"
+                      transform={`rotate(${jogLeaf.angle + 25} ${jogLeaf.x} ${jogLeaf.y})`}
+                      style={{ animationDelay: `${(anchorIndex % 5) * 0.6}s` }}
+                    />
+                  )}
                   {/* Task 4 — within a lane, every consecutive pair (starting from the starter task
                       itself) shares the same x (the lane's fixed x), so this same `line()` call
-                      already renders a pure vertical segment with zero changes needed here. */}
+                      already renders a pure vertical segment with zero changes needed here.
+                      Map 2 Visual Richness Pass, Task 1 — `stroke` now reads the per-lane
+                      gradient (`<defs>` above) instead of the flat `branchColor`, giving the
+                      connector a genuine opacity sweep along its own real length while staying the
+                      same meaningful track hue throughout. */}
                   {laneSequence.slice(0, -1).map((s, i) => {
                     const next = laneSequence[i + 1];
+                    const segLeaf = leafSpot(s.x, s.y, next.x, next.y, i % 2 === 0 ? 1 : -1);
                     return (
-                      <path
-                        key={`bs-${next.id}`}
-                        className={entranceEnabled ? 'roadmap-fade-line' : undefined}
-                        style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
-                        d={line(s.x, s.y, next.x, next.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
-                      />
+                      <g key={`bs-${next.id}`}>
+                        <path
+                          className={entranceEnabled ? 'roadmap-fade-line' : undefined}
+                          style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
+                          d={line(s.x, s.y, next.x, next.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                        />
+                        {segLeaf.length > MIN_LEAF_SEGMENT && (
+                          <Leaf
+                            className="lane-leaf" x={segLeaf.x - 6} y={segLeaf.y - 6} size={12}
+                            color="var(--bloom-green)" opacity="0.55"
+                            transform={`rotate(${segLeaf.angle + (i % 2 === 0 ? 25 : -25)} ${segLeaf.x} ${segLeaf.y})`}
+                            style={{ animationDelay: `${(i % 5) * 0.6}s` }}
+                          />
+                        )}
+                      </g>
                     );
                   })}
                 </g>
@@ -1119,13 +1274,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                           regardless of category, same as the top-level check. */}
                       {s.locked ? (
                         <g opacity="0.5">
-                          <circle className="node-halo" r="18" fill={cfg.color} opacity="0.1" />
+                          <circle className="node-halo" r="18" fill={cfg.color} opacity="0.1" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="13" fill="none" stroke={cfg.color} strokeWidth="2" strokeDasharray="3 3" pointerEvents="all" />
                           <Lock x="-6" y="-6" size={12} color={cfg.color} />
                         </g>
                       ) : (
                         <>
-                          <circle className="node-halo" r="18.5" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="18.5" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
@@ -1193,13 +1348,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         // regardless of category, since locked is a state any project milestone
                         // can be in, not a category of its own.
                         <g opacity="0.5">
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.1" />
+                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.1" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill="none" stroke={cfg.color} strokeWidth="2.5" strokeDasharray="4 4" pointerEvents="all" />
                           <Lock x="-7" y="-7" size={14} color={cfg.color} />
                         </g>
                       ) : n.required ? (
                         <>
-                          <circle className="node-halo" r="24" fill={cfg.color} opacity="0.16" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="24" fill={cfg.color} opacity="0.16" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />
@@ -1207,7 +1362,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       ) : n.category === 'custom' ? (
                         <>
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="22" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 3'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -1215,7 +1370,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       ) : n.category === 'ai-suggested' ? (
                         <>
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="22" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 6'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -1231,7 +1386,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       ) : (
                         <>
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="22" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -1269,7 +1424,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 <g key={cluster.id} className="node-badge" data-node-id={cluster.id} onClick={() => setSelectedCluster(cluster)} transform={`translate(${anchor.x},${anchor.y})`}>
                   <circle className="hit-target" r="24" fill="none" pointerEvents="all" />
                   <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
-                    <circle className="node-halo" r="26" fill={CLUSTER_CONFIG.color} opacity="0.16" />
+                    <circle className={`node-halo${allDone ? '' : ' node-halo-active'}`} r="26" fill={CLUSTER_CONFIG.color} opacity="0.16" style={{ '--halo-color': CLUSTER_CONFIG.color }} />
                     <circle className="ring" r="18" fill={CLUSTER_CONFIG.color} fillOpacity={allDone ? 1 : 0} stroke={CLUSTER_CONFIG.color} strokeWidth="3" pointerEvents="all" />
                     {allDone
                       ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />

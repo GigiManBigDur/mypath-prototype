@@ -3421,8 +3421,84 @@ button.card.passed:hover {
    `<circle class="node-halo">` in Roadmap.jsx, sized a few px larger than its own ring, filled
    with the SAME resolved color at low opacity) gives every node type — required, opportunity,
    custom alike — a consistent sense of depth/glow at rest, not just on hover. Purely decorative
-   (`pointer-events: none`), so it never changes hit-testing. */
-.node-halo { pointer-events: none; }
+   (`pointer-events: none`), so it never changes hit-testing.
+
+   Map 2 Visual Richness Pass (see CLAUDE.md), Task 2 — a genuine soft blur turns this from a flat
+   translucent disc into an actual glow, plus a matching `drop-shadow` in the node's own resolved
+   color (passed in as `--halo-color`, a plain inline custom property set per-circle in
+   Roadmap.jsx, since CSS has no way to read an element's own `fill` attribute back into a
+   `var()`) — a real bloom in the node's own track/type color, not a generic white glow. Neither
+   touches the halo's own `fill`/`opacity` SVG attributes (still set directly per node, unchanged),
+   so every node type's carefully-tuned resting alpha (0.1 for locked, 0.14 for most, 0.16 for
+   required/clusters) is completely unaffected — this only adds softness/bloom on top. */
+.node-halo {
+  pointer-events: none;
+  filter: blur(5px) drop-shadow(0 0 5px var(--halo-color, transparent));
+}
+
+/* Task 5 — a gentle "breathing" glow on any INCOMPLETE, UNLOCKED node's halo (added via Roadmap.jsx
+   as an extra `node-halo-active` class only when `!done` — locked nodes never get it, since
+   they're rendered in their own dimmed 0.5-opacity group with no animation at all, and a completed
+   node's own static halo is meant to read as "settled," not "waiting for you"). Deliberately more
+   subtle than Today's own celebratory `welcome-pulse` ring (which grows and fully fades to ripple
+   outward) — this only breathes size/blur gently in place via `transform`/`filter`, never touching
+   the `opacity` CSS property itself (which would silently override — and so discard — each node's
+   own carefully-tuned resting alpha set via the SVG `opacity` attribute, since a CSS property
+   always wins over a presentation attribute of the same name). Today's own marker never carries
+   `.node-halo` at all (it has its own dedicated `.today-pulse`/`.today-glow` pair), so it always
+   stays the one unambiguously distinct marker on the canvas regardless of this. */
+@keyframes node-halo-breathe {
+  0%, 100% { transform: scale(1); filter: blur(5px) drop-shadow(0 0 5px var(--halo-color, transparent)); }
+  50% { transform: scale(1.22); filter: blur(7px) drop-shadow(0 0 8px var(--halo-color, transparent)); }
+}
+.node-halo-active {
+  animation: node-halo-breathe 3.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Map 2 Visual Richness Pass (see CLAUDE.md), Task 4 — small leaf/sprig decorations "growing off"
+   a connector at intervals (Roadmap.jsx's own `leafSpot`, a pure function of two already-computed
+   segment endpoints — no new layout math). Positioning/orientation is a plain SVG `transform=
+   "rotate(...)"` ATTRIBUTE set directly on the element (a fixed, one-time angle); the gentle
+   "growing" life (Task 5) is a CSS animation on `opacity` only, deliberately never `transform` —
+   this codebase has hit the "a CSS transform silently replaces rather than composes with an
+   SVG presentation-attribute transform" landmine several times already (WelcomeScreen's markers,
+   this same file's own MascotIcon leaf sway, the hub tile pop-in), and animating a DIFFERENT CSS
+   property here sidesteps it entirely rather than needing a second nested wrapper group. */
+@keyframes lane-leaf-sway { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.75; } }
+.lane-leaf {
+  pointer-events: none;
+  animation: lane-leaf-sway 4.5s ease-in-out infinite;
+}
+
+/* Task 4/5 — the ambient background particle field (Roadmap.jsx's own `ambientParticles`, a
+   fixed, deterministically-seeded scatter). Plain circles drift/fade via `transform`/`opacity`
+   (safe here — these are bare `<circle>`/`<Sparkle>` elements with no SVG `transform` attribute
+   of their own to conflict with); the sparkle variant additionally gets a slow, independent
+   rotation. Both are purely decorative (`pointer-events: none`, inherited from the parent
+   `.ambient-particles` group) and rendered first/behind everything real. */
+@keyframes ambient-particle-drift {
+  0%, 100% { transform: translateY(0); opacity: 0.28; }
+  50% { transform: translateY(-16px); opacity: 0.6; }
+}
+@keyframes ambient-sparkle-drift {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.3; }
+  50% { transform: translateY(-12px) rotate(20deg); opacity: 0.65; }
+}
+.ambient-particles { pointer-events: none; }
+.ambient-particle { animation: ambient-particle-drift ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.ambient-particle-sparkle { animation-name: ambient-sparkle-drift; transform-box: fill-box; transform-origin: center; }
+
+/* Task 5 — "a subtle shimmer on the connector gradient." Only applied to the spine gradient's own
+   3 stops (Roadmap.jsx), which all share the SAME base `stop-opacity` of 1 — safe to animate with
+   one absolute-value keyframe. The lane gradients' own stops deliberately do NOT get this (see
+   Roadmap.jsx's own comment there): they hold two intentionally DIFFERENT base opacities to
+   express Task 1's own "sweep along its own length," which an absolute-value shimmer would
+   flatten. Staggered per-stop `animation-delay` (set inline in Roadmap.jsx) is what makes this
+   read as a shimmer gently traveling the length of the spine rather than the whole line dimming
+   and brightening in lockstep. */
+@keyframes rm-gradient-shimmer { 0%, 100% { stop-opacity: 1; } 50% { stop-opacity: 0.78; } }
+.rm-gradient-shimmer-stop { animation: rm-gradient-shimmer 5s ease-in-out infinite; }
 .node-label { font-family:'IBM Plex Sans'; font-size:13px; font-weight:500; fill: var(--bloom-ink); }
 .node-due { font-family:'IBM Plex Mono', monospace; font-size:10px; fill: var(--bloom-ink-soft); }
 /* Item 8's own "small colored tags for type/date rather than plain grey text" — the type/label
@@ -3790,7 +3866,8 @@ button.card.passed:hover {
 @media (prefers-reduced-motion: reduce) {
   .roadmap-draw-line, .roadmap-fade-line, .node-pop, .node-icon-pop,
   .node-badge:hover .node-pop, .node-badge:active .node-pop,
-  .overlay, .modal {
+  .overlay, .modal, .node-halo-active, .lane-leaf, .ambient-particle,
+  .rm-gradient-shimmer-stop {
     animation: none !important;
   }
   .roadmap-canvas-inner.view-smooth { transition: none !important; }
