@@ -85,14 +85,28 @@ const CHAT_SCHEMA = {
     milestones: {
       type: ['array', 'null'],
       items: { type: 'string' },
-      description: 'An ORDERED list of short, specific titles capturing the real arc of what\'s being planned (see below for how many and how granular). Required (non-null, non-empty) when planReady is true. Must be null otherwise. Do not include dates or timing — just the titles, in the order they\'d happen.',
+      description: 'An ORDERED list of short, specific titles capturing the real arc of what\'s being planned (see below for how many and how granular). Required (non-null, non-empty) when planReady is true. Must be null otherwise. Do not include dates or timing IN THE TITLE ITSELF — just the title text, in the order they\'d happen (see milestoneDayOffsets for actual timing).',
+    },
+    // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md), Task 4 — ONLY
+    // used when planning the ORIGINAL high-level overview phases (never the single-phase granular
+    // detail conversation, which spreads its own steps across a real, already-picked window
+    // instead — see buildMilestoneDetailPrompt). One integer per entry in `milestones`, same order,
+    // never a raw calendar date — the CLIENT converts this into a real date relative to the
+    // project's own already-confirmed start date, the same "never let the model pick an
+    // uncontrolled absolute date" caution this app's other AI-suggestion features already apply
+    // (see the chain-attachment suggestion feature's own "the student picks the date, not the AI"
+    // fix) — a relative offset from a known real anchor can't produce that same class of bug.
+    milestoneDayOffsets: {
+      type: ['array', 'null'],
+      items: { type: 'integer' },
+      description: 'ONLY used for the ORIGINAL overview conversation (planning the high-level phases) — leave this null in the single-phase detail conversation. One integer per entry in `milestones`, in the same order: a realistic number of days after the project\'s own start date that phase would likely begin, scaling with how much real work the earlier phases involve (e.g. a phase requiring recruiting a team and securing a partnership needs more real lead time than a quick first phase). Must be a strictly increasing sequence. Required (matching the length of `milestones`) when planReady is true AND you are planning the overview. Must be null otherwise.',
     },
     mentionsSpecificEntity: {
       type: 'boolean',
       description: 'True ONLY if your reply introduces a genuinely NEW, specific real organization, program, contact, statistic, or outside-world fact that is NOT already confirmed by the student\'s own profile data (their own reported interests/passion text, or an activity/opportunity already listed in their profile). False otherwise — referencing something already in the student\'s own profile (even by real name), or purely generic project-building advice, is NOT a new claim.',
     },
   },
-  required: ['reply', 'planReady', 'projectName', 'milestones', 'mentionsSpecificEntity'],
+  required: ['reply', 'planReady', 'projectName', 'milestones', 'milestoneDayOffsets', 'mentionsSpecificEntity'],
   additionalProperties: false,
 };
 const TOOL_NAME = 'respond_to_brainstorm';
@@ -110,7 +124,7 @@ Rules you must follow:
 - DON'T DEFAULT TO ASSUMING INDEPENDENT IS MORE IMPRESSIVE: when the idea could plausibly be built either as a fully independent, unaffiliated project OR as an official chapter/campus affiliate of an established, well-structured external program (e.g. Hult Prize, DECA, Model UN, and similar), weigh BOTH paths fairly and explicitly raise the question with the student — do not steer them toward "independent" as if it were automatically the stronger or more impressive option. For a genuinely well-established, competitive, structured program, official affiliation is FREQUENTLY THE STRONGER choice, not the weaker one: it provides real organizational structure, external credibility, and (for competitive programs) a genuine path to real competition/recognition that a from-scratch independent project usually can't replicate on its own. Reason about this case by case, based on what the student is actually describing — never apply a blanket bias toward either path.
 - PROACTIVELY SUGGEST CONCRETE DIFFERENTIATORS: don't just wait to be asked. Actively pitch specific ideas that would make the project more distinctive and evidenced — for example, a particular type of partnership (a relevant course, department, or organization) that would create a real, checkable outcome, as a candidate OVERVIEW PHASE (e.g. "Seek a partnership with X"), not a granular step. Bring these up yourself as part of the natural conversation, not only in response to a direct question about it.
 - The goal is a COMPLETE project CONCEPT, not just a one-line idea: a real sense of how it would start, what it would actually involve as it progresses through a few concrete phases, and how it would conclude.
-- Only once that's genuinely been developed together, set planReady to true, and in that SAME response set projectName (a short, specific name) and milestones — but here, "milestones" means a SMALL SET OF HIGH-LEVEL OVERVIEW PHASES, NOT granular steps: typically 4-7 broad phases capturing the real arc (e.g. "Get recognized as Campus Director by Hult official," "Recruit a founding team," "Seek a partnership," "Run the first venture cycle," "Host the showcase") — do NOT break any single phase down into its own granular sub-actions here; that level of detail is deliberately deferred to a LATER, separate, narrower conversation once the student actually reaches that specific phase (each phase gets its own detailed planning once it's active, not all at once up front — this keeps each generation small, fast, and realistic, since later phases genuinely can't be usefully detailed until earlier ones are actually done). Don't set planReady prematurely — a single idea with no real arc yet is not ready.
+- Only once that's genuinely been developed together, set planReady to true, and in that SAME response set projectName (a short, specific name), milestones, and milestoneDayOffsets — but here, "milestones" means a SMALL SET OF HIGH-LEVEL OVERVIEW PHASES, NOT granular steps: typically 4-7 broad phases capturing the real arc (e.g. "Get recognized as Campus Director by Hult official," "Recruit a founding team," "Seek a partnership," "Run the first venture cycle," "Host the showcase") — do NOT break any single phase down into its own granular sub-actions here; that level of detail is deliberately deferred to a LATER, separate, narrower conversation once the student actually reaches that specific phase (each phase gets its own detailed planning once it's active, not all at once up front — this keeps each generation small, fast, and realistic, since later phases genuinely can't be usefully detailed until earlier ones are actually done). ALSO set milestoneDayOffsets: one integer per phase (the first should be 0, or close to it), giving a realistic number of days after the project's own start date each phase would likely BEGIN — space these out honestly based on how much real work each earlier phase actually involves (e.g. recruiting a founding team and securing a partnership genuinely take real weeks, not days), rather than spacing every phase evenly. Don't set planReady prematurely — a single idea with no real arc yet is not ready.
 - Even after planReady is true, keep talking naturally if the student wants to keep refining — you can update projectName/milestones again on a later turn if the plan changes.
 - CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly. This applies equally to anything you proactively suggest under the "concrete differentiators" rule above, not just to things the student asks about directly. Set mentionsSpecificEntity to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by the student's own profile data — referencing something already in their profile (even by real name), or giving purely generic advice, is NOT a new claim and should be false.
 - Call the respond_to_brainstorm tool exactly once with your response, and nothing else.`;
@@ -140,7 +154,7 @@ Rules you must follow:
 - Act like a thoughtful consultant: ask genuine follow-up questions to understand exactly how the student wants to approach THIS phase, and build on their answers rather than jumping straight to a final list. Keep the conversation going across multiple turns.
 - DON'T DEFAULT TO ASSUMING INDEPENDENT IS MORE IMPRESSIVE: the same judgment call from the overview conversation still applies here if relevant to this specific phase (e.g. a phase about official recognition/affiliation) — weigh official-program affiliation and independent approaches fairly, case by case.
 - PROACTIVELY SUGGEST CONCRETE DIFFERENTIATORS: don't just wait to be asked — if a specific step would make this phase more distinctive and evidenced (e.g. a specific partnership, contact, or checkable outcome), pitch it yourself as a candidate step.
-- The goal is a genuinely GRANULAR, CONCRETE step list for JUST this one phase — not broad sub-phases. Once genuinely developed, set planReady to true, and in that SAME response set projectName to this phase's own title ("${currentMilestoneTitle}" or a lightly refined version of it) and milestones to an ORDERED list of 3-10 short, specific, concrete, individually-actionable steps for JUST this phase (e.g., for a phase like "Recruit a founding team": "Draft executive-board role descriptions," "Post recruitment announcement," "Interview candidates for President," "Interview candidates for Treasurer," "Finalize the founding team," each a real distinct action) — matching the level of specificity this app's own real opportunity chains already use (e.g. Register -> Prepare -> Practice -> Compete) as the reference point. Don't set planReady prematurely — a single idea with no real list yet is not ready.
+- The goal is a genuinely GRANULAR, CONCRETE step list for JUST this one phase — not broad sub-phases. Once genuinely developed, set planReady to true, and in that SAME response set projectName to this phase's own title ("${currentMilestoneTitle}" or a lightly refined version of it) and milestones to an ORDERED list of 3-10 short, specific, concrete, individually-actionable steps for JUST this phase (e.g., for a phase like "Recruit a founding team": "Draft executive-board role descriptions," "Post recruitment announcement," "Interview candidates for President," "Interview candidates for Treasurer," "Finalize the founding team," each a real distinct action) — matching the level of specificity this app's own real opportunity chains already use (e.g. Register -> Prepare -> Practice -> Compete) as the reference point. Leave milestoneDayOffsets set to null here — you are not planning the overview in this conversation, and the actual dates for these steps are decided separately, spread across a real window the student picks. Don't set planReady prematurely — a single idea with no real list yet is not ready.
 - Even after planReady is true, keep talking naturally if the student wants to keep refining — you can update the step list again on a later turn if it changes.
 - CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly. This applies equally to anything you proactively suggest. Set mentionsSpecificEntity to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by the student's own profile data — referencing something already in their profile (even by real name), or giving purely generic advice, is NOT a new claim and should be false.
 - Call the respond_to_brainstorm tool exactly once with your response, and nothing else.`;
@@ -156,7 +170,7 @@ function sanitizeHistory(history) {
 function validateProposal(input) {
   if (!input || typeof input !== 'object') return null;
   const {
-    reply, planReady, projectName, milestones, mentionsSpecificEntity,
+    reply, planReady, projectName, milestones, milestoneDayOffsets, mentionsSpecificEntity,
   } = input;
   // Bug fix (see CLAUDE.md) — a real, confirmed bug: this cap was 1500, copied from api/chat.js's
   // own general-assistant conversation, but a real brainstorming/consulting reply here (weighing
@@ -178,11 +192,24 @@ function validateProposal(input) {
       .filter((m) => typeof m === 'string' && m.trim())
       .map((m) => m.trim());
     if (cleanMilestones.length === 0) return null;
+    // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md), Task 4 — a
+    // real array of integers matching the FINAL cleaned milestone count, or null (expected for the
+    // milestone-detail conversation, which never sets this at all per its own prompt). A malformed
+    // or mismatched-length array is sanitized to null here rather than rejecting the whole
+    // proposal — the client's own pre-existing cursor-based fallback (ESTIMATED_MILESTONE_
+    // SPACING_DAYS) already handles a null value cleanly, so a single loose field here should
+    // never surface as a bare "something went wrong" to the student.
+    const cleanDayOffsets = Array.isArray(milestoneDayOffsets)
+      && milestoneDayOffsets.length === cleanMilestones.length
+      && milestoneDayOffsets.every((n) => Number.isFinite(n))
+      ? milestoneDayOffsets.map((n) => Math.round(n))
+      : null;
     return {
       reply: reply.trim(),
       planReady: true,
       projectName: projectName.trim(),
       milestones: cleanMilestones,
+      milestoneDayOffsets: cleanDayOffsets,
       mentionsSpecificEntity,
     };
   }
@@ -192,6 +219,7 @@ function validateProposal(input) {
     planReady: false,
     projectName: null,
     milestones: null,
+    milestoneDayOffsets: null,
     mentionsSpecificEntity,
   };
 }

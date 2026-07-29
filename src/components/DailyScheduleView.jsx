@@ -217,8 +217,14 @@ export default function DailyScheduleView({ flatPlanItems, isDone, toggleDone, o
   // block that is now itself a real task (so it doesn't also show up as its own unclaimed
   // reference chip once it's already scheduled).
   const linkedIdsToday = new Set(blocks.map((b) => b.linkedTaskId || b.id));
+  // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — a LOCKED
+  // Overview step is excluded here too, so a student can never link a schedule block to a task
+  // that isn't actually actionable yet (which would otherwise let its own quick-check checkbox
+  // bypass the lock via toggleDone). A step can only ever go locked -> unlocked, never back, so
+  // filtering it out at this "can be linked" stage is enough — nothing already-linked can later
+  // become locked again.
   const dueToday = flatPlanItems.filter((item) => (
-    realDaysBetween(item.date, selectedDate) === 0 && !isDone(item.id) && !linkedIdsToday.has(item.id)
+    realDaysBetween(item.date, selectedDate) === 0 && !isDone(item.id) && !item.locked && !linkedIdsToday.has(item.id)
   ));
 
   const laidOutBlocks = useMemo(() => {

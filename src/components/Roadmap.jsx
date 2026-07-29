@@ -640,7 +640,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
       if (isDone(item.id)) return;
       const daysUntil = realDaysBetween(item.date, todayDate);
       const isCheckpoint = item.coreType === 'course-checkpoint' || item.coreType === 'ucdavis-checkpoint';
-      const entry = { item, daysUntil, cfg: configFor(item), isCheckpoint };
+      // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — a locked
+      // Overview step showing up in "This Week" (it can have a real due date like any other item)
+      // must not be quick-completable straight from this list, or a student could bypass the
+      // lock entirely and mark it done while it's still locked — the same "flag it, open the real
+      // flow instead of writing completedNodes directly" precedent `isCheckpoint` already
+      // established just above, reused here rather than a second mechanism.
+      const entry = { item, daysUntil, cfg: configFor(item), isCheckpoint, isLocked: !!item.locked };
       if (daysUntil < 0) overdue.push(entry);
       else if (daysUntil === 0) todayItems.push(entry);
       else if (daysUntil <= 6) week.push(entry);
@@ -655,7 +661,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   }, [fullRoadmap, state.completedNodes]);
 
   const handleDigestToggle = (entry) => {
-    if (entry.isCheckpoint) { setSelected(entry.item); return; }
+    if (entry.isCheckpoint || entry.isLocked) { setSelected(entry.item); return; }
     toggleDone(entry.item.id);
   };
   const handleDigestOpen = (entry) => setSelected(entry.item);
@@ -886,9 +892,23 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
   const liveMilestone = milestoneOwnerProject
     ? (milestoneOwnerProject.overviewMilestones || []).find((m) => m.id === modalNode.milestoneMeta.milestoneId)
     : null;
-  const milestoneNeedsPlanning = selectedIsMilestone && !modalNode.locked && !!liveMilestone
+  // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — `.locked` is
+  // no longer a Build-Your-Own-milestone-only field: any curated opportunity chain's own Overview
+  // step (2nd and later — see roadmapGenerator.js's `applyOverviewLocking`) carries it too, so this
+  // check is generalized to ANY selected node rather than gated on `selectedIsMilestone` first.
+  // `milestoneNeedsPlanning` stays milestone-specific (only a Build Your Own phase ever needs the
+  // scoped AI planning chat — a curated Overview already has real, complete content from the
+  // moment it's generated, nothing left to "plan").
+  const selectedIsLocked = !!modalNode?.locked;
+  const milestoneNeedsPlanning = selectedIsMilestone && !selectedIsLocked && !!liveMilestone
     && (liveMilestone.subSteps || []).length === 0 && !isDone(modalNode.id);
-  const selectedIsMilestoneSpecial = selectedIsMilestone && (modalNode.locked || milestoneNeedsPlanning);
+  // A locked node gets to show a real PREVIEW of its own content (title/due date/desc) — "what it
+  // is," per this generalization's own Task 3 wording — so only `milestoneNeedsPlanning` hides the
+  // desc paragraph entirely (nothing real to preview yet, the planning chat takes over instead).
+  // Both cases hide every genuinely INTERACTIVE control (resources list, date-edit/remove row,
+  // outcome note, complete-toggle) — "a preview, not its full interactive checklist."
+  const hideDescPreview = milestoneNeedsPlanning;
+  const hideInteractiveControls = selectedIsLocked || milestoneNeedsPlanning;
 
   // Layout-restructure-only state: the paired first-visit callouts (below) share the exact same
   // "stay mounted through an exit animation" need as every modal, so they reuse useModalExit
@@ -1078,20 +1098,38 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         whatever the ring happens to be mid-animation. */}
                     <circle className="hit-target" r="16" fill="none" pointerEvents="all" />
                     <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
-                      <circle className="node-halo" r="18.5" fill={cfg.color} opacity="0.14" />
-                      <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
-                      {done
-                        ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
-                        : <cfg.Icon className="node-icon-pop" x="-6" y="-6" size={12} color={cfg.color} />}
-                      {/* Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md), Task 4 —
-                          an accepted chain-related suggestion is spliced in as an ordinary branch
-                          step (same ring style/color as every sibling step in this chain, so it
-                          reads as "connected in sequence like any other step"), with only this
-                          small, persistent sparkle badge (same treatment/positioning precedent as
-                          the top-level ai-suggested node below, scaled to this smaller ring)
-                          marking it as AI-origin — never swaps to a checkmark once done. */}
-                      {s.aiSuggested && (
-                        <Sparkles className="ai-suggestion-badge" x="5" y="-17" size={9} color="var(--bloom-ai)" />
+                      {/* Generalize the Overview/lock system to Every Multi-Step Chain (see
+                          CLAUDE.md) — a locked Overview step (a curated opportunity chain's own
+                          2nd-and-later step, or a Build Your Own milestone's own granular
+                          sub-step) renders dimmed with a Lock icon standing in for its real one,
+                          mirroring the top-level spine node's own `n.locked` treatment above at
+                          this branch step's smaller r=13 scale — never filled, since a locked
+                          node can never be "done." Takes priority over every other branch below
+                          regardless of category, same as the top-level check. */}
+                      {s.locked ? (
+                        <g opacity="0.5">
+                          <circle className="node-halo" r="18" fill={cfg.color} opacity="0.1" />
+                          <circle className="ring" r="13" fill="none" stroke={cfg.color} strokeWidth="2" strokeDasharray="3 3" pointerEvents="all" />
+                          <Lock x="-6" y="-6" size={12} color={cfg.color} />
+                        </g>
+                      ) : (
+                        <>
+                          <circle className="node-halo" r="18.5" fill={cfg.color} opacity="0.14" />
+                          <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
+                          {done
+                            ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
+                            : <cfg.Icon className="node-icon-pop" x="-6" y="-6" size={12} color={cfg.color} />}
+                          {/* Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md), Task 4 —
+                              an accepted chain-related suggestion is spliced in as an ordinary branch
+                              step (same ring style/color as every sibling step in this chain, so it
+                              reads as "connected in sequence like any other step"), with only this
+                              small, persistent sparkle badge (same treatment/positioning precedent as
+                              the top-level ai-suggested node below, scaled to this smaller ring)
+                              marking it as AI-origin — never swaps to a checkmark once done. */}
+                          {s.aiSuggested && (
+                            <Sparkles className="ai-suggestion-badge" x="5" y="-17" size={9} color="var(--bloom-ai)" />
+                          )}
+                        </>
                       )}
                     </g>
                   </g>
@@ -1530,7 +1568,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 task promoted from an unlinked Daily Schedule block carries its own real
                 `scheduleTime`, preserving the time-of-day detail that would otherwise be lost once
                 the task is viewed outside Daily Schedule itself. */}
-            {!selectedIsMilestoneSpecial && modalNode.scheduleTime && (
+            {!hideInteractiveControls && modalNode.scheduleTime && (
               <div className="modal-schedule-time">
                 <Clock size={13} />
                 Scheduled {formatTimeOfDay(modalNode.scheduleTime.startTime)}–{formatTimeOfDay(modalNode.scheduleTime.endTime)}
@@ -1542,23 +1580,27 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 actual <ul>, same "structured array, not a run-on paragraph" pattern the
                 pre-existing `resources` block below already established, not squeezed into
                 `desc` as a comma-joined sentence. */}
-            {!selectedIsMilestoneSpecial && modalNode.courseList && modalNode.courseList.length > 0 && (
+            {!hideInteractiveControls && modalNode.courseList && modalNode.courseList.length > 0 && (
               <div className="modal-course-list">
                 Your selected courses:
                 <ul>{modalNode.courseList.map((c) => <li key={c}>{c}</li>)}</ul>
               </div>
             )}
 
-            {!selectedIsMilestoneSpecial && <p className="modal-desc">{modalNode.desc}</p>}
+            {/* Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md),
+                Task 3 — a LOCKED node still gets to show its own real desc as a genuine preview
+                ("what it is"); only `milestoneNeedsPlanning` (nothing real to preview yet) hides
+                this paragraph entirely. */}
+            {!hideDescPreview && <p className="modal-desc">{modalNode.desc}</p>}
 
-            {!selectedIsMilestoneSpecial && modalNode.resources && modalNode.resources.length > 0 && (
+            {!hideInteractiveControls && modalNode.resources && modalNode.resources.length > 0 && (
               <div className="modal-resources">
                 Recommended resources:
                 <ul>{modalNode.resources.map((r) => <li key={r}>{r}</li>)}</ul>
               </div>
             )}
 
-            {!selectedIsMilestoneSpecial && modalNode.type !== 'today' && (
+            {!hideInteractiveControls && modalNode.type !== 'today' && (
               <div className="modal-edit-row">
                 <label className="modal-edit-date">
                   <span className="label">Due date</span>
@@ -1586,7 +1628,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 locally, commit once" trade this codebase's other text-entry forms already make,
                 just via a remount instead of local useState since there's no separate submit
                 action here to hang the commit on. */}
-            {!selectedIsMilestoneSpecial && modalNode.type !== 'today' && (
+            {!hideInteractiveControls && modalNode.type !== 'today' && (
               <label className="task-form-field modal-outcome-field">
                 <span className="label">
                   How did it go? <span className="optional-badge">Optional</span>
@@ -1600,13 +1642,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               </label>
             )}
 
-            {/* Two-Phase Generation (see CLAUDE.md), Task 2 — a LOCKED overview milestone shows
-                only this plain, honest "why" message — no desc/resources/edit/outcome/complete
+            {/* Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md),
+                Task 3 — a LOCKED node (a Build Your Own milestone OR a curated opportunity chain's
+                own 2nd-and-later Overview step alike) shows only this plain, honest "why" message
+                alongside its own title/due/desc preview above — no resources/edit/outcome/complete
                 controls, matching this file's own established "a locked thing is visible, but not
                 interactive in the normal way" posture (Course Selection's own locked prerequisite
                 cards use the identical spirit). */}
-            {selectedIsMilestone && modalNode.locked && (
-              <div className="milestone-locked-notice">
+            {selectedIsLocked && (
+              <div className="locked-node-notice">
                 <Lock size={16} /> {modalNode.lockedReason}
               </div>
             )}
@@ -1680,7 +1724,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               </div>
             )}
 
-            {modalNode.type !== 'today' && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && !selectedIsMilestoneSpecial && (
+            {modalNode.type !== 'today' && !selectedIsCourseCheckpoint && !selectedIsUCDavisCheckpoint && !hideInteractiveControls && (
               <button
                 className={`complete-btn ${isDone(modalNode.id) ? 'done' : 'todo'}`}
                 onClick={() => toggleDone(modalNode.id)}

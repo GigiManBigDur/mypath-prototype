@@ -27,12 +27,16 @@ function DigestGroup({ heading, tone, entries, onToggle, onOpen }) {
       <ul className="digest-group-items">
         {entries.map((entry) => (
           <li key={entry.item.id} className="digest-item">
+            {/* Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — a
+                locked Overview step is treated the same as a checkpoint here: the checkbox opens
+                the real item (its own locked-preview modal) instead of quick-toggling it, so this
+                list can never be used to bypass the lock. */}
             <button
               type="button"
               className="digest-item-checkbox"
               onClick={() => onToggle(entry)}
-              aria-label={entry.isCheckpoint ? `Open ${entry.item.title}` : `Mark "${entry.item.title}" complete`}
-              title={entry.isCheckpoint ? 'Open to complete this checkpoint' : 'Mark complete'}
+              aria-label={entry.isCheckpoint || entry.isLocked ? `Open ${entry.item.title}` : `Mark "${entry.item.title}" complete`}
+              title={entry.isCheckpoint ? 'Open to complete this checkpoint' : entry.isLocked ? 'Locked — open to see why' : 'Mark complete'}
             >
               <Circle size={18} />
             </button>

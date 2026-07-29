@@ -122,7 +122,7 @@ export function generateRoadmap(state, yearWindow = null) {
   // "Recommended for you" view, since that narrower set is always a subset of OPPORTUNITY_TRACKS.
   const opportunityItems = buildOpportunityItems(
     OPPORTUNITY_TRACKS, level, state.selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
-    state.aiChainInsertions || {},
+    state.aiChainInsertions || {}, state.completedNodes || {},
   );
 
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
@@ -517,14 +517,18 @@ const ESTIMATED_MILESTONE_SPACING_DAYS = 21;
 // milestone itself" wording.
 //
 // Dating: milestone 0 always has a REAL date — `project.startDate`, the date picked when "Start
-// This Project" was confirmed. Every later phase's date is computed by a running cursor, never
-// separately stored (so there's nothing to keep in sync as earlier phases get planned): once a
-// phase's own granular steps exist, the cursor advances to the day after its own real, student-
-// picked `targetDate` (see MilestonePlanningPanel.jsx); until then, it advances by the fixed
-// ESTIMATED_MILESTONE_SPACING_DAYS placeholder above — an honest, clearly-a-guess gap for a phase
-// nobody has actually thought through the timing of yet (this is also literally why later phases
-// read as more loosely positioned before they're reached — "later phases get planned once earlier
-// ones are actually done," per this feature's own stated rationale, not a bug in the spacing).
+// This Project" was confirmed. Generalize the Overview/lock system to Every Multi-Step Chain (see
+// CLAUDE.md), Task 4 — every LATER milestone now ALSO gets its own real, explicit `m.dueDate`,
+// assigned by the AI's own overview generation at project-creation time (ProjectBuilderScreen.jsx's
+// `confirmStart`, via `computeMilestoneDueDates`) rather than an implicit sequence position alone —
+// this is what determines that milestone's own height on Map 2, completely independent of whether
+// its own subSteps have been planned yet. `m.dueDate` is used directly whenever present; the
+// running CURSOR below is now purely a FALLBACK for an old-shape project created before this fix
+// (no `dueDate` on its milestones at all) — once a phase's own granular steps exist, the cursor
+// advances to the day after its own real, student-picked `targetDate` (see
+// MilestonePlanningPanel.jsx); until then, it advances by the fixed ESTIMATED_MILESTONE_SPACING_DAYS
+// placeholder above — an honest, clearly-a-guess gap for a phase nobody has actually thought
+// through the timing of yet, kept only for that legacy fallback path.
 function buildOverviewMilestoneChains(project, dateOverrides, removed, completedNodes) {
   const milestones = project.overviewMilestones || [];
   if (milestones.length === 0) return [];
@@ -534,7 +538,7 @@ function buildOverviewMilestoneChains(project, dateOverrides, removed, completed
   let previousDone = true; // milestone 0 is always unlocked, regardless of any "previous" concept
 
   milestones.forEach((m, i) => {
-    const anchorDate = cursor;
+    const anchorDate = m.dueDate ? parseDateInputValue(m.dueDate) : cursor;
 
     let branchSteps = [];
     if (m.subSteps && m.subSteps.length) {
@@ -1291,7 +1295,10 @@ function progressionTitle(opp, yearIndex) {
 // the escalated milestone title as the final step. A bare single-point node would read as "no
 // prep needed for the harder tier," which isn't true. Non-recurring opportunities are entirely
 // unaffected: exactly one chain, in its nearest year, same as always.
-function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed, aiChainInsertions = {}) {
+function buildOpportunityItems(
+  tracks, level, selectedOpportunityIds, planStartDate, yearSpan, dateOverrides, removed,
+  aiChainInsertions = {}, completedNodes = {},
+) {
   const items = [];
   selectedOpportunityIds.forEach((id) => {
     const opp = findOpportunity(id, tracks, level);
@@ -1307,12 +1314,14 @@ function buildOpportunityItems(tracks, level, selectedOpportunityIds, planStartD
     // the year-1 chain, never an escalation-year one (matching resolveOpportunities' own
     // "year-1 chain only" scoping in profileCompiler.js, which is what the AI was actually shown
     // when it made the suggestion in the first place).
-    const firstYearItem = buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiChainInsertions[id] || []);
+    const firstYearItem = buildFirstYearChain(
+      opp, planStartDate, dateOverrides, removed, aiChainInsertions[id] || [], completedNodes,
+    );
     if (firstYearItem) items.push(firstYearItem);
 
     if (opp.recurring) {
       for (let yearIndex = 1; yearIndex < yearSpan; yearIndex += 1) {
-        const escalationItem = buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed);
+        const escalationItem = buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed, completedNodes);
         if (escalationItem) items.push(escalationItem);
       }
     }
@@ -1352,6 +1361,30 @@ function buildStepsChain(stepNames, deadlineDate, prepWeeks, planStartDate, date
   return steps.map((step, i) => ({ ...step, isLast: i === steps.length - 1 }));
 }
 
+// Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — the ONE shared
+// sequential-lock rule every "Overview chain" in this app follows: position 0 (the chain's own
+// starter) is always unlocked; position i (i >= 1) stays LOCKED until position i-1 is done, per
+// `isDoneCheck`. This mirrors — but is deliberately NOT the same function as — Build Your Own's
+// own inline `previousDone`/`isLocked` walk inside `buildOverviewMilestoneChains` below: that
+// walk is interleaved with cursor-based date computation and a richer "done" definition (a
+// milestone also counts as done once ALL of its own subSteps are complete, not just its own id),
+// so extracting a byte-identical shared helper there would mean restructuring an already-working,
+// separately-tested mechanism for no real benefit — both places implement the identical RULE,
+// just via two independently-written code paths. This helper is what curated opportunity chains
+// (buildFirstYearChain/buildEscalationChain below) actually use, since their own array is already
+// a clean, fully-resolved, chronologically-sorted list by the time locking needs to apply — no
+// interleaved cursor logic to worry about. `isDoneCheck` is a plain predicate rather than a
+// hardcoded `completedNodes[id]` lookup so a future caller with a different "done" definition
+// (like the milestone case) could still reuse this shape without forcing its own semantics here.
+function applyOverviewLocking(orderedSteps, isDoneCheck) {
+  let previousDone = true;
+  return orderedSteps.map((step, i) => {
+    const locked = !previousDone;
+    previousDone = isDoneCheck(step);
+    return { ...step, locked, lockedReason: locked ? `Complete "${orderedSteps[i - 1].title}" first` : null };
+  });
+}
+
 // Appends the opportunity's own name to a promoted first step's title (e.g. "Register your team"
 // -> "Register your team for Science Olympiad Club") so the connection is still clear once
 // there's no separate anchor label carrying it. Skipped when the step's own title already names
@@ -1371,7 +1404,7 @@ function titleWithOpportunityContext(stepTitle, oppName) {
 // ORIGINAL step count (including the promoted one) — Roadmap.jsx's "· N steps" subtitle reads
 // this instead of `branchSteps.length`, which would otherwise undercount by exactly one now that
 // the first step has moved off the branch and onto the spine.
-function buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiInsertedSteps = []) {
+function buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiInsertedSteps = [], completedNodes = {}) {
   const deadlineDate = anchorDate(opp.date, planStartDate);
   const stepNames = opp.prepSteps?.length ? opp.prepSteps : [`Prepare for ${opp.name}`];
 
@@ -1422,6 +1455,19 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiInser
       .map((step, i, arr) => ({ ...step, isLast: i === arr.length - 1 }));
   }
 
+  // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md), Tasks 1-3 —
+  // every existing prep step becomes its own single-item "Overview" (a direct 1:1 mapping, no new
+  // grouping — the step's own content is completely unchanged, it just now carries lock state
+  // too): the chain's own first step (Overview 1) is always unlocked; each later step stays
+  // locked until the one immediately before it (by FINAL, real-date-sorted order — not original
+  // array order, since a user's own date edit or an AI-inserted step can reorder this) is marked
+  // done. Applied AFTER the AI-insertion re-sort above, so locking always reflects whichever step
+  // genuinely ends up first/next chronologically, recomputed fresh from `completedNodes` on every
+  // regeneration — the same "unlock is just a function of current real state, never a
+  // separately-stored flag" precedent this app's hub tiles and Build Your Own's own milestones
+  // already established.
+  steps = applyOverviewLocking(steps, (s) => !!completedNodes[s.id]);
+
   // Palette repaint, Academic Plan batch (see CLAUDE.md) — `track` is a purely additive, display-
   // only field (same convention `projectLabel`/`courseList` already established here), carrying
   // the exact same `opp._track` Batch 1's color mapping already resolves for Survey/Discovery/
@@ -1444,6 +1490,12 @@ function buildFirstYearChain(opp, planStartDate, dateOverrides, removed, aiInser
     resources: anchor.resources,
     track,
     totalSteps: steps.length,
+    // Overview 1 (the chain's own promoted starter) is always unlocked — `applyOverviewLocking`
+    // guarantees position 0's own `locked` is always `false`, carried straight through here rather
+    // than hardcoded, so this can never silently drift out of sync with the branch steps' own
+    // locking if that helper's own rule ever changes.
+    locked: anchor.locked,
+    lockedReason: anchor.lockedReason,
     steps: branchSteps.length ? branchSteps : null,
     // Fix: AI Suggestions Related to Existing Chains (see CLAUDE.md) — a purely additive lookup
     // field (not read by roadmapLayout.js at all) letting suggestionResolver.js find "the chain
@@ -1527,7 +1579,7 @@ function buildPersonalStatementChain(seniorStageIndex, planStartDate, dateOverri
 // name (plus "(Year N)", matching the old wrapper title's own trailing year marker). `chainKey`
 // only prefixes each step's own id now — the returned item's real `id` comes from whichever step
 // actually becomes the promoted anchor, not from `chainKey` itself.
-function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed) {
+function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, removed, completedNodes = {}) {
   const chainKey = `${opp.id}-y${yearIndex + 1}`;
 
   const deadlineDate = anchorDate({ ...opp.date, yearOffset: yearIndex }, planStartDate);
@@ -1535,7 +1587,7 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
   const prepStepNames = progressionPrepStepNames(opp, yearIndex);
   const stepNames = [...prepStepNames, milestone];
 
-  const steps = buildStepsChain(
+  let steps = buildStepsChain(
     stepNames, deadlineDate, opp.prepWeeks, planStartDate, dateOverrides, removed,
     (i) => `${chainKey}-prep-${i}`,
     (stepName, i, isLastByDefault, total) => ({
@@ -1547,6 +1599,13 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
     }),
   );
   if (!steps) return null;
+
+  // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — an escalation
+  // year's own chain gets the identical sequential locking as a first-year chain, scoped to ITS
+  // OWN steps independently (its own Overview 1 — e.g. "Refine your event project..." — is
+  // unlocked from the start, regardless of whether year 1's chain is done), matching how this
+  // year-N chain is already a fully independent top-level spine item from year 1's own chain.
+  steps = applyOverviewLocking(steps, (s) => !!completedNodes[s.id]);
 
   // Same `track` field as buildFirstYearChain above, for the same reason — an escalation-year
   // chain is still the same real opportunity/interest area, just a later year, so it keeps the
@@ -1566,6 +1625,8 @@ function buildEscalationChain(opp, yearIndex, planStartDate, dateOverrides, remo
     resources: anchor.resources,
     track,
     totalSteps: steps.length,
+    locked: anchor.locked,
+    lockedReason: anchor.lockedReason,
     steps: branchSteps.length ? branchSteps : null,
   };
 }

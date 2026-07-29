@@ -7207,6 +7207,150 @@ scenario aligns perfectly once this fix is applied.
   and after this fix — it never touches spine-only positioning, only how a chain anchor's `y` is
   computed relative to everything else on the plan.
 
+**Generalize the Overview/Lock System to Every Multi-Step Chain — extends the Build Your Own
+milestone system's own Overview/lock structure (Two-Phase Generation, see its own section above)
+to every OTHER multi-step chain in the app, curated opportunities (DECA, Science Olympiad, FBLA,
+and every other opportunity's own real prep chain) included, not just AI-generated projects.**
+- **Task 1 — 1:1 mapping, no new grouping.** For a curated opportunity, each existing prep step
+  simply BECOMES its own single-item Overview — a direct, unmodified 1:1 mapping onto the exact
+  same data (`opp.prepSteps`/`stepResources`) this file's own `buildFirstYearChain`/
+  `buildEscalationChain`/`buildStepsChain` already produced; nothing about a step's own title/
+  date/desc/resources changed, and no two prep steps were ever merged into one Overview. This is
+  what makes Task 2 (below) trivially true for curated chains: since an Overview and a real prep
+  step are now the SAME thing, there's no separate "internal sub-task" living underneath it to
+  hide — the generic "clicking a node opens its own real detail modal" behavior this app already
+  had is exactly what "revealing its internal content" means here.
+- **`applyOverviewLocking(orderedSteps, isDoneCheck)`** (`roadmapGenerator.js`, new) is the shared
+  sequential-lock rule: position 0 (the chain's own starter/anchor, "Overview 1") is always
+  unlocked; position i (i >= 1) stays locked until position i-1 is DONE, per the caller's own
+  `isDoneCheck` predicate — computed fresh every time the roadmap regenerates, from
+  `state.completedNodes` directly, the same "unlock is just a function of current real state,
+  never a separately-stored flag that could drift" precedent this app's hub tiles
+  (`HubScreen.jsx`'s own `unlock: (state) => ...`) and Build Your Own's own milestones already
+  established. `buildFirstYearChain`/`buildEscalationChain` both gained a new `completedNodes`
+  parameter (threaded through from `buildOpportunityItems`/`generateRoadmap`) and now call this
+  helper on their own fully-resolved, chronologically-sorted `steps` array (AFTER any AI-inserted
+  chain-attachment step has already been merged and re-sorted in — see the "Fix: AI Suggestions
+  Related to Existing Chains" section above) right before destructuring `[anchor, ...branchSteps]`
+  — so locking always reflects whichever step genuinely ends up first/next chronologically, not
+  original array order, correctly handling a user's own date edit or an inserted step reordering
+  the sequence. **Deliberately NOT the same function Build Your Own's own
+  `buildOverviewMilestoneChains` uses internally** — that one is interleaved with its own
+  cursor-based date computation and a richer "done" definition (a milestone can ALSO count as
+  done once every one of its own subSteps is complete, not just its own id), so extracting a
+  byte-identical shared helper there would mean restructuring an already-working, separately-
+  tested mechanism for no real benefit; both places implement the identical RULE, just via two
+  independently-written code paths. An escalation-year chain (year 2+ of a recurring opportunity)
+  gets its own INDEPENDENT lock sequence, scoped to just that year's own steps — its own Overview
+  1 unlocks immediately regardless of whether an earlier year's chain is done, matching how each
+  escalation-year chain is already a fully separate top-level spine item.
+- **Task 2 — Map 2 still only ever shows Overview nodes in a chain's lane, never raw internal
+  sub-tasks sprawled across it.** For a curated 1:1 chain this was already true by construction
+  (see Task 1) — this generalization pass didn't need to touch `roadmapLayout.js`'s lane system at
+  all, since an Overview node here IS the exact same real chain-step object the lane algorithm
+  already lays out one-per-position, just now carrying `locked`/`lockedReason` fields too.
+- **Task 3 — lock/unlock behavior, rendered in TWO places that previously only ever handled
+  Build-Your-Own milestones**:
+  - **`Roadmap.jsx`'s branch-step rendering loop** (every node in `n.branchSteps`, i.e. every
+    Overview after the first) gained a `s.locked` branch, mirroring the TOP-LEVEL spine node's own
+    pre-existing `n.locked` treatment (dimmed 0.5 opacity, a Lock icon standing in for the real
+    one, never filled — a locked node can never be "done") at the branch step's smaller r=13 ring
+    scale. The chain's OWN promoted anchor (Overview 1) is always unlocked (`applyOverviewLocking`
+    guarantees position 0's `locked` is always `false`), so the pre-existing top-level `n.locked`
+    check (which already existed for Build Your Own milestones, and which every opportunity's own
+    anchor already passed through as `undefined`/falsy before this change) needed no changes at
+    all — it was already generic, just never previously exercised by anything but a milestone.
+  - **The detail modal's own gating was generalized from "is this a locked Build-Your-Own
+    milestone" to plain `modalNode.locked`** — `selectedIsLocked = !!modalNode?.locked` replaces
+    the old milestone-scoped check everywhere it mattered. A locked node's modal now shows a real
+    PREVIEW of its own content (title, due date, AND its real desc — "what it is," per this task's
+    own wording) but hides every genuinely INTERACTIVE control (resources list, date-edit/remove
+    row, the outcome-note field, the complete-toggle button) plus a `.locked-node-notice` banner
+    (renamed from `.milestone-locked-notice`, since it's shared by both kinds of locked node now)
+    naming the real reason. `milestoneNeedsPlanning` (Build Your Own's own "unlocked but nothing
+    planned yet, show the scoped AI chat instead" case) is the ONE place that still hides the desc
+    paragraph too (`hideDescPreview`) — there's genuinely nothing real to preview there yet, unlike
+    a curated Overview, which always has real content the moment it exists.
+  - **Digest ("This Week") and Daily Schedule both needed a small, real fix to keep the lock
+    meaningful, not just cosmetic in the modal.** `Roadmap.jsx`'s `digestGroups` now flags
+    `isLocked` on each entry (mirroring the pre-existing `isCheckpoint` flag exactly), and
+    `handleDigestToggle` opens the real modal instead of calling `toggleDone` directly whenever
+    an entry is locked or a checkpoint — without this, a locked Overview showing up in "This Week"
+    (it can have a real due date like anything else) could have its quick-check checkbox silently
+    mark it done, bypassing the lock entirely. `DailyScheduleView.jsx`'s own `dueToday` reference-
+    chip list (the "link a schedule block to this real task" picker) now also excludes `item.locked`
+    — a student can never link a time block to a task that isn't actionable yet, which would
+    otherwise let THAT block's own quick-check checkbox bypass the lock the identical way. (A step
+    can only ever transition locked → unlocked, never back, so filtering at the "can be linked"
+    stage is sufficient — nothing already linked before this fix could ever re-lock later.)
+- **Task 4 — every Overview needs its own explicit due date, independent of its own internal
+  content.** Already true for curated opportunities (each real prep step already carried its own
+  explicit date from `buildStepsChain`'s own spread-across-`prepWeeks` math — nothing to change
+  there). For Build Your Own, this was a real, confirmed gap: `buildOverviewMilestoneChains`'s own
+  dating was previously an IMPLICIT running cursor (`ESTIMATED_MILESTONE_SPACING_DAYS`, a flat
+  21-day guess per phase) rather than anything explicitly assigned at generation time.
+  - **`api/build-your-own-chat.js`'s `CHAT_SCHEMA` gained a new `milestoneDayOffsets` field**
+    (an array of integers, same order/length as `milestones`) — used ONLY by the original overview
+    conversation (never the single-phase detail conversation, which still spreads its own granular
+    steps across a real, student-picked window via the pre-existing `attachMilestoneSubSteps`
+    mechanism, untouched by this change). Deliberately a RELATIVE day-offset from the project's own
+    start date, never a raw absolute date — the same "never let the model pick an uncontrolled real
+    date" caution this app's other AI-suggestion features already established (see "Replace
+    Automatic Date Computation with a Manual, Constrained Date Step" above) — a relative offset
+    from an already-real, already-confirmed anchor can't produce that same class of bug.
+    `OVERVIEW_SYSTEM_PROMPT` now explicitly asks for a realistic, non-uniform spacing (phases
+    requiring more real work — recruiting a team, securing a partnership — get more real lead time,
+    not an even split); `buildMilestoneDetailPrompt` explicitly tells the model to leave this field
+    null in that narrower conversation. `validateProposal` sanitizes a malformed or mismatched-
+    length array down to `null` (never rejects the whole proposal over this one field alone) — a
+    `null` value falls back entirely to the pre-existing cursor estimate, exactly as before this
+    feature existed.
+  - **`ProjectBuilderScreen.jsx`'s new `computeMilestoneDueDates(startDateStr, titles, dayOffsets)`**
+    converts the AI's own relative offsets into real `dueDate` strings, CLAMPED so the resulting
+    sequence can never be non-increasing or land before the project's own already-confirmed start
+    date, regardless of what the model proposed — milestone 0 always gets the literal picked
+    Project Start Date itself (offset forced to 0), the same real, student-confirmed date every
+    other project-start mechanism in this app already treats as day one. A missing/mismatched-
+    length offsets array (an old API response, or a genuinely malformed one) returns an all-null
+    array, so every milestone falls back to `buildOverviewMilestoneChains`'s own pre-existing
+    cursor estimate — this feature is purely additive, no existing Build Your Own project or
+    behavior is disrupted by its absence.
+  - **`buildOverviewMilestoneChains` now prefers `m.dueDate` directly over the running cursor**
+    whenever present — `const anchorDate = m.dueDate ? parseDateInputValue(m.dueDate) : cursor;` —
+    the ONE line that matters; every other part of that function (branch-step layout, the
+    `milestoneDone`/lock computation, the cursor's own advancement logic) is unchanged, since the
+    cursor still needs to exist as the fallback path for a legacy project lacking `dueDate` values.
+    `m.dueDate` is set ONCE, at project-creation time, and never changes regardless of what happens
+    to that milestone's own later-planned subSteps or `targetDate` — satisfying Task 4's own
+    "independent of whatever sub-tasks live inside it" requirement literally.
+- Verified four ways. A dedicated Node-level test (18 checks, loading the real
+  `generateRoadmap`/`roadmapGenerator.js` through Vite's own `ssrLoadModule`, the same technique
+  `scripts/verify-spacing.mjs` already establishes) confirms: DECA's and Science Olympiad's own
+  real chains each resolve Overview 1 unlocked and every later Overview locked with a real
+  `lockedReason`; every Overview has its own distinct real due date; completing Overview 1 unlocks
+  exactly Overview 2 (not 3 or 4); a SEPARATE opportunity's own lock sequence is completely
+  unaffected by another opportunity's completion state; and completing Overviews 1+2 correctly
+  unlocks exactly Overview 3, leaving Overview 4 still locked. A dedicated 14-check Playwright
+  suite against the real rendered UI confirms: Overview 1's modal shows a real complete-toggle
+  button with no locked-notice; Overview 2's modal shows a real title+desc preview, the
+  locked-notice naming Overview 1, and NONE of the resources/date-edit/outcome/complete-toggle
+  controls; the locked ring itself renders with the real dimmed/Lock-icon treatment; and, after
+  actually completing Overview 1 through the real UI, Overview 2 becomes fully interactive
+  (complete-toggle appears, locked-notice disappears) while Overview 3 correctly stays locked. A
+  separate 5-check suite confirms the Digest/Daily-Schedule lock-bypass fix directly: a locked
+  Overview showing up in "This Week" has its own quick-check checkbox open the real (preview-only)
+  modal instead of silently marking it complete, confirmed both by the modal's own content AND by
+  directly checking `state.completedNodes` before and after the click. Two more Playwright suites
+  (7 + 4 checks, one mocking `/api/build-your-own-chat` end-to-end through Start-This-Project, one
+  seeding a real 4-phase project directly) confirm Task 4: the mocked response's own
+  `milestoneDayOffsets` round-trip into `chatHistory` and then into 4 real, distinct, strictly-
+  increasing `dueDate` values (milestone 0 exactly equal to the picked start date); and those real
+  dates render as 4 genuinely distinct, correctly-ordered node heights on the real Map 2 canvas
+  with zero page errors, the locked ring correctly appearing on Overview 2. `npm run build`/
+  `npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20 throughout — this whole
+  generalization pass never opens `roadmapLayout.js` at all, only adds data (`locked`/
+  `lockedReason`/`dueDate`) that flows through its already-existing, unmodified date-to-y math.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -9598,3 +9742,28 @@ download). Cover at minimum:
   `y` values (this fix must not collapse everything to one height). Re-run `npm run
   verify:spacing` (must stay 20/20 — this fix never touches the genuine spine-only floor sequence,
   only decouples chain anchors from sharing it) both before and after any related change.
+
+- Generalize the Overview/Lock System to Every Multi-Step Chain: seed a real, multi-step
+  opportunity (e.g. `deca`, 4 real prep steps) and confirm its promoted anchor (`deca-prep-0`) is
+  unlocked (clicking it shows a real `.complete-btn`, no `.locked-node-notice`) while every later
+  step (`deca-prep-1`/`-2`/`-3`) is locked (clicking shows a real title/desc preview PLUS
+  `.locked-node-notice` naming the immediately-preceding step, but NO `.complete-btn`/
+  `.modal-edit-row`/`.modal-outcome-field`) — also confirm the locked ring itself renders with the
+  dimmed `opacity="0.5"` wrapper. Mark the anchor complete via the real UI and confirm the SECOND
+  step (not the third) becomes fully interactive while the third stays locked. Separately confirm
+  the lock can't be bypassed: force a locked step to fall within "This Week" (`nodeDateOverrides`,
+  making sure the earlier step's own override date stays chronologically first or it'll become the
+  new anchor instead — see the same gotcha documented in the fix immediately above) and confirm
+  clicking its digest quick-check opens the real modal instead of silently marking
+  `state.completedNodes` true. For Build Your Own's own AI-assigned due dates, mock
+  `/api/build-your-own-chat`'s overview response with a real `milestoneDayOffsets` array and drive
+  a real Start-This-Project flow, confirming `state.startedProjects[0].overviewMilestones` end up
+  with real, distinct, strictly-increasing `dueDate` values (milestone 0 exactly equal to the
+  picked start date) — then confirm those render as genuinely distinct node heights on the real
+  Map 2 canvas with zero page errors. A dedicated Node script loading the real
+  `generateRoadmap`/`roadmapGenerator.js` through Vite's own `ssrLoadModule` (same technique
+  `scripts/verify-spacing.mjs` uses) is the fastest way to check the underlying lock sequence
+  precisely across several completion-state combinations without driving the real UI each time.
+  Re-run `npm run verify:spacing` (must stay 20/20 — this generalization never opens
+  `roadmapLayout.js`, only adds `locked`/`lockedReason`/`dueDate` data that flows through its
+  already-existing date-to-y math) both before and after any related change.

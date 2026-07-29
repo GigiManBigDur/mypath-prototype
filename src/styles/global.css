@@ -3521,8 +3521,12 @@ button.card.passed:hover {
    content (a plain "why" message, matching this app's own established locked-state language —
    dimmed, a Lock icon, the real reason visible) and the scoped planning-chat panel shown for an
    unlocked-but-not-yet-planned one. Exclusive to Roadmap.jsx's own modal (no other screen renders
-   these classes), so styled directly rather than needing `.app-shell-bloom` scoping. */
-.milestone-locked-notice {
+   these classes), so styled directly rather than needing `.app-shell-bloom` scoping.
+   Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — this class
+   (renamed from `.milestone-locked-notice`) is now shared by ANY locked node's preview, not just
+   a Build Your Own milestone — a locked curated-opportunity chain step (DECA/Science Olympiad/
+   FBLA/etc.) reuses this identical "why" banner. */
+.locked-node-notice {
   display: flex; align-items: center; gap: 10px; padding: 14px 16px; margin: 8px 0 4px;
   background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 6px;
   color: var(--bloom-ink-soft); font-size: 13.5px;
