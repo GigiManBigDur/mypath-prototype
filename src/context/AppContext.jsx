@@ -349,6 +349,15 @@ const DEFAULT_STATE = {
   // starting fresh — persisted to localStorage exactly like every other field, and cleared only
   // by `reset()` wiping the whole state back to DEFAULT_STATE, same as everything else.
   chatHistory: [],
+  // AI-First Onboarding, Stage 2 (see CLAUDE.md) — the student's first real conversation with the
+  // AI, on its own dedicated pre-hub screen (`OnboardingConversationScreen.jsx`). Same shape as
+  // `chatHistory` above (`[{ role: 'user'|'assistant', content }]`), but deliberately a SEPARATE
+  // field/thread — this conversation has its own specific purpose (gathering interests/passions/
+  // prior experience conversationally, with real narrative-pushback capability) and shouldn't mix
+  // with the general, open-ended "Ask MyPath AI anything" history above. Persisted the same way
+  // (survives reload, cleared only by `reset()`); included in the Stage 1 compiled profile
+  // (`profileCompiler.js`) so Stage 3's own multi-year overview generation can read it.
+  onboardingChatHistory: [],
   // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Tasks 4/5 — the
   // real, ongoing project-brainstorming conversation behind Project Builder's single top-level
   // "Build Your Own" entry. Same shape/persistence contract as `chatHistory` above (`[{ role,

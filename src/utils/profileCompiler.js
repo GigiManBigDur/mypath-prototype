@@ -337,6 +337,16 @@ export function compileStudentProfile(state) {
       // exactly what enables a genuinely creative, personal AI suggestion rather than a generic
       // one. `null` when blank, matching this profile's own "don't guess/fabricate" convention.
       currentMajor: state.currentMajor || null,
+      // AI-First Onboarding, Stage 2 (see CLAUDE.md), Task 6 — the student's real first
+      // conversation with the AI, included verbatim (not summarized) so Stage 3's own multi-year
+      // overview generation can read the actual dialogue — interests, experiences, and any
+      // narrative direction discussed all live directly in this real transcript, so there's no
+      // separate structured-extraction step to keep in sync with it. `null` (not `[]`) when the
+      // conversation hasn't happened yet, matching this profile's own "don't guess/fabricate, just
+      // omit" convention for every other not-yet-answered field.
+      onboardingConversation: state.onboardingChatHistory?.length
+        ? state.onboardingChatHistory.map((m) => ({ role: m.role, content: m.content }))
+        : null,
     },
     academic: resolveAcademic(state),
     goals: {

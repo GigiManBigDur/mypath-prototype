@@ -7764,6 +7764,138 @@ collect two of them), and does NOT renumber `StepProgress` on any of the post-hu
   suite. `npm run build`/`npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20
   (this stage never touches `roadmapLayout.js`/`Roadmap.jsx`).
 
+**AI-First Onboarding, Stage 2: The AI Conversation Page — replaces Stage 1's minimal placeholder
+with the real thing: the student's first genuine conversation with the AI, a FIFTH real AI
+integration in this app (`api/onboarding-chat.js`), gathering what used to come from the interest-
+tag survey question and the prior-experience field entirely through dialogue instead of a form,
+with real (never forced, never final) narrative-pushback capability.**
+- **Task 1 — the page itself.** `OnboardingConversationScreen.jsx` was rewritten from Stage 1's
+  bare placeholder into the real page: a page title/subtitle stating plainly why this conversation
+  matters ("Before we build anything, I want to actually get to know you..."), a small `.chat-
+  header` pairing a `MascotIcon` with an eyebrow ("MyPath AI") and heading ("Getting to know you"),
+  then the real conversation itself. No new visual system was invented — this screen was already
+  registered under `isBloomScreen` in Stage 1, so the same colorful "bloom" palette/entrance
+  animations every other pre-hub screen already uses applies automatically; per this app's own
+  established "extract once, reuse everywhere" convention, the actual chat markup is the shared
+  `ChatConversation.jsx` component every other real conversation in this app already renders
+  through (the hub's own chat, Map 2's embedded widget, Build Your Own, the milestone-scoped
+  planning chat) — its message bubbles, per-message opt-in Play/Stop voice button, thinking
+  indicator, and edit-message mechanics are all inherited with zero new code. The one small local
+  addition, `MascotIcon size={44} thinking={loading}`, mirrors the exact prop shape
+  `MilestonePlanningPanel.jsx`/`BuildYourOwnView` already use for their own small embedded-chat
+  header mascot (`thinking` only — no `speaking` prop, since that's reserved for the opt-in Play
+  button's own real playback state, not a generic "is loading" signal).
+- **`state.onboardingChatHistory`** (`AppContext.jsx`, `[]` default, persisted like everything
+  else) is a genuinely SEPARATE thread from `state.chatHistory` (the general "Ask MyPath AI
+  anything" conversation) — Task 2's own explicit requirement. This mirrors a precedent this
+  codebase already established more than once (Build Your Own's own `buildYourOwnChatHistory`, a
+  milestone's own scoped `chatHistory`): a conversation with its own specific purpose and structure
+  gets its own dedicated field, never mixed into the general assistant's history.
+  **`src/hooks/useOnboardingChat.js`** is the conversation-logic hook (mirroring `useHubChat.js`'s
+  own shape) — reads/writes `onboardingChatHistory` directly, exposes `{ chatHistory, loading,
+  sendMessage, editMessage }`. `sendFrom(baseHistory, trimmed)` is the shared send primitive both
+  `sendMessage` (append to the current history) and `editMessage` (truncate history to just before
+  the edited turn, then resend) call — the same "edit truncates and resends as a new final turn"
+  contract `useHubChat.js`/Build Your Own/the milestone chat all already established for their own
+  editable messages.
+- **The opening greeting is a scripted, client-side string, not a live API call** — a `useEffect`
+  gated on `chatHistory.length === 0` seeds the very first assistant turn directly via `patch()`,
+  interpolating the real `state.username` from Sign Up (e.g. "Hey taylor! I'm your MyPath
+  guide..."). This matches this codebase's own established "pre-written first-run dialogue"
+  convention (every `mascotDialogue.js` intro line is scripted content, never AI-generated) — it
+  guarantees the very first thing a student sees renders instantly with no spinner and costs zero
+  real API usage for content that's the same for every student anyway (the genuinely personalized
+  part is everything AFTER this opener, which the real AI drives).
+- **Task 3/4's real behavior lives entirely in `api/onboarding-chat.js`'s own `SYSTEM_PROMPT`** — a
+  fourth standalone Vercel function (alongside `api/chat.js`/`api/creative-suggest.js`/
+  `api/build-your-own-chat.js`/the `api/suggest*.js` family), matching this codebase's own "each
+  Vercel function stays standalone, never import from a sibling" precedent. `ONBOARDING_SCHEMA`
+  (a forced Anthropic tool-call / OpenAI function-call, same reliability pattern every prior stage
+  established) is deliberately minimal — just `reply` (the next conversational turn, explicitly
+  instructed to ask about ONE thing at a time, never stack questions) and `mentionsSpecificFact`
+  (the honesty guardrail flag, Task 5). There's no separate structured field for a "redirect
+  suggestion" — Task 4's narrative pushback is pure natural-language behavior inside `reply`
+  itself, not a UI action requiring its own handling, since the app's own "suggest, then confirm"
+  principle here is satisfied by the conversation's own words (asking, not asserting) rather than
+  a special accept/reject control.
+  - **Task 3** — the prompt explicitly states this conversation REPLACES the old interest-tag
+    checklist and prior-experience form, instructing genuine one-thing-at-a-time dialogue (never a
+    rigid form disguised as chat) to surface what excites the student and what they've actually
+    done (activities, clubs, jobs, projects, volunteering, competitions).
+  - **Task 4** — the prompt's own "Narrative pushback" section is written almost verbatim from the
+    task's own two explicit guardrails: (a) frame a suggestion ONLY as a suggestion and a question,
+    never a stated/assumed redirect, and respect an immediate "not interested" — the same
+    "suggest, then confirm, student always has final say" principle this app's every other AI
+    feature already holds (the chain-attachment suggestion's own manual date-pick step, Stage 2 AI
+    suggestions' confirm-first flow); (b) explicitly forbid manufacturing this moment — if nothing
+    specific enough has surfaced, don't force a generic "have you considered X" just to seem
+    insightful. The Uyghur-soccer/Sociology example from the task is deliberately NOT hardcoded
+    into the prompt as literal example text to reuse — it's the REFERENCE CASE for what a genuine,
+    well-reasoned, non-obvious connection looks like, and baking a specific example into the prompt
+    risks the model echoing that exact pairing regardless of what a real student actually says.
+  - **Task 5** — `mentionsSpecificFact`'s own description and the prompt's "Honesty rule" section
+    reuse the exact refined wording the "Make the Verify This Yourself Disclaimer Conditional" fix
+    already established for `api/chat.js`/`api/suggest.js` (see that fix's own CLAUDE.md section) —
+    flag ONLY a genuinely NEW claim not already confirmed by something the student themselves just
+    said, never the older, over-eager "if in doubt, set it true" wording that fix specifically
+    replaced (which was confirmed, elsewhere in this app, to cause false-positive disclaimers on
+    content the student had already supplied themselves). `applyGuardrails` enforces this
+    deterministically in code exactly like every prior stage — never trusted to the model's own
+    prose alone.
+  - **`temperature: 0.75`** (Anthropic) — deliberately between `api/chat.js`'s grounded 0.6 and
+    Build Your Own's creative 0.9, since this needs to read as a genuinely warm conversation AND
+    occasionally surface a real creative narrative connection (Task 4). `reasoning: { effort:
+    'medium' }` (OpenAI) matches Build Your Own's own choice for the same reason — a real judgment
+    call (spotting a non-obvious connection) benefits from more reasoning than a simple bounded
+    classification, unlike `api/chat.js`'s own lighter `'low'` effort.
+- **Task 6 — `profileCompiler.js`'s `compileStudentProfile` gained
+  `basicProfile.onboardingConversation`**, the full real transcript (`[{role, content}]`, verbatim,
+  not summarized) or `null` when the conversation hasn't happened yet (this profile's own
+  established "don't guess/fabricate, just omit" convention for every not-yet-answered field). This
+  is deliberately the FULL, unsummarized `compileStudentProfile` variant, not the bounded
+  `compileSuggestionProfile` one Stage 2's own auto-triggered suggestions use for cost efficiency —
+  matching this codebase's own precedent (the general chat, Build Your Own) that a real, structured
+  narrative conversation is exactly the kind of content a LATER feature needs verbatim, not
+  summarized. `compileSuggestionProfile` already spreads `...full` wholesale, so it inherits this
+  field automatically with zero extra wiring, the same "add it once at the source, every
+  downstream consumer inherits it for free" precedent `passionText`/`currentMajor` already
+  established when each was added. **Deliberately no reverse-extraction into the old
+  `interestTags`/`priorExperiences` structured arrays was attempted here** — those fields simply
+  stay whatever they already were (empty, from Stage 1), and turning free-form dialogue into
+  Stage 3's own real multi-year overview is explicitly Stage 3's job, not this stage's; inventing a
+  fuzzy NLP backfill now would risk fabricating structured data this app's own repeated "don't
+  guess" convention would caution against.
+- Verified with three dedicated suites. A Node-level test (14 checks, mocking `global.fetch`,
+  calling the real handler directly) confirms: the real Anthropic endpoint/model/temperature are
+  used, the tool call is correctly forced, a genuinely new external claim triggers the appended
+  guardrail note while a reply with no new claim doesn't, malformed history entries (a `system`-
+  role entry, an empty-content entry, a bare `null`) are sanitized out rather than crashing the
+  request, missing required fields produce a clean 400, an invalid model response (missing
+  `mentionsSpecificFact`) produces a clean 502 rather than a crash, an unrecognized provider value
+  fails cleanly with 500, and an overlong reply (>1500 chars) is correctly rejected as invalid. A
+  Playwright suite (14 checks, mocking `/api/onboarding-chat`, driving a REAL click-through from
+  Sign Up through Survey) confirms: the scripted greeting shows the real username with zero API
+  calls made for it; sending a message fires exactly one real request carrying the correct prior-
+  turn count; editing a previously-sent message correctly truncates history (the old reply and the
+  original message both gone) and resends the edited text as a genuinely new turn; and —
+  confirming Task 2's separate-thread requirement directly — `state.onboardingChatHistory` gains
+  real content while `state.chatHistory` (the general assistant) stays completely empty throughout.
+  A third Playwright check (5 checks) seeds a real multi-turn `onboardingChatHistory` directly and
+  confirms, via the hub's own pre-existing "View AI Profile (Testing)" debug button, that the
+  compiled profile's `basicProfile.onboardingConversation` field carries the real conversation
+  content verbatim (Task 6). `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all
+  stay clean — this stage never touches `roadmapLayout.js`/`Roadmap.jsx`.
+- **What still needs to happen before this is live**: a real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`
+  must already be configured in Vercel (shared with every other AI feature in this app via the same
+  `AI_SUGGESTION_PROVIDER` env var — no new key/config needed specifically for this endpoint), and
+  `api/onboarding-chat.js` must be deployed via `vercel deploy --prod` before Task 3/4's own real
+  QUALITATIVE behavior (does a genuine non-obvious connection produce a real, well-reasoned
+  suggestion; does a generic conversation correctly avoid a forced pushback) can be verified for
+  real — per this codebase's own established precedent, a prompt-driven judgment call can only be
+  genuinely verified via real, repeated, unmocked calls against the live endpoint, never by mocking
+  (mocking only proves the plumbing/mechanics work, which this stage's own test suites above
+  already do).
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -10253,3 +10385,27 @@ download). Cover at minimum:
   hard school requirement, unlike High School — can also complete the reduced survey with just an
   education level + year. `npm run build`/`npm run lint` should stay clean; `npm run
   verify:spacing` should stay 20/20 (this stage never touches `roadmapLayout.js`/`Roadmap.jsx`).
+- AI-First Onboarding, Stage 2 (the real conversation page): mock `/api/onboarding-chat` via
+  `page.route()` and drive a REAL click-through (Sign Up → Survey → `onboardingConversation`) rather
+  than seeding state directly, since confirming the scripted greeting/flow-order matters here too.
+  Confirm the greeting shows the real username with ZERO API calls made for it (check your mocked
+  route's own call counter stays 0 until a real message is sent). Send a message and confirm exactly
+  one request fires, carrying the correct prior-turn count in its `history` field. Edit a
+  previously-sent user message (`.chat-bubble-user .chat-edit-btn`) and confirm the old text and its
+  old reply are both gone, replaced by a fresh request/reply for the edited text. Critically, confirm
+  the SEPARATE-THREAD requirement directly: after the conversation, read `state.onboardingChatHistory`
+  (real content) alongside `state.chatHistory` (must stay completely empty — this is Task 2's core
+  test). For Task 6, seed a real multi-turn `onboardingChatHistory` directly, navigate to the hub,
+  click `.hub-debug-profile-btn` ("View AI Profile (Testing)"), and confirm the rendered JSON's
+  `basicProfile.onboardingConversation` carries the real conversation content verbatim. **The
+  qualitative tests (Task 4's narrative-pushback judgment) CANNOT be verified via mocking — mocking
+  only proves the plumbing works.** Once `api/onboarding-chat.js` is deployed live, run several real,
+  repeated, unmocked calls against the actual endpoint: (a) a profile/conversation with a genuine,
+  specific, non-obvious detail (in the spirit of the Uyghur-soccer/Sociology reference case) should
+  reliably produce a real, well-reasoned suggestion framed as a question, never a stated/assumed
+  redirect; (b) a generic, unremarkable conversation should reliably NOT produce a forced, ungrounded
+  pushback moment; (c) confirm `mentionsSpecificFact`/the appended guardrail note fires on a
+  genuinely new external claim and does NOT fire when the reply only references something the
+  student already said earlier in that same conversation. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) should all stay clean (this stage never touches `roadmapLayout.js`/
+  `Roadmap.jsx`).
