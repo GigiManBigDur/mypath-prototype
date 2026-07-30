@@ -958,17 +958,39 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
           >
             <svg width={roadmap.canvasWidth} height={roadmap.canvasHeight} style={{ overflow: 'visible' }}>
-            {/* Comprehensive Map 2 redesign (see CLAUDE.md), item 2 — the spine gets a genuine
-                decorative gradient (today's own accent green fading toward teal higher up the
-                canvas) rather than one flat color, using `gradientUnits="userSpaceOnUse"` so the
-                gradient is anchored to real canvas y-coordinates (today's own y at the bottom,
-                0 at the top) instead of each individual segment's own bounding box — this is a
-                pure paint-server definition, it doesn't change any segment's `d`/x/y at all. */}
+            {/* Map 2 Visual Richness, Increment 1 (see CLAUDE.md) — a real 3-stop "journey"
+                gradient (cool green/teal near "You are here" -> a middle purple -> a warm gold
+                further along), replacing the old flat 2-stop teal fade, still using
+                `gradientUnits="userSpaceOnUse"` so it's anchored to real canvas y-coordinates
+                (today's own y at the bottom, 0 at the top) rather than each segment's own
+                bounding box — a pure paint-server definition, it doesn't change any segment's
+                `d`/x/y at all, only what PAINTS the already-correct path. */}
             <defs>
               <linearGradient id="rm-spine-gradient" gradientUnits="userSpaceOnUse" x1="0" y1={roadmap.canvasHeight} x2="0" y2="0">
                 <stop offset="0" stopColor="var(--bloom-accent)" />
-                <stop offset="1" stopColor="var(--bloom-teal)" />
+                <stop offset="0.5" stopColor="var(--bloom-purple)" />
+                <stop offset="1" stopColor="var(--bloom-yellow)" />
               </linearGradient>
+              {/* Increment 1 — each chain's own lane connector gets a per-lane gradient too, a
+                  soft opacity sweep along its own real vertical extent (anchor's y through its
+                  own last step's y) rather than one flat color — "a smooth gradient that shifts
+                  along the timeline," applied per-connector. Deliberately kept in the SAME hue as
+                  the chain's own real track color (not swapped to the global teal/purple/gold
+                  above) — that color is real, meaningful interest-area coding (see configFor's
+                  own comment below), and a generic position-based gradient would blur it away;
+                  varying OPACITY instead of hue keeps that meaning fully intact while still
+                  giving the connector a genuine gradient sweep. */}
+              {roadmap.spine.filter((n) => n.hasBranch).map((n) => {
+                const laneColor = configFor(n).color;
+                const laneSteps = [n, ...n.branchSteps];
+                const laneTopY = laneSteps[laneSteps.length - 1].y;
+                return (
+                  <linearGradient key={`grad-${n.id}`} id={`rm-lane-gradient-${n.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={n.y} x2="0" y2={laneTopY}>
+                    <stop offset="0" stopColor={laneColor} stopOpacity="0.55" />
+                    <stop offset="1" stopColor={laneColor} stopOpacity="1" />
+                  </linearGradient>
+                );
+              })}
             </defs>
             {/* Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md), Task 5 —
                 an explicit, labeled time axis running down the canvas's own left edge (its own
@@ -1041,7 +1063,9 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // own ring (configFor(n).color — track-colored for a real opportunity, bloom-purple
               // for a project, the generic fallback otherwise), so a whole chain (line + every
               // node in it) reads as one consistent interest-colored unit, not just its dots.
-              const branchColor = configFor(n).color;
+              // Increment 1 — that color is now read via the per-lane gradient defined in
+              // `<defs>` above (`rm-lane-gradient-${n.id}`, itself built from this exact same
+              // `configFor(n).color`), not recomputed a second time here.
               // Date-cluster feature (see CLAUDE.md) — `n` can no longer actually be clustered
               // (roadmapGenerator.js excludes chain items from `dateClusters` entirely — see that
               // file), so this always resolves to the spine's own fixed centerline (SPINE_X) at
@@ -1059,11 +1083,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                   <path
                     className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
-                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.x, n.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                    d={rightAngleLine(anchorPos.x, anchorPos.y, n.x, n.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
                   {/* Task 4 — within a lane, every consecutive pair (starting from the starter task
                       itself) shares the same x (the lane's fixed x), so this same `line()` call
-                      already renders a pure vertical segment with zero changes needed here. */}
+                      already renders a pure vertical segment with zero changes needed here.
+                      Increment 1 — `stroke` now reads the per-lane gradient (`<defs>` above)
+                      instead of a flat color, giving the connector a genuine opacity sweep along
+                      its own real length while staying the same meaningful track hue throughout. */}
                   {laneSequence.slice(0, -1).map((s, i) => {
                     const next = laneSequence[i + 1];
                     return (
@@ -1071,7 +1098,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         key={`bs-${next.id}`}
                         className={entranceEnabled ? 'roadmap-fade-line' : undefined}
                         style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
-                        d={line(s.x, s.y, next.x, next.y)} stroke={branchColor} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                        d={line(s.x, s.y, next.x, next.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                       />
                     );
                   })}

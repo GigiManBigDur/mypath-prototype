@@ -7567,6 +7567,48 @@ prerequisites are done.**
   resolves for a milestone before feeding it into that file's already-existing, unmodified
   date-to-y math.
 
+**Map 2 Visual Richness, Increment 1: color gradient only — the first of several small,
+independently-confirmed increments, after an earlier all-at-once attempt (gradient + icons + glow/
+decoration/animation together) was reverted outright at the user's own request. Same hard boundary
+as every prior pass on this component: `roadmapLayout.js`'s date-to-y math, lane-assignment/reuse
+logic, right-angle connector routing, and Overview lock/unlock logic are all untouched —
+`npm run verify:spacing` confirmed 20/20, byte-for-byte identical, both before and after this
+change.** Scope deliberately narrower than the earlier reverted attempt: color ONLY, no icon swaps,
+no halo/glow, no leaf/particle decorations, no new animation — those are separate, later increments,
+each requiring its own confirmation before proceeding.
+- **The spine's own solid connector** (`#rm-spine-gradient`, `gradientUnits="userSpaceOnUse"`
+  anchored to real canvas y-coordinates — today's y at the bottom, `0` at the top, so the gradient
+  reads as one continuous progression rather than restarting per-segment) went from a flat 2-stop
+  teal fade to 3 stops: `--bloom-accent` (green, near "You are here") → `--bloom-purple` (middle) →
+  `--bloom-yellow` (gold, furthest along) — a pure paint-server definition; it changes only what
+  PAINTS the already-correct `d`, never the `d`/coordinates themselves.
+- **Every chain's own lane connector gets its own per-lane `#rm-lane-gradient-${n.id}`**, built
+  from that chain's own real, already-meaningful `configFor(n).color` (track-colored for a real
+  opportunity, bloom-purple for a project) — deliberately NOT swapped to the spine's own global
+  teal/purple/gold hue, since that color is real per-track interest-area coding and a generic
+  position-based gradient would blur it away; instead the gradient varies OPACITY (0.55 at the
+  anchor end sweeping to 1 at the chain's own far end), giving a genuine "shifts along the
+  timeline" sweep while the hue stays fully intact. The old flat `branchColor` variable (and both
+  of its usages) was removed entirely in favor of the gradient URL.
+- **Verified at three independent levels, not just eyeballed**: (1) a DOM scan of every real
+  connector path (identified by `stroke` referencing `url(#rm-spine-gradient)`/
+  `url(#rm-lane-gradient-*)`, excluding lucide icon glyphs — which are also `<path>` elements and
+  legitimately contain curves) confirms 0 of 47 connector paths across a dense 2-opportunity +
+  Build-Your-Own-project test plan contain any curve command; (2) `getComputedStyle` on each
+  `<stop>` confirms the CSS custom properties resolve to real, correct RGB values
+  (`rgb(47,143,91)`/`rgb(139,92,246)`/`rgb(240,180,41)`); (3) **the live `<svg>` was cloned, had
+  each stop's computed color baked in as a literal attribute, serialized, and rasterized onto an
+  offscreen `<canvas>` via `drawImage` + `getImageData`, then sampled at 3 real y-coordinates along
+  the spine's own x** — this was necessary because a screenshot taken by zooming/panning a
+  Playwright-driven browser to a specific node can land on the wrong coordinates if the node
+  happens to be off-screen at the moment its bounding box is read (confirmed this exact false
+  alarm during verification — a screenshot appeared to show green at the timeline's far-future end,
+  which the direct pixel-sample proved was a stray zoom-targeting artifact, not a real rendering
+  bug): the real sampled colors were `rgb(229,170,61)` (near-gold) far from today,
+  `rgb(141,94,241)` (near-purple) at the midpoint, and `rgb(51,140,98)` (near-green) close to
+  today — confirming the actual painted gradient genuinely progresses teal/green → purple → gold
+  along the real timeline, matching the reference image's own color scheme.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
