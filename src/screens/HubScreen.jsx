@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ClipboardList, Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
+  Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
   Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles,
 } from 'lucide-react';
@@ -54,19 +54,24 @@ function partnerSchoolGate(unlockFn, lockedReasonFn) {
   };
 }
 
+// AI-First Onboarding, Stage 1 (see CLAUDE.md) — the survey/minimal-form step is no longer a hub
+// tile at all. It's now a mandatory PRE-hub step (Sign Up -> Survey -> the Stage 2 AI conversation
+// placeholder -> Hub), so by the time a student ever reaches the hub, `isSurveyComplete(state)` is
+// always already true — there's no real "go build your plan" destination left to point at from
+// here, the same way there's no "go sign up" hub tile either. `isSurveyComplete` is still imported
+// and used below (partnerSchoolGate, the Academic Plan progress-card gate, etc.), just no longer
+// as a hub-tile unlock condition for a tile that no longer exists.
 const TILES = [
-  {
-    id: 'survey', screen: 'survey', Icon: ClipboardList,
-    title: "Let's Build Your Plan",
-    desc: 'Tell us your interests, grade, and school to get started.',
-    unlock: () => true,
-  },
   {
     id: 'careers', screen: 'discovery', discoveryEntryStep: 'careers', Icon: Briefcase,
     title: 'Careers of Interest',
     desc: 'Explore careers that match what excites you.',
+    // Defensive only — `isSurveyComplete(state)` is guaranteed true by the time the hub is ever
+    // reached now that the survey is a mandatory pre-hub step, so this tile is never actually
+    // locked in practice; kept as a real fallback in case state is ever somehow restored
+    // mid-onboarding rather than assuming that can't happen.
     unlock: (state) => isSurveyComplete(state),
-    lockedReason: () => "Complete Let's Build Your Plan first",
+    lockedReason: () => 'Complete the onboarding steps first',
   },
   {
     id: 'majors', screen: 'discovery', discoveryEntryStep: 'majors', Icon: GraduationCap,
@@ -181,12 +186,11 @@ const TILES = [
 // done" is the same `selectedCareerIds.length > 0` check that unlocks Related College Majors —
 // not a new completion concept invented just for the mascot. Dialogue lines are short/generic
 // placeholders per this stage's own explicit scope; real varied dialogue is Stage 5.
+// AI-First Onboarding, Stage 1 (see CLAUDE.md) — the old first step here ('survey') is gone: the
+// survey is now a mandatory pre-hub step (see TILES's own comment above), always already done by
+// the time a student can ever reach the hub, so it never had a real "next thing to do" state left
+// to guide toward here either. 'careers' is now the genuine first step in this sequence.
 const GUIDED_SEQUENCE = [
-  {
-    id: 'survey', requiresPartnerSchool: false,
-    isDone: (state) => isSurveyComplete(state),
-    intro: "Let's start by building your plan!",
-  },
   {
     id: 'careers', requiresPartnerSchool: false,
     isDone: (state) => state.selectedCareerIds.length > 0,

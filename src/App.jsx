@@ -4,6 +4,7 @@ import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
 import SurveyScreen from './screens/SurveyScreen';
+import OnboardingConversationScreen from './screens/OnboardingConversationScreen';
 import DiscoveryScreen from './screens/DiscoveryScreen';
 import TranscriptScreen from './screens/TranscriptScreen';
 import CourseSelectionScreen from './screens/CourseSelectionScreen';
@@ -18,6 +19,12 @@ const SCREENS = {
   signup: SignUpScreen,
   hub: HubScreen,
   survey: SurveyScreen,
+  // AI-First Onboarding, Stage 1 (see CLAUDE.md) — a placeholder for Stage 2's real AI conversation
+  // page. Sits between the (now much-reduced) Survey and the Hub in the new pre-hub sequence:
+  // Sign Up -> Survey -> this screen -> Hub. Not reachable any other way (no hub tile, nothing
+  // else navigates here) — same "mandatory, once, before the hub exists" shape Sign Up/Survey
+  // themselves already have.
+  onboardingConversation: OnboardingConversationScreen,
   discovery: DiscoveryScreen,
   transcript: TranscriptScreen,
   courseSelection: CourseSelectionScreen,
@@ -40,7 +47,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'hub', 'survey', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile',
+  'signup', 'hub', 'survey', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile',
 ]);
 
 function AppShell() {
@@ -81,7 +88,7 @@ function AppShell() {
   // Academic Plan repaint section for why `.app-shell-bloom` scoping doesn't apply there at all).
   const isMap1 = screenKey === 'plan' && state.planYearIndex === null;
   const isBloomScreen = screenKey === 'welcome' || screenKey === 'signup'
-    || screenKey === 'survey' || screenKey === 'discovery'
+    || screenKey === 'survey' || screenKey === 'onboardingConversation' || screenKey === 'discovery'
     || screenKey === 'transcript' || screenKey === 'courseSelection'
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
     || screenKey === 'programSummary' || screenKey === 'profile' || isMap1;

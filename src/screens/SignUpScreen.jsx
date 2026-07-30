@@ -5,11 +5,16 @@ import { useApp } from '../context/AppContext';
 // Dashboard/Guide feature, Stage 1 (see CLAUDE.md) — the first of a multi-stage build (sign-up ->
 // hub -> order enforcement -> guided pointing -> in-flow dialogue -> optional voiceover). This
 // screen only handles sign-up: collecting a username (required) plus two clearly-optional fields
-// (a citizenship, an avatar icon), then handing off to the hub (Stage 2, HubScreen.jsx) — the survey
-// itself is now just one of the hub's own tiles, not the direct next screen. Later stages (order
-// enforcement, guided pointing, in-flow dialogue, voiceover) are deliberately out of scope here —
-// this stage's only job was making sure `state.username`/`citizenship`/`avatarIcon` exist by the time
-// the hub needed them, which Stage 2 now does (see HubScreen.jsx's greeting).
+// (a citizenship, an avatar icon), then handing off onward. Later stages (order enforcement,
+// guided pointing, in-flow dialogue, voiceover) are deliberately out of scope here — this stage's
+// only job was making sure `state.username`/`citizenship`/`avatarIcon` exist by the time the hub
+// needed them (see HubScreen.jsx's greeting).
+//
+// AI-First Onboarding, Stage 1 (see CLAUDE.md) — Continue now targets `survey` again, not `hub`
+// directly. The Return-to-Hub restructure had made the (now much-reduced) Survey just one of the
+// hub's own tiles; the new flow moves it back to being a mandatory PRE-hub step (Sign Up -> Survey
+// -> the Stage 2 AI conversation placeholder -> Hub), matching this app's own established
+// "standalone step in the pre-hub sequence" shape this screen itself already uses.
 //
 // Sign-Up: Country field (see CLAUDE.md) — replaced the original optional "Preferred display
 // name" field with a country field, ahead of a future (not-yet-built) Global Admission
@@ -96,7 +101,7 @@ export default function SignUpScreen() {
       // Set once, ever — a defensive re-submit (state restored mid-flow) must not reset the
       // hub's own "Days active" stat back to day 1. See AppContext.jsx's own comment.
       accountCreatedAt: state.accountCreatedAt || new Date().toISOString().slice(0, 10),
-      screen: 'hub',
+      screen: 'survey',
     });
   };
 

@@ -7679,6 +7679,91 @@ which are separate, later increments.
   gradients still present), and 0 of the real connector paths contain any curve command. `npm run
   build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
 
+**AI-First Onboarding, Stage 1: Flow Restructure + Minimal Pre-Hub Form — the first of a 5-stage
+build (flow restructure → AI conversation page → multi-year overview generation → "My Narrative"
+view → hub restructure). This stage is scoped narrowly: reduce the survey, remove the one prior-
+experience gate, reorder the pre-hub flow, and insert a placeholder for Stage 2's real conversation
+page. It deliberately does NOT build the real AI conversation, does NOT touch
+`state.interestTags`/`passionText`/`priorExperiences` as DATA (only removes the UI that used to
+collect two of them), and does NOT renumber `StepProgress` on any of the post-hub screens.**
+- **The Survey is reduced to education level, grade/year, and current school only.** The
+  interest-tag picker (`CATEGORIES`, 9 category headers with expandable tag lists) and the
+  free-text "describe your own passion" box are both removed from `SurveyScreen.jsx` entirely —
+  both will be gathered conversationally in Stage 2 instead. `state.interestTags`/`state.
+  passionText` themselves are untouched in `AppContext.jsx` (still real `DEFAULT_STATE` fields
+  plenty of other code reads) — until Stage 2 exists, they simply stay whatever they already were
+  (empty, for a fresh sign-up), an accepted, expected intermediate state rather than something this
+  stage needed to work around. `isSurveyComplete(state)` — the one shared gate `HubScreen.jsx`'s
+  tile-unlock logic and `AcademicPlanScreen.jsx`'s own progress-card gate both already read —
+  dropped its own `interestTags.length > 0` requirement; leaving that check in place would have
+  made the survey permanently uncompletable, since there's no more UI on this screen to ever
+  satisfy it. `SURVEY_MASCOT_SEQUENCE` lost its own first, no-precondition `'survey-interests'`
+  step (tied to the removed question); `'survey-educationLevel'` is now the genuine first step,
+  always eligible from mount, and the `useEffect` gating its own reveal-queue recompute dropped
+  `state.interestTags.length` from its dependency array to match.
+- **The reduced Survey is now structured the same way Sign Up already is — a standalone, pre-hub
+  step, not one of the 8 tracked survey-through-plan steps.** Its own `<StepProgress>` is removed
+  entirely (matching Sign Up's own established "pre-flow screen, no step indicator" precedent) —
+  every OTHER screen's own StepProgress numbering (Discovery=2 through Project Builder=7,
+  YearOverview's "Step 8 of 8") is deliberately left completely unchanged; renumbering the whole
+  sequence down by one wasn't one of this stage's own 4 tasks, and is out of scope for now (a
+  minor, known, purely cosmetic numbering gap — Discovery's own indicator still reads "Step 2 of
+  8" even though Survey no longer shows a "Step 1" before it).
+- **New flow order: Sign Up → Survey (reduced) → `onboardingConversation` (a new placeholder
+  screen) → Hub.** `SignUpScreen.jsx`'s own Continue now targets `screen: 'survey'` (was `'hub'`
+  directly, per the earlier Return-to-Hub restructure); `SurveyScreen.jsx`'s own Back now targets
+  `'signup'` (was `'hub'`) and Continue targets the new `'onboardingConversation'` screen (was
+  `'hub'`). **`src/screens/OnboardingConversationScreen.jsx`** (new file) is a deliberately minimal
+  placeholder — no real conversation logic, just working Back (→ `survey`) / Continue (→ `hub`)
+  navigation and an honest "Coming soon" note — inserted purely to confirm the new flow order is
+  correct before Stage 2 replaces its body with the real AI conversation. Registered in `App.jsx`'s
+  `SCREENS` map (right after `survey`), added to `TRANSITION_SCREENS` (the shared fade+slide
+  entrance) and `isBloomScreen` (the same colorful palette every other pre-hub/onboarding screen
+  already uses) — the same 3 registration points every other screen already needs, nothing new
+  invented for it.
+- **The reduced Survey is no longer a hub tile at all, and no longer part of the mascot's guided
+  sequence — both removed outright, not just left locked-but-unreachable.** `HubScreen.jsx`'s
+  `TILES` array lost its own `'survey'` entry ("Let's Build Your Plan") entirely: since the survey
+  is now a mandatory PRE-hub step, `isSurveyComplete(state)` is guaranteed true by the time a
+  student can ever reach the hub — there's no real "go build your plan" destination left to point
+  at from there, the same way there's no "go sign up" hub tile either. `GUIDED_SEQUENCE` lost its
+  own `'survey'` entry the same way — `'careers'` is now the genuine first step in the sequence.
+  The `'careers'` tile's own `lockedReason` text (which used to say "Complete Let's Build Your Plan
+  first") was reworded to a generic "Complete the onboarding steps first," since it references a
+  tile that no longer exists and — now genuinely defensive-only, since `isSurveyComplete` can't
+  realistically ever be false by the time the hub renders — is kept only in case state is ever
+  somehow restored mid-onboarding, not because this tile is expected to actually show it in
+  practice.
+- **The one-time "have you already done anything like this?" prior-experience gate is removed
+  entirely from `OpportunityFinderScreen.jsx`** — that gathering will be absorbed into Stage 2's
+  conversation instead. The screen now renders its real content (Recommended/Browse/My School,
+  the opportunity grid) unconditionally, with no leading ternary. `state.priorExperiences` itself,
+  and the Profile screen's own always-available `PriorExperiencesEditor` for it, are completely
+  untouched — Task 2 only asked to remove this ONE specific gate location, not the underlying data
+  or its separate, ongoing editor elsewhere in the app. `state.priorExperiencePromptDone` — the
+  flag that existed solely to track this one gate — was removed from `AppContext.jsx`'s
+  `DEFAULT_STATE` entirely, matching this codebase's own "don't leave unused state around"
+  convention (the same precedent `state.startedOpportunityIds` already established when its own
+  sole consumer was removed) — confirmed via a full-repo grep that nothing else ever referenced
+  it. `PriorExperiencesEditor`/`SAMPLE_PRIOR_EXPERIENCES`/`makeTaskId` imports and the 5 handler
+  functions that only ever served this one gate (`addExperience`/`editExperience`/
+  `removeExperience`/`finishPriorExperienceStep`/`fillSampleExperiences`) were all removed from
+  this file as dead code once the gate itself was gone.
+- Verified with two dedicated Playwright suites driving the REAL click-through flow (not just
+  seeded state, since the whole point of this stage is confirming the reordered navigation
+  actually works): a full Sign Up → Survey → placeholder → Hub run (14 checks) confirms no
+  interest-tag question or passion box appear, the education-level question is the first thing
+  shown, no StepProgress renders on Survey, Continue only enables once the (now-smaller) required
+  field set is filled, each screen transition lands on the correct next screen key, the removed
+  "Let's Build Your Plan" tile is genuinely gone from the hub while "Careers of Interest" renders
+  as the first real tile, and Opportunity Finder shows its real title/content immediately with no
+  prior-experience gate anywhere. A second suite (5 checks) confirms the Back-button chain works
+  in both directions (Survey → Sign Up, with the username preserved; the placeholder → Survey) and
+  that an Undergraduate student (who has no hard school requirement, unlike High School) can also
+  complete the reduced survey and reach the placeholder correctly. Zero page errors in either
+  suite. `npm run build`/`npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20
+  (this stage never touches `roadmapLayout.js`/`Roadmap.jsx`).
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -10148,3 +10233,23 @@ download). Cover at minimum:
   value. Re-run `npm run verify:spacing` (must stay 20/20 — this fix never opens
   `roadmapLayout.js`, only changes which date `roadmapGenerator.js` resolves before feeding it in)
   both before and after any related change.
+
+- AI-First Onboarding, Stage 1: drive the REAL click-through flow with Playwright rather than
+  seeding state directly — the whole point of this stage is confirming the reordered navigation
+  actually works, which a seeded-state test can't verify. Clear `localStorage`, click through
+  Welcome → "Get Started" → Sign Up (fill username, Continue) and confirm you land on Survey with
+  `state.screen === 'survey'`; confirm neither "What are your biggest passions or interests?" nor
+  "describe your own passion" appear anywhere on the page, and that `.step-track` (StepProgress) is
+  absent; fill only education level + grade/year (+ school for High School, via
+  `input.school-search-input` then clicking the real `.school-search-option` result — not a raw
+  text-match click, which can hit the wrong element) and confirm Continue enables; click it and
+  confirm `state.screen === 'onboardingConversation'`, then Continue again and confirm
+  `state.screen === 'hub'`. On the hub, confirm no tile contains "Let's Build Your Plan" and that
+  "Careers of Interest" renders as a real, present tile. Separately confirm Opportunity Finder
+  (reach it via a direct state seed, since it's normally deep in the flow) renders its real title
+  immediately with no "Have you already done anything like this?" gate anywhere. Also verify the
+  Back-button chain in both directions (Survey's Back → `signup`, with the username preserved;
+  the new placeholder's Back → `survey`) and that an Undergraduate/Transfer student — who has no
+  hard school requirement, unlike High School — can also complete the reduced survey with just an
+  education level + year. `npm run build`/`npm run lint` should stay clean; `npm run
+  verify:spacing` should stay 20/20 (this stage never touches `roadmapLayout.js`/`Roadmap.jsx`).

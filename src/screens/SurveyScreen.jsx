@@ -1,29 +1,11 @@
 import { useEffect, useState } from 'react';
-import {
-  ArrowLeft, ChevronDown, ChevronUp, Dumbbell, GraduationCap, Palette, Cpu, Users, Briefcase,
-  Heart, Film, Sparkles,
-} from 'lucide-react';
-import { CATEGORIES } from '../data/interests';
+import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import StepProgress from '../components/StepProgress';
 import SchoolSearchField from '../components/SchoolSearchField';
 import { SCHOOLS, COLLEGE_SCHOOLS, TRANSFER_HS_SCHOOLS } from '../data/schools';
 import MascotWidget from '../components/MascotWidget';
 import { useMarkMascotSeen, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
-
-// Palette repaint, Discovery batch (see CLAUDE.md) — the name->component map for each category's
-// own `icon` string (interests.js), matching this codebase's standing "data holds icon NAMES, the
-// screen owns the map" convention. `CATEGORY_COLORS` cycles the same shared 7-color "bloom" accent
-// palette the hub/Sign-Up already use, by each category's own position in the CATEGORIES array —
-// there are 9 categories and 7 colors, so the last 2 deliberately repeat an earlier color (same
-// "cycle, don't invent extra colors" precedent HubScreen's own TILE_ACCENTS already established
-// for 10 tiles against the same 7-color set).
-const CATEGORY_ICON_MAP = { Dumbbell, GraduationCap, Palette, Cpu, Users, Briefcase, Heart, Film, Sparkles };
-const CATEGORY_COLORS = [
-  'var(--bloom-purple)', 'var(--bloom-yellow)', 'var(--bloom-teal)', 'var(--bloom-orange)',
-  'var(--bloom-pink)', 'var(--bloom-blue)', 'var(--bloom-green)',
-];
 
 const LEVELS = [
   { id: 'highschool', label: 'High School' },
@@ -75,17 +57,25 @@ const TRANSFER_TARGET_OPTIONS = {
 };
 
 // Exported so the Dashboard/Guide hub (Stage 3, see CLAUDE.md) can check "is the survey done" for
-// its own Let's Build Your Plan -> Careers of Interest unlock gate, using the EXACT same formula
-// this screen's own Continue button already gates on — extracted once so the two can never
-// independently drift the way this codebase's own getStage0TargetLabel precedent already fixed a
-// real bug for (see trunkSteps.js). A Transfer student additionally can't complete the survey
-// without a real answer to "When do you plan to transfer?" (state.transferTargetGap !== null, NOT
-// a truthy check — 0 is itself a real, valid answer, "after this year") now that plan length is
-// always driven by that answer rather than inferred from schoolYear alone.
+// its own tile-unlock gates, using the EXACT same formula this screen's own Continue button
+// already gates on — extracted once so the two can never independently drift the way this
+// codebase's own getStage0TargetLabel precedent already fixed a real bug for (see trunkSteps.js).
+// A Transfer student additionally can't complete the survey without a real answer to "When do you
+// plan to transfer?" (state.transferTargetGap !== null, NOT a truthy check — 0 is itself a real,
+// valid answer, "after this year") now that plan length is always driven by that answer rather
+// than inferred from schoolYear alone.
+//
+// AI-First Onboarding, Stage 1 (see CLAUDE.md) — no longer requires `state.interestTags.length >
+// 0`. Interests/passions used to be gathered here directly; that question (and the free-text
+// "describe your own passion" box) was removed from this screen entirely, since Stage 2's AI
+// conversation page will gather that conversationally instead. `state.interestTags`/`passionText`
+// themselves are untouched (still real DEFAULT_STATE fields other code reads/writes) — only this
+// screen's own UI for collecting them is gone; until Stage 2 exists, they simply stay whatever
+// they were (empty, for a fresh sign-up), which is an accepted, expected intermediate state.
 export function isSurveyComplete(state) {
   const isHighSchool = state.educationLevel === 'highschool';
   const isTransfer = state.educationLevel === 'transfer';
-  return state.interestTags.length > 0 && !!state.educationLevel && !!state.schoolYear
+  return !!state.educationLevel && !!state.schoolYear
     && (!isHighSchool || !!state.currentSchool)
     && (!isTransfer || state.transferTargetGap !== null);
 }
@@ -96,12 +86,15 @@ export function isSurveyComplete(state) {
 // mirrors Stage 4's own GUIDED_SEQUENCE/getNextGuidedStep pattern (HubScreen.jsx) at the field
 // level: find the first step whose precondition is currently true AND hasn't been shown yet. Each
 // key is marked seen (via useMarkMascotSeen) the moment it's shown, so as the student fills in
-// one field after another in a single sitting, they naturally see intro -> interests ->
-// educationLevel -> schoolYear -> school in sequence, each exactly once — not re-triggered on
-// every keystroke within a field, since each key only ever satisfies "not yet seen" once.
+// one field after another in a single sitting, they naturally see educationLevel -> schoolYear ->
+// school in sequence, each exactly once — not re-triggered on every keystroke within a field,
+// since each key only ever satisfies "not yet seen" once.
+//
+// AI-First Onboarding, Stage 1 — the old first, no-precondition step ('survey-interests', tied to
+// the now-removed interest-tag question) is gone; `survey-educationLevel` is now the genuine first
+// step, always eligible from the moment this screen mounts.
 const SURVEY_MASCOT_SEQUENCE = [
-  { key: 'survey-interests', when: () => true },
-  { key: 'survey-educationLevel', when: (state) => state.interestTags.length > 0 },
+  { key: 'survey-educationLevel', when: () => true },
   { key: 'survey-schoolYear', when: (state) => !!state.educationLevel },
   {
     key: 'survey-school',
@@ -123,16 +116,6 @@ function pendingMascotSteps(state) {
 
 export default function SurveyScreen() {
   const { state, patch } = useApp();
-  const [openCategory, setOpenCategory] = useState(null);
-
-  const toggleTag = (name) => {
-    const has = state.interestTags.includes(name);
-    patch({
-      interestTags: has
-        ? state.interestTags.filter((t) => t !== name)
-        : [...state.interestTags, name],
-    });
-  };
 
   // The school selector (and, downstream, Transcript & GPA / Course Selection) applies to High
   // School (Roslyn) and, as of the UC Davis partner-school addition, to Undergraduate/Transfer
@@ -160,9 +143,9 @@ export default function SurveyScreen() {
   // field — not as a side effect of the mascot's own bookkeeping.
   //
   // A single trigger can leave MORE than one step eligible+unseen at once — e.g. picking an
-  // interest makes 'survey-educationLevel' eligible on the very same tick 'survey-interests'
-  // might still be showing. An earlier version of this resolved only the first eligible+unseen
-  // step per
+  // education level makes 'survey-schoolYear' eligible on the very same tick
+  // 'survey-educationLevel' (itself eligible from mount) might still be showing. An earlier
+  // version of this resolved only the first eligible+unseen step per
   // trigger, which starved every step after the first "free" one until some LATER, unrelated
   // field change happened to fire the effect again — in practice a field's own prompt (e.g. "Now,
   // where are you in your journey right now?") only appeared AFTER the user had already answered
@@ -190,7 +173,7 @@ export default function SurveyScreen() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.interestTags.length, state.educationLevel, state.schoolYear, state.currentSchool]);
+  }, [state.educationLevel, state.schoolYear, state.currentSchool]);
   useMarkMascotSeen(mascotKey && mascotKey !== 'survey-revisit' ? mascotKey : null);
   // Bug fix (see CLAUDE.md) — 'survey-revisit' used to repeat on every fresh re-entry to an
   // already-complete Survey (deliberately excluded from useMarkMascotSeen above, since it was
@@ -204,90 +187,21 @@ export default function SurveyScreen() {
   return (
     <div>
       <MascotWidget text={mascotDisplayText} />
-      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
+      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'signup' })}>
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={1} total={8} />
-      <h1 className="page-title">Let's build your plan.</h1>
+      {/* AI-First Onboarding, Stage 1 (see CLAUDE.md) — no StepProgress here, matching Sign Up's
+          own established precedent: this is now a genuine pre-hub step (Sign Up -> this minimal
+          form -> the Stage 2 AI conversation -> Hub), not one of the 8 tracked survey-through-plan
+          steps. The interest-tag picker and the free-text "describe your own passion" box that
+          used to live here are both gone — both will be gathered conversationally in Stage 2
+          instead, once that page exists. */}
+      <h1 className="page-title">Just a few basics.</h1>
       <p className="page-sub">
-        Answer a few quick questions and we'll put together a personalized roadmap — no
-        account, no guesswork.
+        Your education level, grade, and school — the minimum we need before your plan can start
+        taking shape.
       </p>
-
-      <div className="field-block">
-        <div className="field-label">What are your biggest passions or interests?</div>
-        <p className="field-hint">Pick as many as you'd like, across any categories below.</p>
-        <div className="selection-count">{state.interestTags.length} selected</div>
-
-        {CATEGORIES.map((cat, i) => {
-          const isOpen = openCategory === cat.id;
-          const selectedInCat = cat.tags.filter((t) => state.interestTags.includes(t.name)).length;
-          const CatIcon = CATEGORY_ICON_MAP[cat.icon];
-          const accent = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
-          return (
-            <div className="tag-category" key={cat.id} style={{ '--tag-accent': accent }}>
-              <button
-                type="button"
-                className="tag-category-header"
-                onClick={() => setOpenCategory(isOpen ? null : cat.id)}
-              >
-                <span className="tag-category-title">
-                  <span className="tag-category-icon"><CatIcon size={16} /></span>
-                  {cat.label}
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {selectedInCat > 0 && <span className="tag-category-count">{selectedInCat} selected</span>}
-                  {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                </span>
-              </button>
-              {isOpen && (
-                <div className="tag-list">
-                  {cat.tags.map((t) => {
-                    const selected = state.interestTags.includes(t.name);
-                    return (
-                      <button
-                        type="button"
-                        key={t.name}
-                        className={`tag${selected ? ' selected' : ''}`}
-                        onClick={() => toggleTag(t.name)}
-                      >
-                        <CatIcon size={14} className="tag-icon" />
-                        {t.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Passion Field + Enhanced Conversational "Build Your Own", Task 1 (see CLAUDE.md) — a
-          richer, free-text complement to the tag picker above: tags alone can't capture something
-          specific/personal the way a sentence or two can. Optional, matching this app's own
-          established "optional-badge pill next to the field label" convention (Sign-Up's country/
-          avatar/voice fields). Uncontrolled (defaultValue + onBlur, not value + onChange) — the
-          same "buffer locally, commit once" trade Roadmap.jsx's own task-outcome textarea already
-          established, so this doesn't re-patch state (and re-persist to localStorage) on every
-          keystroke. Included verbatim in the Stage 1 compiled profile (profileCompiler.js) so both
-          the Stage 2 suggestion feature and Build Your Own's conversation can read it. */}
-      <div className="field-block">
-        <div className="field-label">
-          Want to describe your own passion in your own words? <span className="optional-badge">Optional</span>
-        </div>
-        <p className="field-hint">
-          Tags are a start — if there's something more specific that excites you, tell us about it here.
-        </p>
-        <label className="task-form-field">
-          <textarea
-            defaultValue={state.passionText}
-            onBlur={(e) => patch({ passionText: e.target.value.trim() })}
-            placeholder="e.g. I've spent the last year restoring an old motorcycle with my dad, and I keep wondering if there's a way to combine that with my interest in engineering..."
-          />
-        </label>
-      </div>
 
       <div className="field-block">
         <div className="field-label">What is your current education level?</div>
@@ -390,9 +304,9 @@ export default function SurveyScreen() {
           transfer destination). This is about what an Undergraduate/Transfer student is ALREADY
           studying right now at their current college — only shown once a real partner school
           (currently just UC Davis) is actually selected, since "current major" has no honest
-          meaning for a student with no current college on file yet. Free-text, matching the same
-          optional-field convention passionText already established above (uncontrolled,
-          defaultValue + onBlur, an .optional-badge pill) rather than a dropdown — this app's own
+          meaning for a student with no current college on file yet. Free-text, matching this
+          app's own established optional-field convention (uncontrolled, defaultValue + onBlur, an
+          .optional-badge pill — Sign-Up's country/avatar/voice fields) rather than a dropdown — this app's own
           curated `MAJORS` dataset (majors.js) is scoped to Discovery's FUTURE-major selection use
           case, and its ~47 entries don't necessarily cover every real current major a college
           student might already be declared in, so forcing a pick from that list here would risk
@@ -448,7 +362,7 @@ export default function SurveyScreen() {
           type="button"
           className="btn btn-primary"
           disabled={!canContinue}
-          onClick={() => patch({ screen: 'hub' })}
+          onClick={() => patch({ screen: 'onboardingConversation' })}
         >
           Continue
         </button>
