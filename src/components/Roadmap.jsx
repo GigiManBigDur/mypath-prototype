@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CheckCircle2, Circle, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
+  CheckCircle2, Flag, Star, MapPin, Compass, ListChecks, X, ZoomIn, ZoomOut, Crosshair,
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
   ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock, Clock,
+  Footprints, Sparkle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -47,7 +48,13 @@ import DailyScheduleView from './DailyScheduleView';
 // when one is known.
 const CORE_TYPE_CONFIG = {
   today: { label: 'You are here', color: 'var(--bloom-yellow)', Icon: Compass },
-  procedure: { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Circle },
+  // Map 2 Visual Richness, Increment 2 (see CLAUDE.md) — was `Circle`, which doubles as this
+  // app's own universal "not done yet" checkbox glyph everywhere else (every hollow/dotted ring
+  // already reads "incomplete" via its own empty circle shape) — using it as the task's ICON too
+  // read as a confusing "empty circle inside an empty ring." `Footprints` gives a routine,
+  // one-off procedural task ("Check your GPA," "Register for your AP exam(s)") its own distinct,
+  // purposeful identity — a small step forward — without colliding with any other coreType's icon.
+  procedure: { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Footprints },
   milestone: { label: 'Milestone', color: 'var(--bloom-teal)', Icon: MapPin },
   major: { label: 'Major Goal', color: 'var(--bloom-yellow)', Icon: Star },
   final: { label: 'Final Goal', color: 'var(--bloom-orange)', Icon: Flag },
@@ -113,8 +120,25 @@ const CORE_TYPE_CONFIG = {
 // Fallback colors, used only when a chain has no real `track` to color by (see configFor below) —
 // a generic/unmapped opportunity (e.g. the "Law" fallback list) or a branch step of one.
 const OPPORTUNITY_CONFIG = { label: 'Opportunity', color: 'var(--bloom-ink-soft)', Icon: ListChecks };
-const BRANCH_STEP_CONFIG = { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Circle };
-const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: 'var(--bloom-orange)', Icon: Flag };
+// Map 2 Visual Richness, Increment 2 (see CLAUDE.md) — a chain's own ordinary middle step (not
+// its first/promoted task, not its final deadline) is the one place actively "in progress" work
+// happens within a longer sequence — the reference image's own purple mid-chain nodes use this
+// exact sparkle motif. `Sparkle` (singular, a plain 4-point sparkle) is deliberately a DIFFERENT
+// icon from `Sparkles` (the 3-star cluster already reserved for the unrelated "AI-suggested"
+// badge/coreType below) — same family, but visually and semantically distinct, so an ordinary
+// chain step is never mistaken for an AI-origin marker. Was `Circle`, same double-meaning problem
+// `procedure` above had.
+const BRANCH_STEP_CONFIG = { label: 'Step', color: 'var(--bloom-ink-soft)', Icon: Sparkle };
+// Map 2 Visual Richness, Increment 2 — a chain's own real deadline/competition/submission day
+// (an opportunity's "Compete at Regionals," a milestone chain's own final step) is exactly the
+// "deadline/reminder-type task" the reference image's own bell node represents — and it's the
+// SAME underlying concept the today-collision marker already uses `Bell` for elsewhere in this
+// file (a real thing you need to be aware of and act on by a specific date), so this reuses that
+// meaning consistently rather than introducing a second, unrelated "deadline" icon. Was `Flag`,
+// which is now reserved exclusively for the plan's own overall finish line (`CORE_TYPE_CONFIG.
+// final`) — two different concepts (a chain's own deadline vs. the whole plan's finish line) no
+// longer share one icon.
+const BRANCH_DEADLINE_CONFIG = { label: 'Deadline / start', color: 'var(--bloom-orange)', Icon: Bell };
 // A student-added task, not part of the built-in plan — reuses bloom-ink-soft (already a shared
 // design token) rather than introducing a new color, but gets its own icon and a dotted ring (in
 // the JSX below) so it's visually distinct from both the solid required ring and the dashed

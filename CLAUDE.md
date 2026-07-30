@@ -7609,6 +7609,76 @@ each requiring its own confirmation before proceeding.
   today — confirming the actual painted gradient genuinely progresses teal/green → purple → gold
   along the real timeline, matching the reference image's own color scheme.
 
+**Map 2 Visual Richness, Increment 2: meaningful, purpose-driven task icons — the second of
+several small, independently-confirmed increments. Same hard boundary as Increment 1: connectors,
+positioning, lane-assignment/reuse logic, Overview lock/unlock logic, and the color gradient just
+applied are all untouched — `npm run verify:spacing` confirmed 20/20, byte-for-byte identical,
+both before and after this change.** Scope is icons only — no connector/decoration/animation work,
+which are separate, later increments.
+- **Two long-standing generic `Circle` icons were replaced, each with its own distinct, purposeful
+  identity** (the same double-meaning problem an earlier, reverted all-at-once attempt had already
+  identified and fixed once before): `CORE_TYPE_CONFIG.procedure` (a routine, one-off trunk task —
+  "Check your GPA," "Register for your AP exam(s)," 33 real trunk steps) → `Footprints`.
+  `BRANCH_STEP_CONFIG` (a chain's own ordinary MIDDLE step — actively "in progress" toward that
+  chain's own deadline, not its first/promoted task and not its final one) → `Sparkle` (singular,
+  a plain 4-point sparkle) — deliberately a DIFFERENT icon component from `Sparkles` (the 3-star
+  cluster already reserved for the unrelated "AI-suggested" badge/coreType), so an ordinary chain
+  step in progress is never mistaken for an AI-origin marker, even though both live in the same
+  visual family. This directly matches the reference image's own purple mid-chain nodes.
+- **`BRANCH_DEADLINE_CONFIG`** (a chain's own real deadline/competition/submission day — an
+  opportunity's "Compete at Regionals," a milestone chain's own final step, rendered whenever
+  `node.isLast`) moved from `Flag` to `Bell` — the literal "bell for deadline/reminder-type tasks"
+  example from this increment's own task list, and the SAME underlying concept the pre-existing
+  today-collision marker already uses `Bell` for elsewhere in this file (a real thing you need to
+  be aware of and act on by a specific date) — reusing that meaning consistently rather than
+  introducing a second, unrelated "deadline" icon. `Flag` is now reserved exclusively for the
+  plan's own overall finish line (`CORE_TYPE_CONFIG.final`, e.g. "Get accepted to one of your
+  target schools") — two genuinely different concepts (a chain's own deadline vs. the whole plan's
+  finish line) no longer share one icon.
+- **Everything else was deliberately left untouched, as a judgment call, not an oversight** — every
+  other coreType already had a real, distinct, purposeful icon from earlier passes, and this
+  increment's own instruction was to apply the reference's icon LANGUAGE thoughtfully, not force
+  all 5 example categories onto everything: `MapPin` already covered "milestone"-type markers (e.g.
+  "Check your GPA — end of Freshman year," "AP exams administered in May") — the increment's own
+  "location pin... e.g. 'You are here'" example was interpreted as the SPIRIT of the instruction,
+  not literally reassigning Today's own `Compass` — Compass is this app's established brand
+  identity, reused deliberately across WelcomeScreen's hero marker, Map 1's current-year marker,
+  and the app's own header icon (see this file's own extensive prior documentation); changing it
+  here would regress a well-established, load-bearing design decision, not fulfill this
+  increment's real intent. `Lock` (locked Overviews) was already exactly right, unchanged. `Star`
+  (`CORE_TYPE_CONFIG.major`, "Major Goal," 4 real trunk steps) already covers "notable" milestones,
+  distinct from `Sparkle`'s "ordinary step actively in progress" — a deliberate, nuanced split
+  matching the increment's own dual framing ("in-progress OR notable" names two different things).
+  `Rocket` (`PROJECT_CONFIG`, a started Project Builder project) already matches "achievement-
+  style or launch milestones... starting a project" exactly — left exclusive to Project rather
+  than also applying it to an opportunity chain's own promoted starting task (`OPPORTUNITY_CONFIG`,
+  still `ListChecks`), so "launching a project" and "starting an opportunity" stay two visually
+  distinct concepts rather than colliding on one icon.
+- **Task 2 (Required/Optional/Custom ring distinction) needed zero code changes to verify** — the
+  ring-drawing JSX (solid fill for required, hollow-dashed for optional, dotted for custom) is
+  completely separate code from `cfg.Icon`, untouched by this pass. Confirmed directly via a real
+  DOM scan across a dense, realistic test plan (2 real opportunity chains with steps at every lock
+  state, a started project, a custom task): all 4 real ring `stroke-dasharray` patterns still
+  render distinctly (`solid` required, `4 4` optional/opportunity, `2 3` custom, `3 3` a locked/
+  small-scale branch ring) — the new icons sit inside these unchanged rings exactly as asked, one
+  communicating "what category," the other "what this task actually is."
+- **A real, confirmed subtlety surfaced while verifying this, not a bug**: a fresh, all-locked
+  chain (the Overview/lock system's own default state — every step after the first starts locked
+  until the one before it is done) renders EVERY subsequent step with a `Lock` icon regardless of
+  its own `cfg.Icon`, so `Sparkle`/`Bell` only become visible once the steps ahead of them are
+  actually marked complete — confirmed directly by seeding `completedNodes` to unlock a real
+  middle step (renders `Sparkle`) and a real final/`isLast` step (renders `Bell`), and separately
+  confirming a still-locked sibling step genuinely shows the `Lock` icon with its own dimmed
+  0.5-opacity group and dashed ring, completely unaffected by any of this increment's changes.
+- Verified with a dedicated DOM scan across a realistic dense plan (2 opportunity chains at mixed
+  lock states, a started Build-Your-Own project, a custom task): 5+ distinct real icon glyphs
+  confirmed rendering (`map-pin`, `footprints`, `sparkle`, `bell`, `rocket`, plus the pre-existing
+  `list-checks`/`pencil`/`circle-check` for opportunity anchors/custom tasks/completed steps,
+  untouched by this pass), all 4 ring dasharray patterns present and distinct, Increment 1's
+  gradient completely unaffected (3 spine stops at the same `0`/`0.5`/`1` offsets, per-lane
+  gradients still present), and 0 of the real connector paths contain any curve command. `npm run
+  build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
