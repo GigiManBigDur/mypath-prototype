@@ -4,7 +4,7 @@ import {
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
   ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock, Clock,
-  Footprints, Sparkle,
+  Footprints, Sparkle, Leaf,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -241,6 +241,34 @@ function line(x1, y1, x2, y2) {
 // changes needed there.
 function rightAngleLine(x1, y1, x2, y2) {
   return `M ${x1} ${y1} L ${x2} ${y1} L ${x2} ${y2}`;
+}
+
+// Map 2 Visual Richness, Increment 3 (see CLAUDE.md), Task 1 — a small leaf/sprig decoration
+// "growing off" a connector segment, purely derived from that segment's own two ALREADY-COMPUTED
+// endpoints — no new layout/positioning math, nothing roadmapLayout.js produced changes. Just the
+// segment's own real midpoint, nudged a fixed distance to one side along its perpendicular, plus
+// the segment's own real angle so the leaf glyph can be rotated to sit naturally along whichever
+// direction that particular segment runs (vertical for every within-lane step-to-step connector;
+// always horizontal for a lane's own jog out from the spine, by construction).
+function leafSpot(x1, y1, x2, y2, side) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const offset = 12 * side;
+  return {
+    x: (x1 + x2) / 2 + (-dy / len) * offset,
+    y: (y1 + y2) / 2 + (dx / len) * offset,
+    angle: (Math.atan2(dy, dx) * 180) / Math.PI,
+    length: len,
+  };
+}
+
+// Task 2 — a tiny deterministic pseudo-random generator (not Math.random()) so the ambient
+// background particles below get a fixed, stable scatter across a given canvas size instead of
+// visibly reshuffling on every unrelated re-render (e.g. marking a node complete).
+function seededRandom(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
 }
 
 // Bottom-right floating zoom-control stack needs to clear the bottom panel, which floats as an
@@ -626,6 +654,25 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     });
     return flat;
   }, [fullRoadmap]);
+
+  // Map 2 Visual Richness, Increment 3 (see CLAUDE.md), Task 2 — a fixed, capped scatter of
+  // purely decorative floating particles across the canvas, giving the background a gentle
+  // ambient life without touching any real content's position. Deterministic (`seededRandom`, not
+  // `Math.random()`) and memoized on the canvas's own real dimensions, so the scatter stays
+  // stable across ordinary re-renders (e.g. marking a node complete) and only reshuffles if the
+  // plan's own content genuinely changes the canvas size — the same "recompute only when the real
+  // inputs that should drive it change" discipline `flatPlanItems` above already follows. Capped
+  // at a fixed count regardless of how tall the canvas is, so a dense multi-year plan's much
+  // taller canvas never means proportionally more particles cluttering it.
+  const AMBIENT_PARTICLE_COUNT = 22;
+  const ambientParticles = useMemo(() => Array.from({ length: AMBIENT_PARTICLE_COUNT }, (_, i) => ({
+    x: seededRandom(i * 3.11 + 1) * roadmap.canvasWidth,
+    y: seededRandom(i * 7.73 + 2) * roadmap.canvasHeight,
+    r: 1.5 + seededRandom(i * 5.29 + 3) * 2.5,
+    delay: seededRandom(i * 2.17 + 4) * 6,
+    duration: 6 + seededRandom(i * 9.41 + 5) * 4,
+    sparkle: seededRandom(i * 4.03 + 6) > 0.72,
+  })), [roadmap.canvasWidth, roadmap.canvasHeight]);
 
   // Digest/Checklist feature (see CLAUDE.md), Task 1 — the exact same underlying task data as the
   // Roadmap view (`fullRoadmap.spine` plus every `hasBranch` item's own `branchSteps` — the
@@ -1016,6 +1063,34 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 );
               })}
             </defs>
+            {/* Map 2 Visual Richness, Increment 3 (see CLAUDE.md), Task 2/3 — a background scatter
+                of small floating particles/sparkles, purely decorative (`pointer-events: none`)
+                and rendered FIRST (behind the axis, spine, every real node/connector) so it never
+                competes with or obscures real content, matching the axis ticks' own "background
+                reference, drawn first" precedent right below. Each drifts up/down and fades
+                gently via its own CSS animation, staggered per-particle so the whole field never
+                pulses in lockstep. */}
+            <g className="ambient-particles" aria-hidden="true">
+              {ambientParticles.map((p, i) => (
+                p.sparkle ? (
+                  <Sparkle
+                    key={`particle-${i}`}
+                    className="ambient-particle ambient-particle-sparkle"
+                    x={p.x - p.r * 2} y={p.y - p.r * 2} size={p.r * 4}
+                    color="var(--bloom-yellow)"
+                    style={{ animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s` }}
+                  />
+                ) : (
+                  <circle
+                    key={`particle-${i}`}
+                    className="ambient-particle"
+                    cx={p.x} cy={p.y} r={p.r}
+                    fill="var(--bloom-purple)"
+                    style={{ animationDelay: `${p.delay}s`, animationDuration: `${p.duration}s` }}
+                  />
+                )
+              ))}
+            </g>
             {/* Map 2 Restructure: Fixed Lanes + Right-Angle Connectors (see CLAUDE.md), Task 5 —
                 an explicit, labeled time axis running down the canvas's own left edge (its own
                 reserved AXIS_WIDTH strip, see roadmapLayout.js), so vertical position is anchored
@@ -1098,6 +1173,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
               // The starter task itself (now in the lane) is the first stop in this chain's own
               // vertical sequence; every real branch step follows it.
               const laneSequence = [n, ...n.branchSteps];
+              // Increment 3, Task 1 — one small leaf/sprig per connector segment, only where the
+              // segment is long enough to actually have visible room for one (a floored/near-zero-
+              // length gap would just crowd a leaf on top of its own two endpoints) — purely
+              // decorative, positioned from the segment's own already-real endpoints via
+              // `leafSpot`, never a reason for any segment to change its own `d`.
+              const MIN_LEAF_SEGMENT = 34;
+              const jogLeaf = leafSpot(anchorPos.x, anchorPos.y, n.x, n.y, 1);
               return (
                 <g key={`branch-${n.id}`}>
                   {/* Task 4 — a right-angle jog from the spine's own line straight out to the
@@ -1109,6 +1191,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                     style={entranceEnabled ? { animationDelay: `${stepDelay(0)}ms` } : undefined}
                     d={rightAngleLine(anchorPos.x, anchorPos.y, n.x, n.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
                   />
+                  {jogLeaf.length > MIN_LEAF_SEGMENT && (
+                    <Leaf
+                      className="lane-leaf" x={jogLeaf.x - 6} y={jogLeaf.y - 6} size={12}
+                      color="var(--bloom-green)" opacity="0.55"
+                      transform={`rotate(${jogLeaf.angle + 25} ${jogLeaf.x} ${jogLeaf.y})`}
+                      style={{ animationDelay: `${(anchorIndex % 5) * 0.6}s` }}
+                    />
+                  )}
                   {/* Task 4 — within a lane, every consecutive pair (starting from the starter task
                       itself) shares the same x (the lane's fixed x), so this same `line()` call
                       already renders a pure vertical segment with zero changes needed here.
@@ -1117,13 +1207,23 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                       its own real length while staying the same meaningful track hue throughout. */}
                   {laneSequence.slice(0, -1).map((s, i) => {
                     const next = laneSequence[i + 1];
+                    const segLeaf = leafSpot(s.x, s.y, next.x, next.y, i % 2 === 0 ? 1 : -1);
                     return (
-                      <path
-                        key={`bs-${next.id}`}
-                        className={entranceEnabled ? 'roadmap-fade-line' : undefined}
-                        style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
-                        d={line(s.x, s.y, next.x, next.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
-                      />
+                      <g key={`bs-${next.id}`}>
+                        <path
+                          className={entranceEnabled ? 'roadmap-fade-line' : undefined}
+                          style={entranceEnabled ? { animationDelay: `${stepDelay(i + 1)}ms` } : undefined}
+                          d={line(s.x, s.y, next.x, next.y)} stroke={`url(#rm-lane-gradient-${n.id})`} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 6" fill="none" opacity="0.75"
+                        />
+                        {segLeaf.length > MIN_LEAF_SEGMENT && (
+                          <Leaf
+                            className="lane-leaf" x={segLeaf.x - 6} y={segLeaf.y - 6} size={12}
+                            color="var(--bloom-green)" opacity="0.55"
+                            transform={`rotate(${segLeaf.angle + (i % 2 === 0 ? 25 : -25)} ${segLeaf.x} ${segLeaf.y})`}
+                            style={{ animationDelay: `${(i % 5) * 0.6}s` }}
+                          />
+                        )}
+                      </g>
                     );
                   })}
                 </g>
@@ -1170,13 +1270,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                           regardless of category, same as the top-level check. */}
                       {s.locked ? (
                         <g opacity="0.5">
-                          <circle className="node-halo" r="18" fill={cfg.color} opacity="0.1" />
+                          <circle className="node-halo" r="18" fill={cfg.color} opacity="0.1" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="13" fill="none" stroke={cfg.color} strokeWidth="2" strokeDasharray="3 3" pointerEvents="all" />
                           <Lock x="-6" y="-6" size={12} color={cfg.color} />
                         </g>
                       ) : (
                         <>
-                          <circle className="node-halo" r="18.5" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="18.5" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="13" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2" strokeDasharray={done ? undefined : '3 3'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-7" y="-7" size={14} color="#fff" />
@@ -1244,13 +1344,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         // regardless of category, since locked is a state any project milestone
                         // can be in, not a category of its own.
                         <g opacity="0.5">
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.1" />
+                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.1" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill="none" stroke={cfg.color} strokeWidth="2.5" strokeDasharray="4 4" pointerEvents="all" />
                           <Lock x="-7" y="-7" size={14} color={cfg.color} />
                         </g>
                       ) : n.required ? (
                         <>
-                          <circle className="node-halo" r="24" fill={cfg.color} opacity="0.16" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="24" fill={cfg.color} opacity="0.16" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="18" fill={done ? cfg.color : '#fff'} stroke={cfg.color} strokeWidth="3" pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />
@@ -1258,7 +1358,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       ) : n.category === 'custom' ? (
                         <>
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="22" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 3'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -1266,7 +1366,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       ) : n.category === 'ai-suggested' ? (
                         <>
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="22" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '2 6'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -1282,7 +1382,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                         </>
                       ) : (
                         <>
-                          <circle className="node-halo" r="22" fill={cfg.color} opacity="0.14" />
+                          <circle className={`node-halo${done ? '' : ' node-halo-active'}`} r="22" fill={cfg.color} opacity="0.14" style={{ '--halo-color': cfg.color }} />
                           <circle className="ring" r="16" fill={cfg.color} fillOpacity={done ? 1 : 0} stroke={cfg.color} strokeWidth="2.5" strokeDasharray={done ? undefined : '4 4'} pointerEvents="all" />
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
@@ -1320,7 +1420,7 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 <g key={cluster.id} className="node-badge" data-node-id={cluster.id} onClick={() => setSelectedCluster(cluster)} transform={`translate(${anchor.x},${anchor.y})`}>
                   <circle className="hit-target" r="24" fill="none" pointerEvents="all" />
                   <g className="node-pop" style={{ animationDelay: `${delay}ms` }}>
-                    <circle className="node-halo" r="26" fill={CLUSTER_CONFIG.color} opacity="0.16" />
+                    <circle className={`node-halo${allDone ? '' : ' node-halo-active'}`} r="26" fill={CLUSTER_CONFIG.color} opacity="0.16" style={{ '--halo-color': CLUSTER_CONFIG.color }} />
                     <circle className="ring" r="18" fill={CLUSTER_CONFIG.color} fillOpacity={allDone ? 1 : 0} stroke={CLUSTER_CONFIG.color} strokeWidth="3" pointerEvents="all" />
                     {allDone
                       ? <CheckCircle2 className="node-icon-pop" x="-9" y="-9" size={18} color="#fff" />
