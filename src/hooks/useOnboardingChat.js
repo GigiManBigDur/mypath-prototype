@@ -78,6 +78,13 @@ export function useOnboardingChat() {
               overviewPhaseTitles: proposal.overviewPhaseTitles,
               overviewPhaseDayOffsets: proposal.overviewPhaseDayOffsets,
               thematicKeywords: proposal.thematicKeywords,
+              // Bug fix (see CLAUDE.md, api/onboarding-chat.js's own VALID_INTEREST_TAGS comment) —
+              // real, validated interest tags proposed alongside the rest of the ready overview,
+              // persisted the same way so OnboardingConversationScreen.jsx's own confirmNarrative
+              // can restore state.interestTags — the one field nothing else in this whole flow ever
+              // writes, which silently broke Discovery/Opportunity Finder/Course Selection's own
+              // interest-based recommendations for every real post-conversation student.
+              matchedInterestTags: proposal.matchedInterestTags,
             }],
           });
         },

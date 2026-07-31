@@ -31,6 +31,50 @@ export const config = {
 const ANTHROPIC_MODEL = 'claude-sonnet-5';
 const OPENAI_MODEL = 'gpt-5.6-terra';
 
+// Bug fix (see CLAUDE.md, "Confirmed narrative overview never restores real interest tags") — a
+// real, confirmed regression: AI-First Onboarding Stage 1 removed the Survey's interest-tag
+// picker (the ONLY place `state.interestTags` was ever written) on the assumption Stage 2's own
+// conversation would replace that data-gathering job — but nothing was ever built to translate the
+// conversation back into `state.interestTags`, so that field stayed permanently `[]` for every
+// real student who went through the new flow. `getBuiltTracks([])`/`getOpportunityTracks([])`
+// both resolve to zero tracks for an empty array, which made DiscoveryScreen.jsx's own pre-existing
+// defensive "reached with no real track, bounce back to hub" effect fire IMMEDIATELY and
+// UNCONDITIONALLY for every real post-conversation user — not a locked tile, a genuinely broken
+// click: "Careers of Interest," "Related College Majors," and "Recommended Programs" (all 3
+// Discovery sub-steps share this same screen/effect) were all completely unreachable. Confirmed
+// directly by driving the real Sign Up -> Survey -> conversation -> confirm -> hub -> click flow
+// end-to-end, not just seeded state (an isolated seeded-state test with `interestTags` pre-filled
+// never would have caught this). `getOpportunityTracks(state.interestTags)` (Opportunity Finder's
+// "Recommended for you," Course Selection's own interest-based recommendations) degrades more
+// gracefully — an empty result there falls back to `GENERIC_OPPORTUNITIES`/no track-matched
+// courses rather than a hard bounce — but is still a real, silent loss of personalization from the
+// exact same root cause, not a separate bug.
+//
+// The fix: this schema/prompt now ALSO proposes real, valid interest tags — chosen from the SAME
+// fixed vocabulary `src/data/interests.js`'s own `CATEGORIES` array already defines — the moment a
+// real overview is confirmed, restoring `state.interestTags` to a real, non-empty value for every
+// student who reaches that point (see `confirmNarrative()`, OnboardingConversationScreen.jsx).
+// `VALID_INTEREST_TAGS` is a deliberate, hand-checked duplication of that file's own real tag names
+// — api/*.js functions can't import from src/ (this codebase's own established "each Vercel
+// function stays standalone" precedent), so this mirrors the exact same trade-off api/chat.js's own
+// `APP_KNOWLEDGE` block already makes (real app knowledge, duplicated as plain prompt text, since
+// there's no other way to share it with a serverless function). If `src/data/interests.js`'s own
+// `CATEGORIES` array ever changes, update this list to match — `validateProposal` below silently
+// drops anything the model returns that ISN'T a real member of this exact list, so a stale/
+// mismatched entry here would just mean fewer real tags getting through, never a crash or a
+// fabricated one.
+const VALID_INTEREST_TAGS = [
+  'Soccer', 'Basketball', 'Tennis', 'Swimming', 'Track & Field', 'Football',
+  'Mathematics', 'Philosophy', 'History', 'Literature', 'Psychology', 'Political Science',
+  'Visual Arts', 'Music', 'Writing', 'Theater', 'Film Production', 'Photography',
+  '3D Modeling', 'App Development', 'Robotics', 'Game Design', 'Cybersecurity', 'Data & AI',
+  'Activism', 'Volunteering', 'Mentoring', 'Student Government', 'Nonprofit Work',
+  'Business', 'Finance', 'Entrepreneurship', 'Marketing', 'Healthcare', 'Law',
+  'Gardening', 'Travel', 'Cooking', 'Fitness', 'Fashion',
+  'Film', 'Anime', 'Podcasts', 'Gaming', 'Music Industry',
+  'Journaling', 'Mindfulness', 'Productivity', 'Public Speaking', 'Goal Setting',
+];
+
 // Same "proportionate, not bulletproof" abuse guard as every other api/*.js file — duplicated
 // rather than shared, matching those files' own precedent (each Vercel function is standalone).
 const ALLOWED_ORIGIN_PATTERNS = [
@@ -95,6 +139,14 @@ const ONBOARDING_SCHEMA = {
       items: { type: 'string' },
       description: '2 to 5 short, real academic SUBJECT-AREA labels reflecting the thematic direction (e.g. "Sociology", "Economics", "Statistics") — plain subject names only, NOT specific course titles or numbers (you do not have access to this student\'s real course catalog, so naming an exact course would risk fabricating one that does not exist). Required (non-null) when readyForOverview is true — an empty array is fine if nothing specific enough has emerged. Must be null otherwise.',
     },
+    // Bug fix (see CLAUDE.md and this file's own VALID_INTEREST_TAGS comment above) — restores
+    // state.interestTags, which nothing else in the new onboarding flow writes at all, breaking
+    // Discovery/Opportunity Finder/Course Selection's own interest-based recommendations entirely.
+    matchedInterestTags: {
+      type: ['array', 'null'],
+      items: { type: 'string' },
+      description: `2 to 6 tags chosen EXACTLY from this fixed list, based on what the conversation actually revealed the student is genuinely interested in (never invent a tag not on this list, and never pick one the conversation doesn't actually support): ${VALID_INTEREST_TAGS.join(', ')}. Required (non-null, at least 2 real matches from this exact list) when readyForOverview is true — a real, substantive conversation should always support at least 2. Must be null otherwise.`,
+    },
     mentionsSpecificFact: {
       type: 'boolean',
       description: 'True ONLY if your reply introduces a genuinely NEW, specific real organization, program, statistic, or outside-world fact that is NOT already confirmed by something the student themselves just told you in this conversation. False otherwise — referencing something the student already shared (even a specific real club/program/experience by name), or purely generic conversation with no new named claim, is NOT a new fact. Only set this true when you introduce a genuinely new, specific claim the student would need to independently verify.',
@@ -102,7 +154,8 @@ const ONBOARDING_SCHEMA = {
   },
   required: [
     'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
-    'overviewPhaseTitles', 'overviewPhaseDayOffsets', 'thematicKeywords', 'mentionsSpecificFact',
+    'overviewPhaseTitles', 'overviewPhaseDayOffsets', 'thematicKeywords', 'matchedInterestTags',
+    'mentionsSpecificFact',
   ],
   additionalProperties: false,
 };
@@ -130,7 +183,8 @@ Narrative pushback (use this rarely, and only when it's real):
 - Do NOT manufacture this moment. If nothing specific enough has actually surfaced in the conversation to justify a genuine, well-reasoned redirect, do not force one just to seem insightful — a generic-sounding "have you considered X" with no real grounding in what they've actually told you is worse than not suggesting anything at all.
 
 Generating the overview (Stage 3 — do this only once, and only once the conversation has genuinely earned it):
-- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDayOffsets, and thematicKeywords, in that SAME response.
+- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDayOffsets, thematicKeywords, and matchedInterestTags, in that SAME response.
+- matchedInterestTags: pick 2-6 tags EXACTLY from the fixed list given in that field's own schema description, based on what the student genuinely revealed in this conversation — never invent a tag not on that list, and never force a match the conversation doesn't actually support.
 - overviewPhaseTitles should be 3 to 5 REAL, SPECIFIC overview-level phases grounded in what this particular student actually told you — never a generic template. Think of them as the major chapters of the next few years (e.g. "Deepen your foundation in X," "Complete a signature project," "Build leadership in Y" are the SHAPE these should take, not literal text to copy) — broad chapters, not granular steps; granular detail for any one phase is planned separately, later, once the student actually reaches it.
 - narrativeSummary must accurately reflect the REAL settled direction, including explicitly naming any narrative-pushback suggestion the student actually agreed to (or noting they stuck with their own original direction if they declined one).
 - Don't rush this — a conversation that's only covered one or two surface-level answers is not ready. But once it genuinely has, generate a real, specific overview rather than continuing to ask more questions than necessary.
@@ -171,7 +225,8 @@ function validateProposal(input) {
   if (!input || typeof input !== 'object') return null;
   const {
     reply, readyForOverview, narrativeTitle, narrativeSummary,
-    overviewPhaseTitles, overviewPhaseDayOffsets, thematicKeywords, mentionsSpecificFact,
+    overviewPhaseTitles, overviewPhaseDayOffsets, thematicKeywords, matchedInterestTags,
+    mentionsSpecificFact,
   } = input;
   if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
   if (typeof readyForOverview !== 'boolean') return null;
@@ -185,6 +240,7 @@ function validateProposal(input) {
     overviewPhaseTitles: null,
     overviewPhaseDayOffsets: null,
     thematicKeywords: null,
+    matchedInterestTags: null,
     mentionsSpecificFact,
   };
   if (!readyForOverview) return notReady;
@@ -202,6 +258,14 @@ function validateProposal(input) {
   const cleanThemes = Array.isArray(thematicKeywords)
     ? thematicKeywords.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim()).slice(0, 5)
     : [];
+  // Bug fix (see this file's own VALID_INTEREST_TAGS comment above) — never trust the model's own
+  // tag choices directly; silently drop anything that isn't a REAL, exact member of the known
+  // vocabulary (a hallucinated/mismatched tag would otherwise never resolve to any real track via
+  // getBuiltTracks/getOpportunityTracks anyway, so dropping it here is strictly more honest than
+  // passing it through). Deduplicated and capped at 6, mirroring thematicKeywords' own cap shape.
+  const cleanInterestTags = Array.isArray(matchedInterestTags)
+    ? [...new Set(matchedInterestTags.filter((t) => typeof t === 'string' && VALID_INTEREST_TAGS.includes(t)))].slice(0, 6)
+    : [];
 
   return {
     reply: reply.trim(),
@@ -211,6 +275,7 @@ function validateProposal(input) {
     overviewPhaseTitles: cleanPhases,
     overviewPhaseDayOffsets: cleanDayOffsets,
     thematicKeywords: cleanThemes,
+    matchedInterestTags: cleanInterestTags,
     mentionsSpecificFact,
   };
 }

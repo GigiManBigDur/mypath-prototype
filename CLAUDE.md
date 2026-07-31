@@ -8393,6 +8393,82 @@ overview). This is the final stage of the AI-First Onboarding initiative.**
   `Roadmap.jsx`, touching only `HubScreen.jsx`, `DiscoveryScreen.jsx`, `MyNarrativeScreen.jsx`, and
   `AppContext.jsx`'s own state shape.
 
+**Bug fix: confirmed narrative overview never restored real interest tags, silently breaking ALL of
+Discovery (not just Careers of Interest) for every real post-conversation student.** Reported as "I
+finished Narrative and clicked Careers of Interest, it won't let me click" — confirmed by driving
+the REAL end-to-end flow (Sign Up → Survey → onboarding conversation → confirm → hub → My Narrative
+→ Back → click Careers of Interest), not just an isolated seeded-state test, per this codebase's own
+established diagnosis discipline: an isolated test that pre-seeds `state.interestTags` never would
+have caught this, since that's exactly the field the real bug left empty.
+- **Root cause.** AI-First Onboarding Stage 1 removed the Survey's interest-tag picker — the ONLY
+  place `state.interestTags` was ever written — on the assumption Stage 2's own AI conversation would
+  replace that data-gathering job conversationally. Nothing was ever built to translate the
+  conversation's own understanding back into that field, so it stayed permanently `[]` for every real
+  student who went through the new flow. `getBuiltTracks([])` always resolves to zero tracks for an
+  empty array, and `DiscoveryScreen.jsx`'s own pre-existing defensive effect (`if (tracks.length ===
+  0) patch({ screen: 'hub' })`) fires immediately and unconditionally the instant that screen mounts
+  — not a locked tile, a genuine bounce-back-before-rendering that reads to the student as "clicking
+  did nothing." Since all THREE Discovery sub-steps (Careers of Interest, Related College Majors,
+  Recommended Programs) share this exact same screen/effect, checking "other things" per the bug
+  report's own request confirmed all three were equally broken, not just Careers.
+- **Two other real consumers of `state.interestTags` degrade more gracefully from the same root
+  cause, but are still a real, silent loss — confirmed via a full-repo grep, not assumed.**
+  `OpportunityFinderScreen.jsx`/`CourseSelectionScreen.jsx` both call `getOpportunityTracks(
+  state.interestTags)` for their own "Recommended for you" content — an empty result there falls back
+  to `GENERIC_OPPORTUNITIES`/no track-matched course recommendations (per those functions' own
+  existing, deliberate "don't guess" fallback design) rather than a hard bounce, so this reads as
+  under-personalized content, not a broken click — but every real post-conversation student was
+  silently getting this degraded fallback instead of real, tailored recommendations, from the
+  identical missing data. `profileCompiler.js`'s own `interests: state.interestTags || []` (feeds the
+  compiled AI profile) was the least severe — just an empty array in a profile that already carries
+  the real conversation content elsewhere (`onboardingChatHistory`, `narrativeSummary`,
+  `narrativeThemes`), so no separate fix was needed there beyond the root cause fix already restoring
+  real values into the shared field.
+- **The fix: `api/onboarding-chat.js`'s own schema now ALSO proposes real, valid interest tags the
+  moment a narrative overview is confirmed** — chosen from the exact same fixed vocabulary
+  `src/data/interests.js`'s own `CATEGORIES` array already defines, not a free-form guess. A new
+  `VALID_INTEREST_TAGS` constant is a deliberate, hand-checked duplication of that file's real 50 tag
+  names (`api/*.js` functions can't import from `src/` — this codebase's own established "each Vercel
+  function stays standalone" precedent — so this mirrors the exact same trade-off `api/chat.js`'s own
+  `APP_KNOWLEDGE` block already makes: real app knowledge, duplicated as plain prompt text, since
+  there's no other way to share it with a serverless function). A new schema field,
+  `matchedInterestTags` (2-6 items, required alongside `narrativeTitle`/`overviewPhaseTitles`/etc.
+  the moment `readyForOverview` is true), instructs the model to pick ONLY from this exact list —
+  never invent a tag not on it, never force a match the conversation doesn't actually support.
+  `validateProposal` never trusts the model's own choices directly: it filters the returned array down
+  to only real, exact members of `VALID_INTEREST_TAGS` (silently dropping anything hallucinated or
+  mismatched, since an invented tag could never resolve to a real track anyway), dedupes, and caps at
+  6 — the same "never let a malformed bonus field block or corrupt the rest of the response" degrade-
+  gracefully pattern this file's own `overviewPhaseDayOffsets`/`thematicKeywords` sanitization already
+  established, extended to a THIRD field rather than a special case.
+- **`useOnboardingChat.js`'s `sendFrom`** persists `matchedInterestTags` on the assistant message
+  object the same way `thematicKeywords`/`overviewPhaseTitles` already are (not a blind spread — every
+  field is still listed explicitly), so it survives a reload exactly like the rest of the conversation
+  does. **`OnboardingConversationScreen.jsx`'s `confirmNarrative()`** now also patches
+  `interestTags: [...new Set([...(state.interestTags || []), ...latestReadyOverview.
+  matchedInterestTags])]` — deliberately MERGED with whatever's already there (deduped), not a flat
+  overwrite, so a later re-confirmation whose own matched tags happen to come back thinner can never
+  regress an already-working, real set of tags back toward empty.
+- Verified two ways. A Node-level test (6 checks, mocking `global.fetch`, calling the real handler
+  directly) confirms: real valid tags pass through unchanged; a hallucinated/invented tag not on the
+  real list is silently dropped while real ones alongside it survive; duplicates are deduped; a
+  malformed (non-array) `matchedInterestTags` degrades to `[]` without failing the whole request
+  (200, not a crash); more than 6 real tags are capped at 6; and a not-ready turn always reports
+  `matchedInterestTags: null`, matching every other overview field's own null-until-ready contract.
+  A dedicated Playwright suite drove the REAL end-to-end flow with `/api/onboarding-chat` mocked:
+  confirming a real overview writes real, validated tags (`["Psychology","Political Science",
+  "Business"]`) into `state.interestTags`; the exact reported click on Careers of Interest — after
+  genuinely visiting My Narrative and returning via Back, not a seeded shortcut — now correctly
+  navigates to `discovery` instead of silently staying on `hub`; and a second suite (seeding the
+  real post-fix `interestTags` value directly) confirmed all three Discovery sub-steps (Careers,
+  Majors, Programs) and Opportunity Finder's own Recommended view all render real content instead of
+  bouncing/falling back to generic. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20)
+  all stay clean — this fix touches `api/onboarding-chat.js`, `useOnboardingChat.js`, and
+  `OnboardingConversationScreen.jsx` only, never `roadmapLayout.js`/`Roadmap.jsx`.
+- **Live as of this writing** — `api/onboarding-chat.js` was redeployed via `vercel deploy --prod`
+  immediately after this fix, per this app's own standing "Vercel deploys are automatic alongside
+  every push" policy.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11004,3 +11080,21 @@ download). Cover at minimum:
   contains "confirm" in either case, since Task 3 only named Careers/Majors. `npm run build`/`npm run
   lint`/`npm run verify:spacing` (20/20) should all stay clean — this final stage never opens
   `roadmapLayout.js`/`Roadmap.jsx` at all.
+- Bug fix (confirmed narrative overview never restored real interest tags): don't test this with an
+  isolated seeded state alone — that's exactly what missed the bug the first time, since a test that
+  pre-fills `state.interestTags` never exercises the real broken path. Mock `/api/onboarding-chat` and
+  drive the REAL flow: Sign Up → Survey → send a message on the onboarding conversation page → click
+  "Confirm My Plan" → "Continue to my Hub" → click My Narrative → click Back → click Careers of
+  Interest. Confirm `state.interestTags` is real and non-empty immediately after confirming (not
+  `[]`), and confirm the final click on Careers of Interest actually navigates to `screen: 'discovery'`
+  (not silently staying on `'hub'` — the exact reported symptom). Separately, seed
+  `interestTags` directly with the real, validated values `confirmNarrative()` now produces and
+  confirm all three Discovery sub-steps (Careers/Majors/Programs) and Opportunity Finder's own
+  Recommended view all render real content rather than bouncing/falling back to generic — "check if
+  other things experience the same issue" was the user's own explicit request, and this is the
+  reusable check for it. For the server side, mock `global.fetch` and call the real
+  `api/onboarding-chat.js` handler directly: confirm a hallucinated tag not on `VALID_INTEREST_TAGS`
+  is silently dropped while real ones survive, duplicates are deduped, a malformed
+  `matchedInterestTags` degrades to `[]` without a 500/502, and a not-ready turn always reports
+  `matchedInterestTags: null`. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should
+  all stay clean — this fix never opens `roadmapLayout.js`/`Roadmap.jsx`.

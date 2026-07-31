@@ -164,6 +164,10 @@ export default function OnboardingConversationScreen() {
           overviewPhaseTitles: m.overviewPhaseTitles,
           overviewPhaseDayOffsets: m.overviewPhaseDayOffsets,
           thematicKeywords: m.thematicKeywords || [],
+          // Bug fix (see CLAUDE.md) — real, server-validated interest tags, read the same
+          // defensive "|| []" way thematicKeywords already is (a response from before this fix
+          // shipped simply won't have this field at all).
+          matchedInterestTags: m.matchedInterestTags || [],
           sourceIndex: i,
         };
       }
@@ -236,6 +240,16 @@ export default function OnboardingConversationScreen() {
       startedProjects: [...withoutOldNarrative, newProject],
       narrativeSummary: latestReadyOverview.narrativeSummary,
       narrativeThemes: latestReadyOverview.thematicKeywords,
+      // Bug fix (see CLAUDE.md) — this is the ONE real fix for the reported "Careers of Interest
+      // won't click" bug: state.interestTags was left permanently empty by Stage 1's own removal
+      // of the Survey's interest-tag picker, which made DiscoveryScreen.jsx's own defensive
+      // "reached with zero real tracks, bounce back to hub" effect fire unconditionally for every
+      // real post-conversation student — not a locked tile, a genuinely broken click, for ALL
+      // THREE Discovery sub-steps (Careers/Majors/Programs), not just Careers specifically.
+      // Merged into whatever's already there (deduped), not a flat overwrite — a LATER
+      // re-confirmation whose own matchedInterestTags happens to come back thinner should never
+      // regress a real, already-working set of tags.
+      interestTags: [...new Set([...(state.interestTags || []), ...latestReadyOverview.matchedInterestTags])],
     });
     // Same footer-hiding mechanism "keep refining" already uses — marking this same turn's own
     // index as dismissed is what makes the review disappear the moment it's been acted on, with no
