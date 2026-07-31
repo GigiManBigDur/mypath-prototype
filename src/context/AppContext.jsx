@@ -371,6 +371,14 @@ const DEFAULT_STATE = {
   // Own's own projects already use, rather than a second field here duplicating that data.
   narrativeSummary: null,
   narrativeThemes: [],
+  // AI-First Onboarding, Stage 5 (see CLAUDE.md), Task 2 — a dedicated "has the student actually
+  // opened My Narrative yet" flag, mirroring `transcriptCompleted`/`projectBuilderSkipped`'s own
+  // "done OR explicitly [X]" shape: the guided sequence's new first step points at the My Narrative
+  // tile (the natural payoff moment right after the onboarding conversation) until this flips true,
+  // set once by MyNarrativeScreen.jsx itself on mount — the same "destination screen sets its own
+  // completion flag" precedent those two fields already established, rather than trying to infer
+  // "has this been seen" from some other real action that doesn't actually represent it.
+  narrativeViewed: false,
   // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Tasks 4/5 — the
   // real, ongoing project-brainstorming conversation behind Project Builder's single top-level
   // "Build Your Own" entry. Same shape/persistence contract as `chatHistory` above (`[{ role,

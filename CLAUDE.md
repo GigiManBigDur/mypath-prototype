@@ -8295,6 +8295,104 @@ own display/editing shell and one small, real "on track" status computation.**
   never opens `roadmapLayout.js` and reuses `roadmapGenerator.js`'s already-existing, unmodified
   overview/lock/date-correction machinery in full.
 
+**AI-First Onboarding, Stage 5 (Final): Hub Restructure — cleans up the hub now that onboarding has
+moved earlier in the flow (Stage 1's minimal form, Stage 2's conversation, Stage 3's generated
+overview). This is the final stage of the AI-First Onboarding initiative.**
+- **Task 1 — "Let's Build Your Plan" was already removed from the hub, by Stage 1, not this stage.**
+  Confirmed directly (not assumed) via `git show HEAD` and a full-repo grep before touching anything:
+  `TILES` (`HubScreen.jsx`) has had no `'survey'` entry since Stage 1's own flow restructure — the
+  survey became a mandatory PRE-hub step then, so there was never a real "go build your plan"
+  destination left to point at from the hub afterward, the same way there's no "go sign up" tile
+  either (see Stage 1's own CLAUDE.md section). The one remaining occurrence of the literal string
+  anywhere in `src/` is a stale, harmless comparison inside the Profile tile's own comment ("like
+  'Let's Build Your Plan': this is personal data entry..."), not a real tile. This stage's own real
+  work for Task 1 was verifying and documenting that fact, not removing anything further.
+- **Task 2 — `GUIDED_SEQUENCE` (`HubScreen.jsx`) gained a genuine new FIRST step, `myNarrative`,**
+  ahead of `careers` — the natural payoff moment right after the onboarding conversation is "here's
+  what we just figured out together," not "let's pick some careers." `isDone: (state) =>
+  state.narrativeViewed` — a new, dedicated one-time flag (`state.narrativeViewed`, `AppContext.jsx`,
+  `false` default), mirroring `transcriptCompleted`/`projectBuilderSkipped`'s own "a destination
+  screen sets its own completion flag" shape rather than trying to infer "has this been seen" from
+  some unrelated real action — set once, guarded against a redundant write, by
+  `MyNarrativeScreen.jsx`'s own mount effect (the same "destination screen owns its own completion
+  signal" precedent those two fields already established).
+  - **`requiresNarrative`** (a new per-step flag, checked alongside the existing
+    `requiresPartnerSchool`/`visibleForTransfer` filter) drops this step out of the sequence
+    entirely for the one real edge case where it doesn't apply: `OnboardingConversationScreen.jsx`'s
+    own "Continue to my Hub" button has no hard confirm-first gate (confirmed directly by reading
+    that file — a student can click it without ever reaching `readyForOverview`/confirming an
+    overview at all), so a student who genuinely never confirmed a narrative correctly skips straight
+    to `careers` instead, exactly as the sequence already worked before this stage existed — not a
+    crash, not a permanently-stuck pointer at an unreachable tile.
+  - **`relevantGuidedSteps(state, hasPartnerSchool)`** (new, extracted) is the one shared filter
+    predicate both `getNextGuidedStep` and `getGuidedProgress` now call — previously each function
+    duplicated the identical inline `.filter(...)` expression; adding a third condition
+    (`requiresNarrative`) to both copies separately was the moment this codebase's own "extract once,
+    every caller reads the identical filter" precedent applied again, so the two can never
+    independently drift on which steps count as "relevant" going forward.
+  - **Every other step's own order is completely untouched** — careers -> majors -> programs ->
+    transcript -> courseSelection -> opportunities -> projectBuilder, exactly as it already worked;
+    only a new step was prepended, nothing was reordered or removed downstream of it.
+- **Task 4 — the `myNarrative` step's own `intro` line IS "the hub's first greeting" referencing the
+  conversation** — it's the very first thing shown in the mascot's speech bubble on a student's
+  first-ever hub visit (right after confirming an overview), not a separate, second greeting
+  mechanism bolted on top of the existing one. Reads `state.narrativeThemes` (Stage 3's own confirmed
+  theme keywords) when present ("We just talked about Sociology and Economics — here's the full,
+  multi-year direction we built together. Take a look!"), falling back to a still-conversation-
+  referencing but theme-free line when the model's own `thematicKeywords` happened to come back empty
+  ("Here's the direction we just built together in our first conversation — take a look!") — never
+  silently rendering nothing. The plain, static "Welcome back, [name]! 👋" line (`.hub-welcome-line`)
+  was deliberately left untouched — that's a stable, unrelated greeting by original design (Stage 2's
+  own comment already documents it as intentionally generic), not the piece this task is about; the
+  REAL "mascot's greeting" this task means is the speech-bubble dialogue, which is exactly what
+  `nextStepIntro` already renders and speaks aloud via the existing `useMascotSpeech` wiring — zero
+  new dialogue-delivery mechanism was built for this.
+- **Task 3 — Careers of Interest and Related College Majors' own copy (both the hub's guided-sequence
+  dialogue AND Discovery's own on-page title/sub text) now reads as confirming a direction the
+  conversation already found, layered ON TOP of what already existed there, not replacing it.**
+  - **`GUIDED_SEQUENCE`'s own `careers` step** — the tail after the existing education-level-specific
+    admissions-context blurb (`ADMISSIONS_CONTEXT_LINES[state.educationLevel]`, untouched) now reads
+    `"Now let's confirm the direction we found — here are some careers worth a closer look."` whenever
+    `state.narrativeSummary` is truthy, falling back to the original `"Now, let's figure out what
+    excites you."` for the one real case where no narrative exists (see Task 2's own
+    `requiresNarrative` comment above for why that's still a real, reachable state, not a
+    hypothetical one).
+  - **`DiscoveryScreen.jsx`'s `SUB_STEP_COPY.careers.sub`/`.majors.sub`** both became `(level,
+    narrative)` functions (`programs.sub` is untouched — Task 3 only named Careers/Majors) —
+    `narrative = { summary: state.narrativeSummary, themesText: state.narrativeThemes?.length ?
+    state.narrativeThemes.join(' and ') : null }`, resolved once in the render body and passed
+    through the existing generic "is this sub a function" branch (which already handled the
+    per-education-level `majors`/`programs` cases from earlier passes, so no new branching logic was
+    needed there — only the call now passes a second argument, harmlessly ignored by `programs.sub`).
+    **Majors' own education-level sentence (`getMajorApplicationSentence(level)`) is completely
+    unchanged** — only the TAIL after it branches: `" Let's confirm these line up with the direction
+    we already found — select as many as fit."` when a narrative exists, vs. the original `" These
+    majors lead toward the careers you picked. Select as many as fit."` otherwise. Careers' own sub
+    (which never had a per-level layer to begin with) similarly branches its whole sentence, naming
+    the real confirmed themes when available (`"Let's confirm the direction we found in our first
+    conversation — around Sociology and Economics. Here are careers that fit..."`) and falling back
+    to the exact original `"Based on your interests, here are careers worth exploring..."` line when
+    no narrative exists.
+- Verified with a dedicated 22-check Playwright suite, driving the real click-through flow (not just
+  isolated seeded checks) so the sequence transition itself is genuinely exercised: confirms "Let's
+  Build Your Plan" appears nowhere on the hub (Task 1); with a real confirmed narrative, the mascot's
+  first-ever dialogue bubble names the real themes and frames it as "built together" (Task 4), the
+  mascot points at the My Narrative tile FIRST (not Careers of Interest, confirmed absent as the
+  target at that point), and the progress indicator correctly starts at "1/N"; clicking My Narrative
+  navigates there and sets `narrativeViewed: true`; returning to the hub afterward correctly advances
+  the pointing target to Careers of Interest, whose own dialogue now reads with the confirming
+  framing, and clicking it still correctly navigates into Discovery (Task 2); with NO narrative
+  confirmed at all, the sequence correctly skips straight to Careers of Interest with the ORIGINAL
+  from-scratch dialogue framing preserved, and the progress indicator still starts cleanly at "1/N"
+  (myNarrative excluded from the total, not counted as a skipped/hidden step); and, on Discovery
+  itself, both Careers' and Majors' own page-sub text correctly show the narrative-aware confirming
+  language (with Majors' own education-level sentence still present alongside it) when a narrative
+  exists, correctly fall back to the exact original from-scratch text when one doesn't, and Programs'
+  own copy is confirmed completely untouched either way (Task 3). `npm run build`/`npm run lint`/
+  `npm run verify:spacing` (20/20) all stay clean — this final stage never opens `roadmapLayout.js`/
+  `Roadmap.jsx`, touching only `HubScreen.jsx`, `DiscoveryScreen.jsx`, `MyNarrativeScreen.jsx`, and
+  `AppContext.jsx`'s own state shape.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -10887,3 +10985,22 @@ download). Cover at minimum:
   its `.steps`) never drifts from what the real roadmap generator produces for the identical project.
   `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay clean (this stage
   never opens `roadmapLayout.js` either).
+- AI-First Onboarding, Stage 5 (Final, Hub Restructure): seed `interestTags` with a real tag that
+  resolves to a built track (e.g. `['Business']` — `getBuiltTracks([])` returns nothing, which makes
+  DiscoveryScreen's own defensive `tracks.length === 0` check silently bounce straight back to the
+  hub, a real gotcha to watch for when seeding any Discovery-reaching test state). Confirm
+  `document.body.innerText` never contains "Let's Build Your Plan" anywhere on the hub. With a real
+  `state.startedProjects` narrative-overview entry plus `state.narrativeSummary`/`narrativeThemes`
+  seeded, confirm the mascot's first dialogue bubble (`.mascot-dialogue`) names the real themes and
+  the My Narrative tile (not Careers of Interest) carries `.pointing-target`; click it, confirm
+  `state.narrativeViewed` becomes `true`; navigate back to the hub and confirm the pointing target has
+  now genuinely moved to Careers of Interest, whose own dialogue reads with the "confirm the
+  direction" framing. Separately, seed a state with NO narrative confirmed at all (no
+  `startedProjects` entry, `narrativeSummary: null`) and confirm the sequence skips straight to
+  Careers of Interest with the original "figure out what excites you" framing intact — this is the
+  direct proof `requiresNarrative` correctly excludes the step rather than leaving the sequence stuck.
+  For Discovery's own on-page copy, seed `discoveryEntryStep: 'careers'`/`'majors'` with and without a
+  narrative present and check `.page-sub`'s real text both ways; confirm Programs' own copy never
+  contains "confirm" in either case, since Task 3 only named Careers/Majors. `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) should all stay clean — this final stage never opens
+  `roadmapLayout.js`/`Roadmap.jsx` at all.

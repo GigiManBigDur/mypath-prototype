@@ -203,8 +203,30 @@ const TILES = [
 // AI-First Onboarding, Stage 1 (see CLAUDE.md) — the old first step here ('survey') is gone: the
 // survey is now a mandatory pre-hub step (see TILES's own comment above), always already done by
 // the time a student can ever reach the hub, so it never had a real "next thing to do" state left
-// to guide toward here either. 'careers' is now the genuine first step in this sequence.
+// to guide toward here either.
+// AI-First Onboarding, Stage 5 (Task 2, see CLAUDE.md) — 'myNarrative' is now the genuine first
+// step: the natural payoff moment right after the onboarding conversation is "here's what we just
+// figured out together," not "let's pick some careers" — pointing the student at their freshly
+// generated multi-year overview before anything else. `requiresNarrative` (checked by
+// `getNextGuidedStep`/`getGuidedProgress` below, alongside the existing `requiresPartnerSchool`
+// filter) drops this step out of the sequence entirely for the one real edge case where it doesn't
+// apply: a student who reached the hub via OnboardingConversationScreen's own "Continue to my Hub"
+// button WITHOUT ever confirming an overview (that button has no hard confirm-first gate) — for
+// them, the sequence correctly starts at 'careers' instead, same as before this stage existed.
 const GUIDED_SEQUENCE = [
+  {
+    id: 'myNarrative', requiresPartnerSchool: false, requiresNarrative: true,
+    isDone: (state) => state.narrativeViewed,
+    // Task 4 — this line IS "the hub's first greeting" referencing the conversation: it's the
+    // very first thing shown in the mascot's speech bubble on a student's first-ever hub visit
+    // (right after confirming an overview), rather than a generic/disconnected opener.
+    intro: (state) => {
+      const themesText = state.narrativeThemes?.length ? state.narrativeThemes.join(' and ') : null;
+      return themesText
+        ? `We just talked about ${themesText} — here's the full, multi-year direction we built together. Take a look!`
+        : "Here's the direction we just built together in our first conversation — take a look!";
+    },
+  },
   {
     id: 'careers', requiresPartnerSchool: false,
     isDone: (state) => state.selectedCareerIds.length > 0,
@@ -215,7 +237,12 @@ const GUIDED_SEQUENCE = [
     // mascotDialogue.js). Falls back to the High School line for the (unreachable in practice,
     // since Survey requires picking a level to ever reach here) case of a missing/unrecognized
     // level, rather than rendering nothing.
-    intro: (state) => `Quick context: ${ADMISSIONS_CONTEXT_LINES[state.educationLevel] || ADMISSIONS_CONTEXT_LINES.highschool} Now, let's figure out what excites you.`,
+    // AI-First Onboarding, Stage 5 (Task 3, see CLAUDE.md) — the tail now reads as confirming/
+    // reviewing the direction the conversation already found, not "figure out what excites you"
+    // from scratch, whenever a real narrative was actually confirmed (`state.narrativeSummary`);
+    // falls back to the original from-scratch framing for the one case where none exists (see
+    // `requiresNarrative`'s own comment above for why that's still a real, reachable state).
+    intro: (state) => `Quick context: ${ADMISSIONS_CONTEXT_LINES[state.educationLevel] || ADMISSIONS_CONTEXT_LINES.highschool} ${state.narrativeSummary ? "Now let's confirm the direction we found — here are some careers worth a closer look." : "Now, let's figure out what excites you."}`,
   },
   {
     id: 'majors', requiresPartnerSchool: false,
@@ -287,12 +314,22 @@ const GUIDED_SEQUENCE = [
 // acknowledgment it used to fall through to afterward.
 const ENDPOINT_STEP = { id: 'plan', intro: "You've made it through the whole guide — your plan is ready! Come back anytime to keep building on it." };
 
+// AI-First Onboarding, Stage 5 (see CLAUDE.md) — extracted once `requiresNarrative` needed to join
+// `requiresPartnerSchool`/`visibleForTransfer` as a THIRD filter condition both `getNextGuidedStep`
+// and `getGuidedProgress` already applied identically (previously duplicated inline in both) —
+// the same "extract once, every caller reads the identical filter" precedent this codebase already
+// follows elsewhere, so the two can never independently drift on which steps are "relevant."
+function relevantGuidedSteps(state, hasPartnerSchool) {
+  return GUIDED_SEQUENCE.filter((s) => (!s.requiresPartnerSchool || hasPartnerSchool
+    || (s.visibleForTransfer && state.educationLevel === 'transfer'))
+    && (!s.requiresNarrative || !!getNarrativeProject(state)));
+}
+
 // Re-evaluated fresh from `state` on every render — nothing here is cached from a previous visit,
 // so returning to the hub after finishing a step always reflects the CURRENT next incomplete step,
 // per this stage's own explicit requirement.
 function getNextGuidedStep(state, hasPartnerSchool) {
-  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool
-    || (s.visibleForTransfer && state.educationLevel === 'transfer'));
+  const relevant = relevantGuidedSteps(state, hasPartnerSchool);
   return relevant.find((s) => !s.isDone(state)) || ENDPOINT_STEP;
 }
 
@@ -303,8 +340,7 @@ function getNextGuidedStep(state, hasPartnerSchool) {
 // GUIDED_SEQUENCE, the same real data `getNextGuidedStep` already derives. Also reused as-is by
 // the radial-layout pass's "Your Progress" card for the real "Milestones reached" stat below.
 function getGuidedProgress(state, hasPartnerSchool) {
-  const relevant = GUIDED_SEQUENCE.filter((s) => !s.requiresPartnerSchool || hasPartnerSchool
-    || (s.visibleForTransfer && state.educationLevel === 'transfer'));
+  const relevant = relevantGuidedSteps(state, hasPartnerSchool);
   const doneCount = relevant.filter((s) => s.isDone(state)).length;
   const currentIndex = Math.min(doneCount, relevant.length - 1);
   return { total: relevant.length, currentIndex, doneCount };

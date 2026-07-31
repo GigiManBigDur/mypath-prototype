@@ -41,6 +41,17 @@ export default function MyNarrativeScreen() {
     if (!narrativeProject) patch({ screen: 'hub' });
   }, [narrativeProject, patch]);
 
+  // AI-First Onboarding, Stage 5 (see CLAUDE.md), Task 2 — marks the guided sequence's own new
+  // "point at My Narrative first" step as done the moment the student genuinely visits this
+  // screen (the real payoff moment that step exists to lead them to), mirroring
+  // TranscriptScreen.jsx's own `transcriptCompleted` write — a destination screen setting its own
+  // completion flag, not a separate, guessed-at signal. Guarded so it's a one-time write, not a
+  // redundant patch/localStorage write on every render.
+  useEffect(() => {
+    if (narrativeProject && !state.narrativeViewed) patch({ narrativeViewed: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrativeProject]);
+
   const roadmap = useMemo(() => generateRoadmap(state), [state]);
   const today = useMemo(() => getEffectiveToday(state.dateOverride), [state.dateOverride]);
 

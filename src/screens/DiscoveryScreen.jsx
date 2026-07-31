@@ -25,17 +25,29 @@ const DISCOVERY_MASCOT_KEYS = {
 };
 
 const SUB_STEP_COPY = {
+  // AI-First Onboarding, Stage 5 (Task 3, see CLAUDE.md) — Careers/Majors' own `sub` are now both
+  // `(level, narrative)`, layered ON TOP of whatever copy already existed (majors' own
+  // education-level-specific sentence, untouched below) rather than replacing it: when a real
+  // narrative was actually confirmed (`narrative.summary`), the tail reframes as confirming/
+  // reviewing the direction the conversation already found instead of implying the student is
+  // starting from zero; falls back to the exact original from-scratch framing for the one real
+  // case where no narrative exists (a student who reached the hub via "Continue to my Hub" without
+  // ever confirming an overview — see HubScreen.jsx's own `requiresNarrative` comment). Programs'
+  // own `sub` is untouched — Task 3 only named Careers of Interest and Related Majors.
   careers: {
     title: 'Careers of interest',
-    sub: 'Based on your interests, here are careers worth exploring. Select as many as you\'d like to pursue.',
+    sub: (level, narrative) => (narrative.summary
+      ? `Let's confirm the direction we found in our first conversation${narrative.themesText ? ` — around ${narrative.themesText}` : ''}. Here are careers that fit. Select as many as you'd like to pursue.`
+      : "Based on your interests, here are careers worth exploring. Select as many as you'd like to pursue."),
   },
   majors: {
     title: 'Related college majors',
-    // Clarify "Related College Majors" Copy by Education Level (see CLAUDE.md) — a function of
-    // `level`, not a plain string, the same "resolve per-caller instead of a fixed string"
-    // convention the `programs` entry right below already established for the identical reason
-    // (varies by education level).
-    sub: (level) => `${getMajorApplicationSentence(level)} These majors lead toward the careers you picked. Select as many as fit.`,
+    // Clarify "Related College Majors" Copy by Education Level (see CLAUDE.md) — the education-
+    // level-specific `getMajorApplicationSentence(level)` sentence stays exactly as it was; only
+    // the tail after it now branches on whether a real narrative exists.
+    sub: (level, narrative) => `${getMajorApplicationSentence(level)}${narrative.summary
+      ? " Let's confirm these line up with the direction we already found — select as many as fit."
+      : ' These majors lead toward the careers you picked. Select as many as fit.'}`,
   },
   programs: {
     title: 'Recommended programs',
@@ -157,6 +169,14 @@ export default function DiscoveryScreen() {
   // internal chaining on Back would have been asymmetric and confusing.
   const handleNext = () => patch({ screen: 'hub' });
 
+  // AI-First Onboarding, Stage 5 (Task 3, see CLAUDE.md) — resolved once here rather than inline,
+  // since both careers' and majors' own `sub` functions read it; programs' own `sub` simply ignores
+  // the second argument.
+  const narrativeInfo = {
+    summary: state.narrativeSummary,
+    themesText: state.narrativeThemes?.length ? state.narrativeThemes.join(' and ') : null,
+  };
+
   return (
     <div>
       <MascotWidget text={mascotText} />
@@ -164,7 +184,7 @@ export default function DiscoveryScreen() {
       <StepProgress step={2} total={8} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">
-        {typeof SUB_STEP_COPY[subStep].sub === 'function' ? SUB_STEP_COPY[subStep].sub(level) : SUB_STEP_COPY[subStep].sub}
+        {typeof SUB_STEP_COPY[subStep].sub === 'function' ? SUB_STEP_COPY[subStep].sub(level, narrativeInfo) : SUB_STEP_COPY[subStep].sub}
       </p>
 
       <div className="step-track">
