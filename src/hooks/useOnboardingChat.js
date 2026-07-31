@@ -86,6 +86,12 @@ export function useOnboardingChat() {
               phaseDimensions: proposal.phaseDimensions,
               overviewPhaseDayOffsets: proposal.overviewPhaseDayOffsets,
               capstoneIdea: proposal.capstoneIdea,
+              // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") —
+              // 4 more hard-required overview fields, persisted the same way as every other one.
+              courseGuidanceNote: proposal.courseGuidanceNote,
+              testingTimelineNote: proposal.testingTimelineNote,
+              collegeListNote: proposal.collegeListNote,
+              essayMaterialNote: proposal.essayMaterialNote,
               thematicKeywords: proposal.thematicKeywords,
               // Bug fix (see CLAUDE.md, api/onboarding-chat.js's own VALID_INTEREST_TAGS comment) —
               // real, validated interest tags proposed alongside the rest of the ready overview,

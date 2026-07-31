@@ -5524,6 +5524,15 @@ body:has(.onboarding-meeting-active) {
   line-height: 1.5;
   color: var(--ink);
 }
+/* Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — a compact,
+   quiet confirmation line, not another bordered callout — the full text for each dimension lives
+   on the spacious My Narrative screen, this is just a reassurance before confirming. */
+.onboarding-dimensions-covered {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-soft, #6b6b6b);
+}
 
 /* AI-First Onboarding, Stage 4 (see CLAUDE.md) — "My Narrative"'s own screen-exclusive classes.
    This screen is bloom-scoped (App.jsx's isBloomScreen), so plain shared classes (.field-block/
@@ -5556,6 +5565,33 @@ body:has(.onboarding-meeting-active) {
   box-shadow: var(--bloom-shadow);
 }
 .narrative-capstone-text { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--bloom-ink); }
+
+/* Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — ONE
+   consolidated card (not 4 separate boxes) so course/testing/college-list/essay guidance reads as
+   one cohesive strategy, matching the same card language as .narrative-summary-card/
+   .narrative-capstone-card above. Each row shares this one card's own accent instead of 4 fighting
+   colors, since these 4 are genuinely one connected strategy, not 4 unrelated topics. */
+.narrative-strategy-card {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-left: 3px solid var(--bloom-ai);
+  border-radius: 12px;
+  padding: 14px 20px 6px;
+  margin: 0 0 24px;
+  box-shadow: var(--bloom-shadow);
+}
+.narrative-strategy-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--bloom-card-border);
+}
+.narrative-strategy-row:last-child { border-bottom: none; padding-bottom: 0; }
+.narrative-strategy-icon { flex-shrink: 0; margin-top: 2px; color: var(--bloom-ai); }
+.narrative-strategy-label { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 13px; color: var(--bloom-ink); margin-bottom: 2px; }
+.narrative-strategy-text { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--bloom-ink); }
 
 .narrative-phase-list { display: flex; flex-direction: column; gap: 10px; }
 .narrative-phase-card {

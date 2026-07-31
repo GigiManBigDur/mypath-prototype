@@ -169,6 +169,12 @@ export default function OnboardingConversationScreen() {
           phaseDimensions: m.phaseDimensions || null,
           overviewPhaseDayOffsets: m.overviewPhaseDayOffsets,
           capstoneIdea: m.capstoneIdea || null,
+          // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — the
+          // 4 newly hard-required overview dimensions, read the same defensive "|| null" way.
+          courseGuidanceNote: m.courseGuidanceNote || null,
+          testingTimelineNote: m.testingTimelineNote || null,
+          collegeListNote: m.collegeListNote || null,
+          essayMaterialNote: m.essayMaterialNote || null,
           thematicKeywords: m.thematicKeywords || [],
           // Bug fix (see CLAUDE.md) — real, server-validated interest tags, read the same
           // defensive "|| []" way thematicKeywords already is (a response from before this fix
@@ -263,6 +269,12 @@ export default function OnboardingConversationScreen() {
       // the overview identified, alongside narrativeSummary/narrativeThemes above. `null` (not
       // overwritten with a stale value) if this specific generation didn't produce a valid one.
       narrativeCapstoneIdea: latestReadyOverview.capstoneIdea,
+      // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — the 4
+      // newly hard-required dimensions, alongside the fields above.
+      narrativeCourseGuidance: latestReadyOverview.courseGuidanceNote,
+      narrativeTestingNote: latestReadyOverview.testingTimelineNote,
+      narrativeCollegeListNote: latestReadyOverview.collegeListNote,
+      narrativeEssayMaterialNote: latestReadyOverview.essayMaterialNote,
       // Bug fix (see CLAUDE.md) — this is the ONE real fix for the reported "Careers of Interest
       // won't click" bug: state.interestTags was left permanently empty by Stage 1's own removal
       // of the Survey's interest-tag picker, which made DiscoveryScreen.jsx's own defensive
@@ -349,6 +361,18 @@ export default function OnboardingConversationScreen() {
                   {latestReadyOverview.capstoneIdea && (
                     <p className="onboarding-capstone-preview">
                       <strong>Capstone idea:</strong> {latestReadyOverview.capstoneIdea}
+                    </p>
+                  )}
+                  {/* Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project
+                      Arc") — a compact confirmation that the 4 newly-mandatory dimensions are
+                      genuinely present, not just the project arc/summers — full text for each
+                      lives on the spacious My Narrative screen once confirmed, not crammed into
+                      this already-dense review card. */}
+                  {(latestReadyOverview.courseGuidanceNote || latestReadyOverview.testingTimelineNote
+                    || latestReadyOverview.collegeListNote || latestReadyOverview.essayMaterialNote) && (
+                    <p className="onboarding-dimensions-covered">
+                      Also covers: course rigor, testing timeline, college list, and essay material —
+                      all tied to this same direction.
                     </p>
                   )}
                   <div className="task-form-actions">

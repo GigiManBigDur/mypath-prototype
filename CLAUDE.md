@@ -8668,6 +8668,112 @@ checklist categories.**
   mocked test suites above prove the mechanism works correctly, not that the model's own reasoning
   is good, which still needs live verification after this deploys.
 
+**Fix: Overview Only Generating Summers + Project Arc, Missing Other Dimensions — a real, confirmed
+follow-up bug in the feature immediately above, caught by a live test conversation (a student,
+"David," pursuing a Computer Science/creative-tools direction) whose generated 7-phase overview
+correctly included the 3 real summer phases and a genuinely good, specific narrative summary, but
+read as nothing more than the project's own build arc with summers inserted — zero real course-
+selection guidance, no testing-timeline reference, no college-list evolution, no essay-material
+guidance anywhere in the output, despite all four being explicitly named in the prior feature's own
+system-prompt instructions.**
+- **Root cause, diagnosed by reading the actual schema/prompt, not assumed.** The prior feature
+  gave two kinds of content two structurally DIFFERENT levels of enforcement, and the asymmetry is
+  exactly why summers/capstone reliably appeared while the other four dimensions didn't.
+  `overviewPhaseTitles`'s own phase count (tied to real `planYearLabels`, a hard 4-9 bound
+  `validateProposal` genuinely rejects outside of) and `capstoneIdea` (its own dedicated, real
+  schema field) both had REAL structural enforcement guaranteeing they'd show up. Course guidance,
+  testing-timeline reference, college-list evolution, and essay-material guidance, by contrast, were
+  never given their own field at all — they were only soft, "naturally weave together whichever
+  dimensions are contextually relevant" prose buried inside one shared `overviewPhaseDescriptions`
+  field, with zero server-side check that any of that content had actually appeared. Given the SAME
+  system prompt also heavily reinforces vivid, well-reasoned project/capstone storytelling elsewhere
+  (the narrative-pushback framing this app's onboarding conversation already leans on, explicitly
+  modeled on a strong non-obvious-connection reference case), it's a well-understood, predictable
+  failure mode for the model to gravitate toward the strongly-reinforced, structurally-guaranteed
+  content (the project arc, its capstone, and the now-hard-bounded summer phases) while quietly
+  treating four merely-suggested dimensions as skippable — this is precisely the reported symptom,
+  not a partial-prompt-adoption mystery or a phase-count ceiling.
+- **The fix promotes all four missing dimensions to their own dedicated, HARD-REQUIRED schema
+  fields — the exact same validation tier `narrativeTitle`/`narrativeSummary` already occupy, where
+  a missing/blank value coerces the ENTIRE response back to `readyForOverview: false` rather than
+  silently degrading just that one field to `null` the way `overviewPhaseDescriptions`/
+  `phaseDimensions`/`capstoneIdea` still correctly do (those three stay soft-degrade on purpose —
+  see the section above — since a missing description/dimension/capstone doesn't invalidate the
+  whole overview the way a systematically-missing strategic dimension does).** `ONBOARDING_SCHEMA`
+  gained `courseGuidanceNote`, `testingTimelineNote`, `collegeListNote`, and `essayMaterialNote`
+  (each `type: ['string', 'null']`, added to the schema's own `required` array), every one described
+  as "Required (non-null) when readyForOverview is true. Must be null otherwise" — the identical
+  phrasing `capstoneIdea` already used, now backed by real enforcement instead of just a strongly-
+  worded description. `SYSTEM_PROMPT`'s "Generating the overview" section was rewritten from the old
+  soft "distributed naturally... not every phase needs every dimension" framing (the actual escape
+  hatch that let the model skip them) to an explicit, numbered statement that all six real
+  dimensions are MANDATORY, NOT OPTIONAL, calling out by name that "a strong project/capstone story
+  alone is NOT a complete overview, even if it's compelling" and that dimensions 2/4/5/6 each have
+  their own dedicated required field "specifically because burying them only inside phase
+  descriptions is not reliable enough." `validateProposal(input)` gained four new hard checks
+  (non-empty string, ≤800 chars each) placed at the SAME tier as the pre-existing
+  `narrativeTitle`/`narrativeSummary` checks — before the softer per-field degradation logic, not
+  after — so any one of the four being missing/blank/oversized now correctly fails the whole ready
+  state (with the real `reply` text still preserved, the same graceful-degradation contract every
+  other "not ready yet" path in this file already honors) instead of silently producing an
+  incomplete overview that passes validation anyway. `max_tokens`/`max_output_tokens` raised again,
+  4500 → 5500, matching this file's own repeated "a truncated response is strictly worse than a
+  generously-budgeted one" precedent — four more real, substantive text fields per response needs
+  real headroom.
+- **The four new fields flow through this app's existing state/profile plumbing with zero new
+  wiring pattern** — `useOnboardingChat.js`'s `sendFrom` persists them onto the assistant message
+  object alongside the pre-existing overview fields; `AppContext.jsx`'s `DEFAULT_STATE` gained four
+  flat, `null`-default fields (`narrativeCourseGuidance`, `narrativeTestingNote`,
+  `narrativeCollegeListNote`, `narrativeEssayMaterialNote`) following the exact same convention
+  `narrativeSummary`/`narrativeCapstoneIdea` already established; `profileCompiler.js`'s
+  `basicProfile` gained the same four fields via the identical "add once at the source, every AI
+  feature reading the full profile inherits it for free" precedent those two already set —
+  `compileSuggestionProfile` needed zero changes, since it already spreads `basicProfile` wholesale.
+  `OnboardingConversationScreen.jsx`'s `confirmNarrative()` patches all four into state the moment
+  the overview is confirmed, and the review footer gained a compact, conditionally-rendered
+  `.onboarding-dimensions-covered` line ("Also covers: course rigor, testing timeline, college list,
+  and essay material — all tied to this same direction") so the student sees confirmation that
+  these dimensions are present at the moment of commit, not only later.
+- **`MyNarrativeScreen.jsx` gained a new, consolidated `.narrative-strategy-card`** — deliberately
+  ONE card with four labeled sub-rows (Course Rigor / Testing Timeline / College List / Essay
+  Material, each pairing a small lucide icon with its real text), not four separate boxes, matching
+  the original feature's own explicit "every dimension must explicitly connect back to one
+  narrative thread... don't generate as separate, disconnected categories" instruction: the DATA is
+  structurally separate (for reliable generation, per this fix's own core mechanism), but the UI
+  still reads as one cohesive strategy, conditionally rendered only when at least one of the four
+  fields is actually present.
+- Verified with a dedicated Node-level test (14 checks, mocking `global.fetch`, calling the real
+  handler directly, using a David-shaped 4-phase test scenario matching the real reported structure)
+  confirming: a well-formed response with all four new fields passes through completely;
+  a response missing `courseGuidanceNote` (the exact reported failure mode) now correctly fails
+  `readyForOverview` while still preserving the real `reply` text; a blank `testingTimelineNote`,
+  a missing `collegeListNote`, and a missing `essayMaterialNote` all independently fail readiness the
+  same way; an overlong `courseGuidanceNote` (past 800 chars) fails readiness too, confirming real
+  bound enforcement, not just presence; a not-ready turn correctly reports all four new fields as
+  `null`; and the system prompt/schema source text now contains the expected "ALL SIX ARE
+  MANDATORY, NOT OPTIONAL" framing and the four new required field names (regression checks against
+  reverting to the old soft framing). A dedicated Playwright suite (14 checks) then drove the full
+  real click-through flow — Sign Up → Survey → send a message → a mocked ready response replicating
+  David's exact 7-phase overview, now with all four dimensions populated → confirm → My Narrative —
+  and confirmed: the review shows the new "Also covers..." line; after confirming, all seven real
+  phases land correctly and all four new state fields (`narrativeCourseGuidance`/
+  `narrativeTestingNote`/`narrativeCollegeListNote`/`narrativeEssayMaterialNote`) hold the real
+  proposed content verbatim, with `narrativeCapstoneIdea` still correctly set alongside them
+  (confirming this fix didn't disturb the prior feature's own capstone handling); and the My
+  Narrative screen's new strategy card shows all four real notes under their correct labels, while
+  the pre-existing capstone card and the three real summer-tagged phase cards still render exactly
+  as before. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this
+  fix never opens `roadmapLayout.js`/`Roadmap.jsx` at all, only the schema/prompt/validation in
+  `api/onboarding-chat.js` and the plumbing that already existed to carry overview fields through.
+- **What still needs live verification**: whether the AI's own real reasoning, once this is
+  deployed, reliably produces genuine, narrative-connected content for all four newly-required
+  dimensions (not just minimally-compliant filler text that happens to pass the length/non-blank
+  checks) for a real David-like conversation — the mocked tests above prove the enforcement
+  mechanism now correctly rejects a response missing any dimension, not that the model's own
+  real-world output is substantively good once forced to include them; this needs the same kind of
+  real, repeated, unmocked verification against the deployed endpoint this codebase has already
+  established as standard practice for every prior qualitative AI-behavior fix.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11339,3 +11445,29 @@ download). Cover at minimum:
   real, repeated, unmocked calls against the live deployed endpoint** — mocking only proves the
   mechanism works. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay
   clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`.
+- Fix: Overview Only Generating Summers + Project Arc, Missing Other Dimensions: mock
+  `global.fetch` and call the real `api/onboarding-chat.js` handler directly with a David-shaped
+  (CS + creative-tools) test scenario matching the real reported 7-phase structure — confirm a
+  well-formed response with all four new fields (`courseGuidanceNote`/`testingTimelineNote`/
+  `collegeListNote`/`essayMaterialNote`) passes through completely; confirm each one, when
+  independently made missing/blank/overlong (past 800 chars), now correctly fails
+  `readyForOverview` (the core fix — this is a real regression risk to re-check if the schema is
+  ever touched again, since these four are easy to mistake for the OTHER, deliberately soft-
+  degrading fields like `phaseDimensions`/`capstoneIdea`) while the real `reply` text is still
+  preserved (graceful degradation, not a hard error); confirm a not-ready turn reports all four as
+  `null`; and grep the source for the "ALL SIX ARE MANDATORY, NOT OPTIONAL" framing as a regression
+  check against reverting to the old soft "not every phase needs every dimension" wording. For the
+  full flow, mock `/api/onboarding-chat` with a realistic David-shaped response (all 7 phases, all
+  4 new fields populated with real, specific content) and drive Sign Up → Survey → send a message
+  → confirm: the review shows the new "Also covers: course rigor, testing timeline, college list,
+  and essay material" line; after confirming, all four new state fields hold the real proposed
+  content verbatim AND `narrativeCapstoneIdea` is still correctly set alongside them (confirming
+  this fix didn't disturb the capstone handling from the feature it follows up on); and My
+  Narrative's new `.narrative-strategy-card` shows all four real notes under their correct labels
+  while the pre-existing capstone card and summer-tagged phase cards are unaffected. **Whether the
+  AI's own real reasoning produces genuinely substantive (not just minimally-compliant filler)
+  content for all four now-required dimensions can only be confirmed via real, repeated, unmocked
+  calls against the live deployed endpoint** — the mocked tests above only prove the new
+  enforcement correctly rejects an incomplete response, not that the model's real output is good
+  once forced to include everything. `npm run build`/`npm run lint`/`npm run verify:spacing`
+  (20/20) should all stay clean — this fix never opens `roadmapLayout.js`/`Roadmap.jsx` either.

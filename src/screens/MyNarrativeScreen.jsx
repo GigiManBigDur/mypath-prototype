@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft, Lock, CheckCircle2, Circle, X, Pencil, Check,
+  BookOpen, ClipboardCheck, Building2, PenLine,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getNarrativeProject } from '../data/projects';
@@ -124,6 +125,56 @@ export default function MyNarrativeScreen() {
         <div className="narrative-capstone-card">
           <div className="modal-eyebrow" style={{ color: 'var(--bloom-purple)' }}>Your Capstone Idea</div>
           <p className="narrative-capstone-text">{state.narrativeCapstoneIdea}</p>
+        </div>
+      )}
+
+      {/* Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — the 4
+          dimensions that used to only be soft, easy-to-skip prose mentions are now real, dedicated
+          content, shown as ONE consolidated card with 4 clearly-labeled sub-sections (not 4
+          separate, disconnected boxes) so it structurally guarantees each dimension exists while
+          still visually reading as one cohesive strategy, per Task 2's own "don't treat as
+          separate disconnected categories" instruction. Absent entirely for a plan confirmed
+          before this fix shipped (none of the 4 fields exist yet for that student). */}
+      {(state.narrativeCourseGuidance || state.narrativeTestingNote
+        || state.narrativeCollegeListNote || state.narrativeEssayMaterialNote) && (
+        <div className="narrative-strategy-card">
+          <div className="modal-eyebrow" style={{ color: 'var(--bloom-ai)' }}>Your Multi-Year Strategy</div>
+          {state.narrativeCourseGuidance && (
+            <div className="narrative-strategy-row">
+              <BookOpen size={16} className="narrative-strategy-icon" />
+              <div>
+                <div className="narrative-strategy-label">Course Rigor</div>
+                <p className="narrative-strategy-text">{state.narrativeCourseGuidance}</p>
+              </div>
+            </div>
+          )}
+          {state.narrativeTestingNote && (
+            <div className="narrative-strategy-row">
+              <ClipboardCheck size={16} className="narrative-strategy-icon" />
+              <div>
+                <div className="narrative-strategy-label">Testing Timeline</div>
+                <p className="narrative-strategy-text">{state.narrativeTestingNote}</p>
+              </div>
+            </div>
+          )}
+          {state.narrativeCollegeListNote && (
+            <div className="narrative-strategy-row">
+              <Building2 size={16} className="narrative-strategy-icon" />
+              <div>
+                <div className="narrative-strategy-label">College List</div>
+                <p className="narrative-strategy-text">{state.narrativeCollegeListNote}</p>
+              </div>
+            </div>
+          )}
+          {state.narrativeEssayMaterialNote && (
+            <div className="narrative-strategy-row">
+              <PenLine size={16} className="narrative-strategy-icon" />
+              <div>
+                <div className="narrative-strategy-label">Essay Material</div>
+                <p className="narrative-strategy-text">{state.narrativeEssayMaterialNote}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

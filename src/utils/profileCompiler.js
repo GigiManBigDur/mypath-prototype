@@ -367,6 +367,12 @@ export function compileStudentProfile(state) {
       // Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — same "add once at the source"
       // precedent right above.
       narrativeCapstoneIdea: state.narrativeCapstoneIdea || null,
+      // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — same
+      // "add once at the source" precedent for the 4 newly-mandatory overview dimensions.
+      narrativeCourseGuidance: state.narrativeCourseGuidance || null,
+      narrativeTestingNote: state.narrativeTestingNote || null,
+      narrativeCollegeListNote: state.narrativeCollegeListNote || null,
+      narrativeEssayMaterialNote: state.narrativeEssayMaterialNote || null,
     },
     academic: resolveAcademic(state),
     goals: {

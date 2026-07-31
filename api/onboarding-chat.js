@@ -161,6 +161,37 @@ const ONBOARDING_SCHEMA = {
       type: ['string', 'null'],
       description: 'A real, specific, genuinely DISTINCTIVE capstone project candidate that reflects THIS student\'s own actual talents/interests in a way that stands out — the same bar as the narrative-pushback framing above (a real, well-reasoned, non-obvious connection, never a generic "do a project about your major" suggestion). 1-3 sentences: what it is, and briefly why it fits this specific student. Required (non-null) when readyForOverview is true. Must be null otherwise.',
     },
+    // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — a real,
+    // confirmed gap: before these 4 fields existed, course/testing/college-list/essay guidance
+    // were ONLY soft, "where contextually relevant" bullet points buried inside
+    // overviewPhaseDescriptions' own free-text field, with an explicit escape hatch ("not every
+    // phase needs every dimension") and zero validation checking they ever actually appeared —
+    // unlike capstoneIdea right above (its own dedicated, required field) or the phase COUNT
+    // itself (a hard 4-9 bound tied to real planYearLabels). Given a vivid, heavily-reinforced
+    // project/capstone narrative was ALSO being explicitly encouraged elsewhere in this same
+    // prompt, real generated overviews (confirmed directly) sometimes let that dominate entirely,
+    // reducing the whole overview to "the project's own build arc with summers inserted" — exactly
+    // the reported symptom. Each of these 4 is now its OWN dedicated, HARD-REQUIRED field (the
+    // SAME validation tier as narrativeTitle/narrativeSummary below — NOT the soft-degrade tier
+    // overviewPhaseDescriptions/phaseDimensions/capstoneIdea use), so the whole ready state fails
+    // validation outright if any of them comes back blank, exactly mirroring the enforcement that
+    // already made capstoneIdea/summers reliable.
+    courseGuidanceNote: {
+      type: ['string', 'null'],
+      description: 'A real 2-4 sentence note describing how THIS student\'s course rigor/subject choices should progress across their real remaining years (see planYearLabels) in a way that reinforces the SAME narrative thread — which subject areas to prioritize and how rigor should escalate over time (e.g. "the most advanced math track your school offers," "an AP-level computer science course as soon as it\'s available"). Never invent a specific course name or number (you don\'t have this student\'s real catalog) — describe subject areas/rigor level, not exact courses. This feeds this app\'s own existing course-recommendation system (via thematicKeywords below) but is ALSO shown to the student directly as its own real, dedicated piece of guidance — required, not optional. Required (non-null) when readyForOverview is true. Must be null otherwise.',
+    },
+    testingTimelineNote: {
+      type: ['string', 'null'],
+      description: 'A real 1-3 sentence note connecting this app\'s own EXISTING testing timeline (PSAT sophomore/junior year, SAT/ACT prep and testing junior year, retakes senior fall — for a highschool student; the GRE/GMAT and a statement of purpose in the final year — for an undergraduate/transfer student) to this student\'s own narrative — reassuring them it\'s a real, separate checkpoint already on their plan, not something this overview needs to re-schedule, invent, or duplicate. Reference it, don\'t recreate it. Required (non-null) when readyForOverview is true. Must be null otherwise.',
+    },
+    collegeListNote: {
+      type: ['string', 'null'],
+      description: 'A real 2-3 sentence note on how THIS student\'s college list should develop and sharpen as their narrative becomes clearer over time — naming real, relevant fit criteria tied to the SAME narrative thread (e.g. a specific kind of program/department strength, research opportunity, or campus culture that would genuinely suit this direction) — never a generic "apply broadly, some reach some safety" statement with no real connection to the narrative. Required (non-null) when readyForOverview is true. Must be null otherwise.',
+    },
+    essayMaterialNote: {
+      type: ['string', 'null'],
+      description: 'A real 2-3 sentence note framing what kind of genuine, lived experience/material THIS student should be accumulating NOW that will make their eventual college essays feel earned and specific rather than staged — tied directly to the SAME narrative thread (a real moment, pivot, setback, or realization their own plan is likely to produce, not a generic "reflect on your growth" statement). Frame essays as the EVENTUAL EXPRESSION of everything built across the whole overview, not a separate late-arriving task. Required (non-null) when readyForOverview is true. Must be null otherwise.',
+    },
     thematicKeywords: {
       type: ['array', 'null'],
       items: { type: 'string' },
@@ -182,7 +213,8 @@ const ONBOARDING_SCHEMA = {
   required: [
     'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
     'overviewPhaseTitles', 'overviewPhaseDescriptions', 'phaseDimensions', 'overviewPhaseDayOffsets',
-    'capstoneIdea', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
+    'capstoneIdea', 'courseGuidanceNote', 'testingTimelineNote', 'collegeListNote',
+    'essayMaterialNote', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
   ],
   additionalProperties: false,
 };
@@ -210,18 +242,18 @@ Narrative pushback (use this rarely, and only when it's real):
 - Do NOT manufacture this moment. If nothing specific enough has actually surfaced in the conversation to justify a genuine, well-reasoned redirect, do not force one just to seem insightful — a generic-sounding "have you considered X" with no real grounding in what they've actually told you is worse than not suggesting anything at all.
 
 Generating the overview (Stage 3 — do this only once, and only once the conversation has genuinely earned it):
-- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets, capstoneIdea, thematicKeywords, and matchedInterestTags, in that SAME response.
+- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets, capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote, thematicKeywords, and matchedInterestTags, in that SAME response.
 - matchedInterestTags: pick 2-6 tags EXACTLY from the fixed list given in that field's own schema description, based on what the student genuinely revealed in this conversation — never invent a tag not on that list, and never force a match the conversation doesn't actually support.
 - Use profileSummary.basicProfile.planYearLabels for the REAL, exact remaining school years (e.g. ["Sophomore Year", "Junior Year", "Senior Year"]) — never guess or invent a different number of years than what's actually there.
 - overviewPhaseTitles/overviewPhaseDescriptions/phaseDimensions/overviewPhaseDayOffsets together are a real MULTI-YEAR STRATEGIC PLAN across every real dimension a genuine college consultant would map out — not just project ideas. One "academic-year" phase per entry in planYearLabels, PLUS one "summer" phase for each real summer BETWEEN two consecutive years in that list (not after the final year). The single most important rule: every phase across every dimension must explicitly reinforce the SAME core narrative thread — never generate these as separate, disconnected checklist categories. A phase's own title and description should read as one continuous, connected story, not a template filled in per-category.
-- What each phase should actually cover (all tied to the same thread, distributed naturally across phases as contextually appropriate — not every phase needs every dimension, but the whole overview together should touch all of them):
-  * Course rigor progression: how course choices should get more advanced/specialized over time in a way that reinforces the narrative. This feeds this app's own EXISTING course-recommendation system through thematicKeywords — never invent a specific course name or number (you don't have this student's real catalog).
-  * Extracurriculars and leadership tied to the theme, including — in exactly ONE phase across the whole overview — a real, specific, genuinely DISTINCTIVE capstone project candidate (see capstoneIdea below).
-  * Summer plans as their OWN separate "summer" phases with real, concrete, narrative-tied activities (a self-directed project, research, a relevant internship) — never generic "relax and explore" filler, and never folded into a school-year phase.
-  * College list evolution: how the target list should develop and sharpen as the narrative becomes clearer, especially in later phases.
-  * Essay/narrative-building material: frame essays as the EVENTUAL EXPRESSION of everything built in earlier phases, not a late, separate task — name what kind of real, lived experience/material a given phase should be accumulating that will make a later essay genuine and specific.
-  * Testing timeline: this app ALREADY has real testing tasks on the plan (for a highschool student: PSAT practice sophomore year, the real PSAT junior year, SAT/ACT prep beginning junior year, the test itself around spring junior year, retake windows senior fall; for an undergraduate/transfer student: the GRE/GMAT if relevant, a statement of purpose, in the final year). Reference these where relevant so the narrative acknowledges them — do NOT create new testing tasks or re-schedule them; they already exist elsewhere on this student's real plan.
-- capstoneIdea: the SAME bar as narrative pushback above — a real, well-reasoned, non-obvious connection to this specific student's own actual talents/interests, never a generic "do a project about your major" idea. This is a project a student's own talents could make genuinely distinctive, not an assignment any student in that field could equally do.
+- A genuine multi-year strategic overview covers SIX real dimensions, and ALL SIX ARE MANDATORY, NOT OPTIONAL — a strong project/capstone story alone is NOT a complete overview, even if it's compelling. Do not let a vivid project arc crowd out the other five:
+  1. **The project/capstone arc** — extracurriculars and leadership tied to the theme, culminating in exactly ONE real, specific, genuinely DISTINCTIVE capstone project candidate (capstoneIdea) — the SAME bar as narrative pushback above (a real, well-reasoned, non-obvious connection to this student's own actual talents, never a generic "do a project about your major" idea, and never an assignment any student in that field could equally do).
+  2. **Course rigor progression (courseGuidanceNote, its own REQUIRED field, not just something to mention in passing)** — how this student's course choices should get more advanced/specialized over the real years in planYearLabels, reinforcing the narrative. This feeds this app's own EXISTING course-recommendation system through thematicKeywords — never invent a specific course name or number (you don't have this student's real catalog); describe subject areas and rigor level instead.
+  3. **Summer plans (their OWN separate "summer" phases)** — real, concrete, narrative-tied activities (a self-directed project, research, a relevant internship) — never generic "relax and explore" filler, and never folded into a school-year phase.
+  4. **College list evolution (collegeListNote, its own REQUIRED field)** — how the target list should develop and sharpen as the narrative becomes clearer, naming real fit criteria tied to the SAME thread, not a generic "apply broadly" statement.
+  5. **Essay/narrative-building material (essayMaterialNote, its own REQUIRED field)** — frame essays as the EVENTUAL EXPRESSION of everything built across the whole overview, not a late, separate task — name what kind of real, lived experience/material this student should be accumulating that will make a later essay genuine and specific.
+  6. **Testing timeline (testingTimelineNote, its own REQUIRED field)** — this app ALREADY has real testing tasks on the plan (for a highschool student: PSAT practice sophomore year, the real PSAT junior year, SAT/ACT prep beginning junior year, the test itself around spring junior year, retake windows senior fall; for an undergraduate/transfer student: the GRE/GMAT if relevant, a statement of purpose, in the final year). Reference these so the narrative acknowledges them — do NOT create new testing tasks or re-schedule them; they already exist elsewhere on this student's real plan.
+- Dimensions 2, 4, 5, and 6 above EACH have their own dedicated, required schema field specifically because burying them only inside phase descriptions is not reliable enough — fill in courseGuidanceNote/collegeListNote/essayMaterialNote/testingTimelineNote as real, substantive, narrative-connected content every single time you generate an overview, in addition to (not instead of) weaving relevant details into individual phase descriptions where it fits naturally.
 - narrativeSummary must accurately reflect the REAL settled direction, including explicitly naming any narrative-pushback suggestion the student actually agreed to (or noting they stuck with their own original direction if they declined one).
 - Don't rush this — a conversation that's only covered one or two surface-level answers is not ready. But once it genuinely has, generate a real, specific overview rather than continuing to ask more questions than necessary.
 - Even after readyForOverview is true, keep talking naturally if the student wants to discuss further — you can set these fields again on a later turn if the direction changes.
@@ -262,7 +294,8 @@ function validateProposal(input) {
   const {
     reply, readyForOverview, narrativeTitle, narrativeSummary,
     overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets,
-    capstoneIdea, thematicKeywords, matchedInterestTags, mentionsSpecificFact,
+    capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote,
+    thematicKeywords, matchedInterestTags, mentionsSpecificFact,
   } = input;
   if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
   if (typeof readyForOverview !== 'boolean') return null;
@@ -278,6 +311,10 @@ function validateProposal(input) {
     phaseDimensions: null,
     overviewPhaseDayOffsets: null,
     capstoneIdea: null,
+    courseGuidanceNote: null,
+    testingTimelineNote: null,
+    collegeListNote: null,
+    essayMaterialNote: null,
     thematicKeywords: null,
     matchedInterestTags: null,
     mentionsSpecificFact,
@@ -286,6 +323,16 @@ function validateProposal(input) {
 
   if (typeof narrativeTitle !== 'string' || !narrativeTitle.trim() || narrativeTitle.length > 150) return notReady;
   if (typeof narrativeSummary !== 'string' || !narrativeSummary.trim() || narrativeSummary.length > 2000) return notReady;
+  // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — these 4 are
+  // now HARD-REQUIRED, the SAME validation tier as narrativeTitle/narrativeSummary right above
+  // (deliberately NOT the soft-degrade-to-null tier overviewPhaseDescriptions/phaseDimensions/
+  // capstoneIdea use below) — a real overview genuinely isn't ready if any of these 4 dimensions
+  // came back blank, since the whole point of promoting them to dedicated fields was to guarantee
+  // they can never be silently skipped the way they previously were as soft prose mentions.
+  if (typeof courseGuidanceNote !== 'string' || !courseGuidanceNote.trim() || courseGuidanceNote.length > 800) return notReady;
+  if (typeof testingTimelineNote !== 'string' || !testingTimelineNote.trim() || testingTimelineNote.length > 800) return notReady;
+  if (typeof collegeListNote !== 'string' || !collegeListNote.trim() || collegeListNote.length > 800) return notReady;
+  if (typeof essayMaterialNote !== 'string' || !essayMaterialNote.trim() || essayMaterialNote.length > 800) return notReady;
   if (!Array.isArray(overviewPhaseTitles)) return notReady;
   const cleanPhases = overviewPhaseTitles.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
   // Expand the Multi-Year Overview (see CLAUDE.md) — widened from the old 3-5 bound now that a
@@ -339,6 +386,10 @@ function validateProposal(input) {
     phaseDimensions: cleanDimensions,
     overviewPhaseDayOffsets: cleanDayOffsets,
     capstoneIdea: cleanCapstone,
+    courseGuidanceNote: courseGuidanceNote.trim(),
+    testingTimelineNote: testingTimelineNote.trim(),
+    collegeListNote: collegeListNote.trim(),
+    essayMaterialNote: essayMaterialNote.trim(),
     thematicKeywords: cleanThemes,
     matchedInterestTags: cleanInterestTags,
     mentionsSpecificFact,
@@ -368,13 +419,13 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      // Raised again, from 2600 to 4500, when the overview grew from a plain phase-titles list
-      // (Stage 3) to a full multi-dimensional plan (Expand the Multi-Year Overview, see CLAUDE.md)
-      // — up to 9 phases, each with a real 2-4 sentence description, plus a capstone idea, is
-      // genuinely more content than the original budget was sized for. Matching
-      // api/build-your-own-chat.js's own repeated bug-fix precedent: a truncated response here is
-      // strictly worse than a generously-budgeted one.
-      max_tokens: 4500,
+      // Raised again, from 4500 to 5500, now that 4 more real, hard-required fields
+      // (courseGuidanceNote/testingTimelineNote/collegeListNote/essayMaterialNote — see "Fix:
+      // Overview Only Generating Summers + Project Arc," CLAUDE.md) add genuinely more mandatory
+      // content on top of up to 9 phases each with a real description plus a capstone idea.
+      // Matching api/build-your-own-chat.js's own repeated bug-fix precedent: a truncated response
+      // here is strictly worse than a generously-budgeted one.
+      max_tokens: 5500,
       // Between api/chat.js's grounded 0.6 and Build Your Own's creative 0.9 — this needs to read
       // as a real, warm conversation AND occasionally make a genuinely creative connection (Task
       // 4's own narrative pushback), so it leans a bit warmer/more creative than the plain
@@ -420,9 +471,9 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
       input,
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: ONBOARDING_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
-      // Same 4500 bump as the Anthropic call above, same reasoning — a real multi-dimensional
-      // overview response needs real headroom past what the original phase-titles-only shape did.
-      max_output_tokens: 4500,
+      // Same 5500 bump as the Anthropic call above, same reasoning — 4 more mandatory fields need
+      // real headroom past the original phase-titles-only shape.
+      max_output_tokens: 5500,
       reasoning: { effort: 'medium' },
     }),
   });

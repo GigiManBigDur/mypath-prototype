@@ -378,6 +378,16 @@ const DEFAULT_STATE = {
   // MyNarrativeScreen.jsx displays it as its own real, dedicated piece of content (not buried
   // inside one phase's own prose). `null` until a real overview has actually been confirmed.
   narrativeCapstoneIdea: null,
+  // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — 4 more real,
+  // durable, once-confirmed fields, same flat shape and same reasoning as narrativeCapstoneIdea
+  // right above: course-rigor progression, testing-timeline connection, college-list evolution,
+  // and essay-material guidance, each now its own dedicated, hard-required field in the AI's own
+  // schema (api/onboarding-chat.js) specifically because burying them only inside phase
+  // descriptions turned out to be unreliable. `null` until a real overview has been confirmed.
+  narrativeCourseGuidance: null,
+  narrativeTestingNote: null,
+  narrativeCollegeListNote: null,
+  narrativeEssayMaterialNote: null,
   // AI-First Onboarding, Stage 5 (see CLAUDE.md), Task 2 — a dedicated "has the student actually
   // opened My Narrative yet" flag, mirroring `transcriptCompleted`/`projectBuilderSkipped`'s own
   // "done OR explicitly [X]" shape: the guided sequence's new first step points at the My Narrative
