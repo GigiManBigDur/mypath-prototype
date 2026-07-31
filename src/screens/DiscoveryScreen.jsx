@@ -36,9 +36,20 @@ const SUB_STEP_COPY = {
   // own `sub` is untouched — Task 3 only named Careers of Interest and Related Majors.
   careers: {
     title: 'Careers of interest',
-    sub: (level, narrative) => (narrative.summary
-      ? `Let's confirm the direction we found in our first conversation${narrative.themesText ? ` — around ${narrative.themesText}` : ''}. Here are careers that fit. Select as many as you'd like to pursue.`
-      : "Based on your interests, here are careers worth exploring. Select as many as you'd like to pursue."),
+    // Bug fix (see CLAUDE.md, "Careers of Interest Tile Stuck") — a THIRD, honest fallback for
+    // the real, common case where NEITHER a narrative was confirmed NOR any real interest tags
+    // exist at all (a student who reached the hub without ever clicking "Confirm My Plan") —
+    // `hasRealInterestTracks` false means the careerGroups shown are actually every built track,
+    // not a personalized subset, so the copy shouldn't claim otherwise.
+    sub: (level, narrative, hasRealInterestTracks) => {
+      if (narrative.summary) {
+        return `Let's confirm the direction we found in our first conversation${narrative.themesText ? ` — around ${narrative.themesText}` : ''}. Here are careers that fit. Select as many as you'd like to pursue.`;
+      }
+      if (hasRealInterestTracks) {
+        return "Based on your interests, here are careers worth exploring. Select as many as you'd like to pursue.";
+      }
+      return "Here are careers across every field — pick any that resonate. Select as many as you'd like to pursue.";
+    },
   },
   majors: {
     title: 'Related college majors',
@@ -83,21 +94,29 @@ export default function DiscoveryScreen() {
   const [majorsView, setMajorsView] = useState('recommended');
   const [programsView, setProgramsView] = useState('recommended');
 
-  const tracks = getBuiltTracks(state.interestTags);
-
-  // Defensive: this screen should only be reached when at least one selected interest maps to a
-  // built track. If state ever ends up here with none (e.g. restored mid-flow after interests
-  // changed, or a stale hub click), bounce back to the hub — the single, consistent return point
-  // for every screen now (see the "Return to Hub" routing restructure in CLAUDE.md) — instead of
-  // rendering empty steps or silently forwarding into a DIFFERENT downstream screen.
-  useEffect(() => {
-    if (tracks.length === 0) patch({ screen: 'hub' });
-  }, [tracks.length]);
+  // Bug fix (see CLAUDE.md, "Careers of Interest Tile Stuck") — this USED to bounce straight back
+  // to the hub whenever `getBuiltTracks(state.interestTags)` came back empty, on the assumption
+  // that was a rare anomaly ("restored mid-flow after interests changed, or a stale hub click") —
+  // true under the OLD flow, where the Survey collected interestTags directly and this screen was
+  // never reachable without them. AI-First Onboarding made this a COMMON, entirely expected case
+  // instead: a student who reaches the hub without ever clicking "Confirm My Plan" on the
+  // onboarding conversation (whether they explicitly skipped it, or simply never triggered
+  // readyForOverview) has a genuinely, permanently empty `state.interestTags` — and every one of
+  // Careers of Interest/Related College Majors/Recommended Programs shares this SAME screen and
+  // effect, so all three were bouncing back to the hub the instant they mounted. From a real
+  // student's perspective this looked exactly like "the tile's click did nothing" — the
+  // navigation to `discovery` genuinely happened, then reverted within the same tick, too fast to
+  // perceive. The actual fix for "make the navigation work" is to make this screen ALWAYS
+  // reachable: an empty result now falls back to every built track (the exact same set Browse
+  // mode already shows), rather than bouncing back — "Recommended for you" degrades gracefully
+  // into "show me everything" when there's genuinely no narrower signal to work from, instead of
+  // refusing to render at all.
+  const rawTracks = getBuiltTracks(state.interestTags);
+  const hasRealInterestTracks = rawTracks.length > 0;
+  const tracks = hasRealInterestTracks ? rawTracks : BUILT_TRACKS;
 
   const mascotKeys = DISCOVERY_MASCOT_KEYS[subStep];
   const mascotText = useMascotIntroThenRevisit(mascotKeys.intro, mascotKeys.revisit);
-
-  if (tracks.length === 0) return null;
 
   const level = state.educationLevel;
   // Looked up across EVERY built track, not just `tracks` (the student's own narrow
@@ -184,7 +203,7 @@ export default function DiscoveryScreen() {
       <StepProgress step={2} total={8} label={SUB_STEP_COPY[subStep].title} />
       <h1 className="page-title">{SUB_STEP_COPY[subStep].title}</h1>
       <p className="page-sub">
-        {typeof SUB_STEP_COPY[subStep].sub === 'function' ? SUB_STEP_COPY[subStep].sub(level, narrativeInfo) : SUB_STEP_COPY[subStep].sub}
+        {typeof SUB_STEP_COPY[subStep].sub === 'function' ? SUB_STEP_COPY[subStep].sub(level, narrativeInfo, hasRealInterestTracks) : SUB_STEP_COPY[subStep].sub}
       </p>
 
       <div className="step-track">

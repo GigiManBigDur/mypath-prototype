@@ -8469,6 +8469,75 @@ have caught this, since that's exactly the field the real bug left empty.
   immediately after this fix, per this app's own standing "Vercel deploys are automatic alongside
   every push" policy.
 
+**Follow-up fix: the `interestTags` fix above was necessary but not sufficient — Careers of
+Interest still didn't navigate, reported as "clicking plays the click animation... but nothing
+actually happens," identically whether the onboarding conversation was finished OR skipped.** This
+follow-up was explicitly asked to diagnose before fixing, per its own 3-part checklist — answered
+directly below, then the actual fix.
+1. **Is the tile's own unlock condition stale?** No — `TILES`'s `careers` entry (`HubScreen.jsx`)
+   has always been `unlock: (state) => isSurveyComplete(state)`, unrelated to the conversation at
+   all (Survey, not the AI chat, is what it gates on) — confirmed still correct and unchanged.
+2. **Is the click handler actually attempting to navigate, or silently failing?** It DOES navigate
+   — `goTo(tile)` correctly calls `patch({ screen: 'discovery', discoveryEntryStep: 'careers' })`
+   every time, and React genuinely renders `DiscoveryScreen` for one cycle. The actual cause is one
+   level deeper: that screen's OWN pre-existing defensive `useEffect` (`if (getBuiltTracks(
+   state.interestTags).length === 0) patch({ screen: 'hub' })`) fires the instant it mounts and
+   immediately reverts the very navigation that just happened — no error, nothing silently
+   swallowed, just a real redirect firing on a condition that's now permanently true for the wrong
+   reason. This round-trip (hub → discovery → hub) happens within the same tick, too fast to
+   perceive, which is exactly why it reads as "the click did nothing" rather than a visible bounce.
+3. **Do the finished and skipped paths set the same completion state?** Neither one reliably does —
+   which is WHY both fail identically. The immediately-preceding fix only writes real
+   `state.interestTags` inside `confirmNarrative()`, triggered by clicking "Confirm My Plan"
+   specifically. "Skip" (clicking "Continue to my Hub" without ever confirming) never runs that
+   code at all. But critically, "finished" doesn't guarantee it either: a student who has a full,
+   genuine back-and-forth conversation but never happens to see/click the "Confirm My Plan" review
+   (the model didn't reach `readyForOverview` in that session, or the student simply clicked
+   "Continue to my Hub" without noticing the review) is — from the APP's own state — completely
+   indistinguishable from having skipped outright. `state.interestTags` stays `[]` either way,
+   which is the actual mechanism producing "happens identically for both."
+- **The real fix (Task 2): make Discovery ALWAYS reachable, never dependent on `interestTags`
+  having been populated by any particular conversation outcome.** `DiscoveryScreen.jsx`'s own
+  bounce-to-hub `useEffect` and its paired `if (tracks.length === 0) return null;` guard are both
+  removed entirely — not patched, deleted. They were written for a genuinely different, much
+  narrower situation (the OLD flow, where Survey collected `interestTags` directly and reaching
+  this screen with zero real tracks meant a true anomaly — "restored mid-flow after interests
+  changed" — not the every-single-real-user case AI-First Onboarding turned it into). In their
+  place: `getBuiltTracks(state.interestTags)` returning empty now falls back to `BUILT_TRACKS` (the
+  identical set Browse mode already shows) instead of refusing to render — "Recommended for you"
+  degrades gracefully into "show me everything" when there's genuinely no narrower signal, which is
+  what actually satisfies "fix the navigation" rather than depending on any specific upstream data
+  ever being present. This fixes all three Discovery sub-steps at once, since Careers/Majors/
+  Programs all share this one screen and effect — confirmed directly that Majors was equally
+  broken before this fix, not just Careers.
+- **A `hasRealInterestTracks` boolean** (`rawTracks.length > 0`, computed once) is threaded into
+  Careers' own `SUB_STEP_COPY.sub` (now `(level, narrative, hasRealInterestTracks)`) so the on-page
+  copy stays honest about which of 3 real cases applies: a confirmed narrative ("Let's confirm the
+  direction we found..."), real interest tags with no narrative (the original "Based on your
+  interests..." text, unchanged), or — the new, previously-impossible-to-reach case this fix makes
+  real — neither (a plain, honest "Here are careers across every field — pick any that resonate,"
+  never claiming a personalization that isn't actually happening). Majors'/Programs' own copy is
+  untouched, matching the immediately-preceding Stage 5 fix's own scope.
+- **The earlier `interestTags`/`matchedInterestTags` fix is kept, not superseded** — it's still
+  exactly correct and valuable for the case it targets: a student who DOES explicitly confirm gets
+  real, personalized `interestTags`, which genuinely narrows "Recommended for you" to their actual
+  stated interests (and still benefits Opportunity Finder's/Course Selection's own recommendations,
+  which fall back more gracefully than Discovery did but still improve with real tags). This new
+  fix is a defensive floor underneath it, guaranteeing the navigation itself can never break again
+  regardless of whether that confirmation ever happens.
+- Verified with a dedicated 8-check Playwright suite driving the REAL end-to-end flow twice, exactly
+  matching the reported repro and the requested test criteria: **finished** (mock `/api/onboarding-
+  chat` to a real `readyForOverview` turn, send a message, click "Confirm My Plan," "Continue to my
+  Hub," visit My Narrative — Stage 5's own real first pointing target once a narrative exists — then
+  Back) confirms Careers of Interest is enabled, becomes the pointing target, and clicking it now
+  navigates to `discovery` with real career cards rendering; **skipped** (never send a message,
+  click "Continue to my Hub" directly) confirms `interestTags` genuinely stayed `[]` (the real
+  scenario, not assumed), then confirms the identical click on Careers of Interest — the exact
+  reported bug — now also navigates correctly, with real cards, and that Related College Majors is
+  equally reachable in this same zero-`interestTags` state. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) all stay clean — this fix touches only `DiscoveryScreen.jsx`, never
+  `roadmapLayout.js`/`Roadmap.jsx`.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11098,3 +11167,18 @@ download). Cover at minimum:
   `matchedInterestTags` degrades to `[]` without a 500/502, and a not-ready turn always reports
   `matchedInterestTags: null`. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should
   all stay clean — this fix never opens `roadmapLayout.js`/`Roadmap.jsx`.
+- Follow-up fix (Careers of Interest tile stuck, doesn't navigate): the immediately-preceding fix's
+  own tests weren't sufficient to catch this — the "finished" scenario there never actually visited
+  My Narrative before returning to check the Careers tile, so it silently never exercised the real
+  post-narrative sequence a real student experiences. Drive the REAL flow twice, matching the two
+  scenarios explicitly named in the bug report: (1) finished — mock `/api/onboarding-chat`, send a
+  message, click "Confirm My Plan," "Continue to my Hub," THEN click My Narrative and Back (Stage
+  5's own real first pointing target once a narrative exists — skipping this step means Careers of
+  Interest won't be the pointing target yet, a false alarm, not a real failure); (2) skipped — never
+  send a message, click "Continue to my Hub" directly, and confirm `state.interestTags` genuinely
+  stayed `[]` (don't just assume it — verify it, since that's the actual scenario this bug depends
+  on). In both cases, confirm the click on Careers of Interest navigates to `screen: 'discovery'`
+  with real cards rendering, not silently reverting to `'hub'`. Also confirm Related College Majors
+  is reachable in the same zero-`interestTags` state, since it shares the same screen/effect. `npm
+  run build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay clean — this fix touches
+  only `DiscoveryScreen.jsx`, never `roadmapLayout.js`/`Roadmap.jsx`.
