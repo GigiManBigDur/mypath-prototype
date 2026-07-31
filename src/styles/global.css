@@ -5299,16 +5299,32 @@ button.card.passed:hover {
    and reverted after direct feedback that it competed with the conversation itself (see "Enhance
    AI Chat Page Visuals," CLAUDE.md) — the difference here is scope: this is a genuine, bounded,
    one-time entrance moment that recedes the instant the real ongoing conversation settles in,
-   never a persistent backdrop behind everyday use. */
+   never a persistent backdrop behind everyday use.
+
+   Bug fix, confirmed directly against a real screenshot — two real, compounding problems, not one:
+   (1) each blob's `background-size` was smaller than the viewport (55-70%), so its own transparent
+   fade-out edge sat INSIDE the visible page, reading as a soft-edged "spotlight" with plain flat
+   background visible in the corners/edges rather than genuine full-screen coverage; (2) fading a
+   color to the literal `transparent` keyword (rather than that same color at zero alpha) risks the
+   classic CSS gradient interpolation artifact where the color channels drift toward black en route
+   to `rgba(0,0,0,0)` instead of holding steady while only alpha fades — confirmed via a zoomed
+   screenshot showing a real, visible muddy seam partway through the fade, not just a coverage gap.
+   Fixed both: every stop now fades to that SAME color at explicit zero alpha (`rgba(r,g,b,0)`,
+   never the `transparent` keyword) for a seam-free hue-true fade, and every blob is now sized well
+   past 100% of the viewport (150-190%) so its own transparent tail — and therefore its box's outer
+   edge — always sits off-screen regardless of window size/aspect ratio; the 4 positions already
+   sit one per quadrant (top-left/top-right/bottom-left/bottom-right), so with each blob now large
+   enough to reach every corner from its own center, there's no longer any point on screen with zero
+   coverage from at least one blob. */
 body:has(.onboarding-meeting-active) {
   background-color: var(--bloom-bg);
   background-image:
-    radial-gradient(circle, rgba(139, 92, 246, 0.22), transparent 65%),
-    radial-gradient(circle, rgba(20, 184, 166, 0.18), transparent 65%),
-    radial-gradient(circle, rgba(236, 111, 160, 0.16), transparent 65%),
-    radial-gradient(circle, rgba(240, 180, 41, 0.14), transparent 65%);
+    radial-gradient(circle, rgba(139, 92, 246, 0.22), rgba(139, 92, 246, 0) 78%),
+    radial-gradient(circle, rgba(20, 184, 166, 0.18), rgba(20, 184, 166, 0) 78%),
+    radial-gradient(circle, rgba(236, 111, 160, 0.16), rgba(236, 111, 160, 0) 78%),
+    radial-gradient(circle, rgba(240, 180, 41, 0.14), rgba(240, 180, 41, 0) 78%);
   background-repeat: no-repeat;
-  background-size: 70% 70%, 60% 60%, 65% 65%, 55% 55%;
+  background-size: 190% 190%, 175% 175%, 180% 180%, 165% 165%;
   background-position: 10% 15%, 85% 10%, 20% 85%, 80% 80%;
   background-attachment: fixed;
   animation: onboarding-meeting-bg-drift 16s ease-in-out infinite alternate;
