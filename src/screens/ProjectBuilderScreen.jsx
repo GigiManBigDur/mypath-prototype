@@ -9,7 +9,7 @@ import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
 import { requestBuildYourOwnChatReply } from '../utils/buildYourOwnChatRequest';
 import {
-  parseDateInputValue, realDaysBetween, formatDate, realAddDays, toDateInputValue,
+  parseDateInputValue, realDaysBetween, formatDate, computeMilestoneDueDates,
 } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
 import StepProgress from '../components/StepProgress';
@@ -36,36 +36,6 @@ import { getMascotLine } from '../data/mascotDialogue';
 // — exported once there so this screen and profileCompiler.js both read the identical string).
 const BUILD_YOUR_OWN_PROJECT_TYPE_ID = 'build-your-own';
 const HONESTY_NOTE = 'This is a direction to explore — specific organizations or contacts are for you to find and verify yourself.';
-
-// Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md), Task 4 — turns
-// the AI's own proposed `milestoneDayOffsets` (relative, estimated integers — see
-// api/build-your-own-chat.js's own schema comment for why this is never a raw absolute date) into
-// real `dueDate` strings, clamped so the resulting sequence can never be non-increasing or land
-// before the project's own already-confirmed start date, regardless of what the model proposed —
-// this app's own established "never let an AI-derived value silently produce a nonsensical
-// schedule" posture, applied here the same way "the student picks the date, not the AI" already
-// protects the chain-attachment suggestion feature elsewhere. Milestone 0 always gets the literal
-// picked Project Start Date itself (offset forced to 0) — the same real, already-confirmed date
-// every other project-start mechanism in this app already treats as day one of the plan. A
-// missing/mismatched-length `dayOffsets` (an old API response from before this feature, or a
-// genuinely malformed one — already sanitized server-side, but checked again here defensively)
-// returns an all-null array, so every milestone falls back entirely to
-// `buildOverviewMilestoneChains`'s own pre-existing cursor-based estimate — exactly today's
-// behavior, unaffected.
-function computeMilestoneDueDates(startDateStr, titles, dayOffsets) {
-  if (!Array.isArray(dayOffsets) || dayOffsets.length !== titles.length) {
-    return titles.map(() => null);
-  }
-  const startDate = parseDateInputValue(startDateStr);
-  let previousOffset = -1;
-  return titles.map((_, i) => {
-    const offset = i === 0
-      ? 0
-      : Math.max(Math.round(dayOffsets[i]) || 0, previousOffset + 1);
-    previousOffset = offset;
-    return toDateInputValue(realAddDays(startDate, offset));
-  });
-}
 
 // Task 3's own starter prompts, spanning different project types rather than assuming one
 // category (there IS no category context anymore — see Task 2 above) — reduces the blank-page

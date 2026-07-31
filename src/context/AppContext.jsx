@@ -358,6 +358,19 @@ const DEFAULT_STATE = {
   // (survives reload, cleared only by `reset()`); included in the Stage 1 compiled profile
   // (`profileCompiler.js`) so Stage 3's own multi-year overview generation can read it.
   onboardingChatHistory: [],
+  // AI-First Onboarding, Stage 3 (see CLAUDE.md) — the confirmed direction summary and thematic
+  // keywords from the Stage 2 conversation's own generated overview, once the student confirms it
+  // (Task 4). Plain, flat fields (not nested under one object) matching this app's own general
+  // preference for directly-named state — `narrativeSummary` (Task 2) is what a future Stage 5 will
+  // use as Discovery's own starting point; `narrativeThemes` (Task 3) is what feeds the EXISTING
+  // Course Selection recommendation logic as additional context (see thematicCourseMatch.js). Both
+  // `null`/`[]` until a real overview has actually been confirmed — the "don't guess" convention
+  // every other not-yet-answered field in this app already follows. The generated PHASES themselves
+  // live as a real `state.startedProjects` entry (see NARRATIVE_OVERVIEW_CATEGORY_ID, data/
+  // projects.js) — reusing the exact same `overviewMilestones` shape/lock/lane system Build Your
+  // Own's own projects already use, rather than a second field here duplicating that data.
+  narrativeSummary: null,
+  narrativeThemes: [],
   // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Tasks 4/5 — the
   // real, ongoing project-brainstorming conversation behind Project Builder's single top-level
   // "Build Your Own" entry. Same shape/persistence contract as `chatHistory` above (`[{ role,

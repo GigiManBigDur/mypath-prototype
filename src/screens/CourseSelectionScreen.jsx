@@ -27,6 +27,7 @@ import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../d
 import { getRecommendedUCDavisCourses } from '../data/ucdavisCourseRecommendations';
 import { QUARTER_LABELS, getNextQuarter } from '../data/ucdavisQuarters';
 import { getEffectiveToday } from '../utils/dates';
+import { getThematicCourseMatches } from '../utils/thematicCourseMatch';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 import MascotWidget from '../components/MascotWidget';
@@ -298,9 +299,19 @@ export default function CourseSelectionScreen() {
     : (courseSelIntroSeen ? courseSelRevisitText : getMascotLine('courseSelection-intro'));
 
   const opportunityTracks = getOpportunityTracks(state.interestTags);
+  // AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 3 — real courses matched against the
+  // confirmed narrative overview's own thematic keywords (state.narrativeThemes, empty until an
+  // overview is actually confirmed), cross-referenced against the REAL catalog rather than trusted
+  // from the AI directly (see thematicCourseMatch.js's own header comment for why). Merged
+  // additively into the SAME existing interest-based "Recommended for you" list below — not a
+  // second, parallel section — via getRecommendedCourses's own new optional third argument.
+  const thematicCourses = useMemo(
+    () => getThematicCourseMatches(state.narrativeThemes, COURSES),
+    [state.narrativeThemes],
+  );
   const recommendedCourses = useMemo(
-    () => getRecommendedCourses(opportunityTracks, getCourseById),
-    [opportunityTracks],
+    () => getRecommendedCourses(opportunityTracks, getCourseById, thematicCourses),
+    [opportunityTracks, thematicCourses],
   );
   const selectedProgramTypes = useMemo(
     () => getSelectedProgramTypes(state.selectedMajorIds),
@@ -509,7 +520,12 @@ export default function CourseSelectionScreen() {
 
       {viewMode === 'recommended' && (
         <p className="field-hint" style={{ marginBottom: 18 }}>
-          Based on your selected interests{opportunityTracks.length > 0 ? ` (${opportunityTracks.map((t) => TRACK_LABELS[t]).join(', ')})` : ''}.
+          Based on your selected interests{opportunityTracks.length > 0 ? ` (${opportunityTracks.map((t) => TRACK_LABELS[t]).join(', ')})` : ''}
+          {/* AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 3 — the SAME hint line simply notes
+              when the thematic direction from the student's first conversation also contributed to
+              this list, rather than a separate section/disclaimer — this is additional context on
+              the existing recommendation, not a second system. */}
+          {thematicCourses.length > 0 ? `, and the direction from your first conversation` : ''}.
           You're always free to explore any course you like — these are suggestions, not requirements.
         </p>
       )}
@@ -932,9 +948,17 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
     () => getSelectedUCDavisColleges(state.selectedMajorIds),
     [state.selectedMajorIds],
   );
+  // AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 3 — same real-catalog thematic cross-
+  // reference the Roslyn variant above uses, just against UCDAVIS_COURSES, merged additively into
+  // this SAME major-based recommended list via getRecommendedUCDavisCourses's own new optional
+  // third argument.
+  const thematicUCDavisCourses = useMemo(
+    () => getThematicCourseMatches(state.narrativeThemes, UCDAVIS_COURSES),
+    [state.narrativeThemes],
+  );
   const recommendedCourses = useMemo(
-    () => getRecommendedUCDavisCourses(state.selectedMajorIds, getUCDavisCourseById),
-    [state.selectedMajorIds],
+    () => getRecommendedUCDavisCourses(state.selectedMajorIds, getUCDavisCourseById, thematicUCDavisCourses),
+    [state.selectedMajorIds, thematicUCDavisCourses],
   );
 
   // Same pattern as the Roslyn CourseSelectionScreen above — no UC-Davis-specific dialogue text
@@ -1104,8 +1128,9 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
 
       {viewMode === 'recommended' && (
         <p className="field-hint" style={{ marginBottom: 18 }}>
-          Based on the major(s) you selected in Discovery. You're always free to explore any
-          course you like — these are suggestions, not requirements.
+          Based on the major(s) you selected in Discovery
+          {thematicUCDavisCourses.length > 0 ? `, and the direction from your first conversation` : ''}.
+          You're always free to explore any course you like — these are suggestions, not requirements.
         </p>
       )}
 

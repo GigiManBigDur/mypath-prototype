@@ -61,7 +61,25 @@ export function useOnboardingChat() {
             patch({ onboardingChatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't come up with a reply just now — try saying that again?" }] });
             return;
           }
-          patch({ onboardingChatHistory: [...afterUser, { role: 'assistant', content: proposal.reply }] });
+          // AI-First Onboarding, Stage 3 (see CLAUDE.md) — the new overview fields are persisted
+          // directly on the message object, the SAME "store planReady/projectName/milestones right
+          // on the message" convention BuildYourOwnView's own sendFrom already established for the
+          // identical reason: OnboardingConversationScreen.jsx's own review UI scans `chatHistory`
+          // for the most recent `readyForOverview: true` turn, so this data has to survive exactly
+          // like the rest of the conversation does (including a reload) — not a separate,
+          // easy-to-desync piece of state.
+          patch({
+            onboardingChatHistory: [...afterUser, {
+              role: 'assistant',
+              content: proposal.reply,
+              readyForOverview: proposal.readyForOverview,
+              narrativeTitle: proposal.narrativeTitle,
+              narrativeSummary: proposal.narrativeSummary,
+              overviewPhaseTitles: proposal.overviewPhaseTitles,
+              overviewPhaseDayOffsets: proposal.overviewPhaseDayOffsets,
+              thematicKeywords: proposal.thematicKeywords,
+            }],
+          });
         },
         onError: () => {
           setLoading(false);

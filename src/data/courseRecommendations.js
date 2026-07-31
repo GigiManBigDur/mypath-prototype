@@ -167,7 +167,20 @@ export const TRACK_RECOMMENDED_COURSES = {
 // Merges + dedupes recommended course ids across every given track (mirrors getOpportunityPool's
 // own merge/dedupe shape), then resolves them to real course objects, dropping any id that somehow
 // doesn't resolve rather than rendering a broken card.
-export function getRecommendedCourses(tracks, getCourseById) {
+//
+// AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 3 — `extraCourses` (default `[]`) is the one
+// new, optional third input: real course objects (already resolved, via getThematicCourseMatches)
+// reflecting the thematic direction that emerged from the onboarding conversation. This is
+// deliberately additive CONTEXT merged into the SAME existing interest-based list, not a second,
+// parallel recommendation system — a course reachable through either path renders once, same as any
+// other id that happens to appear under more than one interest track already does.
+export function getRecommendedCourses(tracks, getCourseById, extraCourses = []) {
   const ids = [...new Set(tracks.flatMap((t) => TRACK_RECOMMENDED_COURSES[t] || []))];
-  return ids.map((id) => getCourseById(id)).filter(Boolean);
+  const fromTracks = ids.map((id) => getCourseById(id)).filter(Boolean);
+  const merged = [...fromTracks];
+  const seenIds = new Set(fromTracks.map((c) => c.id));
+  extraCourses.forEach((c) => {
+    if (c && !seenIds.has(c.id)) { merged.push(c); seenIds.add(c.id); }
+  });
+  return merged;
 }

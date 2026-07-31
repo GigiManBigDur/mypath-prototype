@@ -406,6 +406,19 @@ export function findCategory(categoryId) {
 // profileCompiler.js both read the identical string rather than each hardcoding their own copy.
 export const BUILD_YOUR_OWN_CATEGORY_ID = 'build-your-own';
 
+// AI-First Onboarding, Stage 3 (see CLAUDE.md) — a second, distinct synthetic sentinel pair for the
+// multi-year narrative overview generated once the Stage 2 conversation concludes. Deliberately NOT
+// reusing BUILD_YOUR_OWN_CATEGORY_ID/its own project-type sentinel above — this is a genuinely
+// different kind of auto-generated content (the student's own confirmed academic/career direction,
+// not a personal side project they browsed into), and callers that need to tell the two apart (see
+// HubScreen.jsx's own GUIDED_SEQUENCE fix, which must NOT count this toward "has the student done
+// something in Project Builder") need a real, distinct id to filter on rather than inferring it some
+// other way. Exported once here so OnboardingConversationScreen.jsx/HubScreen.jsx/profileCompiler.js
+// all read the identical strings, matching the exact precedent BUILD_YOUR_OWN_CATEGORY_ID already
+// established for the same reason.
+export const NARRATIVE_OVERVIEW_CATEGORY_ID = 'onboarding-narrative';
+export const NARRATIVE_OVERVIEW_PROJECT_TYPE_ID = 'onboarding-narrative';
+
 export function findProjectType(categoryId, projectTypeId) {
   const category = findCategory(categoryId);
   if (!category) return null;

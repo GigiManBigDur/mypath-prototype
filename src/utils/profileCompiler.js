@@ -347,6 +347,13 @@ export function compileStudentProfile(state) {
       onboardingConversation: state.onboardingChatHistory?.length
         ? state.onboardingChatHistory.map((m) => ({ role: m.role, content: m.content }))
         : null,
+      // AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 2 — the confirmed direction summary
+      // (once a real overview has actually been confirmed), included here too so any OTHER AI
+      // feature that already reads the full compiled profile (the general chat, Build Your Own,
+      // Stage 2's own auto-triggered suggestions via compileSuggestionProfile, which already
+      // spreads `...full` wholesale) inherits it for free — the same "add it once at the source"
+      // precedent `passionText`/`currentMajor` already established. `null` until confirmed.
+      narrativeSummary: state.narrativeSummary || null,
     },
     academic: resolveAcademic(state),
     goals: {

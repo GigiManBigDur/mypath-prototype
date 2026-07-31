@@ -20,6 +20,7 @@ import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { stopSpeaking } from '../utils/speech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { NARRATIVE_OVERVIEW_PROJECT_TYPE_ID } from '../data/projects';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -252,7 +253,17 @@ const GUIDED_SEQUENCE = [
     // endpoint. `state.projectBuilderSkipped` (set by ProjectBuilderScreen's own "Skip for now"
     // button) is that dedicated flag — mirrors `transcriptCompleted`'s own "done OR explicitly
     // skipped" shape for the Transcript & GPA step.
-    isDone: (state) => state.startedProjects.length > 0 || state.projectBuilderSkipped,
+    // AI-First Onboarding, Stage 3 bug fix (see CLAUDE.md) — `state.startedProjects` can now ALSO
+    // contain the auto-generated narrative-overview project (NARRATIVE_OVERVIEW_PROJECT_TYPE_ID),
+    // created the moment the Stage 2/3 conversation is confirmed, typically well before the student
+    // ever reaches this step in the guided sequence. Without filtering it out here, confirming a
+    // narrative overview would silently mark "Project Builder" done too, even though the student
+    // never actually visited or interacted with Project Builder itself — the exact same class of
+    // bug this file's own "explicitly skipped" fix above already had to correct once (a real
+    // interaction being conflated with an unrelated one). Only a REAL Project-Builder-originated
+    // project (any other projectTypeId, including Build Your Own's own sentinel) should count.
+    isDone: (state) => state.startedProjects.some((p) => p.projectTypeId !== NARRATIVE_OVERVIEW_PROJECT_TYPE_ID)
+      || state.projectBuilderSkipped,
     intro: 'Ready to start a hands-on project?',
   },
 ];

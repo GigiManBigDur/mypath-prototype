@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Rocket } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MascotIcon from '../components/MascotIcon';
 import ChatConversation from '../components/ChatConversation';
 import { useOnboardingChat, buildOnboardingGreeting } from '../hooks/useOnboardingChat';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { NARRATIVE_OVERVIEW_CATEGORY_ID, NARRATIVE_OVERVIEW_PROJECT_TYPE_ID } from '../data/projects';
+import { getEffectiveToday, toDateInputValue, computeMilestoneDueDates } from '../utils/dates';
+import { makeTaskId } from '../utils/ids';
 
 // AI Conversation Page: First-Impression Visual Design (see CLAUDE.md) — this is the student's
 // first real meeting with the AI, so it gets its own genuine "moment," not just Stage 2's plain
@@ -142,6 +145,104 @@ export default function OnboardingConversationScreen() {
   const showAtmosphere = phase !== 'chat';
   const showChatCard = phase === 'settling' || phase === 'chat';
 
+  // AI-First Onboarding, Stage 3 (see CLAUDE.md) — Task 4's own "reject and keep refining" review,
+  // built on the EXACT same precedent BuildYourOwnView's own `latestReadyPlan`/`dismissedReadyIndex`
+  // pair already established (see ProjectBuilderScreen.jsx): scan the persisted conversation for
+  // the MOST RECENT assistant turn that reported `readyForOverview: true`, so the review always
+  // reflects the latest thinking even if the student keeps refining after an earlier turn already
+  // reached it. `dismissedReadyIndex` tracks by the ready message's own INDEX (not a plain boolean)
+  // for the identical reason that precedent already documents: dismissing THIS turn's review must
+  // never suppress a LATER, genuinely new one if the student keeps talking and the model reaches
+  // readyForOverview again.
+  const latestReadyOverview = useMemo(() => {
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+      const m = chatHistory[i];
+      if (m.role === 'assistant' && m.readyForOverview && m.overviewPhaseTitles?.length) {
+        return {
+          narrativeTitle: m.narrativeTitle,
+          narrativeSummary: m.narrativeSummary,
+          overviewPhaseTitles: m.overviewPhaseTitles,
+          overviewPhaseDayOffsets: m.overviewPhaseDayOffsets,
+          thematicKeywords: m.thematicKeywords || [],
+          sourceIndex: i,
+        };
+      }
+    }
+    return null;
+  }, [chatHistory]);
+  const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
+  const showReview = !!latestReadyOverview && latestReadyOverview.sourceIndex !== dismissedReadyIndex;
+
+  // Task 1 — reuses the SAME shared `computeMilestoneDueDates` Build Your Own's own project-
+  // confirmation flow already established (extracted to utils/dates.js specifically so both
+  // callers share one implementation) — every phase after the first gets a real, explicit `dueDate`
+  // from the model's own proposed `overviewPhaseDayOffsets`; phase 0 always anchors to the real
+  // start date below. Once THIS is written into a `startedProjects` entry shaped exactly like a
+  // Build Your Own project's own `overviewMilestones`, the "provisional-then-corrected" date
+  // behavior Task 1 asks for is completely automatic — `buildOverviewMilestoneChains`
+  // (roadmapGenerator.js) already prefers the max of a phase's real subSteps' dates over this
+  // initial guess the MOMENT that phase's own granular detail is generated later (via the exact
+  // same, already-existing `MilestonePlanningPanel`/`Roadmap.jsx` mechanism Build Your Own's own
+  // phases already use — see below for why that needed zero code changes here).
+  //
+  // Task 4's own "once confirmed, this becomes the real data Stage 4's 'My Narrative' view will
+  // display" — `state.narrativeSummary`/`state.narrativeThemes` are that real, durable data (Task
+  // 2/3); the generated PHASES themselves live as a real `startedProjects` entry, reusing
+  // `NARRATIVE_OVERVIEW_CATEGORY_ID`/`NARRATIVE_OVERVIEW_PROJECT_TYPE_ID` (data/projects.js) — a
+  // SEPARATE sentinel pair from Build Your Own's own (see that file's own comment for why they must
+  // stay distinct: HubScreen.jsx's own guided-sequence "has the student done something in Project
+  // Builder" check has to be able to tell the two apart). `Roadmap.jsx`'s existing `milestoneMeta`-
+  // keyed modal handling, `MilestonePlanningPanel`, and `roadmapGenerator.js`'s own
+  // `buildOverviewMilestoneChains`/`applyOverviewLocking` are ALL already fully generic over ANY
+  // `startedProjects` entry with `overviewMilestones` — confirmed directly by reading each one
+  // before writing this — so creating this entry here is the ENTIRE integration; none of those
+  // files needed a single line changed for a narrative-overview project to render, lock/unlock,
+  // and support its own per-phase planning chat exactly like a Build-Your-Own one already does.
+  //
+  // Confirming a SECOND time (the student keeps talking after an earlier confirm and reaches
+  // readyForOverview again) REPLACES the existing narrative project rather than creating a
+  // duplicate second one — a genuinely re-confirmed overview supersedes the old one; this does not
+  // try to preserve/merge whatever progress existed on the old phases, since the new phase set may
+  // be entirely different content.
+  const confirmNarrative = () => {
+    if (!latestReadyOverview) return;
+    const todayStr = toDateInputValue(getEffectiveToday(state.dateOverride));
+    const dueDates = computeMilestoneDueDates(
+      todayStr,
+      latestReadyOverview.overviewPhaseTitles,
+      latestReadyOverview.overviewPhaseDayOffsets,
+    );
+    const newProject = {
+      id: makeTaskId('project'),
+      categoryId: NARRATIVE_OVERVIEW_CATEGORY_ID,
+      projectTypeId: NARRATIVE_OVERVIEW_PROJECT_TYPE_ID,
+      projectName: latestReadyOverview.narrativeTitle,
+      status: 'active',
+      aiSuggested: true,
+      startDate: todayStr,
+      overviewMilestones: latestReadyOverview.overviewPhaseTitles.map((title, i) => ({
+        id: makeTaskId('milestone'),
+        title,
+        desc: `Part of your ${latestReadyOverview.narrativeTitle} direction, developed through your first conversation with MyPath AI.`,
+        dueDate: dueDates[i],
+        targetDate: null,
+        subSteps: [],
+        chatHistory: [],
+      })),
+    };
+    const withoutOldNarrative = (state.startedProjects || [])
+      .filter((p) => p.projectTypeId !== NARRATIVE_OVERVIEW_PROJECT_TYPE_ID);
+    patch({
+      startedProjects: [...withoutOldNarrative, newProject],
+      narrativeSummary: latestReadyOverview.narrativeSummary,
+      narrativeThemes: latestReadyOverview.thematicKeywords,
+    });
+    // Same footer-hiding mechanism "keep refining" already uses — marking this same turn's own
+    // index as dismissed is what makes the review disappear the moment it's been acted on, with no
+    // separate "confirmed" flag needed.
+    setDismissedReadyIndex(latestReadyOverview.sourceIndex);
+  };
+
   return (
     <div className={`onboarding-meeting-page${showAtmosphere ? ' onboarding-meeting-active' : ''}`}>
       {PARTICLES.map((p, i) => (
@@ -190,6 +291,32 @@ export default function OnboardingConversationScreen() {
               onSend={sendMessage}
               onEditMessage={editMessage}
               placeholder="Tell me what's on your mind…"
+              footer={showReview && (
+                <div className="chat-task-confirm">
+                  <p>
+                    <strong>{latestReadyOverview.narrativeTitle}</strong> — {latestReadyOverview.overviewPhaseTitles.length} phases developed
+                    from your conversation so far.
+                  </p>
+                  <p>{latestReadyOverview.narrativeSummary}</p>
+                  <ol className="chat-task-confirm-list">
+                    {latestReadyOverview.overviewPhaseTitles.map((title) => <li key={title}>{title}</li>)}
+                  </ol>
+                  <div className="task-form-actions">
+                    <button type="button" className="btn btn-primary" onClick={confirmNarrative}>
+                      <Rocket size={14} /> Confirm My Plan
+                    </button>
+                    {/* Task 4's own "reject and keep refining" option, the same real, visible
+                        second action Build Your Own's identical review footer already offers
+                        (see BuildYourOwnView, ProjectBuilderScreen.jsx) — only hides THIS review
+                        (dismissedReadyIndex, above); nothing in chatHistory/readyForOverview/the
+                        proposed phases is touched, so the conversation (and its input, already
+                        always visible) is immediately ready for more discussion. */}
+                    <button type="button" className="btn btn-ghost" onClick={() => setDismissedReadyIndex(latestReadyOverview.sourceIndex)}>
+                      Not quite right — keep refining
+                    </button>
+                  </div>
+                </div>
+              )}
             />
           </div>
 

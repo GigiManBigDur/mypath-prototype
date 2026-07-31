@@ -74,7 +74,17 @@ export const MAJOR_RECOMMENDED_COURSES = {
 // Same merge/dedupe contract as courseRecommendations.js's getRecommendedCourses — a student with
 // majors spanning two areas (e.g. Computer Science + Psychology) sees the union, deduped, not two
 // separate lists to reconcile themselves.
-export function getRecommendedUCDavisCourses(selectedMajorIds, getCourseById) {
+//
+// AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 3 — same optional `extraCourses` third input
+// courseRecommendations.js's own getRecommendedCourses just gained, for the identical reason: real,
+// thematically-matched course objects merged additively into this SAME list, never a parallel one.
+export function getRecommendedUCDavisCourses(selectedMajorIds, getCourseById, extraCourses = []) {
   const ids = [...new Set(selectedMajorIds.flatMap((m) => MAJOR_RECOMMENDED_COURSES[m] || []))];
-  return ids.map((id) => getCourseById(id)).filter(Boolean);
+  const fromMajors = ids.map((id) => getCourseById(id)).filter(Boolean);
+  const merged = [...fromMajors];
+  const seenIds = new Set(fromMajors.map((c) => c.id));
+  extraCourses.forEach((c) => {
+    if (c && !seenIds.has(c.id)) { merged.push(c); seenIds.add(c.id); }
+  });
+  return merged;
 }

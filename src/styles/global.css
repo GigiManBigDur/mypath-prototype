@@ -5491,3 +5491,10 @@ body:has(.onboarding-meeting-active) {
     animation: none;
   }
 }
+
+/* AI-First Onboarding, Stage 3 (see CLAUDE.md) — the overview review/confirm footer's own phase
+   list, shown inside the shared `.chat-task-confirm` card. Mirrors `.milestone-ready-preview
+   ol`/`li`'s exact styling values (Two-Phase Generation's own "proposed steps for this phase"
+   list) rather than inventing new list styling for the same basic idea. */
+.chat-task-confirm-list { margin: 0 0 10px; padding-left: 20px; font-size: 13.5px; color: var(--ink); }
+.chat-task-confirm-list li { margin-bottom: 4px; }

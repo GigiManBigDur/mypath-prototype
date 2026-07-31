@@ -8015,6 +8015,176 @@ how that conversation is first revealed, then gets out of the way once settled.
   beat, and a clean, shimmering chat card with the flat background restored once fully settled.
   `npm run build`/`npm run lint` both stay clean.
 
+**AI-First Onboarding, Stage 3: Generate the Multi-Year Overview — once the Stage 2 conversation has
+genuinely earned it, the SAME conversation generates a real, specific multi-year overview, which the
+student reviews and confirms before it becomes real plan data. Reuses existing patterns wherever
+possible, per this stage's own explicit instruction: the Overview/lock system Build Your Own already
+generalized, the exact same provisional-then-corrected date logic, the exact same "reject and keep
+refining" review pattern, and the EXISTING Course Selection recommendation logic — no new roadmap
+concept, no new review UI pattern, no new course-recommendation system.**
+- **Task 1 — one schema, filled in only once it's genuinely ready, mirroring `api/build-your-own-
+  chat.js`'s own exact `planReady`/`projectName`/`milestones`/`milestoneDayOffsets` pattern.**
+  `api/onboarding-chat.js`'s `ONBOARDING_SCHEMA` gained `readyForOverview` (boolean) plus 5 more
+  fields that stay null/false for as long as it's false: `narrativeTitle`, `narrativeSummary`
+  (Task 2), `overviewPhaseTitles` (3-5 items — a stricter bound than Build Your Own's own 4-7, per
+  this task's own explicit "3-5 overview-level phases"), `overviewPhaseDayOffsets` (one relative
+  integer per phase, same "never let the model pick a raw absolute date" caution the chain-
+  attachment suggestion feature already established), and `thematicKeywords` (Task 3). There is
+  deliberately NO second dispatched system prompt/endpoint the way Build Your Own's own per-phase
+  detail conversation needed — that reuse already happens automatically once a phase is promoted
+  onto the real roadmap (see the next bullet), so one schema covering both the ordinary back-and-
+  forth AND the eventual overview generation is sufficient, simpler than Build Your Own's own
+  two-prompt setup. `max_tokens`/`max_output_tokens` raised from 1000 to 2600 (matching Build Your
+  Own's own bug-fix precedent) since a real overview response needs real headroom past a plain
+  conversational turn; `reply`'s own length cap raised from 1500 to 4000 the same way. `stopReason`
+  (the provider's own real completion-status string) is now captured and surfaced in a 502 error
+  body too, matching that same precedent.
+- **Validation degrades gracefully, never hard-rejecting the whole request over a malformed overview
+  payload.** `reply`/`readyForOverview`/`mentionsSpecificFact` are always required to be well-typed
+  (a genuine structural failure there still fails the request, unchanged); but if `readyForOverview`
+  is true and the ready PAYLOAD doesn't hold together (a missing field, or the phase count isn't
+  genuinely 3-5 after cleaning), `validateProposal` coerces the whole bundle back to "not ready yet"
+  and keeps the otherwise-valid `reply` — the same "never let a malformed bonus field block the
+  ordinary conversation" resilience principle `api/build-your-own-chat.js`'s own `milestoneDayOffsets`
+  sanitization already established (there, one malformed field degrades to `null`; here, a malformed
+  READY BUNDLE degrades as a whole, since a partial overview the student never actually asked to see
+  would be worse than simply continuing the conversation).
+- **`useOnboardingChat.js`'s `sendFrom`** now persists all 6 new fields directly on the assistant
+  message object (the SAME "store `planReady`/`projectName`/`milestones` right on the message"
+  convention `BuildYourOwnView`'s own `sendFrom` already established) — this is what lets the
+  review scan `chatHistory` for the most recent ready turn and survive a reload exactly like the
+  rest of the conversation already does.
+- **`OnboardingConversationScreen.jsx`'s review/confirm UI is the EXACT `latestReadyPlan`/
+  `dismissedReadyIndex` pattern `BuildYourOwnView` already established** (see
+  `ProjectBuilderScreen.jsx`), adapted: `latestReadyOverview` scans `chatHistory` for the most
+  recent assistant turn with `readyForOverview: true`, so the review always reflects the latest
+  thinking even if the student keeps refining after an earlier turn already reached it.
+  `dismissedReadyIndex` tracks by that turn's own INDEX (not a plain boolean), for the identical
+  reason that precedent already documents: dismissing THIS turn's review must never suppress a
+  LATER, genuinely new one. The review itself (rendered via `ChatConversation`'s own `footer` prop,
+  the exact same extension point Build Your Own's footer already uses) shows the real narrative
+  title, the real narrative summary, and the real phase list (a plain `<ol>`, reusing `.milestone-
+  ready-preview ol`/`li`'s own styling values under a new `.chat-task-confirm-list` class), with
+  **"Confirm My Plan"** and **"Not quite right — keep refining"** (Task 4) side by side — the
+  latter is a pure visual dismiss, touching nothing in `chatHistory`/`readyForOverview`/the proposed
+  phases, so the conversation is immediately ready for more discussion either way.
+- **Task 1's "provisional-then-corrected" date logic is completely automatic, not reimplemented.**
+  `confirmNarrative` (triggered by "Confirm My Plan") computes each phase's own initial `dueDate`
+  via `computeMilestoneDueDates` — extracted out of `ProjectBuilderScreen.jsx` into `utils/dates.js`
+  specifically so this screen and Build Your Own's own project-confirmation flow share ONE
+  implementation rather than a second copy — from the model's own proposed `overviewPhaseDayOffsets`,
+  relative to a real start date (`toDateInputValue(getEffectiveToday(state.dateOverride))` — TODAY,
+  not a future picked date, since this overview begins the moment it's confirmed, not on some later
+  discretionary start the student schedules the way a personal Project Builder project is). The
+  resulting `startedProjects` entry is shaped EXACTLY like a Build Your Own project's own
+  `overviewMilestones` (`{ id, title, desc, dueDate, targetDate: null, subSteps: [], chatHistory: []
+  }`) — confirmed directly (not assumed) that `roadmapGenerator.js`'s existing `buildOverviewMilestone
+  Chains`/`applyOverviewLocking` and `Roadmap.jsx`'s `milestoneMeta`-keyed modal handling/
+  `MilestonePlanningPanel` are ALL already fully generic over ANY `startedProjects` entry with
+  `overviewMilestones`, keyed only by `milestoneMeta.projectId`/`milestoneId`, never
+  `projectTypeId`/`categoryId` — so creating this entry is the ENTIRE integration; zero lines changed
+  in `roadmapGenerator.js`, `Roadmap.jsx`, or `MilestonePlanningPanel.jsx`. This is what makes the
+  provisional-then-corrected behavior (a phase's stored `dueDate` is only ever the best guess before
+  real subSteps exist; the moment they do, the true completion date becomes the max of those real
+  subStep dates — see "Fix: Overview Due Dates Can Predate Their Own Sub-Tasks," CLAUDE.md) apply
+  here automatically, with no new code — the SAME already-fixed function already applies it to
+  whatever project shape it's handed. This also means a narrative phase's own granular detail
+  planning (once a phase unlocks) reuses `MilestonePlanningPanel`'s existing scoped chat — which
+  itself calls `api/build-your-own-chat.js`'s milestone-detail mode — unmodified; the mechanism is
+  generic over "one phase of some project," not specific to Build Your Own's own conversation.
+- **`NARRATIVE_OVERVIEW_CATEGORY_ID`/`NARRATIVE_OVERVIEW_PROJECT_TYPE_ID`** (`data/projects.js`) are
+  a second, DISTINCT synthetic sentinel pair from Build Your Own's own — deliberately not reused,
+  since a caller that needs to tell the two apart (see the bug fix below) needs a real, distinct id
+  to filter on. Confirming a SECOND time (the student keeps talking after an earlier confirm and
+  reaches `readyForOverview` again) REPLACES the existing narrative project rather than creating a
+  duplicate — a genuinely re-confirmed overview supersedes the old one; this doesn't try to
+  preserve/merge whatever progress existed on the old phases, since the new phase set may be
+  entirely different content.
+- **Bug fix, found while wiring this up, not after**: `HubScreen.jsx`'s `GUIDED_SEQUENCE`'s own
+  `projectBuilder` step used `state.startedProjects.length > 0` as its `isDone` check — since a
+  narrative-overview project is ALSO a real `startedProjects` entry, created (typically) well before
+  the student ever reaches this step in the guided sequence, this would have silently marked
+  "Project Builder" done the instant a narrative overview was confirmed, even though the student
+  never actually visited or interacted with Project Builder itself — the exact same class of bug
+  this file's own "explicitly skipped" fix (see above) already had to correct once (a real
+  interaction being conflated with an unrelated one). Fixed by excluding
+  `NARRATIVE_OVERVIEW_PROJECT_TYPE_ID` from that check — only a REAL Project-Builder-originated
+  project (any other `projectTypeId`, Build Your Own's own sentinel included) counts.
+- **Task 2 — the confirmed narrative summary is real, durable, flat state**: `state.narrativeSummary`
+  (a plain string, `null` until confirmed) is exactly what a future Stage 5 will read as Discovery's
+  own starting point, per this task's own explicit "store it accordingly" instruction — deliberately
+  a flat field, not a nested object, matching this app's own general preference for directly-named
+  state. Also folded into `profileCompiler.js`'s `basicProfile.narrativeSummary` (a small, low-cost
+  bonus addition, not explicitly required by this task) so every OTHER AI feature that already reads
+  the full compiled profile (the general chat, Build Your Own, Stage 2's own suggestions via
+  `compileSuggestionProfile`, which already spreads `...full` wholesale) inherits it for free — the
+  same "add it once at the source" precedent `passionText`/`currentMajor` already established.
+- **Task 3 — thematic course guidance feeds the EXISTING Course Selection recommendation logic, not
+  a new parallel one.** The model never names specific courses directly (it has no reliable
+  knowledge of this app's real catalog, so asking it to would risk fabricating one that doesn't
+  exist) — it only proposes 2-5 real, plain academic SUBJECT-AREA labels (`thematicKeywords`, e.g.
+  "Sociology", "Economics", "Statistics"). `src/utils/thematicCourseMatch.js`'s new
+  `getThematicCourseMatches(themes, courses)` is the one deterministic, JS-side piece that turns
+  those labels into REAL matching course objects — a case-insensitive substring match against a
+  course's own real `name` OR `department` field, checking both because Roslyn's and UC Davis's
+  catalogs have genuinely different granularity (Roslyn's departments are broad — "Social Studies"
+  covers Economics/Psychology/Government all at once — so a real match there has to come from the
+  course's own specific NAME instead, e.g. "Economics"/"AP Macroeconomics"; UC Davis's departments
+  are already subject-precise, e.g. "Economics" is its own department, so a match there often comes
+  from DEPARTMENT directly). Confirmed directly (not assumed) that neither catalog has a course
+  literally named/departmented "Sociology" — a theme with no honest match correctly returns nothing
+  for that catalog, the same "don't force a fit, an empty result is the honest one" precedent
+  `courseRecommendations.js`'s own deliberately-empty Culinary Arts entry already established, never
+  fabricated. `getRecommendedCourses`/`getRecommendedUCDavisCourses` each gained one new, optional
+  third parameter (`extraCourses = []`) — already-resolved course objects merged additively into the
+  SAME dedupe/merge logic those functions already run, with zero new section/component:
+  `CourseSelectionScreen.jsx` computes `thematicCourses`/`thematicUCDavisCourses` via
+  `getThematicCourseMatches` and passes them straight into the existing calls; the "Recommended for
+  you" hint line for both Roslyn and UC Davis simply grows one clause ("...and the direction from
+  your first conversation") when a thematic match actually contributed something, rather than a
+  second disclaimer/section appearing anywhere.
+- Verified with three dedicated suites. A Node-level test (22 checks, mocking `global.fetch`,
+  calling the real `api/onboarding-chat.js` handler directly) confirms: `max_tokens` raised to 2600;
+  a genuine ready overview passes through with the real narrative title/summary/3 phases/day-offsets/
+  themes intact; a claimed-ready overview with only 2 phases (or 6) is gracefully coerced back to
+  "not ready" rather than hard-erroring, with the real `reply` text still coming through; a
+  mismatched-length `overviewPhaseDayOffsets` sanitizes to `null` while the rest of the ready bundle
+  survives (matching Build Your Own's own established precedent); `thematicKeywords` caps at 5; the
+  honesty guardrail still fires correctly even on a ready-overview turn; and a genuinely malformed
+  core field (`readyForOverview` missing entirely) still hard-fails with a 502, unchanged. A second
+  Node-level test (11 checks, loading the real `roadmapGenerator.js` through Vite's own
+  `ssrLoadModule`, the same technique `scripts/verify-spacing.mjs` already establishes) confirms the
+  reuse claim directly against production code: a fresh narrative project renders as a real chain
+  with phase 1 unlocked and phases 2/3 locked; phase 2 shows its own real provisional due date before
+  any subSteps exist; giving phase 2 real subSteps landing LATER than that provisional date correctly
+  corrects its resolved date to the latest real subStep date (the literal provisional-then-corrected
+  test criterion); completing phase 1 correctly unlocks phase 2 while phase 3 stays locked; and a
+  curated (non-narrative) Project Builder project on the SAME plan renders completely independently,
+  confirming this reuse doesn't disturb the original `buildProjectChain` path at all. A Playwright
+  suite (23 checks, mocking `/api/onboarding-chat`, driving a real conversation) confirms: no review
+  shows while not ready; a real ready turn shows a review with the real, specific (not generic)
+  title/summary/3-phase list; dismissing ("keep refining") hides the review and writes NOTHING to
+  `state.startedProjects`/`narrativeSummary`; a LATER genuinely-new ready turn correctly re-shows a
+  fresh review (not permanently suppressed) reflecting the updated content; confirming writes exactly
+  one real `startedProjects` entry (real title, 3 real `overviewMilestones`, a real `startDate`, and
+  a real `dueDate` on every milestone) plus real `narrativeSummary`/`narrativeThemes`; a real
+  "Economics" theme correctly surfaces a real Economics course inside the SAME existing "Recommended
+  for you" grid on Course Selection (with the hint line correctly mentioning "your first
+  conversation" and zero new section created); and a hub seeded with ONLY a narrative-overview
+  project (no real Project Builder interaction) still correctly points at Project Builder as the
+  next real guided step, confirming the bug fix. A fourth, dedicated rendering check confirms zero
+  page errors and a real, clickable detail modal for a narrative project on the actual Academic Plan
+  canvas, plus a real screenshot of the review UI confirming it reads clearly (title, summary, a
+  clean numbered phase list, both actions visible). `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) all stay clean — this stage never opens `roadmapLayout.js` at all, only
+  reuses `roadmapGenerator.js`'s already-existing, unmodified overview/lock machinery.
+- **What still needs to happen before this is live**: `api/onboarding-chat.js` must be redeployed via
+  `vercel deploy --prod` before Task 1/2's own real QUALITATIVE behavior (does a genuinely specific,
+  non-template overview get generated; does the narrative summary correctly reflect an accepted
+  redirect) can be verified for real against the live endpoint, per this codebase's own established
+  precedent that a prompt-driven judgment call can only be genuinely verified via real, repeated,
+  unmocked calls, never by mocking.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -10550,3 +10720,36 @@ download). Cover at minimum:
   visual/design task, and a passing class-name check doesn't guarantee the result looks right.
   `npm run build`/`npm run lint` should stay clean (this pass never touches `roadmapLayout.js`/
   `Roadmap.jsx`, `useOnboardingChat`'s own send/edit logic, or `api/onboarding-chat.js` at all).
+- AI-First Onboarding, Stage 3 (generating and confirming the overview): for the server logic, mock
+  `global.fetch` and call the real `api/onboarding-chat.js` handler directly (same technique as
+  Stage 2's own server test) — confirm a claimed-ready overview with fewer than 3 or more than 5
+  phases gets gracefully coerced back to `readyForOverview: false` (with the `reply` text still
+  intact) rather than a hard 502, and confirm a mismatched-length `overviewPhaseDayOffsets`
+  sanitizes to `null` while the rest of the ready bundle survives. For the roadmap-reuse claim, write
+  a dedicated Node script loading the real `generateRoadmap` through Vite's own `ssrLoadModule` (the
+  same technique `scripts/verify-spacing.mjs` already establishes) with a hand-built
+  `startedProjects` entry shaped like `{ categoryId: 'onboarding-narrative', projectTypeId:
+  'onboarding-narrative', overviewMilestones: [...] }` — confirm phase 1 unlocked/phases 2+ locked,
+  confirm a phase's own `due` reflects its provisional `dueDate` before it has any `subSteps`, then
+  add real `subSteps` with a LATER date and confirm the resolved `due` corrects to that later date
+  (the literal provisional-then-corrected test criterion) — this is the fastest, most precise way to
+  verify Task 1 without depending on the AI ever proposing a specific date sequence. For the UI, mock
+  `/api/onboarding-chat` and drive a real conversation reaching `readyForOverview: true`: confirm the
+  review shows the real (not generic/templated) narrative title/summary/phase list via
+  `ChatConversation`'s own `footer` prop (`.chat-task-confirm`); confirm "Not quite right — keep
+  refining" hides the review while writing NOTHING to `state.startedProjects`/`narrativeSummary`, and
+  that sending a further message reaching `readyForOverview` again correctly re-shows a fresh review
+  reflecting the NEW content (not permanently suppressed); confirm "Confirm My Plan" writes exactly
+  one real `startedProjects` entry (real title/3 real `overviewMilestones`/real `startDate`/real
+  per-phase `dueDate`) plus real `state.narrativeSummary`/`state.narrativeThemes`. For Task 3, seed
+  `state.narrativeThemes: ['Economics']` directly and navigate to Course Selection — confirm a real
+  Economics course appears inside the SAME "Recommended for you" grid (not a new section) and the
+  existing hint line grows a clause mentioning "your first conversation." For the HubScreen bug fix,
+  seed a hub with ONLY a narrative-overview project in `startedProjects` (no real Project Builder
+  interaction, `projectBuilderSkipped: false`) and confirm the guided sequence still points at
+  Project Builder as the next step, not falsely marked done. **The real qualitative behavior (does a
+  genuinely specific overview get generated, not a generic template; does the summary accurately
+  name an accepted redirect) can only be verified via real, repeated, unmocked calls against the live
+  deployed endpoint once redeployed — mocking only proves the plumbing works.** `npm run build`/
+  `npm run lint`/`npm run verify:spacing` (20/20) should all stay clean (this stage never opens
+  `roadmapLayout.js`).

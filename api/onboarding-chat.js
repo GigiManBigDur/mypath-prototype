@@ -51,6 +51,16 @@ function resolveAllowedOrigin(origin) {
 // reuses that fix's exact refined language ("don't flag something already confirmed by the
 // student's own profile data") rather than the older, over-eager "if in doubt, set it true"
 // wording that fix specifically replaced.
+// AI-First Onboarding, Stage 3 (see CLAUDE.md) — extends this SAME conversation/schema with a
+// second job, mirroring api/build-your-own-chat.js's own exact "one schema, filled in only once
+// something is genuinely ready" pattern (planReady/projectName/milestones/milestoneDayOffsets, all
+// set together the SAME turn the model decides a real plan has emerged) rather than a second
+// dispatched system prompt/endpoint — there's no separate "detail" pass needed here the way Build
+// Your Own's own per-phase planning is (that reuse already happens automatically once a phase is
+// promoted onto the real roadmap — see OnboardingConversationScreen.jsx's own comment on why
+// MilestonePlanningPanel/Roadmap.jsx needed zero changes at all). Every one of these new fields
+// stays null/false for as long as `readyForOverview` is false, i.e. for the entire ordinary
+// back-and-forth this conversation already had before this stage existed.
 const ONBOARDING_SCHEMA = {
   type: 'object',
   properties: {
@@ -58,12 +68,42 @@ const ONBOARDING_SCHEMA = {
       type: 'string',
       description: 'Your next line in this ongoing, natural conversation with the student — exactly what gets shown to them. Ask about ONE thing at a time; never stack multiple questions into one reply. Keep it warm, genuinely curious, and concise (a real conversational turn, not an essay).',
     },
+    readyForOverview: {
+      type: 'boolean',
+      description: 'True ONLY once the conversation has genuinely surfaced enough to generate a real, specific multi-year overview: real interests, at least one real piece of prior experience, and — if you ever suggested reconsidering their direction — whether the student actually agreed to it or not. False for anything less developed than that.',
+    },
+    narrativeTitle: {
+      type: ['string', 'null'],
+      description: 'A short, specific 3-6 word title for the overall direction (e.g. "Sociology + Economics Path", not a generic phrase like "Your Future"). Required (non-null) when readyForOverview is true. Must be null otherwise.',
+    },
+    narrativeSummary: {
+      type: ['string', 'null'],
+      description: 'A clear 2-4 sentence summary of the ACTUAL direction the conversation settled on — grounded in the real, specific things the student said, not a generic restatement. If you ever suggested reconsidering their direction earlier in this conversation, explicitly say here whether the student agreed to it and, if so, name the accepted direction plainly (e.g. "...exploring Sociology alongside Economics, given your interest in comparing how different cultures resolve disputes"). If they declined a suggestion, the summary should reflect their own original direction instead. Required (non-null) when readyForOverview is true. Must be null otherwise.',
+    },
+    overviewPhaseTitles: {
+      type: ['array', 'null'],
+      items: { type: 'string' },
+      description: 'An ORDERED list of exactly 3 to 5 short, specific overview-level phase titles representing the major chapters of this student\'s own path over the next few years — e.g. "Deepen your foundation in statistics and social research methods," "Complete a signature research project," "Build leadership in a relevant club or organization." These are broad CHAPTERS, not granular steps — do not break any phase down into its own sub-actions here (that level of detail is deliberately deferred to a later, separate, narrower conversation once the student actually reaches that phase). Required (non-null, 3-5 items) when readyForOverview is true. Must be null otherwise.',
+    },
+    overviewPhaseDayOffsets: {
+      type: ['array', 'null'],
+      items: { type: 'integer' },
+      description: 'One integer per entry in overviewPhaseTitles, in the same order: a realistic number of days from today that phase would likely BEGIN. The first should be 0 or close to it. Must be a strictly increasing sequence, spaced out realistically (a phase spanning a school year needs real months, not days) rather than evenly. Required (matching the length of overviewPhaseTitles) when readyForOverview is true. Must be null otherwise.',
+    },
+    thematicKeywords: {
+      type: ['array', 'null'],
+      items: { type: 'string' },
+      description: '2 to 5 short, real academic SUBJECT-AREA labels reflecting the thematic direction (e.g. "Sociology", "Economics", "Statistics") — plain subject names only, NOT specific course titles or numbers (you do not have access to this student\'s real course catalog, so naming an exact course would risk fabricating one that does not exist). Required (non-null) when readyForOverview is true — an empty array is fine if nothing specific enough has emerged. Must be null otherwise.',
+    },
     mentionsSpecificFact: {
       type: 'boolean',
       description: 'True ONLY if your reply introduces a genuinely NEW, specific real organization, program, statistic, or outside-world fact that is NOT already confirmed by something the student themselves just told you in this conversation. False otherwise — referencing something the student already shared (even a specific real club/program/experience by name), or purely generic conversation with no new named claim, is NOT a new fact. Only set this true when you introduce a genuinely new, specific claim the student would need to independently verify.',
     },
   },
-  required: ['reply', 'mentionsSpecificFact'],
+  required: [
+    'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
+    'overviewPhaseTitles', 'overviewPhaseDayOffsets', 'thematicKeywords', 'mentionsSpecificFact',
+  ],
   additionalProperties: false,
 };
 const TOOL_NAME = 'respond_in_conversation';
@@ -89,6 +129,13 @@ Narrative pushback (use this rarely, and only when it's real):
 - The student always has the final say. Frame this ONLY as a suggestion and a question — never state or assume they should change direction, and never treat a suggestion as already accepted. If they're not interested, respect that immediately and move on.
 - Do NOT manufacture this moment. If nothing specific enough has actually surfaced in the conversation to justify a genuine, well-reasoned redirect, do not force one just to seem insightful — a generic-sounding "have you considered X" with no real grounding in what they've actually told you is worse than not suggesting anything at all.
 
+Generating the overview (Stage 3 — do this only once, and only once the conversation has genuinely earned it):
+- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDayOffsets, and thematicKeywords, in that SAME response.
+- overviewPhaseTitles should be 3 to 5 REAL, SPECIFIC overview-level phases grounded in what this particular student actually told you — never a generic template. Think of them as the major chapters of the next few years (e.g. "Deepen your foundation in X," "Complete a signature project," "Build leadership in Y" are the SHAPE these should take, not literal text to copy) — broad chapters, not granular steps; granular detail for any one phase is planned separately, later, once the student actually reaches it.
+- narrativeSummary must accurately reflect the REAL settled direction, including explicitly naming any narrative-pushback suggestion the student actually agreed to (or noting they stuck with their own original direction if they declined one).
+- Don't rush this — a conversation that's only covered one or two surface-level answers is not ready. But once it genuinely has, generate a real, specific overview rather than continuing to ask more questions than necessary.
+- Even after readyForOverview is true, keep talking naturally if the student wants to discuss further — you can set these fields again on a later turn if the direction changes.
+
 Honesty rule:
 - Never present a specific real organization, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly.
 - Set mentionsSpecificFact to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by something the student themselves just told you in this conversation — referencing something they already shared (even a real club/program/experience by name) is NOT a new claim and should be set false.
@@ -107,12 +154,65 @@ function sanitizeHistory(history) {
 
 // Structural validation only, shared by both providers — the one place the two implementations
 // converge back onto a single code path, matching every prior stage's own precedent.
+//
+// AI-First Onboarding, Stage 3 (see CLAUDE.md) — `reply`/`readyForOverview`/`mentionsSpecificFact`
+// are always required to be well-typed (a genuine structural failure there still fails the whole
+// request, unchanged from before this stage). The "ready" payload (narrativeTitle/narrativeSummary/
+// overviewPhaseTitles/overviewPhaseDayOffsets/thematicKeywords) is validated only when
+// readyForOverview is true — but if THAT specific payload doesn't hold together (missing a field,
+// or the phase count isn't genuinely 3-5 after cleaning), this coerces readyForOverview back to
+// false and keeps the otherwise-valid `reply` rather than failing the whole request — the same
+// "never let a malformed bonus field block the ordinary conversation" resilience principle
+// api/build-your-own-chat.js's own `milestoneDayOffsets` sanitization already established (there,
+// a malformed array degrades to `null` rather than a hard reject; here, a malformed overview
+// degrades the WHOLE bundle to "not ready yet" rather than showing the student an error over a
+// field they never see directly).
 function validateProposal(input) {
   if (!input || typeof input !== 'object') return null;
-  const { reply, mentionsSpecificFact } = input;
-  if (typeof reply !== 'string' || !reply.trim() || reply.length > 1500) return null;
+  const {
+    reply, readyForOverview, narrativeTitle, narrativeSummary,
+    overviewPhaseTitles, overviewPhaseDayOffsets, thematicKeywords, mentionsSpecificFact,
+  } = input;
+  if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
+  if (typeof readyForOverview !== 'boolean') return null;
   if (typeof mentionsSpecificFact !== 'boolean') return null;
-  return { reply: reply.trim(), mentionsSpecificFact };
+
+  const notReady = {
+    reply: reply.trim(),
+    readyForOverview: false,
+    narrativeTitle: null,
+    narrativeSummary: null,
+    overviewPhaseTitles: null,
+    overviewPhaseDayOffsets: null,
+    thematicKeywords: null,
+    mentionsSpecificFact,
+  };
+  if (!readyForOverview) return notReady;
+
+  if (typeof narrativeTitle !== 'string' || !narrativeTitle.trim() || narrativeTitle.length > 150) return notReady;
+  if (typeof narrativeSummary !== 'string' || !narrativeSummary.trim() || narrativeSummary.length > 2000) return notReady;
+  if (!Array.isArray(overviewPhaseTitles)) return notReady;
+  const cleanPhases = overviewPhaseTitles.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
+  if (cleanPhases.length < 3 || cleanPhases.length > 5) return notReady;
+  const cleanDayOffsets = Array.isArray(overviewPhaseDayOffsets)
+    && overviewPhaseDayOffsets.length === cleanPhases.length
+    && overviewPhaseDayOffsets.every((n) => Number.isFinite(n))
+    ? overviewPhaseDayOffsets.map((n) => Math.round(n))
+    : null;
+  const cleanThemes = Array.isArray(thematicKeywords)
+    ? thematicKeywords.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim()).slice(0, 5)
+    : [];
+
+  return {
+    reply: reply.trim(),
+    readyForOverview: true,
+    narrativeTitle: narrativeTitle.trim(),
+    narrativeSummary: narrativeSummary.trim(),
+    overviewPhaseTitles: cleanPhases,
+    overviewPhaseDayOffsets: cleanDayOffsets,
+    thematicKeywords: cleanThemes,
+    mentionsSpecificFact,
+  };
 }
 
 // The one code-enforced guardrail — never trusted to the model's own prose alone.
@@ -138,7 +238,12 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      max_tokens: 1000,
+      // Raised from the original 1000 to 2600 (matching api/build-your-own-chat.js's own bug-fix
+      // precedent, see CLAUDE.md's "Fix Build Your Own milestones request intermittently timing
+      // out") — a real overview response (reply + narrativeSummary + 3-5 phase titles) needs real
+      // headroom past what a plain conversational turn alone required, and a truncated response
+      // here is strictly worse than a generously-budgeted one.
+      max_tokens: 2600,
       // Between api/chat.js's grounded 0.6 and Build Your Own's creative 0.9 — this needs to read
       // as a real, warm conversation AND occasionally make a genuinely creative connection (Task
       // 4's own narrative pushback), so it leans a bit warmer/more creative than the plain
@@ -158,7 +263,7 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
 
   const data = await anthropicRes.json();
   const toolUse = (data.content || []).find((block) => block.type === 'tool_use' && block.name === TOOL_NAME);
-  return { proposal: toolUse?.input };
+  return { proposal: toolUse?.input, stopReason: data.stop_reason };
 }
 
 // Same OpenAI Responses API shape every prior stage already established (flat, non-nested tool
@@ -184,7 +289,9 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
       input,
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: ONBOARDING_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
-      max_output_tokens: 1000,
+      // Same 2600 bump as the Anthropic call above, same reasoning — a real overview response
+      // needs real headroom past what a plain conversational turn alone required.
+      max_output_tokens: 2600,
       reasoning: { effort: 'medium' },
     }),
   });
@@ -196,10 +303,10 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
 
   const data = await openaiRes.json();
   const call = (data.output || []).find((item) => item.type === 'function_call' && item.name === TOOL_NAME);
-  if (!call) return { proposal: null };
+  if (!call) return { proposal: null, stopReason: data.status || data.incomplete_details?.reason };
   let args = null;
   try { args = JSON.parse(call.arguments); } catch { args = null; }
-  return { proposal: args };
+  return { proposal: args, stopReason: data.status || data.incomplete_details?.reason };
 }
 
 // Same env var as every prior stage — whichever provider is active answers this conversation too,
@@ -252,7 +359,11 @@ export default async function handler(req, res) {
 
     const proposal = validateProposal(result.proposal);
     if (!proposal) {
-      res.status(502).json({ error: 'Model did not return a valid response' });
+      // `stopReason` (see the two `call*` functions above) is worth keeping in the error body — a
+      // genuinely truncated response (a real 'max_tokens'/'length' stop reason) is a more useful
+      // debugging signal than a bare "invalid," matching api/build-your-own-chat.js's own
+      // precedent — and carries no sensitive information either way.
+      res.status(502).json({ error: 'Model did not return a valid response', stopReason: result.stopReason ?? null });
       return;
     }
 

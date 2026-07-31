@@ -139,3 +139,30 @@ export function anchorDate(date, planStartDate) {
   const offset = 'offsetDays' in date ? date.offsetDays : templateOffsetDays(date);
   return realAddDays(planStartDate, offset);
 }
+
+// Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md) — extracted out of
+// ProjectBuilderScreen.jsx (Build Your Own's own use of this) into this shared file so AI-First
+// Onboarding Stage 3's own overview-confirmation flow (OnboardingConversationScreen.jsx) can reuse
+// the IDENTICAL logic rather than a second copy — both turn an AI's own proposed relative
+// `dayOffsets` (never a raw absolute date — see the chain-attachment suggestion feature's own "the
+// student picks the date, not the AI" precedent for why relative-from-a-known-anchor is the safe
+// shape) into real `dueDate` strings, clamped so the resulting sequence can never be non-increasing
+// or land before the project's own already-confirmed start date, regardless of what the model
+// proposed. Phase/milestone 0 always gets the literal start date itself (offset forced to 0) — the
+// same real, already-confirmed date every other project-start mechanism in this app already treats
+// as day one. A missing/mismatched-length `dayOffsets` returns an all-null array, so every phase
+// falls back entirely to `buildOverviewMilestoneChains`'s own pre-existing cursor-based estimate.
+export function computeMilestoneDueDates(startDateStr, titles, dayOffsets) {
+  if (!Array.isArray(dayOffsets) || dayOffsets.length !== titles.length) {
+    return titles.map(() => null);
+  }
+  const startDate = parseDateInputValue(startDateStr);
+  let previousOffset = -1;
+  return titles.map((_, i) => {
+    const offset = i === 0
+      ? 0
+      : Math.max(Math.round(dayOffsets[i]) || 0, previousOffset + 1);
+    previousOffset = offset;
+    return toDateInputValue(realAddDays(startDate, offset));
+  });
+}
