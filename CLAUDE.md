@@ -7885,16 +7885,135 @@ with real (never forced, never final) narrative-pushback capability.**
   compiled profile's `basicProfile.onboardingConversation` field carries the real conversation
   content verbatim (Task 6). `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all
   stay clean — this stage never touches `roadmapLayout.js`/`Roadmap.jsx`.
-- **What still needs to happen before this is live**: a real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`
-  must already be configured in Vercel (shared with every other AI feature in this app via the same
-  `AI_SUGGESTION_PROVIDER` env var — no new key/config needed specifically for this endpoint), and
-  `api/onboarding-chat.js` must be deployed via `vercel deploy --prod` before Task 3/4's own real
-  QUALITATIVE behavior (does a genuine non-obvious connection produce a real, well-reasoned
-  suggestion; does a generic conversation correctly avoid a forced pushback) can be verified for
-  real — per this codebase's own established precedent, a prompt-driven judgment call can only be
-  genuinely verified via real, repeated, unmocked calls against the live endpoint, never by mocking
-  (mocking only proves the plumbing/mechanics work, which this stage's own test suites above
-  already do).
+- **Deployed and live-verified.** `api/onboarding-chat.js` was deployed to Vercel production and
+  the two qualitative test criteria were confirmed with several real, repeated, unmocked calls
+  against the live endpoint (mocking alone only proves the plumbing works, per this codebase's own
+  established precedent): a profile sharing a genuine, specific, non-obvious detail (in the spirit
+  of the Uyghur-soccer/Sociology reference case — in practice, a student describing informally
+  comparing conflict-resolution styles across families while volunteering at a refugee resettlement
+  center) reliably (3/3 runs) produced a real, well-reasoned suggestion toward sociology/
+  anthropology, always framed as a question ("would you be interested in exploring that connection
+  further?"), never a stated or assumed redirect; a generic profile (hanging out with friends, one
+  lightly-held sport, no clubs) reliably (3/3 runs) produced zero forced pushback, staying purely
+  conversational; and the honesty guardrail correctly fired (3/3) on a genuinely new external claim
+  (naming real debate organizations) while correctly NOT firing (3/3) when only referencing
+  something the student had already stated earlier in the same conversation (their own real club
+  and competition placement).
+
+**AI Conversation Page: First-Impression Visual Design — a choreographed, one-time "meeting"
+sequence layered on top of Stage 2's already-shipped conversation, since this is the student's
+first real encounter with the AI and deserved a genuine designed moment rather than a plain chat
+box with a header (which this screen was, byte-for-byte, before this pass).** Every piece of the
+real conversation underneath — `useOnboardingChat`, `state.onboardingChatHistory`,
+`ChatConversation`, `api/onboarding-chat.js` — is completely unchanged; this pass only choreographs
+how that conversation is first revealed, then gets out of the way once settled.
+- **A local `phase` state machine** (`OnboardingConversationScreen.jsx`, mirroring `HubScreen.jsx`'s
+  own `chatPhase` pattern — ephemeral, not persisted to `state`) drives 4 stages: `'entering'` (Task
+  1 — the page starts nearly empty; the mascot fades AND scales in from the center, larger/more
+  prominent than its normal hub size) → `'greeting'` (Task 2 — once fully faded in, the mascot
+  speaks its scripted opening line using the EXISTING speaking animation + voiceover mechanism,
+  `useMascotSpeech`, shown in its own standalone speech bubble with no chat input/history visible
+  yet — a pure, focused "meeting" beat) → `'settling'` (Task 3 — the greeting has finished being
+  said; the mascot smoothly shrinks and repositions while the real chat interface fades in around
+  it, staggered) → `'chat'` (the normal, fully-settled conversation layout: a small mascot header +
+  the full real history + input, identical to every other real chat surface in this app).
+- **This whole sequence plays ONLY the very first time the conversation is genuinely empty.**
+  `freshMeeting` is frozen via a lazy `useState(() => chatHistory.length === 0)` initializer — read
+  during the component's very first render, BEFORE `useOnboardingChat`'s own greeting-seeding effect
+  ever has a chance to run (React effects fire after commit, lazy initializers run synchronously
+  during render) — so it correctly captures "was this conversation genuinely empty when the page
+  loaded," not a length already mutated by that same mount's own seeding effect. A later revisit
+  (Back-then-forward, a reload mid-conversation) skips straight to `'chat'`, the same "don't replay
+  a one-time entrance on a return visit" precedent WelcomeScreen's own module-level `hasPlayedIntro`
+  flag already established — just derived here from real conversation data instead of a module
+  flag, since this specific state (a real, persisted conversation) is the more honest signal for
+  "has this genuinely already happened" than a plain in-tab flag would be.
+- **`buildOnboardingGreeting(username)`** was extracted out of `useOnboardingChat.js`'s own seeding
+  effect into its own exported function specifically so the screen can drive the IDENTICAL scripted
+  text through the mascot's speaking animation/voiceover during the `'greeting'` phase (in its own
+  standalone bubble, before it's technically part of `chatHistory` yet) without a second, possibly-
+  drifting copy of the same string — one shared source, two consumers (the seeding effect, and the
+  screen's own display bubble).
+- **Task 1's entrance animation reuses the exact "fixed-size wrapper + CSS `transform: scale()`"
+  pattern `.hub-mascot-figure`/`.chat-grown` already established for the Hub-to-Chat transition** —
+  `MascotIcon`'s own `size` prop is never animated directly (it sets real, non-transitionable SVG
+  width/height attributes, per that component's own header comment); instead a fixed 190px wrapper
+  (`.onboarding-mascot-figure`, larger at rest than the hub's own 150px, genuinely satisfying "larger/
+  more prominent than its normal hub size") transitions between 3 modifier classes —
+  `--hidden` (opacity 0, scale 0.45), `--large` (opacity 1, scale 1), `--small` (opacity 1, scale
+  0.34) — via one unconditional `transition` on the base rule, the same "plain transition on the
+  base rule, a modifier class only changes the end value" shape `.hub-mascot-figure` already uses.
+  The initial `hidden -> large` reveal uses the SAME double-`requestAnimationFrame` technique
+  WelcomeScreen's own trail reveal already established (the browser needs to actually paint the
+  hidden starting style on one frame before the transition-triggering class change happens on the
+  next, or both style changes risk landing in the same paint and skipping the animation entirely).
+- **Task 3's "shrinks and repositions" is two things transitioning together, not one**: the mascot's
+  own wrapper scales down (`--large` → `--small`, above) WHILE its containing stage
+  (`.onboarding-mascot-stage`) collapses from a tall, vertically-centering "hero" area (Tasks 1/2 —
+  `min-height: 56vh`) down to a compact chat-header-height row (`min-height: 0`) via a `min-height`/
+  `padding` transition on that SAME element, rather than swapping between two different DOM
+  structures for "big hero" vs. "small header." Both transitions run on the same ~700ms timescale,
+  which is what reads as one continuous "collapse into place" rather than two unrelated animations.
+- **Detecting "the greeting has finished being said"** (the trigger for `'greeting' -> 'settling'`)
+  reuses `useMascotSpeech`'s own returned `isSpeaking` boolean — already designed to resolve
+  reliably true-then-false regardless of whether real TTS audio actually plays (real audio timing
+  when unmuted and available; `estimateSpeechDuration`'s word-count-based fallback otherwise) — via
+  a `wasSpeakingRef` watching for a true→false transition while `phase === 'greeting'`. A generous
+  `GREETING_FALLBACK_MS` (11000ms) safety-net timer, well past `useMascotSpeech`'s own internal
+  worst-case (a ~4s fetch-latency buffer plus up to a ~6s estimated-reading fallback), guards
+  against `isSpeaking` somehow never toggling true at all — in normal operation this timer never
+  actually fires, it only exists so the sequence can never get permanently stuck.
+- **Task 4's "rich, ambient visual treatment"** is three pieces, all reusing established patterns
+  rather than inventing new mechanisms: (1) a soft, slowly-drifting multi-color gradient background
+  (`body:has(.onboarding-meeting-active)`, translucent bloom-palette radial-gradient blobs whose
+  `background-position` animates over a 16s loop) — deliberately a NARROWER, more bounded echo of an
+  earlier, broader "animated colorful background behind an ongoing chat view" attempt this app
+  already tried once and reverted after direct feedback that it competed with the conversation
+  itself (see "Enhance AI Chat Page Visuals" above) — the difference here is scope: `.onboarding-
+  meeting-active` is only applied while `phase !== 'chat'`, so this backdrop recedes to the plain
+  flat `body:has(.app-shell-bloom)` background (same selector specificity; this rule is appended
+  later in the file, so source order alone is what lets it win only while active) the instant the
+  real ongoing conversation settles in, never persisting as a distracting backdrop behind everyday
+  use; (2) small decorative floating particles (`.onboarding-particle`), reusing HubScreen.jsx's own
+  `hub-particle-float` keyframe verbatim rather than a second float/fade animation for the identical
+  visual idea, just with this screen's own denser scatter of positions; (3) the chat card itself
+  (`.onboarding-chat-card`) gets a slow multi-color shimmer along its top edge, reusing `.hub-chat-
+  panel::before`'s own `hub-chat-panel-shimmer` keyframe, and its header/body/footer fade in with a
+  staggered delay reusing the Hub-to-Chat transition's own `hub-chat-fade-in` keyframe (header
+  first, then messages, then input) — so the chat card visibly cascades in WHILE the mascot above it
+  is still shrinking into place (starting at `'settling'`, not only once `'chat'` is fully reached),
+  matching the task's own explicit "similar to the existing hub-to-chat transition's staggered
+  entrance style" instruction literally.
+- **The generic `.app-shell.app-shell-bloom .chat-bubble-user`/`.chat-bubble-assistant`/`.chat-
+  input-row input`/`.chat-send-btn` overrides already established for every other bloom-scoped
+  screen's chat surface (Build Your Own's own conversation, etc.) needed zero duplication here** —
+  this screen was already registered under `isBloomScreen` back in Stage 1, so those rules already
+  apply automatically; only the genuinely new, screen-exclusive chrome (the stage/figure/bubble/
+  card/particles/background) needed its own CSS.
+- **`prefers-reduced-motion: reduce` skips the entire choreographed sequence**, initializing `phase`
+  directly to `'chat'` (the same `reducedMotion || !freshMeeting` short-circuit that also handles a
+  revisit) — the final, fully-settled composition renders immediately with zero animation ever
+  starting, matching this codebase's own established reduced-motion convention everywhere else
+  (WelcomeScreen's own `skipIntro`, the Hub-to-Chat transition's own `TILE_EXIT_MS`/`CHAT_EXIT_MS`
+  zeroing, etc.) — a corresponding `@media (prefers-reduced-motion: reduce)` block also disables
+  every new animation/transition/keyframe this pass added directly in CSS, so the page is correct
+  even if JS is slow to apply the class.
+- Verified with a dedicated 20-check Playwright suite covering all 3 real scenarios: a genuinely
+  fresh meeting confirms the mascot starts hidden with no chat card/greeting bubble present, becomes
+  visible and large, shows the real greeting bubble (mentioning the real username) with the chat
+  card still absent, then — once the greeting genuinely finishes (verified against a real, mocked-
+  to-fail `/api/tts` route, forcing the estimated-duration fallback path deterministically) — the
+  mascot shrinks to `--small`, the chat card appears, the standalone greeting bubble is gone, the
+  identical greeting text now renders as a normal chat bubble (with its own opt-in Play button), the
+  atmospheric background has receded, and sending a further real message still works normally
+  through the completely unmodified underlying conversation; a revisit (seeded with existing
+  `onboardingChatHistory`) shows the chat card immediately with no entrance replay and the mascot
+  already small; and a `prefers-reduced-motion: reduce` context shows the fully-settled chat layout
+  instantly with no standalone greeting-reveal bubble ever rendered. Real screenshots (not just
+  computed-style checks) were also taken at each phase to visually confirm the composition itself —
+  a large, prominent mascot against the dreamy gradient with floating particles during the greeting
+  beat, and a clean, shimmering chat card with the flat background restored once fully settled.
+  `npm run build`/`npm run lint` both stay clean.
 
 ## Design tokens
 
@@ -10409,3 +10528,25 @@ download). Cover at minimum:
   student already said earlier in that same conversation. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) should all stay clean (this stage never touches `roadmapLayout.js`/
   `Roadmap.jsx`).
+- AI Conversation Page: First-Impression Visual Design: seed `state.onboardingChatHistory: []`
+  (genuinely empty — a lazy `useState` initializer freezes "was this empty at mount" before the
+  hook's own seeding effect runs, so seeding anything non-empty skips the whole sequence) and
+  mock `/api/tts` to fail (`route.fulfill({ status: 500 })`) so `useMascotSpeech` deterministically
+  falls into its estimated-duration fallback instead of depending on real audio timing. Poll (don't
+  assume fixed delays) for each phase: confirm `.onboarding-mascot-figure` starts with `--hidden` in
+  its class list and no `.onboarding-chat-card`/`.onboarding-meeting-greeting-bubble` exist yet;
+  confirm it becomes `--large` and the greeting bubble appears (real text mentioning the real
+  username) while the chat card is still absent; then poll for `.onboarding-mascot-figure--small`
+  AND a real `.onboarding-chat-card` to both appear — at that point confirm the standalone greeting
+  bubble is gone, the identical text now renders as a normal `.chat-bubble-assistant` (with a real
+  Play button), and `.onboarding-meeting-active` is no longer present anywhere (the atmospheric
+  background has receded). Confirm the underlying conversation is untouched — sending a message
+  after the sequence settles still writes a real user turn to `state.onboardingChatHistory`.
+  Separately, seed a NON-empty `onboardingChatHistory` and confirm the chat card renders immediately
+  with the mascot already `--small` and no entrance replay; and use Playwright's own
+  `reducedMotion: 'reduce'` context option to confirm the fully-settled layout renders instantly
+  with no standalone greeting bubble ever appearing. Take real screenshots at each phase (not just
+  computed-style checks) to confirm the composition itself actually reads as intended — this is a
+  visual/design task, and a passing class-name check doesn't guarantee the result looks right.
+  `npm run build`/`npm run lint` should stay clean (this pass never touches `roadmapLayout.js`/
+  `Roadmap.jsx`, `useOnboardingChat`'s own send/edit logic, or `api/onboarding-chat.js` at all).

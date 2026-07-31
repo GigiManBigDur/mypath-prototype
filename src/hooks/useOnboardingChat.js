@@ -12,6 +12,18 @@ import { requestOnboardingChatReply } from '../utils/onboardingChatRequest';
 // app assistance. Reads/writes `state.onboardingChatHistory` — deliberately its OWN field, never
 // `state.chatHistory` (the general "Ask MyPath AI anything" conversation), per Task 2's own
 // explicit "shouldn't mix" requirement.
+
+// AI Conversation Page: First-Impression Visual Design (see CLAUDE.md) — extracted out of the
+// seeding effect below into its own exported function so `OnboardingConversationScreen.jsx`'s own
+// choreographed "meeting" sequence can drive this SAME scripted text through the mascot's speaking
+// animation/voiceover during its dedicated `'greeting'` phase (shown in a standalone speech bubble,
+// before it's technically part of `chatHistory` yet) — one shared source for the string, so the
+// two can never independently drift apart.
+export function buildOnboardingGreeting(username) {
+  const name = username || 'there';
+  return `Hey ${name}! I'm your MyPath guide, and before we build anything, I want to actually get to know you — what excites you, what you've already done, and help you figure out a direction that's genuinely yours. So — what do you find yourself genuinely excited about, in or out of school?`;
+}
+
 export function useOnboardingChat() {
   const { state, patch } = useApp();
   const chatHistory = state.onboardingChatHistory || [];
@@ -25,12 +37,8 @@ export function useOnboardingChat() {
   // never re-added on a later visit, since by then the conversation already has real content).
   useEffect(() => {
     if (chatHistory.length > 0) return;
-    const name = state.username || 'there';
     patch({
-      onboardingChatHistory: [{
-        role: 'assistant',
-        content: `Hey ${name}! I'm your MyPath guide, and before we build anything, I want to actually get to know you — what excites you, what you've already done, and help you figure out a direction that's genuinely yours. So — what do you find yourself genuinely excited about, in or out of school?`,
-      }],
+      onboardingChatHistory: [{ role: 'assistant', content: buildOnboardingGreeting(state.username) }],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

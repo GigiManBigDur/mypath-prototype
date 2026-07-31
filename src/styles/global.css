@@ -5269,3 +5269,209 @@ button.card.passed:hover {
   cursor: pointer;
 }
 .date-override-reset:hover { color: var(--bloom-ink); border-color: var(--bloom-ink-soft); }
+
+/* AI Conversation Page: First-Impression Visual Design (see CLAUDE.md) — the choreographed one-
+   time "meeting" sequence built around OnboardingConversationScreen.jsx's own `phase` state
+   machine ('entering' -> 'greeting' -> 'settling' -> 'chat'). Everything here is purely additive
+   visual chrome layered on top of the already-shipped Stage 2 conversation (the real chat/history/
+   input classes underneath are untouched, and the generic `.app-shell.app-shell-bloom .chat-*`
+   overrides above already recolor them correctly — matching exactly how Build Your Own's own chat
+   already renders on a plain bloom-card background, so no duplicate bubble/input overrides are
+   needed here). */
+.onboarding-meeting-page {
+  position: relative;
+  min-height: 74vh;
+}
+.onboarding-meeting-back {
+  position: relative;
+  z-index: 3;
+}
+
+/* Task 1 — a rich, atmospheric gradient background, deliberately a little more "dreamy/special"
+   than the plain flat `body:has(.app-shell-bloom)` background every other bloom screen uses — soft,
+   slowly-drifting translucent color blobs in the same shared bloom accent palette, rather than a
+   second, unrelated color scheme. `.onboarding-meeting-active` is only applied while `phase !==
+   'chat'` (see the screen's own comment) — the SAME selector specificity as the existing
+   `body:has(.app-shell-bloom)` rule above, so source order alone (this block is appended after it)
+   is what lets this one win while active; once the class is removed, the plain flat rule quietly
+   takes back over for the ongoing chat. This is a deliberate, narrower echo of an EARLIER, broader
+   "animated colorful background behind an ongoing chat view" attempt this app already tried once
+   and reverted after direct feedback that it competed with the conversation itself (see "Enhance
+   AI Chat Page Visuals," CLAUDE.md) — the difference here is scope: this is a genuine, bounded,
+   one-time entrance moment that recedes the instant the real ongoing conversation settles in,
+   never a persistent backdrop behind everyday use. */
+body:has(.onboarding-meeting-active) {
+  background-color: var(--bloom-bg);
+  background-image:
+    radial-gradient(circle, rgba(139, 92, 246, 0.22), transparent 65%),
+    radial-gradient(circle, rgba(20, 184, 166, 0.18), transparent 65%),
+    radial-gradient(circle, rgba(236, 111, 160, 0.16), transparent 65%),
+    radial-gradient(circle, rgba(240, 180, 41, 0.14), transparent 65%);
+  background-repeat: no-repeat;
+  background-size: 70% 70%, 60% 60%, 65% 65%, 55% 55%;
+  background-position: 10% 15%, 85% 10%, 20% 85%, 80% 80%;
+  background-attachment: fixed;
+  animation: onboarding-meeting-bg-drift 16s ease-in-out infinite alternate;
+}
+@keyframes onboarding-meeting-bg-drift {
+  0% { background-position: 10% 15%, 85% 10%, 20% 85%, 80% 80%; }
+  50% { background-position: 20% 25%, 75% 20%, 30% 75%, 70% 70%; }
+  100% { background-position: 10% 15%, 85% 10%, 20% 85%, 80% 80%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:has(.onboarding-meeting-active) { animation: none; }
+}
+
+/* Task 4 — small decorative floating particles, reusing the EXACT `hub-particle-float` keyframe
+   HubScreen.jsx's own `.hub-particle` already established (defined earlier in this file), rather
+   than inventing a second float/fade animation for the same visual idea. Positioned relative to
+   this screen's own root instead of `.hub-radial-wrap`. */
+.onboarding-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  animation: hub-particle-float 4.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-particle { animation: none; opacity: 0.7; }
+}
+
+/* The mascot's own stage — collapses from a tall, vertically-centering "hero" area (Tasks 1/2) down
+   to a compact chat-header-height row (Task 3) via a plain `min-height`/`padding` transition on the
+   SAME element, rather than swapping between two different DOM structures. Paired with the mascot
+   figure's own scale-down (below), the two transitioning together is what reads as "shrinks and
+   repositions to make room for the chat interface." */
+.onboarding-mascot-stage {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 0;
+  padding: 12px 20px 4px;
+  transition: min-height 700ms cubic-bezier(0.16, 1, 0.3, 1), padding 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.onboarding-mascot-stage-hero {
+  min-height: 56vh;
+  padding: 40px 20px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-mascot-stage { transition: none; }
+}
+
+/* Task 1/3 — the SAME "fixed-size wrapper + CSS transform" grow/shrink pattern
+   `.hub-mascot-figure`/`.chat-grown` already established for the Hub-to-Chat transition, reused
+   here rather than animating `MascotIcon`'s own `size` prop directly (which sets real, non-
+   transitionable SVG width/height attributes — see that component's own header comment). Larger at
+   rest (190px base, vs. the hub's own 150px) to genuinely read as "larger/more prominent than its
+   normal hub size," per Task 1's own explicit instruction. `transform-origin` deliberately left at
+   its CSS default (the element's own center) so it grows/shrinks in place rather than drifting. */
+.onboarding-mascot-figure {
+  width: 190px;
+  height: 190px;
+  transition: transform 700ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 700ms ease;
+}
+.onboarding-mascot-figure--hidden { opacity: 0; transform: scale(0.45); }
+.onboarding-mascot-figure--large { opacity: 1; transform: scale(1); }
+.onboarding-mascot-figure--small { opacity: 1; transform: scale(0.34); }
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-mascot-figure { transition: none; }
+}
+
+.onboarding-meeting-hero-sub {
+  margin: 0;
+  text-align: center;
+  max-width: 380px;
+}
+
+/* Task 2 — the mascot's own standalone speech bubble during the focused "meeting" beat, shown
+   before any real chat history/input exists. Reuses the same white-card/shadow visual language
+   `.mascot-greeting` already established for the hub's own dialogue bubble, just centered rather
+   than pointing at a specific tile. Pops in the moment the 'greeting' phase begins, and fades/
+   shrinks back out the instant 'settling' starts (the same brief exit-fade posture this app's own
+   `hub-tile-fade-out`/`hub-chat-fade-out` transitions already use elsewhere) rather than an abrupt
+   unmount. */
+.onboarding-meeting-greeting-bubble {
+  margin: 0;
+  max-width: 440px;
+  text-align: center;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 18px;
+  padding: 18px 24px;
+  box-shadow: var(--bloom-shadow);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 15.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--bloom-ink);
+  animation: onboarding-greeting-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.onboarding-meeting-greeting-bubble-exit {
+  animation: onboarding-greeting-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes onboarding-greeting-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes onboarding-greeting-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-6px) scale(0.92); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-meeting-greeting-bubble,
+  .onboarding-meeting-greeting-bubble-exit {
+    animation: none;
+  }
+}
+
+/* Task 3 — the real conversation card, fading/sliding in (staggered header -> messages -> input,
+   reusing the EXACT `hub-chat-fade-in` keyframe the Hub-to-Chat transition already established)
+   starting the moment 'settling' begins, so it visibly cascades in WHILE the mascot above it is
+   still shrinking into place, not only after. A slow multi-color shimmer along the top edge reuses
+   `hub-chat-panel-shimmer` (`.hub-chat-panel::before`'s own keyframe) for the same "richer visual
+   elements without competing with the conversation itself" treatment that panel already uses. */
+.onboarding-chat-card {
+  position: relative;
+  z-index: 2;
+  width: min(94%, 640px);
+  margin: 8px auto 24px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 20px;
+  box-shadow: var(--bloom-shadow);
+  padding: 20px 22px;
+  overflow: hidden;
+}
+.onboarding-chat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--bloom-purple), var(--bloom-teal), var(--bloom-pink), var(--bloom-blue), var(--bloom-purple));
+  background-size: 300% 100%;
+  animation: hub-chat-panel-shimmer 6s linear infinite;
+}
+.onboarding-chat-card-header,
+.onboarding-chat-card-body,
+.onboarding-chat-card-footer {
+  animation: hub-chat-fade-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.onboarding-chat-card-header { margin-bottom: 12px; }
+.onboarding-chat-card-body { animation-delay: 70ms; }
+.onboarding-chat-card-footer { justify-content: flex-end; margin-top: 8px; animation-delay: 140ms; }
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-chat-card::before { animation: none; }
+  .onboarding-chat-card-header,
+  .onboarding-chat-card-body,
+  .onboarding-chat-card-footer {
+    animation: none;
+  }
+}
