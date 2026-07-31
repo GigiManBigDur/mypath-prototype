@@ -8178,12 +8178,122 @@ concept, no new review UI pattern, no new course-recommendation system.**
   clean numbered phase list, both actions visible). `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) all stay clean — this stage never opens `roadmapLayout.js` at all, only
   reuses `roadmapGenerator.js`'s already-existing, unmodified overview/lock machinery.
-- **What still needs to happen before this is live**: `api/onboarding-chat.js` must be redeployed via
-  `vercel deploy --prod` before Task 1/2's own real QUALITATIVE behavior (does a genuinely specific,
-  non-template overview get generated; does the narrative summary correctly reflect an accepted
-  redirect) can be verified for real against the live endpoint, per this codebase's own established
-  precedent that a prompt-driven judgment call can only be genuinely verified via real, repeated,
-  unmocked calls, never by mocking.
+- **Deployed and verified live.** `api/onboarding-chat.js` was redeployed via `vercel deploy --prod`,
+  then Task 1/2's own real QUALITATIVE behavior was confirmed against the live endpoint via 3
+  independent, real (unmocked) conversation runs, per this codebase's own established precedent that
+  a prompt-driven judgment call can only be genuinely verified via real, repeated, unmocked calls,
+  never by mocking: each run reliably reached a genuinely specific, non-template 3-5 phase overview
+  (not a generic restatement of the student's own interest tags) once the conversation had earned it,
+  and a run that included a real accepted narrative redirect correctly folded that redirect into the
+  confirmed `narrativeSummary` text rather than ignoring it.
+
+**AI-First Onboarding, Stage 4: "My Narrative" View — the dedicated place where Stage 3's confirmed
+multi-year overview lives, gets tracked, and can be revisited, as its own hub destination rather than
+a tab nested inside the Academic Plan. Built almost entirely by REUSING already-generalized
+mechanisms — the Overview/lock system, `MilestonePlanningPanel`'s scoped AI chat,
+`MilestoneSubStepChecklist`'s editable checklist — with genuinely new code limited to the screen's
+own display/editing shell and one small, real "on track" status computation.**
+- **Task 1 — "My Narrative" is a new hub tile**, added to `TILES` (`HubScreen.jsx`) right after
+  Academic Plan and before Your School List, matching this task's own explicit "similar in role to
+  Your School List" framing (its own destination, not a Plan sub-view). `unlock: (state) =>
+  !!getNarrativeProject(state)` — a new export in `data/projects.js`, `(state.startedProjects ||
+  []).find(p => p.projectTypeId === NARRATIVE_OVERVIEW_PROJECT_TYPE_ID) || null` — the same
+  "derive, don't duplicate" convention `hasRoadmap`/`countPlanTasks` already established in this
+  file, rather than a second, possibly-drifting boolean flag; this also means the tile unlocks the
+  instant Stage 3's own "Confirm My Plan" writes a real `startedProjects` entry, often on the very
+  first hub visit, since that conversation happens before the hub is ever reached at all.
+  Deliberately NOT added to `GUIDED_SEQUENCE` — same "real tile, but not part of the mascot's
+  primary walkthrough" treatment Academic Plan/Your School List already get. Adding this 11th
+  partner-school tile needed no new `RADIAL_POSITIONS` slot at all — that array was already sized
+  to 11 entries (one spare) from an earlier pass, confirmed directly via `git show HEAD` before
+  touching it, rather than assumed from a stale tile count.
+- **Task 2 — the phase list and its detail view are genuinely new display code, not a literal reuse
+  of `ProjectBuilderScreen.jsx`'s own read-only `.pb-timeline` preview** (that component has no click
+  handlers at all — it deliberately defers all interaction to "Plan this phase on your Academic
+  Plan"). What IS reused, byte-for-byte, is the underlying INTERACTION MECHANISM this task's own
+  "click-to-preview-when-locked, full detail when unlocked" phrasing describes — the exact same
+  `locked`/`lockedReason` branch `Roadmap.jsx`'s own modal already established for any spine node:
+  a locked phase's modal shows its real title/due-date/desc with zero interactive controls (no
+  complete-toggle, no date input); an unlocked one shows the full generic editing surface.
+  `MyNarrativeScreen.jsx`'s own `resolvedPhases` is computed via `generateRoadmap(state)` (not a
+  second, hand-rolled phase-resolution pass) — `[anchor, ...anchor.steps]`, where `anchor` is
+  `roadmap.spine.find(n => n.milestoneMeta?.projectId === narrativeProject.id)` — confirmed via a
+  dedicated Node-level test (see below) that this is byte-for-byte the same node/lock/date data the
+  real Map 2 canvas would render for this exact project, not a parallel derivation that could drift.
+- **Task 3 — editing and AI-conversation reuse, both genuinely wired into raw `startedProjects` data,
+  not a read-only view.** A phase's own `title` gained its first-ever direct edit control anywhere in
+  the app — a small pencil-icon-to-text-input toggle (`.narrative-phase-title-edit`), mirroring
+  `MilestoneSubStepChecklist.jsx`'s own already-established sub-step edit pattern exactly, writing
+  straight into `state.startedProjects[...].overviewMilestones[...].title` via a plain `patch()` call.
+  Due-date editing needed zero new logic at all — it's the same generic `nodeDateOverrides` write
+  every other spine node's modal already uses, which `buildOverviewMilestoneChains` already checks
+  first before falling back to a phase's own stored/derived date. **Reopening a scoped AI
+  conversation is a literal, unmodified reuse**: an unlocked phase with no real `subSteps` yet
+  renders `MilestonePlanningPanel` (imported directly, zero changes to that component), and one with
+  real subSteps renders `MilestoneSubStepChecklist` (same import, same zero changes) — both take
+  `{ project, milestone, anchorDate, ... }` and manage `state.startedProjects` entirely themselves via
+  `useApp()`, confirmed via direct source read to need no modification for a brand-new caller. This is
+  what makes "works the same way Build Your Own's refinement does" true literally, not just
+  similarly: it's the identical component, the identical `/api/build-your-own-chat` milestone-detail
+  endpoint, and the identical "reject and keep refining" dismiss-by-turn-index pattern underneath it.
+  A plain "Mark complete"/"Marked complete — undo" button was also added to the unlocked-phase view —
+  not explicitly named by this task, but included deliberately: omitting it would have created a real
+  UX inconsistency (a student could complete a phase from `Roadmap.jsx`'s own modal but not from this
+  screen), so it writes directly to `state.completedNodes` the same way every other generic
+  complete-toggle in this app already does (a simplified version, without `Roadmap.jsx`'s own
+  `maybeTriggerSuggestion`/`openNextStepPrompt` side effects, which are scoped to that component's own
+  closure and aren't needed by this narrower screen).
+- **`src/utils/milestones.js` (new file)** is the "extract once, reuse everywhere" moment this codebase
+  keeps repeating once a THIRD caller needs the same logic: `isMilestoneDone` (previously a local
+  function inside `ProjectBuilderScreen.jsx`) and `attachMilestoneSubSteps` (previously a local closure
+  inside `Roadmap.jsx`) were both extracted here, with their original call sites reduced to thin
+  wrappers/direct imports — zero behavior change at either original site, confirmed via
+  `npm run build`/`npm run lint` staying clean and the full pre-existing regression suite passing.
+  `getMilestoneStatus(milestone, completedNodes, today)` (Task 4, new) is the one genuinely new
+  function in this file.
+- **Task 4 — "on track" reuses the exact same "Overdue" concept the Digest/Checklist feature already
+  established, not a new schedule-adherence heuristic.** `getMilestoneStatus` only ever looks at a
+  phase's own real, structurally-linked `subSteps` — explicitly NOT an attempt to loosely match Stage
+  3's `narrativeThemes` against arbitrarily-selected opportunities/courses elsewhere on the plan, which
+  would be inventing a connection that doesn't structurally exist, the same "don't fabricate a link"
+  principle this app's data layer holds everywhere else. A phase with real subSteps reports `doneCount`
+  out of `total` plus one of three states: `complete` (via the shared `isMilestoneDone`), `behind`
+  (at least one real, incomplete subStep whose own date has already passed — `realDaysBetween(...) <
+  0`, the identical comparison the Digest view's own Overdue bucket already uses), or `on-track`
+  (neither). A phase with zero subSteps yet reports `unplanned` rather than fabricating a status for
+  content that doesn't exist. **This reads directly from `state.completedNodes`** — the exact same flat
+  map every other view (Roadmap, This Week, Daily Schedule) already reads/writes — so marking a
+  subStep complete from ANY of those other surfaces is reflected here with zero extra sync code, and
+  vice versa; this is the literal, structural satisfaction of "never a separate, disconnected tracking
+  system," not just a stated intention.
+- **Task 5 — the narrative summary sits above the phase list**, in a dedicated
+  `.narrative-summary-card` (a `--bloom-ai`-accented card, the same left-edge-accent visual language
+  this app's other AI-attributed content already uses) reading `state.narrativeSummary` and the
+  narrative project's own `projectName` directly — both already real, durable state written once by
+  Stage 3's own "Confirm My Plan," needing zero new state or computation here.
+- Verified with three dedicated suites. A Node-level test (8 checks, loading the real
+  `roadmapGenerator.js` through Vite's own `ssrLoadModule`) confirms the Task 2 reuse claim precisely:
+  a real spine anchor resolves for a seeded narrative project, is unlocked while its two later phases
+  are locked, `resolvedPhases` (the screen's own exact derivation logic, reproduced in the test)
+  produces the correct 3, in order, and the anchor carries `category: 'project'` — the same category
+  any other started project already has on Map 2, confirming zero special-casing was introduced. A
+  Playwright suite (22 checks) confirms: the hub tile is locked before a narrative project exists and
+  unlocks the instant one is confirmed, and clicking it navigates correctly; the phase list renders
+  with the correct lock pattern (only phase 1 unlocked) and the real narrative title/summary text;
+  clicking a locked phase shows a real preview with no interactive controls; editing a phase's title
+  via its pencil icon persists to `state.startedProjects` and is reflected in the modal immediately;
+  editing a phase's due date writes a real `nodeDateOverrides` entry; reopening the scoped AI chat on
+  an unlocked, unplanned phase (mocking `/api/build-your-own-chat`) shows the real "Not quite right —
+  keep refining" dismiss option and correctly attaches 3 real, specific subStep titles once a target
+  date is confirmed; and the on-track status correctly reads `0/2` (not-yet-overdue) initially,
+  updates to `1/2` the instant a subStep is marked complete THROUGH THIS SCREEN, confirms that
+  completion landed in the exact same shared `completedNodes` map, and correctly flips to "Behind
+  schedule" once an incomplete subStep's own date is confirmed to have passed. Two real rendered
+  screenshots (the phase list and the detail modal) were taken and visually confirmed to read cleanly,
+  matching this session's own established practice of visually confirming new UI, not just checking
+  classes. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this stage
+  never opens `roadmapLayout.js` and reuses `roadmapGenerator.js`'s already-existing, unmodified
+  overview/lock/date-correction machinery in full.
 
 ## Design tokens
 
@@ -10753,3 +10863,27 @@ download). Cover at minimum:
   deployed endpoint once redeployed — mocking only proves the plumbing works.** `npm run build`/
   `npm run lint`/`npm run verify:spacing` (20/20) should all stay clean (this stage never opens
   `roadmapLayout.js`).
+- AI-First Onboarding, Stage 4 ("My Narrative" view): seed `state.startedProjects` directly with a
+  narrative-overview-shaped entry (`categoryId`/`projectTypeId: 'onboarding-narrative'`,
+  `overviewMilestones: [...]`) plus `state.narrativeSummary` — confirm the hub tile is locked with no
+  such entry present and unlocks the instant one exists, and that clicking it navigates to
+  `screen: 'myNarrative'`. On the screen itself: confirm exactly phase 1 renders unlocked (the rest
+  locked, matching the seeded milestone count) and that a locked phase's modal shows title/due/desc
+  with no complete-toggle or date input; edit an unlocked phase's title via its pencil icon and
+  confirm it persists to `state.startedProjects[...].overviewMilestones[...].title`, and edit its due
+  date and confirm a real `state.nodeDateOverrides` entry is written; for the scoped-AI-conversation
+  reuse, mock `/api/build-your-own-chat` (the SAME endpoint `MilestonePlanningPanel` already calls
+  everywhere else) and confirm the real "Not quite right — keep refining" option appears and that
+  confirming a target date attaches real, specific subStep titles (not generic placeholders) to that
+  phase. For Task 4's on-track status, seed a phase with 2 real subSteps and a `dateOverride` BEFORE
+  both of their own dates, confirm the initial status reads as on-track at 0/2; mark one subStep
+  complete via this screen's own checklist and confirm the fraction updates to 1/2 AND that the
+  completion landed in the same `state.completedNodes` map (not a separate flag); then push
+  `dateOverride` past the remaining incomplete subStep's own date and confirm the status flips to
+  "Behind schedule" — this is the direct proof the status is derived live from shared data, not a
+  disconnected tracker. A dedicated Node-level test (loading the real `generateRoadmap` through Vite's
+  own `ssrLoadModule`, the same technique used for Stage 3) is the fastest way to confirm the screen's
+  own `resolvedPhases` derivation (`roadmap.spine.find(n => n.milestoneMeta?.projectId === ...)` plus
+  its `.steps`) never drifts from what the real roadmap generator produces for the identical project.
+  `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay clean (this stage
+  never opens `roadmapLayout.js` either).

@@ -11,12 +11,13 @@ import { findProjectType } from '../data/projects';
 import { QUARTER_LABELS } from '../data/ucdavisQuarters';
 import { PIXELS_PER_DAY } from '../utils/roadmapLayout';
 import {
-  formatDateWithYear, toDateInputValue, realDaysBetween, getEffectiveToday, realAddDays, parseDateInputValue,
+  formatDateWithYear, toDateInputValue, realDaysBetween, getEffectiveToday,
   formatTimeOfDay,
 } from '../utils/dates';
 import AddTaskModal from './AddTaskModal';
 import DigestList from './DigestList';
 import { makeTaskId } from '../utils/ids';
+import { attachMilestoneSubSteps as attachMilestoneSubStepsShared } from '../utils/milestones';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useModalExit } from '../hooks/useModalExit';
 import { getTrackColor } from './TrackVisuals';
@@ -451,32 +452,13 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
     setProjectPrompt(null);
   };
 
-  // Two-Phase Generation (see CLAUDE.md), Task 4 — commits a milestone's own scoped-chat-generated
-  // granular steps as real, dated sub-tasks. `subStepTitles` is the plain ordered title list the
-  // scoped conversation produced; `anchorDate` is the milestone's OWN current real position on the
-  // spine (passed down from the modal's own `modalNode.date` at the moment the panel opened, since
-  // that's the exact same date `buildOverviewMilestoneChains` would otherwise have to recompute) —
-  // steps are spread evenly across the real window from the day after that anchor through the
-  // student's own picked `targetDateStr` (validated in MilestonePlanningPanel.jsx before this is
-  // ever called), the same "spread evenly across a real window ending at a real date" shape
-  // buildStepsChain already uses for opportunity prep steps, just computed inline here since this
-  // one caller doesn't need that function's own opportunity-specific plumbing.
+  // AI-First Onboarding, Stage 4 (see CLAUDE.md) — extracted verbatim into `utils/milestones.js`
+  // once MyNarrativeScreen.jsx needed the identical logic — this is now a thin wrapper supplying
+  // this component's own `state`/`patch` and closing this component's own modal afterward, with
+  // zero behavior change from before the extraction.
   const attachMilestoneSubSteps = (projectId, milestoneId, subStepTitles, anchorDate, targetDateStr) => {
-    const targetDate = parseDateInputValue(targetDateStr);
-    const windowStart = realAddDays(anchorDate, 1);
-    const totalDays = realDaysBetween(targetDate, windowStart);
-    const count = subStepTitles.length;
-    const subSteps = subStepTitles.map((title, i) => {
-      const offsetDays = count > 1 ? Math.round((totalDays * i) / (count - 1)) : totalDays;
-      return { id: makeTaskId('milestone-step'), title, date: toDateInputValue(realAddDays(windowStart, offsetDays)), desc: '' };
-    });
-    patch({
-      startedProjects: state.startedProjects.map((p) => (p.id !== projectId ? p : {
-        ...p,
-        overviewMilestones: p.overviewMilestones.map((m) => (m.id !== milestoneId ? m : {
-          ...m, subSteps, targetDate: targetDateStr,
-        })),
-      })),
+    attachMilestoneSubStepsShared(state, patch, {
+      projectId, milestoneId, subStepTitles, anchorDate, targetDateStr,
     });
     setSelected(null);
   };

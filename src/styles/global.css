@@ -5498,3 +5498,76 @@ body:has(.onboarding-meeting-active) {
    list) rather than inventing new list styling for the same basic idea. */
 .chat-task-confirm-list { margin: 0 0 10px; padding-left: 20px; font-size: 13.5px; color: var(--ink); }
 .chat-task-confirm-list li { margin-bottom: 4px; }
+
+/* AI-First Onboarding, Stage 4 (see CLAUDE.md) — "My Narrative"'s own screen-exclusive classes.
+   This screen is bloom-scoped (App.jsx's isBloomScreen), so plain shared classes (.field-block/
+   .field-label/.field-hint/.overlay/.modal/.locked-node-notice/.complete-btn/.modal-substep-*)
+   already inherit the correct bloom colors for free from the existing generic overrides — only
+   the genuinely NEW pieces below need their own styling. */
+.narrative-summary-card {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-left: 3px solid var(--bloom-ai);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin: 16px 0 24px;
+  box-shadow: var(--bloom-shadow);
+}
+.narrative-summary-title { margin: 4px 0 8px; font-family: 'Fraunces', serif; font-size: 20px; color: var(--bloom-ink); }
+.narrative-summary-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--bloom-ink); }
+
+.narrative-phase-list { display: flex; flex-direction: column; gap: 10px; }
+.narrative-phase-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.narrative-phase-card:hover { transform: translateY(-2px); box-shadow: var(--bloom-shadow-hover); border-color: var(--bloom-accent); }
+.narrative-phase-card.locked { opacity: 0.62; }
+.narrative-phase-card.locked:hover { transform: none; box-shadow: none; border-color: var(--bloom-card-border); }
+.narrative-phase-card.complete { border-color: var(--bloom-accent); }
+.narrative-phase-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bloom-bg);
+  color: var(--bloom-ink-soft);
+}
+.narrative-phase-card.complete .narrative-phase-icon { background: var(--bloom-accent); color: #fff; }
+.narrative-phase-body { flex: 1; min-width: 0; }
+.narrative-phase-title { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--bloom-ink); }
+.narrative-phase-due { font-size: 12px; color: var(--bloom-ink-soft); margin-top: 2px; }
+.narrative-phase-status {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.narrative-phase-status-complete { background: rgba(47, 143, 91, 0.15); color: var(--bloom-accent); }
+.narrative-phase-status-on-track { background: rgba(20, 184, 166, 0.15); color: var(--bloom-teal); }
+.narrative-phase-status-behind { background: rgba(240, 146, 59, 0.16); color: var(--bloom-orange); }
+.narrative-phase-status-unplanned { background: rgba(110, 114, 104, 0.14); color: var(--bloom-ink-soft); }
+.narrative-phase-status-locked { background: rgba(110, 114, 104, 0.14); color: var(--bloom-ink-soft); font-weight: 500; }
+
+.narrative-phase-title-edit { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.narrative-phase-title-edit input {
+  flex: 1;
+  font-family: 'Fraunces', serif;
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--bloom-card-border);
+}
+.narrative-phase-title-edit-btn { margin-left: 8px; }

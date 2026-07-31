@@ -419,6 +419,15 @@ export const BUILD_YOUR_OWN_CATEGORY_ID = 'build-your-own';
 export const NARRATIVE_OVERVIEW_CATEGORY_ID = 'onboarding-narrative';
 export const NARRATIVE_OVERVIEW_PROJECT_TYPE_ID = 'onboarding-narrative';
 
+// AI-First Onboarding, Stage 4 (see CLAUDE.md), Task 1 — the one shared "has a real overview been
+// confirmed, and if so, what is it" lookup, used by HubScreen.jsx (to unlock the "My Narrative"
+// tile) and MyNarrativeScreen.jsx (to actually render it) alike — matching this app's own "derive,
+// don't duplicate" convention (the same precedent `hasRoadmap`/`countPlanTasks` already established
+// in HubScreen.jsx) rather than a second, possibly-drifting boolean flag.
+export function getNarrativeProject(state) {
+  return (state.startedProjects || []).find((p) => p.projectTypeId === NARRATIVE_OVERVIEW_PROJECT_TYPE_ID) || null;
+}
+
 export function findProjectType(categoryId, projectTypeId) {
   const category = findCategory(categoryId);
   if (!category) return null;

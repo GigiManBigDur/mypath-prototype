@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
-  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles,
+  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -20,7 +20,7 @@ import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { stopSpeaking } from '../utils/speech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { NARRATIVE_OVERVIEW_PROJECT_TYPE_ID } from '../data/projects';
+import { NARRATIVE_OVERVIEW_PROJECT_TYPE_ID, getNarrativeProject } from '../data/projects';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -100,6 +100,19 @@ const TILES = [
     desc: 'Your personalized roadmap, task by task.',
     unlock: (state) => state.selectedProgramKeys.length > 0,
     lockedReason: () => 'Select at least one program first',
+  },
+  {
+    // AI-First Onboarding, Stage 4 (see CLAUDE.md), Task 1 — "similar in role to Your School
+    // List" (right below): its own destination, not a tab nested inside the Academic Plan.
+    // Unlocks as soon as Stage 3's overview is generated AND confirmed — often the very first
+    // hub visit, since that conversation happens before the hub is ever reached at all. Also
+    // deliberately NOT part of GUIDED_SEQUENCE below (Stage 4) — same "real tile, but not part of
+    // the mascot's primary walkthrough" treatment Academic Plan/Your School List already get.
+    id: 'myNarrative', screen: 'myNarrative', Icon: Compass,
+    title: 'My Narrative',
+    desc: 'The direction from your first conversation, and your multi-year path.',
+    unlock: (state) => !!getNarrativeProject(state),
+    lockedReason: () => 'Confirm your overview in your first conversation to see this',
   },
   {
     id: 'programSummary', screen: 'programSummary', Icon: ListChecks,
@@ -363,6 +376,14 @@ const TILE_ACCENTS = [
 // (x=50, dead-center) sits far enough from its nearest neighbors' own x values (26/74, at the
 // y-band just above it) to clear despite the short vertical gap, and its own y (89%) keeps its
 // full box within the wrap's own bottom edge with real margin to spare (not a razor-thin fit).
+//
+// AI-First Onboarding, Stage 4 (see CLAUDE.md) — the new "My Narrative" tile brings a partner-
+// school student's real tile count to exactly 11, which this array was ALREADY sized for
+// (confirmed directly via `git show HEAD` before touching anything: 10 real tiles / 11 positions
+// existed prior to this addition, i.e. one position was already provisioned past what was
+// strictly needed at the time) — so no new slot was added here at all, only a real DOM-
+// measurement re-check (not just re-trusting old math) that all 11 real tiles still render with
+// zero pairwise overlap now that every one of the 11 positions is genuinely in use.
 const RADIAL_POSITIONS = [
   { x: 22, y: 8 },
   { x: 78, y: 8 },

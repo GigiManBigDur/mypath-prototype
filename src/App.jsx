@@ -13,6 +13,7 @@ import OpportunityFinderScreen from './screens/OpportunityFinderScreen';
 import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import MyNarrativeScreen from './screens/MyNarrativeScreen';
 
 const SCREENS = {
   welcome: WelcomeScreen,
@@ -39,6 +40,9 @@ const SCREENS = {
   // destination, not part of the 8-step survey-through-plan sequence (same reason `hub` itself
   // isn't tracked by StepProgress either).
   profile: ProfileScreen,
+  // AI-First Onboarding, Stage 4 (see CLAUDE.md) — its own standalone hub tile destination too,
+  // similar in role to `programSummary` ("Your School List") — not part of the 8-step sequence.
+  myNarrative: MyNarrativeScreen,
 };
 
 // Screens that get the shared fade+slide page transition (Task 2 of the animation/polish pass).
@@ -47,7 +51,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'hub', 'survey', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile',
+  'signup', 'hub', 'survey', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile', 'myNarrative',
 ]);
 
 function AppShell() {
@@ -91,7 +95,7 @@ function AppShell() {
     || screenKey === 'survey' || screenKey === 'onboardingConversation' || screenKey === 'discovery'
     || screenKey === 'transcript' || screenKey === 'courseSelection'
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
-    || screenKey === 'programSummary' || screenKey === 'profile' || isMap1;
+    || screenKey === 'programSummary' || screenKey === 'profile' || screenKey === 'myNarrative' || isMap1;
 
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>

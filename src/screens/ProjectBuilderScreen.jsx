@@ -12,6 +12,7 @@ import {
   parseDateInputValue, realDaysBetween, formatDate, computeMilestoneDueDates,
 } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
+import { isMilestoneDone } from '../utils/milestones';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
 import MascotIcon from '../components/MascotIcon';
@@ -83,14 +84,9 @@ function getCategoryColor(categoryId) {
 // just the two fields that view actually reads (`label`, `icon`).
 const BUILD_YOUR_OWN_PSEUDO_CATEGORY = { id: BUILD_YOUR_OWN_CATEGORY_ID, label: 'Build Your Own', icon: 'Sparkles' };
 
-// Two-Phase Generation (see CLAUDE.md) — the same "done" rule buildOverviewMilestoneChains
-// (roadmapGenerator.js) uses to decide locking: a phase counts as done if its own anchor is
-// marked complete directly, OR (once it has real granular substeps) every one of them is.
-function isMilestoneDone(milestone, completedNodes) {
-  if (completedNodes?.[milestone.id]) return true;
-  const subSteps = milestone.subSteps || [];
-  return subSteps.length > 0 && subSteps.every((s) => completedNodes?.[s.id]);
-}
+// AI-First Onboarding, Stage 4 (see CLAUDE.md) — `isMilestoneDone` moved to the shared
+// `utils/milestones.js` once MyNarrativeScreen.jsx needed the identical function too, rather than
+// a second, drifting copy — imported at the top of this file now.
 
 // How close (in days) a chosen project start date has to land to an existing roadmap commitment
 // before we surface a heads-up. Soft only — never blocks confirming the start date.
