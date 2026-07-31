@@ -116,6 +116,17 @@ export default function MyNarrativeScreen() {
         <p className="narrative-summary-text">{state.narrativeSummary}</p>
       </div>
 
+      {/* Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — the one distinctive capstone
+          project candidate the overview identified, shown as its own real, dedicated piece of
+          content (not buried inside a phase's own prose). Absent for a plan confirmed before this
+          feature shipped, or the rare case the model's own response never produced one. */}
+      {state.narrativeCapstoneIdea && (
+        <div className="narrative-capstone-card">
+          <div className="modal-eyebrow" style={{ color: 'var(--bloom-purple)' }}>Your Capstone Idea</div>
+          <p className="narrative-capstone-text">{state.narrativeCapstoneIdea}</p>
+        </div>
+      )}
+
       <div className="field-block">
         <div className="field-label">Your Phases</div>
         <p className="field-hint">
@@ -140,7 +151,14 @@ export default function MyNarrativeScreen() {
                   {node.locked ? <Lock size={16} /> : status.kind === 'complete' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                 </div>
                 <div className="narrative-phase-body">
-                  <div className="narrative-phase-title">{node.title}</div>
+                  <div className="narrative-phase-title">
+                    {/* Task 1's own "summer plans, as their own distinct category" — a real,
+                        structured tag (rawMilestone.phaseType, never guessed from the title text)
+                        so a summer phase reads as visually distinct from a regular academic-year
+                        one at a glance. */}
+                    {rawMilestone.phaseType === 'summer' && <span className="onboarding-phase-summer-tag">Summer</span>}
+                    {node.title}
+                  </div>
                   <div className="narrative-phase-due">Due {formatDateWithYear(node.date)}</div>
                   {!node.locked && (
                     <div className={`narrative-phase-status narrative-phase-status-${status.kind}`}>{status.label}</div>

@@ -5499,6 +5499,32 @@ body:has(.onboarding-meeting-active) {
 .chat-task-confirm-list { margin: 0 0 10px; padding-left: 20px; font-size: 13.5px; color: var(--ink); }
 .chat-task-confirm-list li { margin-bottom: 4px; }
 
+/* Expand the Multi-Year Overview (see CLAUDE.md) — a small tag marking a "summer" phase apart
+   from a regular "academic-year" one in the review list, and a distinct callout for the one real
+   capstone idea the overview identified, reusing this same card's own visual language. */
+.onboarding-phase-summer-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(240, 180, 41, 0.18);
+  color: var(--bloom-yellow);
+}
+.onboarding-capstone-preview {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.08);
+  border-left: 3px solid var(--bloom-ai);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
 /* AI-First Onboarding, Stage 4 (see CLAUDE.md) — "My Narrative"'s own screen-exclusive classes.
    This screen is bloom-scoped (App.jsx's isBloomScreen), so plain shared classes (.field-block/
    .field-label/.field-hint/.overlay/.modal/.locked-node-notice/.complete-btn/.modal-substep-*)
@@ -5515,6 +5541,21 @@ body:has(.onboarding-meeting-active) {
 }
 .narrative-summary-title { margin: 4px 0 8px; font-family: 'Fraunces', serif; font-size: 20px; color: var(--bloom-ink); }
 .narrative-summary-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--bloom-ink); }
+
+/* Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — the same card treatment as
+   .narrative-summary-card above, just a distinct accent (purple, matching the capstone's own
+   modal-eyebrow color) so it reads as a related-but-separate piece of content, not a duplicate of
+   the narrative summary right above it. */
+.narrative-capstone-card {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-left: 3px solid var(--bloom-purple);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin: 0 0 24px;
+  box-shadow: var(--bloom-shadow);
+}
+.narrative-capstone-text { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--bloom-ink); }
 
 .narrative-phase-list { display: flex; flex-direction: column; gap: 10px; }
 .narrative-phase-card {

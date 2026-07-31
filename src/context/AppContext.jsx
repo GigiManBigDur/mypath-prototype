@@ -371,6 +371,13 @@ const DEFAULT_STATE = {
   // Own's own projects already use, rather than a second field here duplicating that data.
   narrativeSummary: null,
   narrativeThemes: [],
+  // Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — the ONE distinctive capstone project
+  // candidate the confirmed overview identified, alongside narrativeSummary/narrativeThemes above.
+  // A flat field for the same reason those are: it's real, durable, once-confirmed data every
+  // other AI feature that already reads the full compiled profile inherits for free, and
+  // MyNarrativeScreen.jsx displays it as its own real, dedicated piece of content (not buried
+  // inside one phase's own prose). `null` until a real overview has actually been confirmed.
+  narrativeCapstoneIdea: null,
   // AI-First Onboarding, Stage 5 (see CLAUDE.md), Task 2 — a dedicated "has the student actually
   // opened My Narrative yet" flag, mirroring `transcriptCompleted`/`projectBuilderSkipped`'s own
   // "done OR explicitly [X]" shape: the guided sequence's new first step points at the My Narrative

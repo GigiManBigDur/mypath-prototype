@@ -76,7 +76,16 @@ export function useOnboardingChat() {
               narrativeTitle: proposal.narrativeTitle,
               narrativeSummary: proposal.narrativeSummary,
               overviewPhaseTitles: proposal.overviewPhaseTitles,
+              // Expand the Multi-Year Overview (see CLAUDE.md) — the rich, dimension-connected
+              // per-phase description (Task 2) and the academic-year/summer tag (Task 1's own
+              // "summer plans as their own distinct category") persisted the same way as every
+              // other overview field, so OnboardingConversationScreen.jsx's own confirmNarrative
+              // can build real milestone descriptions/tags from them, surviving a reload exactly
+              // like the rest of the conversation does.
+              overviewPhaseDescriptions: proposal.overviewPhaseDescriptions,
+              phaseDimensions: proposal.phaseDimensions,
               overviewPhaseDayOffsets: proposal.overviewPhaseDayOffsets,
+              capstoneIdea: proposal.capstoneIdea,
               thematicKeywords: proposal.thematicKeywords,
               // Bug fix (see CLAUDE.md, api/onboarding-chat.js's own VALID_INTEREST_TAGS comment) —
               // real, validated interest tags proposed alongside the rest of the ready overview,

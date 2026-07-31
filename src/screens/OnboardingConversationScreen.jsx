@@ -162,7 +162,13 @@ export default function OnboardingConversationScreen() {
           narrativeTitle: m.narrativeTitle,
           narrativeSummary: m.narrativeSummary,
           overviewPhaseTitles: m.overviewPhaseTitles,
+          // Expand the Multi-Year Overview (see CLAUDE.md) — read the same defensive "|| null"/
+          // "|| []" way every other optional overview field already is, since a response from
+          // before this feature shipped simply won't have these fields at all.
+          overviewPhaseDescriptions: m.overviewPhaseDescriptions || null,
+          phaseDimensions: m.phaseDimensions || null,
           overviewPhaseDayOffsets: m.overviewPhaseDayOffsets,
+          capstoneIdea: m.capstoneIdea || null,
           thematicKeywords: m.thematicKeywords || [],
           // Bug fix (see CLAUDE.md) — real, server-validated interest tags, read the same
           // defensive "|| []" way thematicKeywords already is (a response from before this fix
@@ -227,7 +233,20 @@ export default function OnboardingConversationScreen() {
       overviewMilestones: latestReadyOverview.overviewPhaseTitles.map((title, i) => ({
         id: makeTaskId('milestone'),
         title,
-        desc: `Part of your ${latestReadyOverview.narrativeTitle} direction, developed through your first conversation with MyPath AI.`,
+        // Expand the Multi-Year Overview (see CLAUDE.md), Task 2 — this is the REAL, rich,
+        // dimension-connected content a student now actually reads once a phase unlocks, replacing
+        // the old fixed boilerplate sentence ("Part of your [title] direction, developed through
+        // your first conversation with MyPath AI.") — kept ONLY as a safety-net fallback for the
+        // rare case `overviewPhaseDescriptions` came back null/mismatched (see api/onboarding-
+        // chat.js's own validateProposal comment for why that degrades rather than blocking the
+        // whole overview).
+        desc: latestReadyOverview.overviewPhaseDescriptions?.[i]
+          || `Part of your ${latestReadyOverview.narrativeTitle} direction, developed through your first conversation with MyPath AI.`,
+        // Task 1's own "summer plans, as their own distinct category" — a real, structured tag
+        // (never inferred from the title text) so MyNarrativeScreen.jsx can identify a summer
+        // phase reliably. Defaults to 'academic-year' when the array came back null/mismatched —
+        // the safe, more common case.
+        phaseType: latestReadyOverview.phaseDimensions?.[i] || 'academic-year',
         dueDate: dueDates[i],
         targetDate: null,
         subSteps: [],
@@ -240,6 +259,10 @@ export default function OnboardingConversationScreen() {
       startedProjects: [...withoutOldNarrative, newProject],
       narrativeSummary: latestReadyOverview.narrativeSummary,
       narrativeThemes: latestReadyOverview.thematicKeywords,
+      // Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — the one distinctive capstone idea
+      // the overview identified, alongside narrativeSummary/narrativeThemes above. `null` (not
+      // overwritten with a stale value) if this specific generation didn't produce a valid one.
+      narrativeCapstoneIdea: latestReadyOverview.capstoneIdea,
       // Bug fix (see CLAUDE.md) — this is the ONE real fix for the reported "Careers of Interest
       // won't click" bug: state.interestTags was left permanently empty by Stage 1's own removal
       // of the Survey's interest-tag picker, which made DiscoveryScreen.jsx's own defensive
@@ -313,8 +336,21 @@ export default function OnboardingConversationScreen() {
                   </p>
                   <p>{latestReadyOverview.narrativeSummary}</p>
                   <ol className="chat-task-confirm-list">
-                    {latestReadyOverview.overviewPhaseTitles.map((title) => <li key={title}>{title}</li>)}
+                    {latestReadyOverview.overviewPhaseTitles.map((title, i) => (
+                      <li key={title}>
+                        {latestReadyOverview.phaseDimensions?.[i] === 'summer' && <span className="onboarding-phase-summer-tag">Summer</span>}
+                        {title}
+                      </li>
+                    ))}
                   </ol>
+                  {/* Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — shown here too, not
+                      just on the later My Narrative screen, so the student sees this real,
+                      distinctive candidate at the moment they confirm the whole plan. */}
+                  {latestReadyOverview.capstoneIdea && (
+                    <p className="onboarding-capstone-preview">
+                      <strong>Capstone idea:</strong> {latestReadyOverview.capstoneIdea}
+                    </p>
+                  )}
                   <div className="task-form-actions">
                     <button type="button" className="btn btn-primary" onClick={confirmNarrative}>
                       <Rocket size={14} /> Confirm My Plan

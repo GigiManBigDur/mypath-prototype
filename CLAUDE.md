@@ -8538,6 +8538,136 @@ directly below, then the actual fix.
   verify:spacing` (20/20) all stay clean — this fix touches only `DiscoveryScreen.jsx`, never
   `roadmapLayout.js`/`Roadmap.jsx`.
 
+**Expand the Multi-Year Overview to Cover All Real Strategic Dimensions — based on real research
+into what college consultants actually map out, this replaces the Stage 3 overview's own
+"project-ideas-only" shape with a genuine multi-year strategic plan spanning every real dimension:
+course rigor progression, testing timeline, extracurriculars/leadership including one real capstone
+candidate, summer plans as their own distinct category, college list evolution, and essay/narrative
+material — all explicitly tied to ONE narrative thread, never generated as separate, disconnected
+checklist categories.**
+- **Task 1 — the overview now spans real dimensions, not just projects.** `api/onboarding-chat.js`'s
+  `ONBOARDING_SCHEMA` gained three new fields, all set together the same turn `readyForOverview`
+  becomes true (mirroring the exact same "one schema, filled in only once genuinely ready" pattern
+  every earlier field there already followed): `overviewPhaseDescriptions` (a real 2-4 sentence
+  description per phase — see Task 2 below for why this is where nearly all of the requested
+  richness actually lives), `phaseDimensions` (a structured `'academic-year' | 'summer'` tag per
+  phase — never inferred from title text, matching this codebase's own "use a real field, don't
+  guess from a string" posture), and `capstoneIdea` (Task 1's own explicit "identifying ONE real
+  candidate for a capstone project," a dedicated extractable field, not just buried in one phase's
+  prose). `overviewPhaseTitles`'s own bound widened from the old 3-5 to **4-9** — one
+  "academic-year" phase per remaining real school year PLUS one "summer" phase for each real summer
+  between two consecutive years (not after the final year, which ends in graduation/application).
+- **Real, unguessed grounding for HOW MANY years actually remain** — the model is never asked to
+  reconstruct this app's own `STAGE_PLAN`/transfer-gap logic itself. `profileCompiler.js`'s
+  `basicProfile` gained `planYearLabels` (e.g. `['Sophomore Year', 'Junior Year', 'Senior Year']`),
+  computed via the exact same `resolveStageNames`/`TRUNK_STAGES` `roadmapGenerator.js`/
+  `yearOverview.js` already call — so the overview can never invent a plan length that disagrees
+  with the real one this app would actually build for that student. `[]` when the survey isn't
+  complete yet, matching this profile's own "don't guess" convention for every other not-yet-
+  answered field.
+- **Task 2 — the single most important rule, enforced almost entirely through prompt engineering,
+  not new mechanism.** The system prompt's own new "Generating the overview" section states this
+  directly: every phase across every dimension must explicitly reinforce the SAME core narrative
+  thread — never generated as separate, disconnected checklist categories. `overviewPhaseDescriptions`
+  is where this actually lives: each phase's own real 2-4 sentence description is instructed to
+  naturally weave together whichever dimensions are contextually relevant for THAT chapter (course
+  rigor, extracurricular/leadership focus, the one capstone phase, summer-specific activities,
+  college-list guidance, essay-material accumulation), all visibly connected to one story rather
+  than reading like a template filled in per-category. This replaces a real, previously-undiscussed
+  gap: BEFORE this feature, `overviewPhaseTitles` was the ONLY real content per phase, and
+  `OnboardingConversationScreen.jsx`'s own `confirmNarrative()` filled every phase's real `desc` with
+  a fixed, generic boilerplate sentence ("Part of your `[title]` direction, developed through your
+  first conversation with MyPath AI.") — meaning a phase's own detail modal had nothing substantive
+  to show beyond its title, regardless of how specific the title itself was.
+- **Task 3 — reuse existing systems, verified directly rather than assumed before building on top
+  of them.** Confirmed via grep that `state.narrativeThemes` still correctly feeds
+  `CourseSelectionScreen.jsx`'s own `getThematicCourseMatches` calls (both Roslyn's and UC Davis's),
+  completely unaffected — course guidance is prompt-only (the description text explains how rigor
+  should progress, but explicitly never invents a specific course name/number, since the model
+  doesn't have this student's real catalog), reinforcing what that already-wired system surfaces,
+  never duplicating it. **Testing timeline reuses the existing real trunk tasks, never creates new
+  ones** — the system prompt now includes a real, hardcoded reference block naming this app's own
+  actual testing tasks and their rough real timing (`trunkSteps.js`'s own `so1` PSAT-practice/`jr1`
+  real PSAT/`jr2`-`jr2b`-`jr3` SAT-ACT-prep-register-test for highschool; the GRE/GMAT + statement of
+  purpose for undergraduate/transfer) and instructs the model to REFERENCE these where relevant in a
+  phase's own description, never re-schedule or duplicate them — there is no code path in this
+  feature that creates a new testing spine item at all, only prose that acknowledges tasks that
+  already exist elsewhere on the real plan. Essay/college-list guidance follows the identical
+  "reference, don't duplicate" pattern against this app's own existing `t1`/`buildPersonalStatementChain`
+  senior-year trunk content.
+- **Summer plans fill the real, previously-identified gap** — before this feature, this app had no
+  summer-specific content between school years at all. A summer phase is now a genuinely real, first-
+  class spine item (via the exact same, completely unmodified `overviewMilestones` → 
+  `buildOverviewMilestoneChains`/`applyOverviewLocking` chain-and-lock system Build Your Own's own
+  projects already use — `phaseType`/`overviewPhaseDescriptions` are purely additive fields on that
+  same shape, confirmed directly to flow through with zero changes needed to `roadmapGenerator.js`/
+  `Roadmap.jsx`), carrying real, concrete narrative-tied activities (a self-directed project,
+  research, a relevant internship) rather than generic "relax and explore" filler — the system prompt
+  explicitly forbids the latter.
+- **`OnboardingConversationScreen.jsx`'s `confirmNarrative()`** now builds each milestone's real
+  `desc` from `overviewPhaseDescriptions[i]` (falling back to the old boilerplate sentence only in
+  the rare case that field came back null/mismatched — see `validateProposal`'s own graceful-
+  degradation below) and tags each with `phaseType: phaseDimensions?.[i] || 'academic-year'` (a safe
+  default). `state.narrativeCapstoneIdea` (a new, flat `AppContext.jsx` field, `null` until confirmed
+  — the same shape `narrativeSummary`/`narrativeThemes` already established, and folded into
+  `profileCompiler.js`'s `basicProfile` the same "add once at the source, every AI feature that
+  reads the full profile inherits it for free" way those two already are) is patched alongside them.
+  The review footer (`.chat-task-confirm`) now also shows a small "Summer" tag next to each summer
+  phase's own title and a dedicated capstone-idea preview — so the student sees this real,
+  distinctive content at the moment they confirm, not only later on the My Narrative screen.
+- **`MyNarrativeScreen.jsx`** displays the confirmed `narrativeCapstoneIdea` as its own real,
+  dedicated card (`.narrative-capstone-card`, right below the narrative-summary card, same visual
+  language with a distinct purple accent so it reads as related-but-separate) and tags any phase
+  card whose own RAW `overviewMilestones` entry has `phaseType === 'summer'` with the identical
+  "Summer" pill the review UI already uses — read directly off the raw milestone object this screen
+  already fetches for its own interactive editing (the same "resolved node for display, raw object
+  for interactive editing" split this screen's own header comment already documents), so neither
+  `roadmapGenerator.js` nor `Roadmap.jsx` needed to propagate this field at all.
+- **Validation degrades gracefully, matching this file's own established resilience precedent.**
+  `overviewPhaseDescriptions`/`phaseDimensions` each independently degrade to `null` (never failing
+  the whole ready state) on any mismatch — missing, wrong length, or (for `phaseDimensions`) any
+  value outside the real `'academic-year' | 'summer'` enum; `capstoneIdea` degrades to `null` on a
+  blank/oversized string. In practice, a forced tool call against an exact parallel-array schema
+  reliably produces matching lengths, so this is a safety net, not the expected path — the client
+  falls back to a generic description / no dimension tag for that one generation rather than losing
+  the whole overview. `max_tokens`/`max_output_tokens` raised again, from 2600 to 4500, since up to 9
+  phases each carrying a real 2-4 sentence description plus a capstone idea is genuinely more content
+  than the prior budget was sized for — matching `api/build-your-own-chat.js`'s own repeated
+  "a truncated response is strictly worse than a generously-budgeted one" precedent.
+- Verified with three dedicated suites. A Node-level test (15 checks, mocking `global.fetch`, calling
+  the real handler directly) confirms: a real, well-formed multi-dimensional overview (5 phases
+  mixing academic-year and summer, real descriptions, capstone idea) passes through completely; the
+  new 4-9 bound is enforced at both ends (exactly 4 and 9 phases accepted, the OLD 3-phase minimum
+  now correctly rejected, 10 phases rejected); a mismatched-length `overviewPhaseDescriptions`
+  degrades to `null` while the rest of the ready bundle (including `phaseDimensions`) survives
+  intact; an invalid `phaseDimensions` enum value degrades that whole array to `null`; a blank
+  `capstoneIdea` degrades to `null`; and a not-ready turn reports all three new fields as `null`,
+  matching every other overview field's own contract. A second Node-level test (11 checks, loading
+  the real `profileCompiler.js`/`roadmapGenerator.js`/`trunkSteps.js` through Vite's own
+  `ssrLoadModule`) confirms `planYearLabels` matches `resolveStageNames` exactly for both a 10th
+  grader (3 real remaining years) and a 12th grader (1 remaining year), correctly resolves to `[]`
+  with no education level set, confirms `narrativeCapstoneIdea` flows through the compiled profile
+  correctly, and confirms a milestone carrying the new `phaseType`/rich-`desc` fields still resolves
+  correctly through the completely unmodified `buildOverviewMilestoneChains`/`applyOverviewLocking`
+  chain (a real spine anchor, correct lock state, correct branch-step count) — zero special-casing
+  needed for the new additive fields. A Playwright suite (13 checks) drives the full real click-
+  through flow — Sign Up → Survey → send a message → mocked ready response → confirm → My Narrative
+  — and confirms: the review shows all 5 real phase titles, the capstone-idea preview, and exactly 2
+  "Summer" tags matching the 2 real summer phases; after confirming, the resulting project has
+  exactly 5 milestones, each with its own REAL (non-boilerplate) description matching the proposed
+  content verbatim, correctly tagged `phaseType`; `state.narrativeCapstoneIdea` is set to the real
+  idea; `state.narrativeThemes`/`state.interestTags` still populate correctly (confirming the
+  existing course-recommendation and Discovery-navigation-bug-fix integrations are both unaffected);
+  and the My Narrative screen shows the real capstone card and the correct 2 summer-tagged phase
+  cards among all 5. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean
+  — this feature never opens `roadmapLayout.js`/`Roadmap.jsx` at all.
+- **What can only be verified live**: whether the AI's OWN real reasoning genuinely produces
+  dimension-connected (not disconnected-checklist) content, and a genuinely distinctive (not
+  generic) capstone idea, are qualitative judgment calls this codebase's own established precedent
+  says can only be confirmed via real, repeated, unmocked calls against the deployed endpoint — the
+  mocked test suites above prove the mechanism works correctly, not that the model's own reasoning
+  is good, which still needs live verification after this deploys.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11182,3 +11312,30 @@ download). Cover at minimum:
   is reachable in the same zero-`interestTags` state, since it shares the same screen/effect. `npm
   run build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay clean — this fix touches
   only `DiscoveryScreen.jsx`, never `roadmapLayout.js`/`Roadmap.jsx`.
+- Expand the Multi-Year Overview to Cover All Real Strategic Dimensions: for the server logic, mock
+  `global.fetch` and call the real `api/onboarding-chat.js` handler directly — confirm the widened
+  4-9 phase bound at both ends (the OLD 3-phase minimum must now be REJECTED, a real regression risk
+  since it's easy to forget the bound changed), confirm a mismatched-length
+  `overviewPhaseDescriptions`/invalid `phaseDimensions` enum value each independently degrade to
+  `null` without failing the whole ready state, and confirm a blank `capstoneIdea` degrades to `null`
+  too. For `planYearLabels`, write a dedicated Node script loading the real `profileCompiler.js`/
+  `trunkSteps.js` through Vite's own `ssrLoadModule` (same technique `scripts/verify-spacing.mjs`
+  already establishes) and confirm it matches `resolveStageNames` exactly for both a low-grade
+  student (several real remaining years) and a 12th grader (exactly 1) — this is the fastest way to
+  verify the grounding is real, not just plausible-looking. For the roadmap-reuse claim, seed a
+  `startedProjects` entry with the new `phaseType`/rich-`desc` fields directly and confirm
+  `generateRoadmap` still resolves a correct spine anchor/lock state with zero special-casing needed
+  — this is what proves the new fields are genuinely additive. For the full flow, mock
+  `/api/onboarding-chat` with a realistic multi-dimensional response (several academic-year and
+  summer phases, real descriptions, a real capstone idea) and drive Sign Up → Survey → send a
+  message → confirm: the review shows a "Summer" tag on each real summer phase and the capstone
+  preview; after confirming, `state.startedProjects[0].overviewMilestones` has real, non-boilerplate
+  `desc` text matching the proposed content verbatim (not the old generic sentence) and correct
+  `phaseType` tags; `state.narrativeCapstoneIdea` is set; `state.narrativeThemes`/`interestTags`
+  still populate correctly (confirming the existing course-recommendation/Discovery-navigation
+  integrations are unaffected); and My Narrative shows the real capstone card plus the correct
+  summer-tagged phase cards. **The AI's own reasoning quality (does it genuinely connect every
+  dimension to one thread, is the capstone idea genuinely distinctive) can only be verified via
+  real, repeated, unmocked calls against the live deployed endpoint** — mocking only proves the
+  mechanism works. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay
+  clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`.

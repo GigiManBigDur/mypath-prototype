@@ -16,6 +16,7 @@ import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from
 import { calculateUCDavisGpa } from './ucdavisGpa';
 import { getEffectiveToday, realDaysBetween } from './dates';
 import { generateRoadmap } from './roadmapGenerator';
+import { resolveStageNames, TRUNK_STAGES } from '../data/trunkSteps';
 
 // Widened to every built track / every opportunity track, not just the narrow set the student's
 // own interest tags happen to map to — the same "a Browse-mode selection outside the student's
@@ -330,6 +331,15 @@ export function compileStudentProfile(state) {
       educationLevel: state.educationLevel || null,
       schoolYear: state.schoolYear ?? null,
       currentSchool: state.currentSchool || null,
+      // Expand the Multi-Year Overview (see CLAUDE.md) — real, unguessed grounding for HOW MANY
+      // years remain in this student's own plan, computed via the exact same `resolveStageNames`
+      // `roadmapGenerator.js`/`yearOverview.js` already call (never re-derived/guessed a second
+      // way) so the onboarding conversation's own multi-year overview can never invent a plan
+      // length that disagrees with the real one this app would actually build. `[]` when the
+      // survey isn't complete yet (no real education level/school year to resolve against).
+      planYearLabels: state.educationLevel
+        ? resolveStageNames(state.educationLevel, state).map((name) => TRUNK_STAGES[state.educationLevel][name].label)
+        : [],
       // "Current Major" field for College Students (see CLAUDE.md) — an Undergraduate/Transfer
       // student's real, CURRENT declared major at currentSchool above, deliberately distinct from
       // `goals.majors` below (Discovery's own selections, which represent FUTURE goals). Richer,
@@ -354,6 +364,9 @@ export function compileStudentProfile(state) {
       // spreads `...full` wholesale) inherits it for free — the same "add it once at the source"
       // precedent `passionText`/`currentMajor` already established. `null` until confirmed.
       narrativeSummary: state.narrativeSummary || null,
+      // Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — same "add once at the source"
+      // precedent right above.
+      narrativeCapstoneIdea: state.narrativeCapstoneIdea || null,
     },
     academic: resolveAcademic(state),
     goals: {

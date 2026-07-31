@@ -127,12 +127,39 @@ const ONBOARDING_SCHEMA = {
     overviewPhaseTitles: {
       type: ['array', 'null'],
       items: { type: 'string' },
-      description: 'An ORDERED list of exactly 3 to 5 short, specific overview-level phase titles representing the major chapters of this student\'s own path over the next few years — e.g. "Deepen your foundation in statistics and social research methods," "Complete a signature research project," "Build leadership in a relevant club or organization." These are broad CHAPTERS, not granular steps — do not break any phase down into its own sub-actions here (that level of detail is deliberately deferred to a later, separate, narrower conversation once the student actually reaches that phase). Required (non-null, 3-5 items) when readyForOverview is true. Must be null otherwise.',
+      description: 'An ORDERED list of 4 to 9 short, specific overview-level phase titles covering the major chapters of this student\'s ENTIRE remaining plan — both real school-YEAR chapters (e.g. "Sophomore Year: Deepen your foundation in social research methods") AND, as their own SEPARATE entries, the real SUMMER breaks between them (e.g. "Summer Before Junior Year: A self-directed documentary project on..."). One entry per remaining school year (see profileSummary.basicProfile.planYearLabels for the REAL, exact count and names — never invent a different number of years) PLUS one entry per summer between two consecutive school years in that list (not after the FINAL year, which ends in graduation/application, not a school-year-shaped summer). These are broad CHAPTERS, not granular steps — do not break any phase down into its own sub-actions here (that level of detail is deliberately deferred to a later, separate, narrower conversation once the student actually reaches that phase). Required (non-null, 4-9 items, matching the real year/summer structure above) when readyForOverview is true. Must be null otherwise.',
+    },
+    // Expand the Multi-Year Overview (see CLAUDE.md), Task 2 — this is where nearly all of the
+    // actual requested richness lives: BEFORE this field existed, `overviewPhaseTitles` was the
+    // only real content per phase, and OnboardingConversationScreen.jsx's own confirmNarrative()
+    // filled every phase's real `desc` with a fixed, generic boilerplate sentence ("Part of your
+    // [title] direction...") — meaning a phase's own detail modal had NOTHING substantive to show
+    // beyond its title. This field is the real substance a student actually reads once a phase
+    // unlocks.
+    overviewPhaseDescriptions: {
+      type: ['array', 'null'],
+      items: { type: 'string' },
+      description: 'One real, substantive 2-4 sentence description per entry in overviewPhaseTitles, in the same order. Each description must EXPLICITLY connect back to the SAME core narrative thread (never read as a generic, disconnected checklist item) and should naturally weave together whichever of these are contextually relevant for that specific chapter: (a) how course rigor/subject choice should progress that year, reinforcing the narrative (this feeds this app\'s own existing course-recommendation system via thematicKeywords below — do not invent specific course names, since you don\'t have this student\'s real catalog); (b) the student\'s extracurricular/leadership focus that period; (c) for exactly ONE phase across the whole overview, a real, specific, genuinely distinctive CAPSTONE project candidate (see capstoneIdea below — reference it briefly here too, in the one phase where the student would actually be working on it); (d) for a SUMMER phase specifically, real, concrete summer activities (a self-directed project, a relevant internship/research opportunity, structured practice) — never generic "relax and explore" filler; (e) where relevant, a brief note connecting to this app\'s own EXISTING testing timeline (PSAT sophomore/junior year, SAT/ACT prep and testing junior year, retakes senior fall — for a highschool student — or GRE/GMAT and a statement of purpose in the final year for an undergraduate/transfer student) — reference it, do not duplicate or re-schedule it, since those tasks already exist elsewhere on this student\'s plan; (f) where relevant (especially in the final 1-2 phases), a note connecting to building/sharpening the student\'s real college list and to the material their college essays will eventually draw on — framing essays as the EVENTUAL EXPRESSION of everything built in earlier phases, not a separate late-arriving task, and naming what kind of real, lived experience/material from THIS phase specifically will make that later essay genuine and specific. Required (non-null, same length as overviewPhaseTitles) when readyForOverview is true. Must be null otherwise.',
+    },
+    // A structured tag (not inferred from title text) so this app's own UI can reliably identify a
+    // summer phase versus a school-year phase — the same "never guess from a title string, use a
+    // real field" posture this codebase already holds for every other structured AI-proposed value.
+    phaseDimensions: {
+      type: ['array', 'null'],
+      items: { type: 'string', enum: ['academic-year', 'summer'] },
+      description: 'One tag per entry in overviewPhaseTitles, in the same order: "academic-year" for a real school-year chapter, "summer" for a real summer-break chapter. Required (non-null, same length as overviewPhaseTitles) when readyForOverview is true. Must be null otherwise.',
     },
     overviewPhaseDayOffsets: {
       type: ['array', 'null'],
       items: { type: 'integer' },
-      description: 'One integer per entry in overviewPhaseTitles, in the same order: a realistic number of days from today that phase would likely BEGIN. The first should be 0 or close to it. Must be a strictly increasing sequence, spaced out realistically (a phase spanning a school year needs real months, not days) rather than evenly. Required (matching the length of overviewPhaseTitles) when readyForOverview is true. Must be null otherwise.',
+      description: 'One integer per entry in overviewPhaseTitles, in the same order: a realistic number of days from today that phase would likely BEGIN. The first should be 0 or close to it. Must be a strictly increasing sequence spanning the REAL number of remaining years (see profileSummary.basicProfile.planYearLabels) — each school-year phase roughly a real year (~300-365 days) after the previous school-year phase, with its own following summer phase landing roughly 300-320 days after that school year begins (i.e. genuinely inside that year\'s own real summer months, not spread evenly across the whole span). Required (matching the length of overviewPhaseTitles) when readyForOverview is true. Must be null otherwise.',
+    },
+    // Task 1's own explicit "identifying ONE real candidate for a capstone project" — a dedicated,
+    // extractable field (not just buried in one phase's own prose) so this app's UI can display it
+    // as its own real, distinguishable piece of content, per that task's explicit instruction.
+    capstoneIdea: {
+      type: ['string', 'null'],
+      description: 'A real, specific, genuinely DISTINCTIVE capstone project candidate that reflects THIS student\'s own actual talents/interests in a way that stands out — the same bar as the narrative-pushback framing above (a real, well-reasoned, non-obvious connection, never a generic "do a project about your major" suggestion). 1-3 sentences: what it is, and briefly why it fits this specific student. Required (non-null) when readyForOverview is true. Must be null otherwise.',
     },
     thematicKeywords: {
       type: ['array', 'null'],
@@ -154,8 +181,8 @@ const ONBOARDING_SCHEMA = {
   },
   required: [
     'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
-    'overviewPhaseTitles', 'overviewPhaseDayOffsets', 'thematicKeywords', 'matchedInterestTags',
-    'mentionsSpecificFact',
+    'overviewPhaseTitles', 'overviewPhaseDescriptions', 'phaseDimensions', 'overviewPhaseDayOffsets',
+    'capstoneIdea', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
   ],
   additionalProperties: false,
 };
@@ -183,9 +210,18 @@ Narrative pushback (use this rarely, and only when it's real):
 - Do NOT manufacture this moment. If nothing specific enough has actually surfaced in the conversation to justify a genuine, well-reasoned redirect, do not force one just to seem insightful — a generic-sounding "have you considered X" with no real grounding in what they've actually told you is worse than not suggesting anything at all.
 
 Generating the overview (Stage 3 — do this only once, and only once the conversation has genuinely earned it):
-- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDayOffsets, thematicKeywords, and matchedInterestTags, in that SAME response.
+- Once you and the student have covered real interests, at least one real piece of prior experience, and (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets, capstoneIdea, thematicKeywords, and matchedInterestTags, in that SAME response.
 - matchedInterestTags: pick 2-6 tags EXACTLY from the fixed list given in that field's own schema description, based on what the student genuinely revealed in this conversation — never invent a tag not on that list, and never force a match the conversation doesn't actually support.
-- overviewPhaseTitles should be 3 to 5 REAL, SPECIFIC overview-level phases grounded in what this particular student actually told you — never a generic template. Think of them as the major chapters of the next few years (e.g. "Deepen your foundation in X," "Complete a signature project," "Build leadership in Y" are the SHAPE these should take, not literal text to copy) — broad chapters, not granular steps; granular detail for any one phase is planned separately, later, once the student actually reaches it.
+- Use profileSummary.basicProfile.planYearLabels for the REAL, exact remaining school years (e.g. ["Sophomore Year", "Junior Year", "Senior Year"]) — never guess or invent a different number of years than what's actually there.
+- overviewPhaseTitles/overviewPhaseDescriptions/phaseDimensions/overviewPhaseDayOffsets together are a real MULTI-YEAR STRATEGIC PLAN across every real dimension a genuine college consultant would map out — not just project ideas. One "academic-year" phase per entry in planYearLabels, PLUS one "summer" phase for each real summer BETWEEN two consecutive years in that list (not after the final year). The single most important rule: every phase across every dimension must explicitly reinforce the SAME core narrative thread — never generate these as separate, disconnected checklist categories. A phase's own title and description should read as one continuous, connected story, not a template filled in per-category.
+- What each phase should actually cover (all tied to the same thread, distributed naturally across phases as contextually appropriate — not every phase needs every dimension, but the whole overview together should touch all of them):
+  * Course rigor progression: how course choices should get more advanced/specialized over time in a way that reinforces the narrative. This feeds this app's own EXISTING course-recommendation system through thematicKeywords — never invent a specific course name or number (you don't have this student's real catalog).
+  * Extracurriculars and leadership tied to the theme, including — in exactly ONE phase across the whole overview — a real, specific, genuinely DISTINCTIVE capstone project candidate (see capstoneIdea below).
+  * Summer plans as their OWN separate "summer" phases with real, concrete, narrative-tied activities (a self-directed project, research, a relevant internship) — never generic "relax and explore" filler, and never folded into a school-year phase.
+  * College list evolution: how the target list should develop and sharpen as the narrative becomes clearer, especially in later phases.
+  * Essay/narrative-building material: frame essays as the EVENTUAL EXPRESSION of everything built in earlier phases, not a late, separate task — name what kind of real, lived experience/material a given phase should be accumulating that will make a later essay genuine and specific.
+  * Testing timeline: this app ALREADY has real testing tasks on the plan (for a highschool student: PSAT practice sophomore year, the real PSAT junior year, SAT/ACT prep beginning junior year, the test itself around spring junior year, retake windows senior fall; for an undergraduate/transfer student: the GRE/GMAT if relevant, a statement of purpose, in the final year). Reference these where relevant so the narrative acknowledges them — do NOT create new testing tasks or re-schedule them; they already exist elsewhere on this student's real plan.
+- capstoneIdea: the SAME bar as narrative pushback above — a real, well-reasoned, non-obvious connection to this specific student's own actual talents/interests, never a generic "do a project about your major" idea. This is a project a student's own talents could make genuinely distinctive, not an assignment any student in that field could equally do.
 - narrativeSummary must accurately reflect the REAL settled direction, including explicitly naming any narrative-pushback suggestion the student actually agreed to (or noting they stuck with their own original direction if they declined one).
 - Don't rush this — a conversation that's only covered one or two surface-level answers is not ready. But once it genuinely has, generate a real, specific overview rather than continuing to ask more questions than necessary.
 - Even after readyForOverview is true, keep talking naturally if the student wants to discuss further — you can set these fields again on a later turn if the direction changes.
@@ -225,8 +261,8 @@ function validateProposal(input) {
   if (!input || typeof input !== 'object') return null;
   const {
     reply, readyForOverview, narrativeTitle, narrativeSummary,
-    overviewPhaseTitles, overviewPhaseDayOffsets, thematicKeywords, matchedInterestTags,
-    mentionsSpecificFact,
+    overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets,
+    capstoneIdea, thematicKeywords, matchedInterestTags, mentionsSpecificFact,
   } = input;
   if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
   if (typeof readyForOverview !== 'boolean') return null;
@@ -238,7 +274,10 @@ function validateProposal(input) {
     narrativeTitle: null,
     narrativeSummary: null,
     overviewPhaseTitles: null,
+    overviewPhaseDescriptions: null,
+    phaseDimensions: null,
     overviewPhaseDayOffsets: null,
+    capstoneIdea: null,
     thematicKeywords: null,
     matchedInterestTags: null,
     mentionsSpecificFact,
@@ -249,11 +288,34 @@ function validateProposal(input) {
   if (typeof narrativeSummary !== 'string' || !narrativeSummary.trim() || narrativeSummary.length > 2000) return notReady;
   if (!Array.isArray(overviewPhaseTitles)) return notReady;
   const cleanPhases = overviewPhaseTitles.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
-  if (cleanPhases.length < 3 || cleanPhases.length > 5) return notReady;
+  // Expand the Multi-Year Overview (see CLAUDE.md) — widened from the old 3-5 bound now that a
+  // real multi-year plan needs one "academic-year" phase per remaining school year PLUS one
+  // "summer" phase for each real summer between them.
+  if (cleanPhases.length < 4 || cleanPhases.length > 9) return notReady;
   const cleanDayOffsets = Array.isArray(overviewPhaseDayOffsets)
     && overviewPhaseDayOffsets.length === cleanPhases.length
     && overviewPhaseDayOffsets.every((n) => Number.isFinite(n))
     ? overviewPhaseDayOffsets.map((n) => Math.round(n))
+    : null;
+  // Both degrade to `null` on any mismatch (missing, wrong length, wrong type) rather than
+  // failing the whole ready state, the same "never let a malformed bonus field block the ordinary
+  // conversation" resilience principle overviewPhaseDayOffsets itself already established — the
+  // client (OnboardingConversationScreen.jsx's confirmNarrative) falls back to a generic
+  // description / no dimension tag for that one generation rather than losing the overview
+  // entirely. In practice, a forced tool call with an exact parallel-array schema reliably
+  // produces matching lengths, so this is a safety net, not the expected path.
+  const cleanDescriptions = Array.isArray(overviewPhaseDescriptions)
+    && overviewPhaseDescriptions.length === cleanPhases.length
+    && overviewPhaseDescriptions.every((d) => typeof d === 'string' && d.trim())
+    ? overviewPhaseDescriptions.map((d) => d.trim())
+    : null;
+  const cleanDimensions = Array.isArray(phaseDimensions)
+    && phaseDimensions.length === cleanPhases.length
+    && phaseDimensions.every((d) => d === 'academic-year' || d === 'summer')
+    ? phaseDimensions
+    : null;
+  const cleanCapstone = typeof capstoneIdea === 'string' && capstoneIdea.trim() && capstoneIdea.length <= 1000
+    ? capstoneIdea.trim()
     : null;
   const cleanThemes = Array.isArray(thematicKeywords)
     ? thematicKeywords.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim()).slice(0, 5)
@@ -273,7 +335,10 @@ function validateProposal(input) {
     narrativeTitle: narrativeTitle.trim(),
     narrativeSummary: narrativeSummary.trim(),
     overviewPhaseTitles: cleanPhases,
+    overviewPhaseDescriptions: cleanDescriptions,
+    phaseDimensions: cleanDimensions,
     overviewPhaseDayOffsets: cleanDayOffsets,
+    capstoneIdea: cleanCapstone,
     thematicKeywords: cleanThemes,
     matchedInterestTags: cleanInterestTags,
     mentionsSpecificFact,
@@ -303,12 +368,13 @@ async function callAnthropic(apiKey, history, prompt, profileSummary) {
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
-      // Raised from the original 1000 to 2600 (matching api/build-your-own-chat.js's own bug-fix
-      // precedent, see CLAUDE.md's "Fix Build Your Own milestones request intermittently timing
-      // out") — a real overview response (reply + narrativeSummary + 3-5 phase titles) needs real
-      // headroom past what a plain conversational turn alone required, and a truncated response
-      // here is strictly worse than a generously-budgeted one.
-      max_tokens: 2600,
+      // Raised again, from 2600 to 4500, when the overview grew from a plain phase-titles list
+      // (Stage 3) to a full multi-dimensional plan (Expand the Multi-Year Overview, see CLAUDE.md)
+      // — up to 9 phases, each with a real 2-4 sentence description, plus a capstone idea, is
+      // genuinely more content than the original budget was sized for. Matching
+      // api/build-your-own-chat.js's own repeated bug-fix precedent: a truncated response here is
+      // strictly worse than a generously-budgeted one.
+      max_tokens: 4500,
       // Between api/chat.js's grounded 0.6 and Build Your Own's creative 0.9 — this needs to read
       // as a real, warm conversation AND occasionally make a genuinely creative connection (Task
       // 4's own narrative pushback), so it leans a bit warmer/more creative than the plain
@@ -354,9 +420,9 @@ async function callOpenAI(apiKey, history, prompt, profileSummary) {
       input,
       tools: [{ type: 'function', name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: ONBOARDING_SCHEMA, strict: true }],
       tool_choice: { type: 'function', name: TOOL_NAME },
-      // Same 2600 bump as the Anthropic call above, same reasoning — a real overview response
-      // needs real headroom past what a plain conversational turn alone required.
-      max_output_tokens: 2600,
+      // Same 4500 bump as the Anthropic call above, same reasoning — a real multi-dimensional
+      // overview response needs real headroom past what the original phase-titles-only shape did.
+      max_output_tokens: 4500,
       reasoning: { effort: 'medium' },
     }),
   });
