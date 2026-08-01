@@ -8934,18 +8934,34 @@ plan) is the first real case that could ever fall below it.
 - **The temporary diagnostic itself was removed once its job was done** — same "add it, confirm the
   real cause, then take it back out" precedent this codebase's own history already documents for an
   analogous investigation (`api/build-your-own-chat.js`'s own past debugging pass).
-- Verified by re-running the EXACT same reproduction scenario (the naturally-worded Priya/
-  medicine-immunology, 11th-grade, 2-remaining-year conversation, including the real pushback on
-  college-list direction) against the redeployed, fixed endpoint: [to be confirmed against the live
-  endpoint — see below]. A second, independent re-run of the SAME scenario should confirm this
-  reliably, not as a one-off, and the two previously-working live conversations (Jordan/civic-
-  engagement with a course-rigor pushback and 3 remaining years, and the original David/ServerPal
-  scenario with 4 remaining years) should be spot-checked again post-fix to confirm the fix didn't
-  regress an already-working path for a student with MORE remaining years. `npm run build`/
-  `npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only
-  `api/onboarding-chat.js` (a new exported-in-file helper function, one parameter added to an
-  existing function, one call-site update, one schema description correction), no client-side
-  changes.
+- Verified with a dedicated Node-level test (6 checks, mocking `global.fetch`, calling the real
+  handler directly) confirming the mechanism precisely: a 2-remaining-year student's own real 3-
+  phase overview (previously always rejected) now correctly passes; the SAME 2-remaining-year
+  student submitting the OLD minimum of 4 phases (wrong for this student) now correctly fails,
+  confirming this is a genuine exact match, not just a widened range; a 1-remaining-year (12th-
+  grade) student's own correct single-phase overview passes, using the new floor of 1 rather than
+  the old floor of 4; a 4-remaining-year student's own correct 7-phase overview still passes
+  unchanged (a direct regression check against the original "Expand the Multi-Year Overview"
+  feature); the SAME 4-remaining-year student submitting only 3 phases (correct for a DIFFERENT,
+  2-year student, wrong for this one) now correctly fails, the exact precision gain over the old
+  generic range; and a missing/malformed `planYearLabels` falls back gracefully to the old, looser
+  range rather than crashing. Then verified LIVE, against the real redeployed endpoint, by
+  re-running the EXACT same reproduction scenario that originally exposed this (the naturally-
+  worded Priya/medicine-immunology, 11th-grade, 2-remaining-year conversation, including the real
+  pushback on college-list direction) — it now reaches `readyForOverview: true` cleanly on the
+  same turn that previously got stuck in an infinite closing-summary loop, with `courseGuidanceNote`
+  and `collegeListNote` both correctly reflecting the real settled decisions (the pushback:
+  clinical volunteering near a hospital, not research-lab reputation). A second, independent live
+  re-run of the identical scenario confirmed this reliably, not as a one-off — both runs completed
+  in exactly 7 turns with a real, correctly-formed 3-phase overview. The two previously-working
+  live conversations were also spot-checked again post-fix: Jordan's (civic-engagement, a real
+  course-rigor pushback, 3 remaining years) still completes cleanly in 7 turns with the pushback
+  correctly reflected; David's (ServerPal, 4 remaining years) still produces exactly 7 phases and
+  completes cleanly — confirming the fix doesn't regress a student with MORE remaining years,
+  which is exactly what the earlier working tests already exercised. `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only
+  `api/onboarding-chat.js` (a new helper function, one parameter added to an existing function, one
+  call-site update, one schema description correction), no client-side changes.
 
 ## Design tokens
 
@@ -11676,4 +11692,26 @@ download). Cover at minimum:
   calls against the live deployed endpoint** — the mocked tests above only prove the mechanism/
   plumbing works, not that the model's own real conversational behavior is good. `npm run build`/
   `npm run lint`/`npm run verify:spacing` (20/20) should all stay clean — this feature never opens
+  `roadmapLayout.js`/`Roadmap.jsx` and touches no client-side file at all.
+- Fix: onboarding overview silently rejected for students with few years left: if this ever
+  regresses, the reproduction is deterministic and doesn't need many live turns — mock
+  `global.fetch` and call the real `api/onboarding-chat.js` handler directly with a
+  `profileSummary.basicProfile.planYearLabels` of length 2 (e.g. `['Junior Year', 'Senior Year']`)
+  and a well-formed ready response containing exactly 3 phases (the real `2N-1` count) — confirm
+  it now passes; confirm the SAME 2-year profile with 4 phases (the OLD floor) now correctly
+  FAILS, proving this is a genuine exact match rather than a widened range; confirm a 1-year
+  profile (`['Senior Year']`) with exactly 1 phase passes; confirm a 4-year profile with the
+  correct 7 phases still passes (regression check against the original feature) while the SAME
+  4-year profile submitting only 3 phases (correct for a 2-year student, wrong for this one)
+  correctly fails; and confirm a missing/malformed `planYearLabels` falls back to the old, looser
+  range without crashing. If touching this again, remember the ONLY way this bug was actually
+  found was a temporary raw-proposal diagnostic (echoing the model's pre-validation tool-call
+  input back in the response whenever validation silently coerced an attempted
+  `readyForOverview: true` back to false) added directly to the handler, deployed, and inspected
+  against a real live reproduction — a plausible-sounding "make the prompt more decisive" first
+  hypothesis was tried, deployed, and directly disproven by re-running the identical live
+  reproduction before the real cause was ever found this way; don't skip straight to a prompt fix
+  for a similar-looking "stuck" symptom without first confirming server-side validation isn't
+  silently rejecting an already-correct model response. `npm run build`/`npm run lint`/
+  `npm run verify:spacing` (20/20) should all stay clean — this fix never opens
   `roadmapLayout.js`/`Roadmap.jsx` and touches no client-side file at all.
