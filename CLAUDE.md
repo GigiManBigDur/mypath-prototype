@@ -8881,6 +8881,45 @@ independently inventing it.**
   calls against the deployed endpoint; the mocked test suites above prove the mechanism/plumbing
   works correctly, not that the model's own real conversational behavior is good.
 
+**Bug fix: a real conversation could get permanently stuck right at the finish line — the model
+correctly conducted all 4 strategy dimensions (including a real pushback), then, on the turn that
+should have flipped `readyForOverview` true, produced a closing-SOUNDING reply ("I've mapped out
+your plan around...") while the structured boolean stayed false — and every further turn just
+repeated variations of that same summary sentence, never actually generating the overview.
+Confirmed directly via 2 independent, real, unmocked live conversations against the deployed
+endpoint (one with exact-repeat scripted replies, one with naturally-varied phrasing) — both
+reproduced the identical stuck loop, ruling out a test-script artifact as the cause; a THIRD live
+conversation (a different narrative, different pushback dimension) completed cleanly with no
+stuck loop at all, confirming this is a real, if not universal, reliability gap in the new gate
+this feature added, not a fully broken mechanism.** The gap: extending `readyForOverview`'s own
+gate with a THIRD real precondition (a genuine strategy discussion, on top of the two pre-existing
+narrative ones) apparently left the model without a decisive-enough signal for the exact moment
+that precondition is satisfied — it would produce a reply that reads exactly like a genuine
+wrap-up statement, without recognizing that same moment as the trigger to also commit the full
+overview in that identical turn. Fixed with one added, explicit instruction right after the
+`readyForOverview` gate bullet in `SYSTEM_PROMPT`: don't respond to the student's reaction on the
+LAST strategy dimension with only a wrap-up-sounding reply while still leaving `readyForOverview`
+false and deferring the real overview to a later turn — the instant the model's own reply starts
+to sound like a closing/summary statement about the overall direction, that IS the signal this
+turn should also set `readyForOverview` true and fill in every required field, never saying
+something that reads like "I've built your plan" without actually building it in that same
+response. This is a pure prompt-clarity fix — no schema/validation change, matching this whole
+feature area's own established precedent that a soft-language reliability gap gets closed with a
+more explicit, decisive instruction, not a new mechanism.
+- Verified by re-running the exact same reproduction scenario (the naturally-worded Priya/
+  medicine-immunology conversation, including the real pushback on college-list direction) against
+  the redeployed endpoint — it now reaches `readyForOverview: true` cleanly on the turn immediately
+  following the essay-material affirmation, with the same real, settled, narrative-connected
+  content in all 4 dimension notes (the college-list pushback correctly reflected: clinical
+  volunteering near a hospital, not research-lab prestige) that the working conversations already
+  demonstrated. A second, independent re-run of the SAME scenario confirmed this reliably, not as a
+  one-off. The two previously-working live conversations (Jordan/civic-engagement with a course-
+  rigor pushback, and the original David/ServerPal scenario from the feature above) were spot-
+  checked again post-fix and continue to complete cleanly, confirming the fix didn't regress an
+  already-working path. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
+  clean — this fix touches only `SYSTEM_PROMPT` text in `api/onboarding-chat.js`, no schema/
+  validation/client-side changes.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
