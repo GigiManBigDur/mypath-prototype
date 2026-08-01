@@ -8774,6 +8774,113 @@ system-prompt instructions.**
   real, repeated, unmocked verification against the deployed endpoint this codebase has already
   established as standard practice for every prior qualitative AI-behavior fix.
 
+**Extend the Conversation to Discuss Strategy, Not Just Narrative — a real, confirmed gap in the
+feature immediately above: Stage 3 independently GENERATED course/testing/college-list/essay
+strategy the moment `readyForOverview` flipped true, in the SAME turn as the narrative, with zero
+real back-and-forth on the strategy itself — breaking this app's own "suggest, then confirm"
+principle every other AI surface already holds (Stage 2's own task-add confirm-first flow, the
+chain-attachment suggestion's manual date pick, Build Your Own's own review-before-commit). This
+extends the SAME conversation with a genuine, dimension-by-dimension strategy discussion BEFORE
+the overview is ever generated, then has Stage 3 package what was actually agreed rather than
+independently inventing it.**
+- **Task 1 — a new "Strategy discussion" phase, in the same conversation, after narrative settles,
+  before the overview generates.** `api/onboarding-chat.js`'s `SYSTEM_PROMPT` gained a new section
+  (placed between the existing, completely unchanged "Narrative pushback" section and "Generating
+  the overview") instructing the model to continue the SAME conversation into a real, dimension-
+  by-dimension strategy discussion once the narrative direction has genuinely settled: (1) course
+  rigor/subject choice, (2) testing approach, (3) college-list direction, (4) essay-material
+  experiences — deliberately the exact four dimensions the task itself names, NOT the capstone/
+  project arc or summer plans (those stay part of the existing, unchanged overview-generation
+  mechanism, since the task's own scope names only these four as needing real back-and-forth). For
+  EACH dimension, the model proposes something SPECIFIC and concrete (the task's own literal
+  example: "I think taking AP Government and an independent research course would strengthen this
+  direction — what do you think?"), then genuinely incorporates whatever real response comes back
+  — agreement, pushback with the student's own alternative (the task's own example: "I'd rather do
+  debate/forensics instead"), or an explicit "you decide." This reuses the exact "ask about ONE
+  thing at a time" rule the rest of this conversation already follows (never stacking all four
+  proposals into one message), and doesn't force every dimension to be settled if the conversation
+  naturally moves on — an unsettled dimension is handled honestly later (Task 2), not forced.
+- **`readyForOverview`'s own field description and the "Generating the overview" section's opening
+  gate bullet were both extended with this as a real, third precondition** — alongside the two
+  pre-existing ones (real interests/experience established; any narrative-pushback suggestion
+  resolved) — so the model can no longer flip `readyForOverview` true straight from a settled
+  narrative direction without the strategy discussion actually having happened. This is a soft,
+  prompt-level gate (the same mechanism the two pre-existing preconditions already use, and the
+  same mechanism this codebase's own established precedent shows working reliably for "has the
+  conversation earned an overview yet") rather than a new hard-schema field — there is no
+  mechanical way to validate server-side "did a real back-and-forth actually happen for this
+  dimension" from a single turn's JSON payload alone, since that requires reading the actual prior
+  conversation TEXT, which is exactly what composing the response already does.
+- **Task 2 — the 4 dimension-note fields now package what was ACTUALLY discussed and agreed,
+  never independently invented, with an honest gap-flag as the explicit fallback.**
+  `courseGuidanceNote`/`testingTimelineNote`/`collegeListNote`/`essayMaterialNote`'s own schema
+  descriptions (and the matching numbered-list bullets 2/4/5/6 in "Generating the overview") were
+  rewritten from "describe how this should progress" (implicitly inventable) to "summarize what
+  was ACTUALLY proposed and settled in the strategy discussion earlier in this conversation —
+  including the student's own real final preference if they pushed back or offered an alternative"
+  — with each field's own description giving the SAME concrete example the task itself named
+  (proposing an independent research course, the student settling on debate/forensics instead,
+  and the note needing to reflect debate/forensics, not the original proposal). Each field's
+  description also now explicitly states: "If [this dimension] genuinely wasn't discussed with
+  real specificity... say so plainly... rather than guessing" — directly implementing the task's
+  own "flag that plainly... than to quietly fill the gap with an unconfirmed guess" instruction.
+  **This did NOT require any change to `validateProposal`'s actual validation code** — the hard-
+  required tier these 4 fields already occupy (non-blank string, ≤800 chars, from the immediately-
+  preceding fix) is completely compatible with either a real settled-decision summary OR a short,
+  honest "not yet discussed" flag; both are equally valid non-blank strings, so the fix is purely a
+  prompt/content-quality change, not a new validation mechanism. `overviewPhaseDescriptions`' own
+  item (a) [course rigor] clause was updated the same way, for consistency with the dedicated
+  field it partially echoes.
+- **Task 3 — narrative pushback (the Uyghur-soccer/Sociology-style whole-direction reconsideration)
+  is completely untouched** — its own system-prompt section, wording, and every one of its existing
+  guardrails are byte-for-byte unchanged; the new Strategy discussion section is explicitly scoped
+  to happen AFTER it (narrative settles first, including whether a pushback suggestion was
+  accepted or declined, THEN strategy discussion begins) — confirmed via a direct regression check
+  that the pushback section's own exact text is unchanged. **No client-side code changed at all**
+  — `OnboardingConversationScreen.jsx`'s review UI, `confirmNarrative()`, and `useOnboardingChat.js`
+  already persist/display whatever content comes back in these 4 string fields regardless of its
+  style (a real settled decision vs. an honest gap-flag), so this feature is entirely a server-side
+  prompt/schema-description change; `MyNarrativeScreen.jsx`'s existing `.narrative-strategy-card`
+  needed no new UI treatment either, since Task 2 asks for honest TEXT CONTENT, not a new visual
+  differentiator between "settled" and "flagged."
+- Verified with a dedicated Node-level test (15 checks, mocking `global.fetch`, calling the real
+  handler directly) confirming: the new "Strategy discussion" system-prompt section is genuinely
+  present and names all 4 real dimensions with the "one at a time" instruction; the narrative-
+  pushback section's own exact text is unchanged (Task 3); `readyForOverview`'s gate now requires
+  the strategy discussion as a real precondition; each of the 4 dimension fields' own descriptions
+  now require reflecting "ACTUALLY proposed and settled" content and instruct honest gap-flagging;
+  a well-formed response with real settled-decision content passes through unchanged; an honest
+  "not yet discussed" flag (rather than a confident guess) still validates fine, confirming the
+  hard-required tier is unaffected; a note reflecting a genuine pushback decision (the task's own
+  debate/forensics example) passes through correctly with the ORIGINAL declined proposal absent
+  from the final text; and the pre-existing hard-required enforcement (a missing dimension field
+  still fails readiness, with the real `reply` text preserved) is completely unaffected — a direct
+  regression check against the immediately-preceding fix. A dedicated 11-check Playwright suite
+  then drove the full real click-through flow with a realistic 7-turn mocked conversation (narrative
+  settling in 2 turns, then a genuine dimension-by-dimension strategy discussion — course rigor
+  with a REAL pushback exchange, testing, college list, essay material — before the final ready
+  turn) and confirmed: the conversation genuinely continues past narrative discovery into strategy
+  (7 real requests fired, one per turn); the AI's mocked proposal names something SPECIFIC (AP
+  Government/independent research); the student's real pushback message (debate/forensics) appears
+  in the conversation; the review UI shows the dimension-confirmation line; and — the core proof
+  of Task 2/3 together — after confirming, `state.narrativeCourseGuidance` reflects the STUDENT's
+  real settled preference (debate/forensics) with the AI's original, declined proposal (an
+  independent research course) absent from the final text, the other 3 dimension notes reflect
+  their own real settled decisions, and My Narrative's strategy card displays this same, correctly-
+  agreed content. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay clean —
+  this feature never opens `roadmapLayout.js`/`Roadmap.jsx`, and never touches any client-side file
+  at all (`api/onboarding-chat.js` isn't bundled into `dist/`, confirmed by the build output's own
+  asset hash staying byte-for-byte identical before and after this change).
+- **What can only be verified live**: whether the AI's own real reasoning, once deployed, genuinely
+  conducts the strategy discussion as real back-and-forth (proposing something specific per
+  dimension, one at a time, and genuinely incorporating whatever the student actually says) rather
+  than rushing through all four in one message or skipping straight to the overview — and whether a
+  real pushback in a live conversation is correctly reflected in the final packaged overview rather
+  than silently reverting to the AI's own original proposal — are qualitative judgment calls this
+  codebase's own established precedent says can only be confirmed via real, repeated, unmocked
+  calls against the deployed endpoint; the mocked test suites above prove the mechanism/plumbing
+  works correctly, not that the model's own real conversational behavior is good.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11471,3 +11578,36 @@ download). Cover at minimum:
   enforcement correctly rejects an incomplete response, not that the model's real output is good
   once forced to include everything. `npm run build`/`npm run lint`/`npm run verify:spacing`
   (20/20) should all stay clean — this fix never opens `roadmapLayout.js`/`Roadmap.jsx` either.
+- Extend the Conversation to Discuss Strategy, Not Just Narrative: mock `global.fetch` and call the
+  real `api/onboarding-chat.js` handler directly — grep the source for the new "Strategy discussion"
+  section text, confirm it names all 4 real dimensions (course rigor/testing/college-list/essay)
+  with the "one dimension at a time" instruction, and confirm the narrative-pushback section's own
+  exact text is unchanged (a real regression check — this feature must never touch that section);
+  confirm `readyForOverview`'s own description now requires the strategy discussion as a real
+  precondition; confirm a well-formed response with real settled-decision content (not invented)
+  passes through; confirm an HONEST "not yet discussed" flag (rather than a confident guess) still
+  passes validation, since the hard-required tier only checks non-blank/length, never content style;
+  confirm a note reflecting a genuine pushback decision (the task's own literal example — proposing
+  an independent research course, the student settling on debate/forensics instead) passes through
+  with the declined original proposal absent from the final text; and confirm the pre-existing
+  hard-required enforcement for these 4 fields (a missing one still fails `readyForOverview`, with
+  the real `reply` preserved) is completely unaffected — this is a regression check against the
+  immediately-preceding fix, since it's easy to accidentally loosen validation while only meaning to
+  change prompt wording. For the full flow, mock `/api/onboarding-chat` with a REALISTIC multi-turn
+  sequence (not just a single ready response) — narrative settling in a couple of turns, then a
+  genuine dimension-by-dimension strategy discussion including a real pushback exchange on one
+  dimension, before a final ready turn — and drive Sign Up → Survey → send each user turn in order
+  → confirm: the conversation genuinely fires one real request per turn (not collapsing to a single
+  call); the AI's mocked proposal names something specific; the student's own pushback text appears
+  in the rendered conversation; and — the core test criterion — after confirming, the relevant
+  `state.narrative*Note` field reflects the STUDENT's real settled preference with the AI's
+  original, declined proposal absent from the final text, and My Narrative's strategy card displays
+  this same, correctly-agreed content. **Whether the AI's own real reasoning genuinely conducts this
+  as real back-and-forth (one dimension at a time, waiting for and incorporating an actual response)
+  rather than rushing through all four in one message or skipping straight to the overview, and
+  whether a real pushback in a live conversation is correctly reflected rather than silently
+  reverting to the AI's own original proposal, can only be confirmed via real, repeated, unmocked
+  calls against the live deployed endpoint** — the mocked tests above only prove the mechanism/
+  plumbing works, not that the model's own real conversational behavior is good. `npm run build`/
+  `npm run lint`/`npm run verify:spacing` (20/20) should all stay clean — this feature never opens
+  `roadmapLayout.js`/`Roadmap.jsx` and touches no client-side file at all.
