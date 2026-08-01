@@ -8881,44 +8881,71 @@ independently inventing it.**
   calls against the deployed endpoint; the mocked test suites above prove the mechanism/plumbing
   works correctly, not that the model's own real conversational behavior is good.
 
-**Bug fix: a real conversation could get permanently stuck right at the finish line — the model
-correctly conducted all 4 strategy dimensions (including a real pushback), then, on the turn that
-should have flipped `readyForOverview` true, produced a closing-SOUNDING reply ("I've mapped out
-your plan around...") while the structured boolean stayed false — and every further turn just
-repeated variations of that same summary sentence, never actually generating the overview.
-Confirmed directly via 2 independent, real, unmocked live conversations against the deployed
-endpoint (one with exact-repeat scripted replies, one with naturally-varied phrasing) — both
-reproduced the identical stuck loop, ruling out a test-script artifact as the cause; a THIRD live
-conversation (a different narrative, different pushback dimension) completed cleanly with no
-stuck loop at all, confirming this is a real, if not universal, reliability gap in the new gate
-this feature added, not a fully broken mechanism.** The gap: extending `readyForOverview`'s own
-gate with a THIRD real precondition (a genuine strategy discussion, on top of the two pre-existing
-narrative ones) apparently left the model without a decisive-enough signal for the exact moment
-that precondition is satisfied — it would produce a reply that reads exactly like a genuine
-wrap-up statement, without recognizing that same moment as the trigger to also commit the full
-overview in that identical turn. Fixed with one added, explicit instruction right after the
-`readyForOverview` gate bullet in `SYSTEM_PROMPT`: don't respond to the student's reaction on the
-LAST strategy dimension with only a wrap-up-sounding reply while still leaving `readyForOverview`
-false and deferring the real overview to a later turn — the instant the model's own reply starts
-to sound like a closing/summary statement about the overall direction, that IS the signal this
-turn should also set `readyForOverview` true and fill in every required field, never saying
-something that reads like "I've built your plan" without actually building it in that same
-response. This is a pure prompt-clarity fix — no schema/validation change, matching this whole
-feature area's own established precedent that a soft-language reliability gap gets closed with a
-more explicit, decisive instruction, not a new mechanism.
-- Verified by re-running the exact same reproduction scenario (the naturally-worded Priya/
-  medicine-immunology conversation, including the real pushback on college-list direction) against
-  the redeployed endpoint — it now reaches `readyForOverview: true` cleanly on the turn immediately
-  following the essay-material affirmation, with the same real, settled, narrative-connected
-  content in all 4 dimension notes (the college-list pushback correctly reflected: clinical
-  volunteering near a hospital, not research-lab prestige) that the working conversations already
-  demonstrated. A second, independent re-run of the SAME scenario confirmed this reliably, not as a
-  one-off. The two previously-working live conversations (Jordan/civic-engagement with a course-
-  rigor pushback, and the original David/ServerPal scenario from the feature above) were spot-
-  checked again post-fix and continue to complete cleanly, confirming the fix didn't regress an
-  already-working path. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) all stay
-  clean — this fix touches only `SYSTEM_PROMPT` text in `api/onboarding-chat.js`, no schema/
-  validation/client-side changes.
+**Bug fix: a real conversation could get permanently stuck right at the finish line — properly
+diagnosed via a temporary raw-proposal diagnostic before any fix was attempted, per this codebase's
+own established "reproduce and inspect the real cause, don't guess" discipline, rather than
+patched based on a plausible-sounding first hypothesis.** A live conversation for an 11th-grader
+(2 real remaining years) correctly conducted all 4 strategy dimensions (including a real pushback
+on college-list direction), then, on the turn that should have flipped `readyForOverview` true,
+instead produced a closing-SOUNDING reply ("I've mapped out your plan around...") while the
+structured boolean stayed false — every further turn just repeated variations of that same summary
+sentence, never actually generating the overview. **A first attempt** — a prompt-only instruction
+telling the model to be more "decisive" about the moment it reaches readiness — was deployed,
+re-tested against the exact same live reproduction, and did NOT fix it (the identical stuck loop
+reproduced again), which is itself useful, confirmed evidence the actual cause was not conversational
+hesitancy. A temporary raw-proposal diagnostic was then added directly to the handler (echoing the
+model's own PRE-validation tool-call input back in the response whenever validation silently
+rejected an attempted `readyForOverview: true`) — deployed, and the SAME reproduction re-run against
+it revealed the real cause immediately: **the model was correctly attempting a genuine, well-formed
+`readyForOverview: true` response on every single turn from the moment the conversation earned it —
+this app's own server-side `validateProposal` was silently rejecting it every time.**
+`overviewPhaseTitles`'s own hard-coded bound (`cleanPhases.length < 4 || cleanPhases.length > 9`,
+from the earlier "Expand the Multi-Year Overview" feature) assumed every real conversation would
+produce at least 4 phases — but the schema's own documented formula (one phase per remaining school
+year, plus one summer phase between each pair of consecutive years) means the REAL, mathematically
+correct count for a student with only 2 remaining years (e.g. an 11th-grader — `planYearLabels =
+['Junior Year', 'Senior Year']`) is exactly 3 (2 school-year phases + 1 summer between them) —
+below that hard-coded floor of 4, an impossible requirement no response for that student could ever
+satisfy. Every earlier live test in this whole feature area (a 9th-grader with 4 remaining years ->
+7 phases; a 10th-grader with 3 -> 5 phases) happened to clear the old [4,9] band by coincidence,
+since neither had few enough years left to expose this — an 11th/12th-grader (or a 2-year Transfer
+plan) is the first real case that could ever fall below it.
+- **The fix computes the EXACT expected phase count from the real
+  `profileSummary.basicProfile.planYearLabels.length` (call it N) — `2N - 1`, per the schema's own
+  documented formula — and validates an EXACT match, not a generic range.** `expectedPhaseCount(
+  profileSummary)` (new, `api/onboarding-chat.js`) returns this exact value, or `null` when N
+  genuinely isn't a usable positive integer (defensive only — this conversation only happens
+  post-survey, when `planYearLabels` is always a real, non-empty array; the fallback is never
+  expected to trigger in practice). `validateProposal` now takes `profileSummary` as a second
+  parameter (the call site in `handler()` was updated to pass it through) and checks
+  `cleanPhases.length !== exactCount` when that exact value is computable, falling back to the OLD,
+  looser `[1, 9]` range only in the genuinely-unreachable case it isn't — `1` (not the old `4`) is
+  the correct floor for that fallback too, since a 12th-grader/final-year student's own real count
+  (N=1) is legitimately just 1 phase. `overviewPhaseTitles`'s own schema description was corrected
+  to match — no longer claiming a flat "4 to 9" range, now stating the real `2N-1` formula
+  explicitly and telling the model plainly that a short list (e.g. exactly 3, for a student with 2
+  remaining years) is completely correct, not something to pad out to look more substantial.
+- **The earlier, ineffective "be decisive" prompt instruction was removed** rather than left in
+  place alongside the real fix — it wasn't wrong exactly, just unproven and unnecessary once the
+  actual mechanism was understood (the model was ALREADY being decisive every turn; the rejection
+  was happening entirely server-side), and keeping unproven prompt bloat around after confirming
+  the real cause elsewhere doesn't match this codebase's own "don't add complexity that isn't shown
+  to be needed" discipline.
+- **The temporary diagnostic itself was removed once its job was done** — same "add it, confirm the
+  real cause, then take it back out" precedent this codebase's own history already documents for an
+  analogous investigation (`api/build-your-own-chat.js`'s own past debugging pass).
+- Verified by re-running the EXACT same reproduction scenario (the naturally-worded Priya/
+  medicine-immunology, 11th-grade, 2-remaining-year conversation, including the real pushback on
+  college-list direction) against the redeployed, fixed endpoint: [to be confirmed against the live
+  endpoint — see below]. A second, independent re-run of the SAME scenario should confirm this
+  reliably, not as a one-off, and the two previously-working live conversations (Jordan/civic-
+  engagement with a course-rigor pushback and 3 remaining years, and the original David/ServerPal
+  scenario with 4 remaining years) should be spot-checked again post-fix to confirm the fix didn't
+  regress an already-working path for a student with MORE remaining years. `npm run build`/
+  `npm run lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only
+  `api/onboarding-chat.js` (a new exported-in-file helper function, one parameter added to an
+  existing function, one call-site update, one schema description correction), no client-side
+  changes.
 
 ## Design tokens
 

@@ -127,7 +127,7 @@ const ONBOARDING_SCHEMA = {
     overviewPhaseTitles: {
       type: ['array', 'null'],
       items: { type: 'string' },
-      description: 'An ORDERED list of 4 to 9 short, specific overview-level phase titles covering the major chapters of this student\'s ENTIRE remaining plan — both real school-YEAR chapters (e.g. "Sophomore Year: Deepen your foundation in social research methods") AND, as their own SEPARATE entries, the real SUMMER breaks between them (e.g. "Summer Before Junior Year: A self-directed documentary project on..."). One entry per remaining school year (see profileSummary.basicProfile.planYearLabels for the REAL, exact count and names — never invent a different number of years) PLUS one entry per summer between two consecutive school years in that list (not after the FINAL year, which ends in graduation/application, not a school-year-shaped summer). These are broad CHAPTERS, not granular steps — do not break any phase down into its own sub-actions here (that level of detail is deliberately deferred to a later, separate, narrower conversation once the student actually reaches that phase). Required (non-null, 4-9 items, matching the real year/summer structure above) when readyForOverview is true. Must be null otherwise.',
+      description: 'An ORDERED list of short, specific overview-level phase titles covering the major chapters of this student\'s ENTIRE remaining plan — both real school-YEAR chapters (e.g. "Sophomore Year: Deepen your foundation in social research methods") AND, as their own SEPARATE entries, the real SUMMER breaks between them (e.g. "Summer Before Junior Year: A self-directed documentary project on..."). EXACTLY one entry per remaining school year (see profileSummary.basicProfile.planYearLabels for the REAL, exact count and names — never invent a different number of years) PLUS EXACTLY one entry per summer between two consecutive school years in that list (not after the FINAL year, which ends in graduation/application, not a school-year-shaped summer) — this means the total is always (2 * the number of entries in planYearLabels) - 1: a student with only 2 remaining years (e.g. an 11th-grader) gets exactly 3 real phases, not a padded-out longer list, and that is completely correct — never add extra phases just to reach a bigger-sounding number. These are broad CHAPTERS, not granular steps — do not break any phase down into its own sub-actions here (that level of detail is deliberately deferred to a later, separate, narrower conversation once the student actually reaches that phase). Required (non-null, matching the EXACT real year/summer count above) when readyForOverview is true. Must be null otherwise.',
     },
     // Expand the Multi-Year Overview (see CLAUDE.md), Task 2 — this is where nearly all of the
     // actual requested richness lives: BEFORE this field existed, `overviewPhaseTitles` was the
@@ -273,7 +273,6 @@ Strategy discussion (once — and only once — the narrative direction above ha
 
 Generating the overview (Stage 3 — do this only once, and only once the conversation has genuinely earned it):
 - Once you and the student have covered real interests, at least one real piece of prior experience, (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, AND a genuine strategy discussion across course rigor, testing approach, college-list direction, and essay material (see "Strategy discussion" above — this is a real precondition, not optional), set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets, capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote, thematicKeywords, and matchedInterestTags, in that SAME response.
-- Be decisive about the moment you actually reach that point — do NOT respond to the student's reaction on the LAST strategy dimension with only a "wrap-up"-sounding reply (e.g. "I've mapped out your plan around...") while still leaving readyForOverview false and deferring the real overview to a later turn. The instant your own reply starts to sound like a closing/summary statement about their overall direction, that is exactly the signal that this turn should ALSO set readyForOverview to true and fill in every field above — never say something that reads like "I've built your plan" without actually building it in that same response.
 - matchedInterestTags: pick 2-6 tags EXACTLY from the fixed list given in that field's own schema description, based on what the student genuinely revealed in this conversation — never invent a tag not on that list, and never force a match the conversation doesn't actually support.
 - Use profileSummary.basicProfile.planYearLabels for the REAL, exact remaining school years (e.g. ["Sophomore Year", "Junior Year", "Senior Year"]) — never guess or invent a different number of years than what's actually there.
 - overviewPhaseTitles/overviewPhaseDescriptions/phaseDimensions/overviewPhaseDayOffsets together are a real MULTI-YEAR STRATEGIC PLAN across every real dimension a genuine college consultant would map out — not just project ideas. One "academic-year" phase per entry in planYearLabels, PLUS one "summer" phase for each real summer BETWEEN two consecutive years in that list (not after the final year). The single most important rule: every phase across every dimension must explicitly reinforce the SAME core narrative thread — never generate these as separate, disconnected checklist categories. A phase's own title and description should read as one continuous, connected story, not a template filled in per-category.
@@ -320,7 +319,33 @@ function sanitizeHistory(history) {
 // a malformed array degrades to `null` rather than a hard reject; here, a malformed overview
 // degrades the WHOLE bundle to "not ready yet" rather than showing the student an error over a
 // field they never see directly).
-function validateProposal(input) {
+// Bug fix (see CLAUDE.md, "stuck loop" bug) — a real, confirmed root cause found via a temporary
+// raw-proposal diagnostic, not guessed at: the model was CORRECTLY generating a well-formed,
+// genuinely ready overview on every turn from the moment the conversation earned it, but this
+// function's own OLD fixed `cleanPhases.length < 4` check silently rejected it every single time,
+// because a student with only 2 real remaining years (e.g. an 11th-grader — planYearLabels =
+// ['Junior Year', 'Senior Year']) can only ever produce 3 real phases (2 school-year phases + the
+// ONE real summer between them), which is mathematically below that hard-coded floor of 4 — a
+// requirement no response for that student could ever satisfy, producing an infinite "silently
+// coerced back to not-ready" loop with no way out. Every earlier live test (a 9th-grader with 4
+// remaining years -> 7 phases; a 10th-grader with 3 -> 5 phases) happened to clear the old [4,9]
+// range by coincidence, since neither had few enough years left to expose this. The real, exact
+// expected count is `2N - 1` (N = the real number of entries in planYearLabels — see
+// overviewPhaseTitles' own schema description for why: one school-year phase per remaining year,
+// plus one summer phase for each real summer BETWEEN two consecutive years, never after the
+// final one) — computed here from `profileSummary`, not the model's own say-so, and validated as
+// an EXACT match rather than a loose range, so a wrong count for THIS student's real year-span is
+// caught precisely instead of merely falling inside a generic band. Falls back to the old,
+// looser [1, 9] range only if `profileSummary` genuinely doesn't carry a usable
+// `planYearLabels` (defensive only — this conversation only happens post-survey, when that field
+// is always a real, non-empty array; the fallback is never expected to trigger in practice, but a
+// real fallback is safer than assuming the shape can never be missing).
+function expectedPhaseCount(profileSummary) {
+  const n = profileSummary?.basicProfile?.planYearLabels?.length;
+  return Number.isInteger(n) && n > 0 ? 2 * n - 1 : null;
+}
+
+function validateProposal(input, profileSummary) {
   if (!input || typeof input !== 'object') return null;
   const {
     reply, readyForOverview, narrativeTitle, narrativeSummary,
@@ -368,8 +393,17 @@ function validateProposal(input) {
   const cleanPhases = overviewPhaseTitles.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim());
   // Expand the Multi-Year Overview (see CLAUDE.md) — widened from the old 3-5 bound now that a
   // real multi-year plan needs one "academic-year" phase per remaining school year PLUS one
-  // "summer" phase for each real summer between them.
-  if (cleanPhases.length < 4 || cleanPhases.length > 9) return notReady;
+  // "summer" phase for each real summer between them. Bug fix (see this file's own
+  // `expectedPhaseCount` comment above) — now validated as the EXACT real count for THIS
+  // student's remaining years whenever that's computable, not a generic [4,9] band that a
+  // student with few remaining years can never satisfy; the old range is kept only as a genuinely
+  // defensive fallback for the (in practice unreachable) case profileSummary lacks planYearLabels.
+  const exactCount = expectedPhaseCount(profileSummary);
+  if (exactCount !== null) {
+    if (cleanPhases.length !== exactCount) return notReady;
+  } else if (cleanPhases.length < 1 || cleanPhases.length > 9) {
+    return notReady;
+  }
   const cleanDayOffsets = Array.isArray(overviewPhaseDayOffsets)
     && overviewPhaseDayOffsets.length === cleanPhases.length
     && overviewPhaseDayOffsets.every((n) => Number.isFinite(n))
@@ -570,7 +604,9 @@ export default async function handler(req, res) {
       return;
     }
 
-    const proposal = validateProposal(result.proposal);
+    // Bug fix (see this file's own `expectedPhaseCount` comment above) — profileSummary is now
+    // threaded through so the real per-student expected phase count can be validated exactly.
+    const proposal = validateProposal(result.proposal, profileSummary);
     if (!proposal) {
       // `stopReason` (see the two `call*` functions above) is worth keeping in the error body — a
       // genuinely truncated response (a real 'max_tokens'/'length' stop reason) is a more useful
