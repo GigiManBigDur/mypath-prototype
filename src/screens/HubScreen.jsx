@@ -679,11 +679,16 @@ export default function HubScreen() {
   // used exactly as before.
   // Final Alignment-Check Conversation (see CLAUDE.md) — no hub TILE has `id: 'finalReview'` (the
   // conversation itself lives behind the "Ask MyPath AI anything" button under the mascot's own
-  // dialogue, not a tile), so `usePointAngle` would already fall back to a `null` angle on its own
-  // when `tileRefs.current.get('finalReview')` comes back undefined — this explicit guard is cheap,
-  // deliberate insurance against a future accidental id collision, not strictly required today.
+  // dialogue, not a tile). Remove Redundant Narrative Card + Add Pointing Animation to Chat Button
+  // (see CLAUDE.md) — that button is now ALSO registered in `tileRefs` (below, under the stable
+  // synthetic id `'askAi'`, the exact same ref-callback pattern every real tile already uses), so
+  // `usePointAngle` — already fully generic over whatever key `tileRefs` resolves, with no real
+  // concept of "tile" beyond that — can point the mascot at it exactly like any other guided
+  // target, using the SAME arm-raise/glow mechanism, rather than a second, parallel pointing
+  // system. Written as a plain value (not buried in a one-off check) so any future guided step
+  // wanting this same "point at chat" treatment can reuse the identical `'askAi'` target.
   const pointingTargetId = (sequenceComplete && guidedStepAlreadySeen) ? null
-    : (nextStep.id === 'finalReview' ? null : nextStep.id);
+    : (nextStep.id === 'finalReview' ? 'askAi' : nextStep.id);
   const pointAngle = usePointAngle(mascotRef, tileRefs, pointingTargetId, tiles.length);
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
@@ -936,7 +941,22 @@ export default function HubScreen() {
                   a student who wants to ask the general assistant something can do so at any point
                   in the tutorial, not just after finishing it. */}
               {nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>}
-              <button type="button" className="hub-ask-ai-bubble-btn" onClick={openChat}>
+              {/* Remove Redundant Narrative Card + Add Pointing Animation to Chat Button (see
+                  CLAUDE.md) — registered into the SAME `tileRefs` Map every real hub tile already
+                  uses (`pointingTargetId`/`usePointAngle`, above), under the stable synthetic id
+                  `'askAi'`, so this button can be a genuine pointing/glow TARGET like any other
+                  guided moment — the exact `if (el) ... set ... else ... delete ...` ref-callback
+                  shape the tiles' own loop below already establishes. `.pointing-target` reuses the
+                  identical pulsing-glow CSS class (global.css) the tiles already apply. */}
+              <button
+                type="button"
+                className={`hub-ask-ai-bubble-btn${pointingTargetId === 'askAi' ? ' pointing-target' : ''}`}
+                ref={(el) => {
+                  if (el) tileRefs.current.set('askAi', el);
+                  else tileRefs.current.delete('askAi');
+                }}
+                onClick={openChat}
+              >
                 <Sparkles size={14} /> Ask MyPath AI anything
               </button>
               {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data

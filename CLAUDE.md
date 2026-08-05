@@ -9448,6 +9448,76 @@ the original narrative with nothing catching it.
   and the chat view shows the automatic review message appended directly after the real prior
   conversation with no fake bubble in between. `npm run build`/`npm run lint` both stay clean.
 
+**Remove Redundant Narrative Card + Add Pointing Animation to Chat Button — two real follow-up
+fixes to the Final Alignment-Check Conversation feature above.**
+- **Bug fix, not a style preference: reopening a previously-confirmed conversation re-showed the
+  full narrative overview card (phases, capstone, "Confirm My Plan"/"Not quite right — keep
+  refining").** Root cause: `useNarrativeSession.js`'s `dismissedReadyIndex` (tracking "has this
+  ready-overview turn already been confirmed/dismissed") was a plain, ephemeral `useState(-1)` —
+  it reset to `-1` on every remount of the hook's own component. Since `ChatSessionView.jsx` mounts
+  this hook inside a component keyed by `key={sessionId}` (required for the multi-session Rules-of-
+  Hooks fix), that reset happens every time the chat panel closes/reopens, a session tab is
+  switched away and back, or — the exact reported trigger — the Final Alignment-Check feature's own
+  `openChat` forces `activeChatSessionId: 'narrative'`. Since the underlying message's own array
+  position never changed, the review card would silently reappear even though the student already
+  acted on it, possibly in an entirely prior visit. Fixed by replacing the ephemeral index with a
+  real, PERSISTED per-message flag, `reviewResolved`, written directly onto the message object in
+  `state.onboardingChatHistory` — matching this codebase's own established "store the fact directly
+  on the message" convention (`readyForOverview`/`finalReviewComplete` already work this way).
+  `latestReadyOverview`'s backward scan now also requires `!m.reviewResolved`; `showReview`
+  simplifies to `!!latestReadyOverview` (the scan itself already excludes resolved messages, so the
+  separate index-comparison is gone); both `confirmNarrative()` and `dismissReview()` now call one
+  shared `markReviewResolved(index)` helper instead of `setDismissedReadyIndex` — both actions are
+  equally permanent resolutions of that one specific turn, just with different outcomes for the
+  plan itself. The hook's external return shape is byte-for-byte unchanged, so this fix is entirely
+  internal to `useNarrativeSession.js` — zero changes needed in `ChatSessionView.jsx`,
+  `NarrativeReviewFooter.jsx`, or `OnboardingConversationScreen.jsx`. A genuinely NEW
+  `readyForOverview: true` turn (e.g. a revision produced by the final-review discussion) still
+  surfaces normally, since it starts with no `reviewResolved` field at all — confirmed directly, not
+  assumed.
+- **The final-review guided step now gets a real pointing gesture, reusing the exact existing
+  mechanism, not a second parallel system.** Previously `pointingTargetId` was forced to `null` for
+  the `'finalReview'` step, since no hub TILE has that id — the conversation lives behind the "Ask
+  MyPath AI anything" button under the mascot's own dialogue, not a tile. `usePointAngle` was
+  already fully generic (`tileRefs.current.get(targetId)`, with no real concept of "tile" beyond
+  whatever key is registered in that Map), so the fix is simply registering the button's own DOM ref
+  into the SAME `tileRefs` Map every real tile already uses, under a new stable synthetic id,
+  `'askAi'` — the exact same ref-callback shape (`if (el) tileRefs.current.set(...) ; else
+  tileRefs.current.delete(...)`) the tiles' own loop already establishes. `pointingTargetId`'s
+  `finalReview`-specific branch changed from `null` to `'askAi'`; the button's own className gained
+  a conditional `pointing-target` class (`pointingTargetId === 'askAi'`); `usePointAngle`,
+  `MascotIcon`'s `pointing`/`pointAngle` props (already driven by `pointingTargetId !== null &&
+  isSpeaking`), and the effect's `tileCount` dependency all needed zero changes — they already work
+  generically once a real target ref resolves. Written as a plain value (not a hardcoded one-off
+  check), so any future guided step wanting this same "point at chat" treatment can reuse the
+  identical `'askAi'` target with no new plumbing. New CSS,
+  `.hub-ask-ai-bubble-btn.pointing-target` (`global.css`), reuses the IDENTICAL `hub-tile-pulse-
+  glow` keyframe `.hub-tile.pointing-target` already established (the same pulsing green-accent
+  box-shadow glow every other guided moment already uses) — omitting only the tile rule's own
+  `border-color` half, since this button has `border: none` with nothing to color — plus the
+  matching `prefers-reduced-motion` fallback (a static glow ring instead of the animated pulse).
+- Verified with a dedicated 16-check Playwright suite: an already-`reviewResolved` message
+  correctly hides the card on load, while the identical history without that flag correctly shows
+  it (proving real gating, not unconditional suppression); clicking "Confirm My Plan" both hides
+  the card immediately AND persists `reviewResolved: true` onto the real message, confirmed to
+  survive a genuine close-then-reopen remount of the chat panel; "Not quite right — keep refining"
+  is confirmed to persist the identical way; a genuinely NEW ready-overview turn after an earlier
+  one was resolved still shows its own real, distinct content; the mascot's arm carries the real
+  `mascot-arm-raised` class and a real inline `rotate(...)` transform (not just the CSS class on the
+  button) while pointing at "Ask MyPath AI anything" during the final-review step; and an earlier
+  guided step (`careers`, which points at a real tile) is confirmed unaffected, with the ask-ai
+  button correctly NOT carrying the pointing-target class while a different step is current. A
+  real, confirmed TEST-DESIGN pitfall was caught and fixed while building this suite (not an app
+  bug): seeding "every step but finalReview done" with `finalReviewTriggered: false` (the default
+  needed to test Task 2's own trigger) meant every OTHER test in the suite was unintentionally
+  ALSO firing the real background auto-trigger effect, hitting the live, unmocked backend and
+  polluting later assertions with out-of-band responses — fixed by defaulting the review-card
+  tests' own seed state to `finalReviewTriggered: true` (inert for what they're actually testing),
+  with only the one test that needs the trigger explicitly overriding it back to `false`. A real
+  screenshot confirms the mascot's wand visibly extends downward toward the button, not just that
+  the right classes are present. `npm run build`/`npm run lint` both stay clean — this pass touches
+  only `useNarrativeSession.js`, `HubScreen.jsx`, and `global.css`, no `api/*.js` changes.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

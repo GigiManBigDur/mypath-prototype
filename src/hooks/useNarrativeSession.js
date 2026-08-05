@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useOnboardingChat } from './useOnboardingChat';
 import { NARRATIVE_OVERVIEW_CATEGORY_ID, NARRATIVE_OVERVIEW_PROJECT_TYPE_ID, getNarrativeProject } from '../data/projects';
@@ -21,14 +21,28 @@ export function useNarrativeSession() {
   // pair already established (see ProjectBuilderScreen.jsx): scan the persisted conversation for
   // the MOST RECENT assistant turn that reported `readyForOverview: true`, so the review always
   // reflects the latest thinking even if the student keeps refining after an earlier turn already
-  // reached it. `dismissedReadyIndex` tracks by the ready message's own INDEX (not a plain boolean)
-  // for the identical reason that precedent already documents: dismissing THIS turn's review must
-  // never suppress a LATER, genuinely new one if the student keeps talking and the model reaches
-  // readyForOverview again.
+  // reached it.
+  //
+  // Remove Redundant Narrative Card (see CLAUDE.md) — real, confirmed bug fix: this scan used to
+  // stop there, and a SEPARATE, ephemeral `dismissedReadyIndex` (`useState(-1)`) tracked which
+  // message's own index had already been confirmed/dismissed. Since `ChatSessionView.jsx` mounts
+  // this hook inside a component keyed by `key={sessionId}` (required for the multi-session Rules-
+  // of-Hooks fix), that local state resets to `-1` on every remount — closing and reopening the
+  // chat panel, switching sessions and back, or (the exact reported trigger) the Final Alignment-
+  // Check feature's own `openChat` forcing `activeChatSessionId: 'narrative'` — so an
+  // already-resolved review card would silently reappear, since the underlying message's own array
+  // POSITION never changed, only the (now-gone) local dismissal state did. Fixed by checking
+  // `!m.reviewResolved` directly in the scan itself instead — a real, PERSISTED fact written onto
+  // the message object (see `markReviewResolved` below), matching this codebase's own established
+  // "store the fact directly on the message" convention (`readyForOverview`/`finalReviewComplete`
+  // already work this way) — immune to any remount, reload, or session switch, since it's real data,
+  // not component state. A genuinely NEW `readyForOverview: true` turn (e.g. a revision produced by
+  // the final-review discussion) still surfaces normally, since it starts with no `reviewResolved`
+  // field at all.
   const latestReadyOverview = useMemo(() => {
     for (let i = chatHistory.length - 1; i >= 0; i--) {
       const m = chatHistory[i];
-      if (m.role === 'assistant' && m.readyForOverview && m.overviewPhaseTitles?.length) {
+      if (m.role === 'assistant' && m.readyForOverview && m.overviewPhaseTitles?.length && !m.reviewResolved) {
         return {
           narrativeTitle: m.narrativeTitle,
           narrativeSummary: m.narrativeSummary,
@@ -57,8 +71,19 @@ export function useNarrativeSession() {
     }
     return null;
   }, [chatHistory]);
-  const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
-  const showReview = !!latestReadyOverview && latestReadyOverview.sourceIndex !== dismissedReadyIndex;
+  // The scan above already excludes resolved messages, so there's no separate index-comparison
+  // needed anymore — `latestReadyOverview` being non-null already means "a real, unresolved review
+  // exists."
+  const showReview = !!latestReadyOverview;
+
+  // Remove Redundant Narrative Card (see CLAUDE.md) — the one place a ready-message's own
+  // `reviewResolved` flag is ever written, called by both `confirmNarrative` (below) and
+  // `dismissReview` alike, since both represent "we're done evaluating THIS SPECIFIC ready-message"
+  // — confirming and "keep refining" are equally permanent resolutions of that one turn, just with
+  // different outcomes for the plan itself.
+  const markReviewResolved = (index) => {
+    patch({ onboardingChatHistory: chatHistory.map((m, i) => (i === index ? { ...m, reviewResolved: true } : m)) });
+  };
 
   // Task 1 — reuses the SAME shared `computeMilestoneDueDates` Build Your Own's own project-
   // confirmation flow already established (extracted to utils/dates.js specifically so both
@@ -194,13 +219,13 @@ export function useNarrativeSession() {
       // regress a real, already-working set of tags.
       interestTags: [...new Set([...(state.interestTags || []), ...latestReadyOverview.matchedInterestTags])],
     });
-    // Same footer-hiding mechanism "keep refining" already uses — marking this same turn's own
-    // index as dismissed is what makes the review disappear the moment it's been acted on, with no
-    // separate "confirmed" flag needed.
-    setDismissedReadyIndex(latestReadyOverview.sourceIndex);
+    // Same mechanism "keep refining" uses below — marking this same turn's own message as resolved
+    // is what makes the review disappear the moment it's been acted on, permanently (see
+    // `markReviewResolved` above), with no separate "confirmed" flag needed.
+    markReviewResolved(latestReadyOverview.sourceIndex);
   };
 
-  const dismissReview = () => setDismissedReadyIndex(latestReadyOverview.sourceIndex);
+  const dismissReview = () => markReviewResolved(latestReadyOverview.sourceIndex);
 
   return { chatHistory, loading, sendMessage, editMessage, latestReadyOverview, showReview, confirmNarrative, dismissReview };
 }

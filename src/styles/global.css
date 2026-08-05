@@ -2005,6 +2005,21 @@ button.card.passed:hover {
 @media (prefers-reduced-motion: reduce) {
   .hub-ask-ai-bubble-btn { animation: none; }
 }
+/* Remove Redundant Narrative Card + Add Pointing Animation to Chat Button (see CLAUDE.md) — this
+   button is now a genuine pointing/glow TARGET (HubScreen.jsx's `pointingTargetId`/`tileRefs`), so
+   it reuses the EXACT `hub-tile-pulse-glow` keyframe `.hub-tile.pointing-target` already
+   established, rather than a second, near-identical pulse — the same established pointing/
+   highlight animation used throughout the tutorial, now also usable on this button. Omits the
+   tile rule's own `border-color` half (this button has `border: none`, nothing to color) —
+   the pulsing box-shadow alone is the real visual signal either way. The compound selector's own
+   higher specificity is what lets this override the base rule's `hub-dialogue-in` entrance
+   animation once it applies, without needing `!important`. */
+.hub-ask-ai-bubble-btn.pointing-target {
+  animation: hub-tile-pulse-glow 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-ask-ai-bubble-btn.pointing-target { animation: none; box-shadow: var(--hub-shadow), 0 0 0 3px rgba(47, 143, 91, 0.35); }
+}
 
 /* Polished Hub-to-Chat Transition, Task 2 (see CLAUDE.md) — the tile-exit half of the transition.
    A compound selector on the SAME `.hub-tile` element that already carries the unconditional
