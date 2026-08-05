@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
-  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
+  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass, MessagesSquare,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -113,6 +113,21 @@ const TILES = [
     desc: 'The direction from your first conversation, and your multi-year path.',
     unlock: (state) => !!getNarrativeProject(state),
     lockedReason: () => 'Confirm your overview in your first conversation to see this',
+  },
+  {
+    // Persist and Allow Continuing the Onboarding Conversation (see CLAUDE.md), Task 3 — a real,
+    // ALWAYS-unlocked entry point back into `OnboardingConversationScreen`, the same interests/
+    // narrative/strategy conversation the student had at the very start. `unlock: () => true`
+    // (matching Profile's own identical rationale right below) — this is explicitly NOT gated
+    // behind completing the guided tutorial (GUIDED_SEQUENCE); a student who wants to add more to
+    // their conversation before finishing the rest of the walkthrough can do so immediately.
+    // Deliberately NOT part of GUIDED_SEQUENCE either — same "real tile, but not part of the
+    // mascot's primary walkthrough" treatment Academic Plan/Your School List/Profile already get,
+    // since this is a revisit-anytime utility, not a step in the core funnel.
+    id: 'onboardingConversation', screen: 'onboardingConversation', Icon: MessagesSquare,
+    title: 'Our Conversation',
+    desc: 'Revisit or continue the conversation that shaped your direction.',
+    unlock: () => true,
   },
   {
     id: 'programSummary', screen: 'programSummary', Icon: ListChecks,
@@ -420,6 +435,30 @@ const TILE_ACCENTS = [
 // strictly needed at the time) — so no new slot was added here at all, only a real DOM-
 // measurement re-check (not just re-trusting old math) that all 11 real tiles still render with
 // zero pairwise overlap now that every one of the 11 positions is genuinely in use.
+//
+// Persist and Allow Continuing the Onboarding Conversation (see CLAUDE.md), Task 3 — the new
+// "Our Conversation" tile brings a partner-school student's real tile count to exactly 12, past
+// what this array was sized for — a genuinely new 12th slot, {x:50, y:15}.
+//
+// A real, confirmed miscalculation happened while picking this: an earlier attempt at {x:26,y:38}
+// assumed the wrap renders at its own CSS max-width (1300px) — but `.hub-screen`'s own max-width
+// (1320px) + 32px padding each side (global.css) caps the wrap's REAL content width at 1256px, not
+// 1300px, and that ~3.4% difference was exactly enough to turn an assumed-clear ~2px margin into a
+// real, confirmed ~6px overlap with the existing (8,27) slot — caught directly via a real
+// Playwright `getBoundingClientRect()` measurement, not by re-checking the same flawed offline math
+// harder. The center-column exclusion zone was ALSO re-measured directly rather than re-guessed:
+// `.hub-mascot-area`'s own real rendered box (capped at a fixed 460px width regardless of the
+// wrap's own width, per its `width: min(92%, 460px)` rule) is genuinely only x∈[31.7%,68.3%],
+// y∈[22.5%,57.5%] of the wrap — narrower on both axes than the earlier hand-estimated x∈[28,72]/
+// y∈[3,72] exclusion zone, which was excluding real, perfectly safe space above/below the mascot
+// for no reason. Recomputing candidates against the REAL 1256px wrap width and the REAL, measured
+// mascot-area box found {50,15} — dead-center, comfortably above the mascot's own real top edge —
+// clearing every one of the 11 existing slots by a genuine ~120px real margin, an order of
+// magnitude safer than the earlier candidate's near-zero fit. Re-verified afterward via a real
+// `getBoundingClientRect()` measurement of all 12 rendered tiles (not just this offline math) that
+// zero pairwise overlaps exist, the same "don't just trust the math, measure the real DOM"
+// discipline this array's own prior additions already established — and this time the measurement
+// came FIRST, informing the final choice, rather than only checking a already-decided one.
 const RADIAL_POSITIONS = [
   { x: 22, y: 8 },
   { x: 78, y: 8 },
@@ -432,6 +471,7 @@ const RADIAL_POSITIONS = [
   { x: 26, y: 88 },
   { x: 74, y: 88 },
   { x: 50, y: 89 },
+  { x: 50, y: 15 },
 ];
 
 // Radial-layout pass, Task 1's "small decorative floating dots/particles" — purely visual flavor,

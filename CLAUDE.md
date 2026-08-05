@@ -9049,6 +9049,135 @@ touches (testing approach, college-list direction).
   the mechanism/plumbing/conditioning logic is correct, not that the model's own conversational
   phrasing reads naturally.
 
+**Persist and Allow Continuing the Onboarding Conversation — the original narrative-building
+conversation is no longer a locked, one-time event: it stays revisitable, and continuing it later
+can genuinely evolve the confirmed direction, updating what's still forward-looking on the plan
+while never discarding real, already-completed progress.**
+- **Task 1 — persistence needed no new code at all, confirmed directly rather than assumed.**
+  `state.onboardingChatHistory` was already a plain `DEFAULT_STATE` field (added back in AI-First
+  Onboarding, Stage 2) with nothing special-casing it out of the SAME generic `state`-to-
+  `localStorage` mechanism every other field in this app already goes through
+  (`AppContext.jsx`'s own persistence effect serializes the WHOLE state object on every change) —
+  the conversation was already surviving a reload/new session before this task ever started. This
+  is verified directly below (a real close-tab-reopen-the-app simulation, not just re-reading the
+  existing code), rather than trusted on the strength of that reasoning alone.
+- **Task 3 — a new, ALWAYS-unlocked hub tile, "Our Conversation"** (`HubScreen.jsx`'s `TILES`,
+  `screen: 'onboardingConversation'`, `unlock: () => true`) reopens the exact same
+  `OnboardingConversationScreen`/`state.onboardingChatHistory` thread at any time — the literal
+  entry point Task 2 needs. Deliberately NOT added to `GUIDED_SEQUENCE` — the same "real tile, but
+  not part of the mascot's primary walkthrough" treatment Academic Plan/Your School List/Profile
+  already get, since a student should be able to add to their conversation before finishing the
+  rest of the tutorial, per this task's own explicit instruction, not gated behind it. Icon:
+  `MessagesSquare` (lucide-react) — visually distinct from `Compass` (My Narrative, the confirmed
+  OVERVIEW itself) so the two read as clearly separate destinations: one is the source
+  conversation, the other is its resulting plan.
+  - **A real, confirmed geometry bug was caught and fixed while adding this 12th tile, not shipped
+    on faith.** Adding a 12th tile past the 11 `RADIAL_POSITIONS` this array was previously sized
+    for required a genuinely new slot — a first attempt at `{x:26, y:38}` was computed assuming
+    the wrap renders at its own CSS `max-width` (1300px), but `.hub-screen`'s own `max-width`
+    (1320px) plus 32px padding each side actually caps the wrap's REAL content width at 1256px —
+    that ~3.4% difference was exactly enough to flip an assumed-clear ~2px margin into a real,
+    confirmed ~6px overlap with the existing `(8,27)` slot, caught directly via a real Playwright
+    `getBoundingClientRect()` measurement (not by re-checking the same flawed offline math
+    harder). The center-column exclusion zone used to pick a candidate was ALSO re-measured
+    directly rather than re-guessed: `.hub-mascot-area`'s own real rendered box (capped at a fixed
+    460px width regardless of the wrap's own width, per its `width: min(92%, 460px)` rule) is
+    genuinely only `x∈[31.7%,68.3%], y∈[22.5%,57.5%]` of the wrap — narrower on both axes than an
+    earlier hand-estimated exclusion zone, which was needlessly excluding real, perfectly safe
+    space above/below the mascot. Recomputing candidates against the REAL 1256px wrap width and
+    the REAL, measured mascot-area box found `{x:50, y:15}` — dead-center, comfortably above the
+    mascot's own real top edge — clearing every one of the 11 existing slots by a genuine ~120px
+    real margin, an order of magnitude safer than the flawed first candidate's near-zero fit.
+    Re-verified afterward via a real `getBoundingClientRect()` measurement of all 12 rendered
+    tiles that zero pairwise overlaps exist, plus a real screenshot confirming the composition
+    reads cleanly — this time the measurement came FIRST, informing the final choice, rather than
+    only checking an already-decided one after the fact.
+- **Task 2 — continuing the conversation regenerates only the FORWARD-LOOKING part of the
+  overview, never the parts the student has already genuinely built.** This directly supersedes
+  the AI-First Onboarding Stage 3 section's own earlier claim ("Confirming a SECOND time...
+  REPLACES the existing narrative project rather than creating a duplicate second one... this
+  does not try to preserve/merge whatever progress existed on the old phases") — that was the
+  correct, simplest behavior when a re-confirmation was still a rare, largely-hypothetical edge
+  case; once REOPENING the conversation became a real, expected, everyday action (Task 3), a
+  wholesale replace would have silently discarded a phase's own real completion state, subSteps,
+  or scoped planning chat history the instant the student regenerated ANY later part of their
+  plan — a real violation of "don't erase progress already made."
+  `OnboardingConversationScreen.jsx`'s `confirmNarrative()` now computes `preservedCount`: walking
+  the EXISTING narrative project's own milestones from index 0, stopping at the first one with
+  ZERO real engagement (not done via `completedNodes`, AND no real `subSteps`, AND no real
+  `chatHistory`). Since `applyOverviewLocking` (roadmapGenerator.js, unmodified) already guarantees
+  phase N+1 can never be touched before phase N is done, this "leading engaged run" is well-defined
+  and monotonic — everything before it is real, permanent history; everything from it onward is
+  still genuinely forward-looking. Those PRESERVED milestones are carried over completely verbatim
+  (same `id`/`desc`/`dueDate`/`subSteps`/`chatHistory`) — their ids are exactly what
+  `completedNodes`/`taskOutcomes` already key off of, so keeping them stable is what keeps that
+  real completion/outcome data meaningfully attached instead of orphaned. Only the milestones AT OR
+  AFTER `preservedCount` are replaced with the model's own freshly regenerated ones — the same
+  arrays (`overviewPhaseTitles`/`Descriptions`/`phaseDimensions`/`overviewPhaseDayOffsets`) are
+  simply SLICED at that index, so a preserved phase's own real content is never second-guessed by
+  a newer generation that was never asked to replace it. `computeMilestoneDueDates` is called ONLY
+  over that suffix, anchored to TODAY (the real day of this re-confirm, not the project's original
+  start date) — correct, since the next thing the student will actually work on should start from
+  where they genuinely are now. The project's own `id`/`startDate` are preserved too when a
+  narrative project already exists (this is genuinely the SAME evolving plan continuing, not a new
+  one superseding it) — when no narrative project exists yet (a first-time confirm),
+  `preservedCount` is naturally 0 and every phase comes from the model's own regeneration, byte-
+  for-byte the same behavior a first confirm already had before this change.
+  - **The Back button's own target** (previously hardcoded to `'survey'`, correct only for the
+    ORIGINAL first-time Survey → conversation flow) now reads `freshMeeting ? 'survey' : 'hub'` —
+    `freshMeeting` (already computed at mount, frozen BEFORE the greeting-seeding effect runs) is
+    exactly the right signal to tell the two cases apart: true means this really is that one-time
+    original entry (nothing said yet), so Back still returns to Survey exactly as before; false
+    means real prior conversation content already existed at mount — either a later hub reentry
+    (the new, common case) or a moment mid-conversation during the original sitting — where
+    returning to the Hub reads far more sensibly than looping back to a Survey the student has no
+    real reason to revisit.
+  - **Careers of Interest / Related Majors / Recommended Programs "refreshing" to the updated
+    direction needed ZERO new code** — confirmed directly, not assumed. These screens already
+    derive their own recommended pool LIVE from `state.interestTags`/`state.narrativeSummary`/
+    `state.narrativeThemes` on every render (`getBuiltTracks(state.interestTags)`, the Stage-5
+    narrative-aware page-sub copy, Course Selection's `getThematicCourseMatches`), never caching
+    anything from a previous visit — so the moment `confirmNarrative()` writes the updated
+    `interestTags`/`narrativeThemes`/`narrativeSummary`, the very next visit to any of these
+    screens already reflects the new direction automatically. `interestTags` itself stays a MERGE
+    (union with whatever was already there, unchanged from before this feature) — Task 2's own
+    explicit "don't discard... selected programs" instruction is why: this only ever adds new real
+    interests the updated conversation revealed, never removes an old one, and the student's own
+    ALREADY-MADE selections (`selectedCareerIds`/`selectedMajorIds`/`selectedProgramKeys`) are never
+    touched by `confirmNarrative` at all, before or after this change — only the RECOMMENDED pool
+    shown updates, not what the student already picked.
+  - **Real transcript/course/GPA data was never at risk in the first place** — confirmed directly
+    by reading `confirmNarrative()` end to end: `state.transcript`/`state.selectedCourseIds`/
+    `state.gpa`/`state.ucdavisTranscript`/etc. are never referenced by this function at all, before
+    or after this change. The one genuine risk this task identified was the OVERVIEW PHASES
+    themselves (My Narrative's own milestones) being wholesale replaced, which is exactly what the
+    merge logic above fixes.
+- Verified with a dedicated 24-check Playwright suite. Task 1: seeds a real multi-turn
+  `onboardingChatHistory`, closes the page, opens a genuinely NEW page in the SAME browser context
+  (a real close-tab-reopen-the-app simulation — `browser.newPage()` on its own creates an isolated
+  context per call with no shared storage, confirmed directly when an earlier draft of this test
+  got a null localStorage read; a shared `browser.newContext()` is what a real "same browser
+  profile" scenario requires) and confirms the full conversation content survives byte-for-byte and
+  genuinely renders, with the entrance choreography correctly skipped for the non-fresh reopen.
+  Task 3: seeds a COMPLETELY fresh, just-signed-up state (zero careers/majors/programs selected,
+  no narrative confirmed, the guided tutorial not even started) and confirms "Our Conversation" is
+  present, unlocked, and genuinely clickable/navigable regardless. Task 2 (the most involved): seeds
+  a real narrative project with one DONE phase, one engaged-but-not-done phase (real subSteps
+  attached), and one completely untouched phase, plus real transcript/selected-program/GPA data;
+  reaches the conversation via the new hub tile, sends a new message, mocks a completely different
+  regenerated overview, confirms it, and verifies: exactly one narrative project exists (no
+  duplicate); `narrativeSummary`/`narrativeThemes` reflect the NEW direction; the DONE phase and the
+  engaged phase are BOTH preserved verbatim (same ids, same real subStep, same dueDate); the
+  untouched phase is correctly replaced by fresh regenerated content; `completedNodes` for the
+  preserved phase is still `true`; real transcript/selected-program-keys/GPA are all still
+  byte-identical to what was seeded; `interestTags` merged additively; and a live visit to Careers
+  of Interest shows the updated, narrative-aware page copy. `npm run build`/`npm run lint`/
+  `npm run verify:spacing` (20/20) all stay clean — this feature never opens `roadmapLayout.js` at
+  all, only `roadmapGenerator.js`'s already-existing, unmodified `applyOverviewLocking`/
+  `buildOverviewMilestoneChains` machinery, which needed zero changes to correctly render a project
+  whose milestones are now a MIX of old-preserved and newly-generated entries — it was already
+  fully generic over any `startedProjects` entry shaped this way.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11830,3 +11959,34 @@ download). Cover at minimum:
   the tests above only prove the conditioning/plumbing is correct, not that the model's own
   phrasing reads naturally. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should
   all stay clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx` either.
+- Persist and Allow Continuing the Onboarding Conversation: for Task 1, seed a real multi-turn
+  `state.onboardingChatHistory` directly, then use a SHARED `browser.newContext()` (not two
+  separate `browser.newPage()` calls, which each get their own isolated storage with nothing
+  shared — confirmed directly, this is what a real "close the tab, reopen the app" scenario
+  actually needs) to close one page and open a genuinely new one against the same real browser
+  storage, confirming the full history survives byte-for-byte and actually renders. For Task 3,
+  seed a COMPLETELY fresh, just-signed-up state (zero selections anywhere, guided tutorial not
+  even started) and confirm the "Our Conversation" tile is present, unlocked, and clickable
+  regardless — this is the one check that directly proves it's genuinely NOT gated behind the
+  tutorial, not just locked-but-visible like most other tiles. For Task 2 (the most involved),
+  seed a real narrative project with THREE distinct milestone states — one marked done via
+  `completedNodes`, one with real `subSteps` attached but not done, one genuinely untouched — plus
+  real `transcript`/`selectedProgramKeys`/`gpa` data elsewhere in state; reach the conversation via
+  the new hub tile (not a direct screen seed, to also exercise the real navigation path), send a
+  message, mock a `/api/onboarding-chat` response with a COMPLETELY different regenerated overview,
+  confirm it, then check: exactly one narrative project exists in `state.startedProjects` (no
+  duplicate); the done AND the engaged milestones are both preserved with their EXACT original
+  `id`/`title`/`dueDate`/`subSteps` (a byte-for-byte comparison, not just "some milestone exists");
+  the untouched one is genuinely gone, replaced by new titles from the mocked response;
+  `completedNodes` for the preserved milestone is still `true`; the real transcript/program-keys/
+  GPA are still byte-identical to what was seeded (this is the actual "don't erase progress" test,
+  not the milestone-preservation check alone); `interestTags` merged (both old and new values
+  present) rather than being overwritten; and a live visit to Discovery's Careers of Interest
+  sub-step shows the page-sub copy has picked up the updated `narrativeSummary` framing with zero
+  extra code needed for that refresh. If this regresses, the most likely place to look is
+  `confirmNarrative()`'s own `preservedCount` walk (`OnboardingConversationScreen.jsx`) — a
+  milestone only counts as "already engaged" via `completedNodes[m.id]`/`subSteps.length`/
+  `chatHistory.length`, and the walk stops at the FIRST unengaged one, so an off-by-one there would
+  either discard real progress or fail to regenerate anything at all. `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) should all stay clean — this feature never opens
+  `roadmapLayout.js` at all.
