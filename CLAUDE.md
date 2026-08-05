@@ -9343,6 +9343,111 @@ built).
   button) confirms the composition reads cleanly, not just that the right classes render.
   `npm run build`/`npm run lint` both stay clean.
 
+**Final Alignment-Check Conversation — one more automatic turn in "Our Conversation" (the
+narrative session) once every OTHER guided step is done, reviewing the student's real, concrete
+choices against the original narrative before the app's own "your plan is ready" signal fires.**
+Before this, `GUIDED_SEQUENCE`'s completion state (`sequenceComplete`, `HubScreen.jsx`) fired the
+instant every other step (Discovery review, Transcript & GPA, Course Selection, Opportunity
+Finder, Project Builder) was done — but the AI had never actually looked at what the student
+*did*, only what was discussed in the abstract back at the start. A student's real choices
+(selected programs, real GPA, selected courses/opportunities, a started project) can drift from
+the original narrative with nothing catching it.
+- **Confirmed with the user before building this**: the Academic Plan tile itself
+  (`selectedProgramKeys.length > 0`, explicitly documented elsewhere in this file as "meant to be
+  revisited constantly... not gated behind later steps") gets **no new access gate** — this feature
+  only changes *when the guided sequence declares itself complete*, i.e. when the existing
+  `ENDPOINT_STEP` completion message/pointing gesture fires, not whether the tile/screen can be
+  opened.
+- **`api/onboarding-chat.js` stays single-mode** (one `SYSTEM_PROMPT`, one `ONBOARDING_SCHEMA`, one
+  tool call — its own header comment already contrasts this against `api/build-your-own-chat.js`'s
+  dual-prompt `milestoneContext` approach) — this grafts one more section onto the SAME prompt/
+  schema, the same way "Strategy discussion"/"Generating the overview" were each added before it,
+  rather than building a second dispatched prompt. One new schema field, `finalReviewComplete`
+  (boolean, hard-required at the same validation tier as `mentionsSpecificFact` — never nulled,
+  since its truth doesn't depend on `readyForOverview` at all), and one new "Final review"
+  `SYSTEM_PROMPT` section (inserted after "Generating the overview," before "Honesty rule"):
+  explains this fires automatically once the student finishes every other step; `profileSummary`
+  now contains their real, concrete choices made *since* the original conversation (careers/majors/
+  programs with real names, real transcript + calculated GPA, selected courses, selected
+  opportunities with completion status, started projects — already comprehensive on every turn via
+  `compileStudentProfile`, confirmed by direct read, nothing new needed there); compare these
+  against what was actually settled earlier in this SAME conversation history; confirm alignment or
+  raise a genuine, specific concern using the exact "suggest, then the student decides, never
+  override" framing narrative pushback/strategy discussion already use; may set `readyForOverview:
+  true` again with a revision if the discussion changes the direction (the existing mechanism,
+  unmodified); set `finalReviewComplete: true` only once this specific check-in genuinely concludes.
+- **The trigger itself has no visible student-typed message at all** — a genuinely new mechanism
+  for this codebase, not a variant of the existing "student types, gets a reply" flow.
+  `api/onboarding-chat.js`'s `handler` accepts an optional `finalReview: true` body flag; when set,
+  `prompt` becomes optional and a fixed, server-owned constant (`FINAL_REVIEW_TRIGGER_MESSAGE` —
+  never anything client-supplied) stands in as the "message" sent to the provider instead.
+  `useOnboardingChat.js`'s `sendFrom` was generalized with an options object
+  (`{ silent, finalReview }`, both `false` by default — `sendMessage`/`editMessage` stay byte-for-
+  byte unaffected): `silent: true` skips appending a `role: 'user'` bubble entirely (confirmed safe
+  — `ChatConversation.jsx` renders bubbles purely by `m.role` with no alternation assumption, so two
+  consecutive assistant bubbles render fine), and the new exported `triggerFinalReview()` calls
+  `sendFrom(chatHistory, null, { silent: true, finalReview: true })`. `finalReviewComplete` is
+  persisted through the ONE shared append path (not a second, bespoke handler) specifically so it's
+  captured correctly whether it arrives on the triggering turn itself or several NORMAL typed turns
+  later — a multi-turn discussion after the AI raises a concern still flows through
+  `sendMessage`/`editMessage` → this same `sendFrom`.
+- **One new persisted field, `state.finalReviewTriggered`** (`AppContext.jsx`) — deliberately NOT a
+  second "...Concluded" flag; whether the check-in has actually concluded is derived instead from
+  `state.onboardingChatHistory` (`.some(m => m.finalReviewComplete)`), gated on this flag being true
+  first, so a stray premature `finalReviewComplete: true` from the model (before the real trigger
+  has ever fired) stays inert rather than silently short-circuiting the whole feature.
+- **A new, LAST entry in `GUIDED_SEQUENCE`** (`HubScreen.jsx`), id `'finalReview'`,
+  `requiresNarrative: true` (mirrors `myNarrative`'s own flag — this step only makes sense once a
+  real narrative project exists), `isDone: (state) => state.finalReviewTriggered && (state.
+  onboardingChatHistory || []).some((m) => m.finalReviewComplete)` — `.some()`, not "most recent,"
+  since once ANY turn ever reports the check-in concluded, it stays done forever. This is what
+  delays `ENDPOINT_STEP`'s own one-time "you've made it through the whole guide" message/pointing
+  gesture until the check-in genuinely concludes, satisfying "only then does the plan actually
+  generate" via the app's own existing completion signal — without adding any new gate to the
+  Academic Plan tile itself.
+- **The auto-trigger effect** (`HubScreen.jsx`, alongside the existing `mascotRef`/`tileRefs`/
+  `usePointAngle` block) calls `triggerFinalReview()` once the current guided step becomes
+  `'finalReview'`, guarded exactly the way `WeeklyTaskSuggestionPanel.jsx`'s own weekly-suggestion
+  trigger already is: a local `useRef` checked FIRST (a bare persisted-state check alone races React
+  18 StrictMode's dev-only mount/remount replay, since a `patch()` call doesn't re-render
+  synchronously), with both the ref AND `state.finalReviewTriggered` set synchronously before the
+  async request starts. No rollback-and-retry on failure — matches the real precedent both
+  `suggestionSourceTaskIds` and `weeklyDigestSuggestionWeekOf` already set (neither ever un-sets its
+  own one-shot guard on a failed request); the student isn't blocked from anything in the meantime
+  and can always resolve it manually by opening "Our Conversation" and typing.
+- **`openChat()`** (the hub's own "Ask MyPath AI anything" button handler) forces
+  `activeChatSessionId: 'narrative'` ONLY when the current guided step is specifically
+  `'finalReview'` — so opening the panel lands directly on "Our Conversation" (where the fresh
+  check-in message is waiting), even if the student had last been using a different general
+  session, without clobbering a deliberate session choice at any other point in the walkthrough.
+- **`pointingTargetId`** gained an explicit `nextStep.id === 'finalReview' ? null : ...` guard — no
+  hub tile has `id: 'finalReview'` (the conversation lives behind a button under the mascot's own
+  dialogue, not a tile), so `usePointAngle` already falls back to `null` on its own when the target
+  ref doesn't exist (confirmed by reading its implementation directly); this guard is cheap,
+  deliberate insurance against a future accidental id collision, not strictly required today.
+- **Confirmed untouched**: `AcademicPlanScreen.jsx`/`Roadmap.jsx`/`roadmapGenerator.js` (no gate, no
+  changes); `useNarrativeSession.js`'s `latestReadyOverview`/`confirmNarrative` (its backward scan
+  and milestone-preservation merge already compose correctly with a mid-review revision — the scan
+  finds the most recent `readyForOverview: true` message regardless of which conversation phase
+  produced it, and preservation is keyed off real engagement, not conversation phase);
+  `ChatSessionView.jsx`/`NarrativeReviewFooter.jsx` (if the final-review turn also sets
+  `readyForOverview: true`, the existing review-footer UI already renders/confirms it).
+- Verified with a dedicated 20-check Playwright suite (mocking `**/api/onboarding-chat`): the
+  trigger fires automatically exactly once with `finalReview: true` and a real, comprehensive
+  `profileSummary` in the request body; zero fake user-role messages are ever added, and opening
+  "Ask MyPath AI anything" lands directly on "Our Conversation" (correctly overriding a different,
+  previously-active general session); a mocked concern-raising reply keeps the guided sequence on
+  `finalReview` (no completion message yet), a real typed student reply fires a genuine second,
+  normal (non-`finalReview`) request, and once that mocked reply reports `finalReviewComplete:
+  true`, the guided sequence correctly advances to show the one-time completion message; the
+  Academic Plan tile and screen stay fully unlocked/clickable at every point in between; no second
+  request fires across a hub remount once already triggered; and an earlier guided step (`careers`)
+  still shows its own correct intro text and unlock state, confirming the new step appended at the
+  end of `GUIDED_SEQUENCE` doesn't disturb anything before it. Real screenshots confirm the guided-
+  progress count correctly grew to "9/9" (up from 8/8) with the new dialogue/button reading cleanly,
+  and the chat view shows the automatic review message appended directly after the real prior
+  conversation with no fake bubble in between. `npm run build`/`npm run lint` both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

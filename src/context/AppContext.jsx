@@ -419,6 +419,18 @@ const DEFAULT_STATE = {
   // completion flag" precedent those two fields already established, rather than trying to infer
   // "has this been seen" from some other real action that doesn't actually represent it.
   narrativeViewed: false,
+  // Final Alignment-Check Conversation (see CLAUDE.md) — the one new persisted field this feature
+  // needs: has the automatic "final review" check-in (GUIDED_SEQUENCE's own new 'finalReview'
+  // step, HubScreen.jsx) actually been TRIGGERED yet — set synchronously, before the async request
+  // even fires, the same "prevent any possible double-fire" discipline `suggestionSourceTaskIds`/
+  // `weeklyDigestSuggestionWeekOf` already establish elsewhere in this file. Deliberately just this
+  // ONE flag, not a second "...Concluded" field: whether the check-in has actually CONCLUDED is
+  // derived instead, from `state.onboardingChatHistory` (`.some(m => m.finalReviewComplete)`),
+  // gated on this flag being true first — so a stray premature `finalReviewComplete: true` from the
+  // model (before the real trigger has ever fired) stays inert rather than silently short-
+  // circuiting the whole feature. Never rolled back on a failed request, matching the same two
+  // precedents above — the student isn't blocked from anything in the meantime either way.
+  finalReviewTriggered: false,
   // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Tasks 4/5 — the
   // real, ongoing project-brainstorming conversation behind Project Builder's single top-level
   // "Build Your Own" entry. Same shape/persistence contract as `chatHistory` above (`[{ role,

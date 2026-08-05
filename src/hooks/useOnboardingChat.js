@@ -46,19 +46,29 @@ export function useOnboardingChat() {
   // Shared by both a normal send (from the full current history) and an edit-and-resubmit (from
   // history truncated to just before the edited message) — the exact same `sendFrom`/`editMessage`
   // shape `useHubChat.js`/`BuildYourOwnView`/`MilestonePlanningPanel` already established.
-  const sendFrom = (baseHistory, trimmed) => {
+  //
+  // Final Alignment-Check Conversation (see CLAUDE.md) — generalized with an options object so the
+  // one new automatic, no-typed-text turn (`triggerFinalReview`, below) can reuse this exact same
+  // send/append/error-handling path rather than a second, parallel implementation:
+  // `silent: true` skips appending a `role: 'user'` bubble at all (there's no real student message
+  // to show — `trimmed` is `null` in that case, never shown, only ever used by `sendMessage`/
+  // `editMessage`'s own real calls); `finalReview: true` is forwarded to the backend, which is what
+  // actually changes its behavior server-side (see api/onboarding-chat.js). Every existing call site
+  // (`sendMessage`/`editMessage`, both still `{ silent: false, finalReview: false }` by default) is
+  // byte-for-byte unaffected.
+  const sendFrom = (baseHistory, trimmed, { silent = false, finalReview = false } = {}) => {
     const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
-    const afterUser = [...baseHistory, { role: 'user', content: trimmed }];
-    patch({ onboardingChatHistory: afterUser });
+    const afterUser = silent ? baseHistory : [...baseHistory, { role: 'user', content: trimmed }];
+    if (!silent) patch({ onboardingChatHistory: afterUser });
     setLoading(true);
     const profileSummary = compileStudentProfile(state);
     requestOnboardingChatReply(
-      { history, prompt: trimmed, profileSummary },
+      { history, prompt: trimmed, profileSummary, finalReview },
       {
         onResult: (proposal) => {
           setLoading(false);
           if (!proposal || typeof proposal.reply !== 'string' || !proposal.reply.trim()) {
-            patch({ onboardingChatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't come up with a reply just now — try saying that again?" }] });
+            if (!silent) patch({ onboardingChatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't come up with a reply just now — try saying that again?" }] });
             return;
           }
           // AI-First Onboarding, Stage 3 (see CLAUDE.md) — the new overview fields are persisted
@@ -100,11 +110,26 @@ export function useOnboardingChat() {
               // writes, which silently broke Discovery/Opportunity Finder/Course Selection's own
               // interest-based recommendations for every real post-conversation student.
               matchedInterestTags: proposal.matchedInterestTags,
+              // Final Alignment-Check Conversation (see CLAUDE.md) — persisted the same way as
+              // every other overview field, added HERE (the one shared append path) rather than in
+              // a second, bespoke handler, specifically so it's captured correctly whether it
+              // arrives on the triggering turn itself or several NORMAL typed turns later (a
+              // multi-turn discussion after the AI raises a concern still flows through
+              // sendMessage/editMessage -> this same sendFrom).
+              finalReviewComplete: proposal.finalReviewComplete,
             }],
           });
         },
         onError: () => {
           setLoading(false);
+          // Final Alignment-Check Conversation (see CLAUDE.md) — a silent (auto-triggered) call
+          // fails the same way Stage 2's own background auto-suggestions do: no visible error, the
+          // student isn't blocked from anything either way (they can always open the conversation
+          // and type, which resolves this the normal way), and `state.finalReviewTriggered` is
+          // never rolled back — matching the real, established precedent this pattern is modeled
+          // on (`suggestionSourceTaskIds`/`weeklyDigestSuggestionWeekOf`, neither of which ever
+          // un-sets its own one-shot guard on a failed request).
+          if (silent) return;
           patch({ onboardingChatHistory: [...afterUser, { role: 'assistant', content: 'Sorry, something went wrong on my end — try again in a moment.' }] });
         },
       },
@@ -113,6 +138,11 @@ export function useOnboardingChat() {
 
   const sendMessage = (trimmed) => sendFrom(chatHistory, trimmed);
   const editMessage = (index, newContent) => sendFrom(chatHistory.slice(0, index), newContent);
+  // Final Alignment-Check Conversation (see CLAUDE.md) — fires the one automatic, no-typed-text
+  // check-in turn once the student has finished every other guided step (see
+  // HubScreen.jsx's own new 'finalReview' GUIDED_SEQUENCE entry and its guarded one-shot effect,
+  // which is the only real caller of this function).
+  const triggerFinalReview = () => sendFrom(chatHistory, null, { silent: true, finalReview: true });
 
-  return { chatHistory, loading, sendMessage, editMessage };
+  return { chatHistory, loading, sendMessage, editMessage, triggerFinalReview };
 }

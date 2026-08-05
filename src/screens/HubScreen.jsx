@@ -21,6 +21,7 @@ import { stopSpeaking } from '../utils/speech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { NARRATIVE_OVERVIEW_PROJECT_TYPE_ID, getNarrativeProject } from '../data/projects';
+import { useOnboardingChat } from '../hooks/useOnboardingChat';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -306,6 +307,29 @@ const GUIDED_SEQUENCE = [
       || state.projectBuilderSkipped,
     intro: 'Ready to start a hands-on project?',
   },
+  {
+    // Final Alignment-Check Conversation (see CLAUDE.md) — a genuinely new, LAST real step: once
+    // every other step above is done, the AI hasn't yet actually looked at what the student did —
+    // only what was discussed in the abstract back in the original conversation. This step's own
+    // `isDone` (below) is what makes ENDPOINT_STEP's own "your plan is ready" completion message/
+    // pointing gesture wait for that automatic check-in to genuinely conclude, rather than firing
+    // the instant every OTHER step finishes as it used to. Deliberately does NOT add any new gate
+    // to the Academic Plan tile itself (TILES above) — that tile stays reachable exactly as it
+    // always has, per its own explicit "revisit constantly, never gate behind later steps"
+    // philosophy; only WHEN the guided sequence itself declares "done" changes.
+    // `requiresNarrative: true` mirrors `myNarrative`'s own flag — this step only makes sense once
+    // a real narrative project actually exists to check the student's real choices against.
+    id: 'finalReview', requiresPartnerSchool: false, requiresNarrative: true,
+    // Gated on `finalReviewTriggered` FIRST (not just scanning history for `finalReviewComplete`)
+    // specifically so a stray, premature `true` from the model — before the client has ever
+    // actually fired the real automatic check-in (see the guarded one-shot effect below) — stays
+    // inert rather than silently short-circuiting this whole step. `.some()`, not "most recent":
+    // once ANY turn ever reports the check-in concluded, it stays done forever, matching "never
+    // re-trigger this specific automatic check-in again."
+    isDone: (state) => state.finalReviewTriggered
+      && (state.onboardingChatHistory || []).some((m) => m.finalReviewComplete),
+    intro: "One last thing before your plan is ready — let's do a quick check-in on everything you've built. Continue our conversation to review it together.",
+  },
 ];
 
 // Bug fix (see CLAUDE.md) — reworded slightly toward a clearer one-time "you're all set" framing
@@ -550,6 +574,26 @@ export default function HubScreen() {
   // drives the mascot's distinct "speaking" animation state.
   const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted);
 
+  // Final Alignment-Check Conversation (see CLAUDE.md) — fires the one automatic, no-typed-text
+  // check-in turn the moment `finalReview` genuinely becomes the current guided step (i.e. every
+  // OTHER step is already done). Guarded the same way `WeeklyTaskSuggestionPanel.jsx`'s own weekly-
+  // suggestion trigger already is: a local `useRef`, checked FIRST, in addition to the persisted
+  // `state.finalReviewTriggered` flag — the ref is what actually prevents a double-fire under React
+  // 18 StrictMode's dev-only mount/remount replay, since a `patch()` call doesn't re-render
+  // synchronously, so the persisted flag alone wouldn't be set in time to stop a second invocation
+  // within the same tick. Both the ref AND the persisted flag are set synchronously, before the
+  // async request even starts.
+  const { triggerFinalReview } = useOnboardingChat();
+  const finalReviewFiredRef = useRef(false);
+  useEffect(() => {
+    if (finalReviewFiredRef.current) return;
+    if (nextStep.id !== 'finalReview' || state.finalReviewTriggered) return;
+    finalReviewFiredRef.current = true;
+    patch({ finalReviewTriggered: true });
+    triggerFinalReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextStep.id, state.finalReviewTriggered]);
+
   const goTo = (tile) => {
     // `discoveryEntryStep` is a one-shot signal, not a durable field — DiscoveryScreen reads it
     // once (as its initial subStep) and clears it right back to null on mount, the same
@@ -633,7 +677,13 @@ export default function HubScreen() {
   // becomes `null` — back to the neutral idle pose with no active target, matching "a single,
   // one-time gesture only." Every non-complete state is completely unaffected: `nextStep.id` is
   // used exactly as before.
-  const pointingTargetId = (sequenceComplete && guidedStepAlreadySeen) ? null : nextStep.id;
+  // Final Alignment-Check Conversation (see CLAUDE.md) — no hub TILE has `id: 'finalReview'` (the
+  // conversation itself lives behind the "Ask MyPath AI anything" button under the mascot's own
+  // dialogue, not a tile), so `usePointAngle` would already fall back to a `null` angle on its own
+  // when `tileRefs.current.get('finalReview')` comes back undefined — this explicit guard is cheap,
+  // deliberate insurance against a future accidental id collision, not strictly required today.
+  const pointingTargetId = (sequenceComplete && guidedStepAlreadySeen) ? null
+    : (nextStep.id === 'finalReview' ? null : nextStep.id);
   const pointAngle = usePointAngle(mascotRef, tileRefs, pointingTargetId, tiles.length);
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
@@ -687,6 +737,13 @@ export default function HubScreen() {
     if (chatTransitionTimer.current) clearTimeout(chatTransitionTimer.current);
   }, []);
   const openChat = () => {
+    // Final Alignment-Check Conversation (see CLAUDE.md) — when the current guided step is
+    // specifically the final review, land directly on "Our Conversation" (the pinned narrative
+    // session), where the fresh check-in message is already waiting, even if the student had last
+    // been using a different general session. Deliberately conditional, not applied on every click
+    // of this same button — forcing the session at every other point in the walkthrough would
+    // clobber a student's own deliberate choice to stay on an unrelated general session.
+    if (nextStep.id === 'finalReview') patch({ activeChatSessionId: 'narrative' });
     setChatPhase('tiles-exiting');
     chatTransitionTimer.current = setTimeout(() => setChatPhase('chat'), TILE_EXIT_MS);
   };

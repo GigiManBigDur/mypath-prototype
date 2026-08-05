@@ -218,17 +218,38 @@ const ONBOARDING_SCHEMA = {
       type: 'boolean',
       description: 'True ONLY if your reply introduces a genuinely NEW, specific real organization, program, statistic, or outside-world fact that is NOT already confirmed by something the student themselves just told you in this conversation. False otherwise — referencing something the student already shared (even a specific real club/program/experience by name), or purely generic conversation with no new named claim, is NOT a new fact. Only set this true when you introduce a genuinely new, specific claim the student would need to independently verify.',
     },
+    // Final Alignment-Check Conversation (see CLAUDE.md) — a genuinely SEPARATE milestone from
+    // readyForOverview above: that field is about whether the NARRATIVE/STRATEGY conversation has
+    // earned generating an overview at all; this one is about a LATER, automatically-triggered
+    // check-in (see the "Final review" instructions below) that only happens once the student has
+    // finished every other step in the app. Stays false for the entire rest of the conversation —
+    // including the original narrative/strategy discussion and overview generation — until that
+    // separate check-in has genuinely happened AND concluded.
+    finalReviewComplete: {
+      type: 'boolean',
+      description: 'Stays false for the ENTIRE conversation — including the original interests/narrative/strategy discussion and overview generation above — until the SEPARATE, later "Final review" check-in (see instructions below) has genuinely happened and concluded. True only once that specific check-in is done: either everything lined up and was briefly confirmed, or any concerns raised were discussed to a real resolution.',
+    },
   },
   required: [
     'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
     'overviewPhaseTitles', 'overviewPhaseDescriptions', 'phaseDimensions', 'overviewPhaseDayOffsets',
     'capstoneIdea', 'courseGuidanceNote', 'testingTimelineNote', 'collegeListNote',
     'essayMaterialNote', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
+    'finalReviewComplete',
   ],
   additionalProperties: false,
 };
 const TOOL_NAME = 'respond_in_conversation';
 const TOOL_DESCRIPTION = "Respond with your next natural line in this ongoing first conversation with the student.";
+
+// Final Alignment-Check Conversation (see CLAUDE.md) — the automatic "final review" turn (see
+// GUIDED_SEQUENCE's own new 'finalReview' step, HubScreen.jsx) fires with no real student-typed
+// text at all. This fixed, server-owned string is what stands in for "the student's message" sent
+// to the provider in that one case — NEVER anything client-supplied, so nothing sent from the
+// client could ever masquerade as this trigger. The real instructions for what to actually DO once
+// this fires live in the "Final review" section of SYSTEM_PROMPT below, not in this string itself
+// — this is just the provider-facing stand-in for a user turn, kept short and generic.
+const FINAL_REVIEW_TRIGGER_MESSAGE = '(Automatic final review — the student has completed every other step in the app. Review their real, concrete choices in profileSummary against what was originally discussed in this conversation, per your own Final review instructions.)';
 
 // Task 1 — the "why this conversation matters" framing, and Task 3 — what it actually needs to
 // accomplish (replacing the old interest-tag question and prior-experience field entirely, via
@@ -305,6 +326,14 @@ Generating the overview (Stage 3 — do this only once, and only once the conver
 - Don't rush this — a conversation that's only covered one or two surface-level answers is not ready. But once it genuinely has, generate a real, specific overview rather than continuing to ask more questions than necessary.
 - Even after readyForOverview is true, keep talking naturally if the student wants to discuss further — you can set these fields again on a later turn if the direction changes.
 
+Final review (a SEPARATE, LATER moment — this fires automatically, on its own, once the student has finished every OTHER real step in the app, not something you decide to start yourself):
+- By the time this happens, the student has already selected real careers/majors/programs, logged a real transcript and GPA, picked real courses, selected real opportunities (some possibly completed), and possibly started a project — all of this is now available to you in profileSummary, reflecting what they ACTUALLY did, not just what was discussed in the abstract earlier in this conversation. This is the first point where you have full visibility into their real, concrete choices.
+- Compare these real choices against what was originally discussed and settled earlier in THIS SAME conversation (the narrative direction and the strategy discussion above). If everything genuinely lines up — the selected careers/majors/programs fit the discussed direction, the real GPA doesn't change what's realistic, the selected opportunities/courses/project make sense — briefly and warmly confirm this and let the student know their plan reflects everything you discussed together. Keep it short; this doesn't need to be a long message if there's nothing to raise.
+- If something genuinely seems worth reconsidering — a selected program that doesn't quite fit the discussed direction, a real GPA that changes what's realistic, a chosen major/career that drifted from the narrative — raise it as a specific, genuine observation and discuss it with the student. Use the EXACT same principle as narrative pushback and the strategy discussion above: this is a suggestion and a question, never a stated correction or an assumed override. The student always has the final say — if they explain their choice or say they're happy with it, respect that and move on.
+- Do NOT manufacture a concern here just to seem thorough — if everything genuinely lines up, say so plainly and don't invent a reason to raise something.
+- If this discussion leads to a genuine change in direction, you may set readyForOverview to true again with a revised overview (the same fields, same rules, as "Generating the overview" above) — reflecting the real, updated direction the student actually confirmed.
+- Set finalReviewComplete to true only once this SPECIFIC check-in has genuinely concluded — either you confirmed everything lines up with nothing to discuss, or any concern you raised has been discussed to a real resolution (the student responded, and the direction is settled either way, updated or not). Keep finalReviewComplete false while you're still waiting on the student's response to something you just raised — it isn't concluded until they've actually replied.
+
 Honesty rule:
 - Never present a specific real organization, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly.
 - Set mentionsSpecificFact to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by something the student themselves just told you in this conversation — referencing something they already shared (even a real club/program/experience by name) is NOT a new claim and should be set false.
@@ -368,11 +397,15 @@ function validateProposal(input, profileSummary) {
     reply, readyForOverview, narrativeTitle, narrativeSummary,
     overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets,
     capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote,
-    thematicKeywords, matchedInterestTags, mentionsSpecificFact,
+    thematicKeywords, matchedInterestTags, mentionsSpecificFact, finalReviewComplete,
   } = input;
   if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
   if (typeof readyForOverview !== 'boolean') return null;
   if (typeof mentionsSpecificFact !== 'boolean') return null;
+  // Final Alignment-Check Conversation (see CLAUDE.md) — hard-rejected at the same tier as
+  // mentionsSpecificFact, and always carried through unchanged below (never nulled) — its truth
+  // doesn't depend on readyForOverview at all; these are two genuinely independent milestones.
+  if (typeof finalReviewComplete !== 'boolean') return null;
 
   const notReady = {
     reply: reply.trim(),
@@ -391,6 +424,7 @@ function validateProposal(input, profileSummary) {
     thematicKeywords: null,
     matchedInterestTags: null,
     mentionsSpecificFact,
+    finalReviewComplete,
   };
   if (!readyForOverview) return notReady;
 
@@ -475,6 +509,7 @@ function validateProposal(input, profileSummary) {
     thematicKeywords: cleanThemes,
     matchedInterestTags: cleanInterestTags,
     mentionsSpecificFact,
+    finalReviewComplete,
   };
 }
 
@@ -608,14 +643,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { history, prompt, profileSummary } = req.body || {};
-  if (!prompt || typeof prompt !== 'string' || !profileSummary || !Array.isArray(history)) {
+  // Final Alignment-Check Conversation (see CLAUDE.md) — `finalReview: true` marks the one
+  // automatic, no-typed-text turn: `prompt` becomes optional in that case, since there's no real
+  // student message to require. Every other request (the entire ordinary conversation lifecycle)
+  // is completely unaffected — `finalReview` is simply absent/false, and `prompt` is required
+  // exactly as before.
+  const { history, prompt, profileSummary, finalReview } = req.body || {};
+  if ((!finalReview && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
     res.status(400).json({ error: 'Missing prompt/profileSummary/history' });
     return;
   }
+  const effectivePrompt = finalReview === true ? FINAL_REVIEW_TRIGGER_MESSAGE : prompt;
 
   try {
-    const result = await provider.call(apiKey, history, prompt, profileSummary);
+    const result = await provider.call(apiKey, history, effectivePrompt, profileSummary);
     if (result.error) {
       res.status(result.error.status).json(result.error.body);
       return;

@@ -15,11 +15,16 @@ const ONBOARDING_CHAT_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/api/
 // caller with a real, honest error state in the chat — this is a direct response to something the
 // student just typed, matching Build Your Own's/the general assistant's own precedent rather than
 // Stage 2 (background auto-suggestions)'s own silent-failure one.
-export function requestOnboardingChatReply({ history, prompt, profileSummary }, { onResult, onError } = {}) {
+//
+// Final Alignment-Check Conversation (see CLAUDE.md) — `finalReview` is a new, optional flag,
+// forwarded verbatim; `false`/omitted for every ordinary call (the vast majority), `true` only for
+// the one automatic, no-typed-text check-in `useOnboardingChat.js`'s own `triggerFinalReview`
+// fires — see that file and `api/onboarding-chat.js`'s own handler for what it changes server-side.
+export function requestOnboardingChatReply({ history, prompt, profileSummary, finalReview = false }, { onResult, onError } = {}) {
   fetch(ONBOARDING_CHAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history, prompt, profileSummary }),
+    body: JSON.stringify({ history, prompt, profileSummary, finalReview }),
   })
     .then((res) => {
       if (!res.ok) throw new Error(`Onboarding chat request failed: ${res.status}`);
