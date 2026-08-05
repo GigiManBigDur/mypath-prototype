@@ -9178,6 +9178,41 @@ while never discarding real, already-completed progress.**
   whose milestones are now a MIX of old-preserved and newly-generated entries — it was already
   fully generic over any `startedProjects` entry shaped this way.
 
+**Make "Ask MyPath AI anything" available before the tutorial finishes — a real, deliberate
+correction from a genuinely ambiguous user request, resolved by confirming intent before touching
+any code (see the two-features note below).** This app has TWO distinct AI conversation surfaces
+on the hub, easy to conflate by name alone: the general "Ask MyPath AI anything" assistant (opens
+`HubChatPanel` inline, no page navigation) and "Our Conversation" (a hub tile navigating to
+`OnboardingConversationScreen`, the original interests/narrative/strategy conversation — see the
+"Persist and Allow Continuing the Onboarding Conversation" section above). A request to make "the
+AI conversation button under the chatbot" available earlier was confirmed, before any change, to
+mean the FIRST of these — "Our Conversation" and its own tile are completely untouched by this fix.
+- **The button used to be gated on `sequenceComplete && guidedStepAlreadySeen`** (Polished
+  Hub-to-Chat Transition, see CLAUDE.md) — visible ONLY once the guided tutorial's own one-time
+  completion message had already been shown once, and even then it REPLACED the mascot's dialogue
+  bubble text entirely rather than sitting alongside it (an either/or JSX branch). It now renders
+  UNCONDITIONALLY, directly underneath whatever real dialogue text is currently showing (a plain
+  sequential render — the text paragraph, then the button, both real siblings in the same bubble)
+  — a student can ask the general assistant something at any point during the tutorial, not only
+  after finishing it.
+- **Every existing piece of dialogue logic is completely untouched** — `nextStepIntro`'s own
+  resolution (the real per-step guided intro/revisit text, the one-time `ENDPOINT_STEP` completion
+  message, the anti-flicker `mascotSeenKeys` tracking) still works byte-for-byte as before; the
+  only change is that the button no longer waits for that text to go quiet before it can show, and
+  no longer disappears just because there's still real text to show alongside it.
+- Verified with a dedicated 9-check Playwright suite covering the tutorial's own 3 real states: a
+  completely fresh hub visit (tutorial just started, real per-step dialogue text showing) confirms
+  the button now shows too, is genuinely clickable, and clicking it opens the inline hub chat
+  without navigating away from the hub; a mid-tutorial state (some steps done, some not) confirms
+  both the current step's real dialogue text AND the button show together; and the tutorial's own
+  original fully-complete state (already seen, so no dialogue text renders) confirms the button
+  still shows there too — the one case that already worked before this fix, re-verified as a
+  regression check. A real screenshot of the mascot's own speech bubble on a fresh tutorial start
+  confirms the composition reads cleanly (real guided-step text, then the button, stacked
+  naturally in the same bubble) rather than just checking DOM presence. `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only `HubScreen.jsx`'s
+  own JSX (removing one conditional branch), no other files.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11990,3 +12025,17 @@ download). Cover at minimum:
   either discard real progress or fail to regenerate anything at all. `npm run build`/`npm run
   lint`/`npm run verify:spacing` (20/20) should all stay clean — this feature never opens
   `roadmapLayout.js` at all.
+- Make "Ask MyPath AI anything" available before the tutorial finishes: seed 3 real hub states —
+  a completely fresh tutorial start (real per-step dialogue text active), a mid-tutorial state
+  (some `GUIDED_SEQUENCE` steps done, some not), and the tutorial's own original fully-complete
+  state (seed `state.mascotSeenKeys: ['hub-guided-plan']` — the `ENDPOINT_STEP`'s own key — so
+  `guidedStepAlreadySeen` reads true and no dialogue text renders) — and confirm
+  `.hub-ask-ai-bubble-btn` is present and genuinely clickable in ALL THREE, not just the last one.
+  Confirm clicking it opens `.hub-chat-panel` inline with `state.screen` staying `'hub'` (never
+  navigating away) — this is what distinguishes it from "Our Conversation" (a real screen
+  navigation), which this fix never touches. If reproducing the two-features ambiguity this fix's
+  own request started from, remember: "Ask MyPath AI anything" (general assistant, `HubChatPanel`)
+  and "Our Conversation" (the onboarding/narrative conversation, `OnboardingConversationScreen`) are
+  two genuinely separate features that happen to both live in the hub's mascot area — confirm which
+  one a request is actually about before changing either. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) should all stay clean — this fix touches only `HubScreen.jsx`'s own JSX.

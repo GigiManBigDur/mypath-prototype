@@ -669,16 +669,16 @@ export default function HubScreen() {
   };
 
   // Polished Hub-to-Chat Transition (see CLAUDE.md) — replaces the old bottom-of-screen input bar
-  // + portaled overlay modal entirely. The "Ask MyPath AI anything" trigger now lives where the
-  // mascot's own dialogue bubble sits (rendered further down, gated on `sequenceComplete &&
-  // guidedStepAlreadySeen` — i.e. only once the guided sequence's one-time completion message has
-  // already been delivered, matching the spec's own "once the mascot has delivered its final
-  // completion dialogue, replace that dialogue bubble's position with the button" instruction
-  // literally: `guidedStepAlreadySeen` is exactly "has this hub visit's ENDPOINT_STEP message
-  // already played in a PRIOR visit" — see its own derivation above — so the very visit where the
-  // completion line is genuinely new still shows that line in full, and the button only takes its
-  // place starting the next visit, never flickering mid-read within the same one thanks to the
-  // snapshot hook's own anti-flicker freeze).
+  // + portaled overlay modal entirely. The "Ask MyPath AI anything" trigger lives right under the
+  // mascot's own dialogue bubble (rendered further down).
+  //
+  // Make "Ask MyPath AI anything" available before the tutorial finishes (see CLAUDE.md) — this
+  // button used to be GATED on `sequenceComplete && guidedStepAlreadySeen` (only once the guided
+  // sequence's one-time completion message had already been delivered), REPLACING the dialogue
+  // bubble's own text rather than sitting alongside it. It now renders unconditionally, underneath
+  // whatever real dialogue text is currently showing (or alone, once that text has genuinely gone
+  // quiet) — a student can ask the general assistant something at any point during the tutorial,
+  // not only after finishing it.
   //
   // `chatPhase` drives a same-screen state transition, not a navigation — no route/screen change:
   //   'hidden'        — normal hub (tiles + mascot bubble), the default and end state either way.
@@ -877,20 +877,21 @@ export default function HubScreen() {
                   to a new guided step), which is what makes .mascot-dialogue's CSS entrance
                   animation replay on every new line instead of only once ever — see global.css's
                   own comment. Bug fix (see CLAUDE.md) — `nextStepIntro` is now genuinely `null`
-                  once the one-time completion acknowledgment has already been shown. Polished
-                  Hub-to-Chat Transition (Task 1) — that's exactly when this bubble's own spot now
-                  hosts the "Ask MyPath AI anything" button instead of sitting empty: `guidedStepAlreadySeen`
-                  is precisely "has this ENDPOINT_STEP message already played in a PRIOR visit," so
-                  the very visit the completion line is genuinely new still shows the real text in
-                  full (the snapshot hook freezes that read for the whole visit — see its own
-                  comment), and only a LATER visit shows the button here instead. */}
-              {sequenceComplete && guidedStepAlreadySeen ? (
-                <button type="button" className="hub-ask-ai-bubble-btn" onClick={openChat}>
-                  <Sparkles size={14} /> Ask MyPath AI anything
-                </button>
-              ) : (
-                nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>
-              )}
+                  once the one-time completion acknowledgment has already been shown, in which case
+                  only the button below renders here.
+                  Make "Ask MyPath AI anything" available before the tutorial finishes (see
+                  CLAUDE.md) — this used to be an either/or: the button only ever appeared ONCE the
+                  guided sequence was fully done (`sequenceComplete && guidedStepAlreadySeen`),
+                  replacing the dialogue text entirely rather than sitting alongside it. Now it
+                  renders UNCONDITIONALLY, right under whatever dialogue text is currently showing
+                  (real per-step intro/revisit lines and the one-time completion message are all
+                  completely unaffected — same exact `nextStepIntro` value, same seen-tracking) —
+                  a student who wants to ask the general assistant something can do so at any point
+                  in the tutorial, not just after finishing it. */}
+              {nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>}
+              <button type="button" className="hub-ask-ai-bubble-btn" onClick={openChat}>
+                <Sparkles size={14} /> Ask MyPath AI anything
+              </button>
               {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
                   (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
               <div className="hub-progress-dots">
