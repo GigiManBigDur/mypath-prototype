@@ -9213,6 +9213,136 @@ mean the FIRST of these — "Our Conversation" and its own tile are completely u
   lint`/`npm run verify:spacing` (20/20) all stay clean — this fix touches only `HubScreen.jsx`'s
   own JSX (removing one conditional branch), no other files.
 
+**Multi-Session Chat: fold "Our Conversation" into "Ask MyPath AI anything" — the "Our
+Conversation" hub tile is gone entirely; the original narrative/onboarding conversation is now a
+real, pinned SESSION inside "Ask MyPath AI anything," and the student can create additional
+general sessions alongside it, the same pattern tools like ChatGPT/Claude.ai already use.** Two
+distinct hub AI features used to exist: the general assistant (`state.chatHistory`,
+`useHubChat.js`) and the original narrative conversation (`state.onboardingChatHistory`,
+`useOnboardingChat.js`, its own hub tile reopening `OnboardingConversationScreen.jsx`). The user's
+own request, after two rounds of clarification, was specifically the multi-session model — not a
+one-way merge — with the narrative conversation staying reaccessible AND still able to "build on
+it" (regenerate the multi-year overview, preserving already-completed progress, exactly as the
+immediately preceding "Persist and Allow Continuing the Onboarding Conversation" feature already
+built).
+- **The narrative conversation's own storage never moved.** It still lives in
+  `state.onboardingChatHistory`, completely untouched — `useOnboardingChat.js` and
+  `profileCompiler.js` (which reads that field directly for the compiled profile) needed zero
+  changes. The UI instead treats `'narrative'` as a fixed, hard-coded, always-first, non-deletable
+  pseudo-session id, distinct from any real entry in the new `state.chatSessions` array (general
+  sessions only: `{ id, kind: 'general', title, history }`, same per-message shape `chatHistory`
+  always used, just one array per session instead of one flat array app-wide).
+  `state.activeChatSessionId` (default `'narrative'`, persisted) tracks which session the panel
+  currently shows — a brand-new user's first thing to see is the same narrative conversation
+  they'll "reaccess and build on," matching the feature's own explicit framing.
+- **A real, existing user's own prior general-assistant history is migrated, not stranded.**
+  `migrateChatSessions()` (`AppContext.jsx`, called from `loadInitialState()` right after the
+  normal `DEFAULT_STATE` merge) runs once: if `chatSessions` is still empty and the now-legacy
+  `chatHistory` has real content, it's folded into one genuine general session (titled "General
+  Chat") and `activeChatSessionId` points at it — `chatHistory` itself is left in place afterward,
+  never read/written again by new code, matching this file's own "don't actively prune legacy
+  fields" convention rather than being deleted outright.
+- **`useHubChat.js` is now scoped to ONE general session at a time** (`useHubChat(sessionId)`,
+  reading/writing `state.chatSessions.find(...)` instead of the flat field) — everything else
+  about it (`pendingTask`/date-picking/`goToBuildYourOwn`/`finalizeAddTask`) is otherwise
+  unchanged. **A new, separate `useChatSessions()` hook** manages only the general-sessions LIST +
+  active pointer (`sessions`, `activeSessionId`, `setActiveSessionId`, `createSession`,
+  `deleteSession` — the latter gated behind a `window.confirm`, matching this app's own
+  established destructive-action pattern elsewhere).
+- **Two real, confirmed bugs were found and fixed in `useHubChat.js`'s own send logic while
+  building this — both stemming from the same root cause: writing a session's history happens
+  TWICE per send (once synchronously for the user's own message, once later, asynchronously, once
+  the reply arrives), and re-deriving `(state.chatSessions || []).map(...)` fresh at EACH call
+  site closes over the SAME stale `state` snapshot both times.** (1) The auto-derived title
+  (below) from the FIRST write was silently overwritten back to `'New Chat'` by the SECOND write,
+  since that write recomputed the "every other session, untouched" array from the same
+  pre-first-write snapshot — confirmed directly (not assumed) via a scratch script reading real
+  `localStorage` state after a real send, which showed the correct new history landing but the
+  title reverting. (2) A SEPARATE bug in the same area: rebuilding the array as `[...otherSessions,
+  updated]` (filter-then-append) silently moved whichever session was just written to onto the END
+  of the array on every send — meaning the session tab row would visibly reorder itself mid-
+  conversation, a real, confirmed UX regression (caught via a Playwright test whose own `.nth(0)`
+  locator started pointing at the wrong session after a send). Both fixed together: `sendFrom` now
+  captures `baseSession`/`title` ONCE, up front (before either write), and every write within that
+  one call rebuilds the array via `.map()` IN PLACE against that one captured base — preserving
+  both the session's own correct evolving content across the two writes AND its original array
+  position, with no second re-derivation of `state.chatSessions` anywhere in the function.
+- **First-message auto-titling** — a brand-new session starts titled `'New Chat'`; the moment its
+  own first real message is sent, it's retitled from that message's content (truncated at 40
+  chars), the same lightweight convention real multi-session chat products already use, with no
+  extra AI call needed — computed once, alongside the race-condition fix above, never re-derived
+  a second time within the same send.
+- **`src/hooks/useNarrativeSession.js`** (new) wraps the existing, untouched `useOnboardingChat()`
+  and moves in, verbatim (no behavior change), the review/confirm layer that used to live inline
+  in `OnboardingConversationScreen.jsx` — the `latestReadyOverview` scan, `dismissedReadyIndex`,
+  and `confirmNarrative()`'s real milestone-preservation merge logic from the immediately
+  preceding feature. **`src/components/NarrativeReviewFooter.jsx`** (new) is that same screen's
+  review-footer JSX, extracted verbatim as a standalone component. Both exist so the identical
+  narrative conversation/review UI renders from ONE shared implementation whether reached via the
+  original pre-hub first-time screen or the new "Our Conversation" tab — not two independently-
+  maintained copies.
+- **`src/components/ChatSessionView.jsx`** (new) is the one shared conversation body both
+  `HubChatPanel.jsx` and `MapChatWidget.jsx` render for a given `sessionId`, replacing what used
+  to be two separate, near-identical inline `useHubChat()` + `ChatConversation` blocks: `sessionId
+  === 'narrative'` renders via `useNarrativeSession()` + `NarrativeReviewFooter`; any other id
+  renders via `useHubChat(sessionId)` + the existing `ChatTaskConfirmFooter` (byte-identical to
+  what each caller already rendered inline before this component existed). **Every caller MUST
+  render this with `key={sessionId}` at the call site** — without a full remount on session
+  switch, a single mounted instance would call a DIFFERENT hook between renders whenever
+  `sessionId` changes underneath it, a real Rules-of-Hooks violation; the `key` also means each
+  session gets a clean, non-leaking input box for free (no stale draft text from a different
+  session bleeding through `ChatConversation`'s own local `inputValue` state) — confirmed directly
+  via a dedicated test (type a draft in one session, switch away and back, confirm it's gone both
+  directions).
+- **`HubChatPanel.jsx`** gained a horizontal, scrollable row of session tabs above its existing
+  header — the pinned "Our Conversation" tab first (no delete control), then each general
+  session's own tab (truncated title, an `×` to delete on hover, gated by the confirm dialog), then
+  a trailing "+ New Chat" button. A horizontal row was chosen deliberately over a vertical sidebar:
+  `.hub-chat-panel` is only `min(94%, 620px)` wide and already collapses to a static full-width row
+  at the app's own 980px breakpoint, so a sidebar would fight for space inside that width and need
+  its own separate responsive treatment; a row reuses the panel's existing width at every
+  breakpoint with one new CSS block. The tab row was also slotted into the panel's own existing
+  staggered entrance/exit cascade (header → tabs → messages → input on the way in, reversed on the
+  way out) rather than popping in statically.
+- **`MapChatWidget.jsx`** deliberately gets NO session switcher of its own (matching its own
+  documented "small, collapsed by default, not a primary surface" scope) — it just reads
+  `useChatSessions()`'s `activeSessionId` (whatever the hub panel currently has active, including
+  the narrative session if that's what's active) and renders the same `ChatSessionView`, which is
+  what preserves the widget's own already-documented "same conversation, two entry points"
+  property exactly, for either kind of session, at zero extra cost once `ChatSessionView` exists.
+- **`OnboardingConversationScreen.jsx`** now calls `useNarrativeSession()` + renders
+  `NarrativeReviewFooter` instead of its own inline review logic/JSX — a pure extraction. Its own
+  entrance choreography (the `entering`/`greeting`/`settling`/`chat` phase machine, the atmospheric
+  background/particles, the mascot grow/shrink, the Back-button target logic, the "Continue to my
+  Hub" footer button) is completely untouched; this screen still exists and is still the mandatory
+  pre-hub first-time flow (Sign Up → Survey → here → Hub) — only the SECOND way of reaching it (a
+  hub tile) moved to live inside the chat panel instead.
+- **`HubScreen.jsx`**: the `onboardingConversation` `TILES` entry and its `MessagesSquare` import
+  are removed outright. The 12th `RADIAL_POSITIONS` slot (`{x:50,y:15}`, added when that tile was
+  first introduced) is left in place, harmlessly spare — the remaining 11-tile range (`0..10`) was
+  already verified overlap-free before that slot was ever added, matching this array's own
+  established "provisioned ahead, unused for now" precedent rather than removing it outright.
+- Verified with a dedicated 36-check Playwright suite covering: migration (a real prior
+  `chatHistory` folds into a genuine general session with the exact history intact, `chatHistory`
+  itself untouched in storage; a user with BOTH `chatHistory` and `onboardingChatHistory` populated
+  keeps both, unmixed); a fresh user defaulting to the narrative tab with the real seeded greeting;
+  a full narrative-continuation-preserves-progress run (seeded with one done milestone and one
+  engaged-with-subSteps milestone, confirming both survive verbatim by id while later milestones
+  regenerate with real new content — directly exercising the moved `confirmNarrative` logic
+  unchanged); creating two new general sessions, confirming each auto-titles independently from
+  its own first message (not the other's), switching between them shows each one's own correct,
+  isolated history, and deleting the active one falls back to the narrative tab; draft-input
+  isolation across a session switch in both directions; `MapChatWidget` mirroring the hub's own
+  active general session bidirectionally (a message sent from the widget lands in the identical
+  shared session); the hub tile itself confirmed gone with zero pairwise overlap among the
+  remaining real tiles; and the original pre-hub first-time flow (Sign Up → Survey →
+  `OnboardingConversationScreen`'s full entrance choreography → a real mocked overview → Confirm →
+  "Continue to my Hub" → My Narrative tile unlocked) confirmed completely unaffected by the
+  extraction. A real screenshot of the session tab row (pinned "Our Conversation," an active
+  truncated-title session with its own delete control, a fresh "New Chat," and the "+ New Chat"
+  button) confirms the composition reads cleanly, not just that the right classes render.
+  `npm run build`/`npm run lint` both stay clean.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

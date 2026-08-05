@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import MascotIcon from './MascotIcon';
-import ChatConversation from './ChatConversation';
-import ChatTaskConfirmFooter from './ChatTaskConfirmFooter';
-import { useHubChat } from '../hooks/useHubChat';
+import ChatSessionView from './ChatSessionView';
+import { useChatSessions } from '../hooks/useChatSessions';
 import { stopSpeaking } from '../utils/speech';
 
 // Add a Small Embedded AI Chat Widget to Map 2 (see CLAUDE.md) — a compact, collapsed-by-default
 // entry point into the SAME conversation the hub's own "Ask MyPath AI anything" feature already
-// holds (`state.chatHistory`, via the shared `useHubChat` hook — see that file's own header
-// comment), so a message sent here shows up in the hub's chat afterward and vice versa. Rendered
-// as a sibling of the roadmap canvas/zoom-controls/bottom-panel inside `.roadmap-fullscreen-root`
+// holds, so a message sent here shows up in the hub's chat afterward and vice versa. Rendered as a
+// sibling of the roadmap canvas/zoom-controls/bottom-panel inside `.roadmap-fullscreen-root`
 // (Roadmap.jsx) — Task 3's own explicit boundary: this is a new element added ALONGSIDE the
 // roadmap, not a modification to it, so it touches none of `roadmapLayout.js`'s date-to-y
 // positioning, connector-line rendering, or the zoom/pan/drag mechanics.
@@ -24,21 +22,16 @@ import { stopSpeaking } from '../utils/speech';
 // needing an unmount-after-fade mechanism (`useModalExit`) — there's nothing here that needs to
 // stop existing between opens, unlike a portaled overlay.
 //
-// Opt-In Voice Per Message in Chat + Editable Messages (see CLAUDE.md), Task 1 — voice for this
-// chat is no longer auto-triggered on a new reply, so the mascot icons here no longer animate off
-// an auto-speak signal; `ChatConversation` renders its own per-message Play/Stop button instead.
-// Since `ChatConversation` stays MOUNTED even while this widget is collapsed (only a CSS class
-// hides it), its own unmount-triggered `stopSpeaking()` would never fire on a plain collapse — so
-// `handleClose` calls the shared `stopSpeaking()` primitive directly, the same "don't let it keep
-// talking once hidden" posture this app already holds everywhere else.
+// Multi-Session Chat (see CLAUDE.md) — this widget deliberately has NO session switcher of its
+// own (matching its own documented "small, not a primary surface" scope); it just mirrors
+// whatever session the hub panel currently has active (`useChatSessions()`'s `activeSessionId`,
+// including the reserved `'narrative'` pseudo-session if that's what's active) via the shared
+// `ChatSessionView` — the same component the hub's own panel renders, so this preserves the
+// "same conversation, two entry points" property exactly, for either kind of session, at zero
+// extra cost.
 export default function MapChatWidget() {
   const [open, setOpen] = useState(false);
-
-  const {
-    chatHistory, loading, sendMessage, editMessage, goToBuildYourOwn,
-    pendingTask, pickingDate, dateInput, dateError,
-    startPickingDate, updateDateInput, dismissPendingTask, finalizeAddTask,
-  } = useHubChat();
+  const { activeSessionId } = useChatSessions();
 
   const handleClose = () => {
     stopSpeaking();
@@ -69,29 +62,10 @@ export default function MapChatWidget() {
           </button>
         </div>
 
-        <ChatConversation
-          messages={chatHistory}
-          loading={loading}
-          onSend={sendMessage}
-          onEditMessage={editMessage}
+        <ChatSessionView
+          key={activeSessionId}
+          sessionId={activeSessionId}
           emptyHint="Ask about your plan, or anything about MyPath."
-          renderMessageExtra={(m) => m.intent === 'redirect_build_your_own' && (
-            <div className="chat-redirect-action">
-              <button type="button" className="btn btn-primary" onClick={goToBuildYourOwn}>Go to Project Builder</button>
-            </div>
-          )}
-          footer={(
-            <ChatTaskConfirmFooter
-              pendingTask={pendingTask}
-              pickingDate={pickingDate}
-              dateInput={dateInput}
-              dateError={dateError}
-              onStartPickingDate={startPickingDate}
-              onDateChange={updateDateInput}
-              onDismiss={dismissPendingTask}
-              onConfirm={finalizeAddTask}
-            />
-          )}
         />
       </div>
     </>

@@ -2080,6 +2080,89 @@ button.card.passed:hover {
 }
 .hub-chat-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 17px; font-weight: 700; color: var(--hub-ink); margin: 0; }
 .hub-chat-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+
+/* Multi-Session Chat (see CLAUDE.md) — a horizontal, scrollable row of session tabs, chosen
+   deliberately over a vertical sidebar: `.hub-chat-panel` is only `min(94%, 620px)` wide and
+   already collapses to a static full-width row at the app's own 980px breakpoint (see the
+   `.app-shell.app-shell-bloom` media query further down), so a sidebar would fight for space
+   inside that width and need its own separate responsive treatment. A row reuses the panel's
+   existing width at every breakpoint with just this one block. `overflow-x: auto` plus a capped
+   per-tab `max-width` is what makes this degrade to horizontal scroll rather than wrapping/
+   breaking layout as sessions accumulate. */
+.hub-chat-session-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  scrollbar-width: thin;
+}
+.hub-chat-session-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 140px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hub-card-border);
+  background: var(--hub-bg);
+  color: var(--hub-ink-soft);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.hub-chat-session-tab:hover { border-color: var(--hub-accent); color: var(--hub-ink); }
+.hub-chat-session-tab.active {
+  background: var(--hub-accent);
+  border-color: var(--hub-accent);
+  color: #fff;
+}
+/* The pinned "Our Conversation" tab (the reserved 'narrative' pseudo-session) never gets a delete
+   control and reads slightly bolder/wider than a general session's own truncated title, since it
+   never needs the ellipsis treatment below. */
+.hub-chat-session-tab-pinned { max-width: none; font-weight: 700; }
+.hub-chat-session-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hub-chat-session-tab-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  color: inherit;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.hub-chat-session-tab-delete:hover { opacity: 1; background: rgba(0, 0, 0, 0.12); }
+.hub-chat-session-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--hub-card-border);
+  background: none;
+  color: var(--hub-ink-soft);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.hub-chat-session-new-btn:hover { border-color: var(--hub-accent); color: var(--hub-ink); }
 .hub-chat-back-btn {
   display: inline-flex;
   align-items: center;
@@ -2131,25 +2214,34 @@ button.card.passed:hover {
    hub-only class name at all — still scoped under `.hub-chat-panel` as the ancestor, so this stays
    exclusively a hub effect either way. */
 .hub-chat-panel .hub-chat-header,
+.hub-chat-panel .hub-chat-session-tabs,
 .hub-chat-panel .chat-messages,
 .hub-chat-panel .chat-input-row {
   animation: hub-chat-fade-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.hub-chat-panel .chat-messages { animation-delay: 70ms; }
-.hub-chat-panel .chat-input-row { animation-delay: 140ms; }
+/* Multi-Session Chat (see CLAUDE.md) — the new session tab row slots into this SAME existing
+   staggered cascade, between the header and the message list, rather than popping in statically
+   while everything around it fades. */
+.hub-chat-panel .hub-chat-session-tabs { animation-delay: 40ms; }
+.hub-chat-panel .chat-messages { animation-delay: 90ms; }
+.hub-chat-panel .chat-input-row { animation-delay: 150ms; }
 .hub-chat-panel.hub-chat-exit .hub-chat-header,
+.hub-chat-panel.hub-chat-exit .hub-chat-session-tabs,
 .hub-chat-panel.hub-chat-exit .chat-messages,
 .hub-chat-panel.hub-chat-exit .chat-input-row {
   animation: hub-chat-fade-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
 }
-.hub-chat-panel.hub-chat-exit .hub-chat-header { animation-delay: 90ms; }
-.hub-chat-panel.hub-chat-exit .chat-messages { animation-delay: 40ms; }
+.hub-chat-panel.hub-chat-exit .hub-chat-header { animation-delay: 110ms; }
+.hub-chat-panel.hub-chat-exit .hub-chat-session-tabs { animation-delay: 70ms; }
+.hub-chat-panel.hub-chat-exit .chat-messages { animation-delay: 35ms; }
 .hub-chat-panel.hub-chat-exit .chat-input-row { animation-delay: 0ms; }
 @media (prefers-reduced-motion: reduce) {
   .hub-chat-panel .hub-chat-header,
+  .hub-chat-panel .hub-chat-session-tabs,
   .hub-chat-panel .chat-messages,
   .hub-chat-panel .chat-input-row,
   .hub-chat-panel.hub-chat-exit .hub-chat-header,
+  .hub-chat-panel.hub-chat-exit .hub-chat-session-tabs,
   .hub-chat-panel.hub-chat-exit .chat-messages,
   .hub-chat-panel.hub-chat-exit .chat-input-row {
     animation: none;

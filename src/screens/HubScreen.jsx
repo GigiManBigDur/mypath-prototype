@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
-  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass, MessagesSquare,
+  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -113,21 +113,6 @@ const TILES = [
     desc: 'The direction from your first conversation, and your multi-year path.',
     unlock: (state) => !!getNarrativeProject(state),
     lockedReason: () => 'Confirm your overview in your first conversation to see this',
-  },
-  {
-    // Persist and Allow Continuing the Onboarding Conversation (see CLAUDE.md), Task 3 — a real,
-    // ALWAYS-unlocked entry point back into `OnboardingConversationScreen`, the same interests/
-    // narrative/strategy conversation the student had at the very start. `unlock: () => true`
-    // (matching Profile's own identical rationale right below) — this is explicitly NOT gated
-    // behind completing the guided tutorial (GUIDED_SEQUENCE); a student who wants to add more to
-    // their conversation before finishing the rest of the walkthrough can do so immediately.
-    // Deliberately NOT part of GUIDED_SEQUENCE either — same "real tile, but not part of the
-    // mascot's primary walkthrough" treatment Academic Plan/Your School List/Profile already get,
-    // since this is a revisit-anytime utility, not a step in the core funnel.
-    id: 'onboardingConversation', screen: 'onboardingConversation', Icon: MessagesSquare,
-    title: 'Our Conversation',
-    desc: 'Revisit or continue the conversation that shaped your direction.',
-    unlock: () => true,
   },
   {
     id: 'programSummary', screen: 'programSummary', Icon: ListChecks,
@@ -459,6 +444,11 @@ const TILE_ACCENTS = [
 // zero pairwise overlaps exist, the same "don't just trust the math, measure the real DOM"
 // discipline this array's own prior additions already established — and this time the measurement
 // came FIRST, informing the final choice, rather than only checking a already-decided one.
+// Multi-Session Chat (see CLAUDE.md) removed the "Our Conversation" tile that slot 11 ({50,15})
+// was originally added for, dropping the real tile count for a partner-school student back down
+// to 11 (slots 0-10) — that range was already verified overlap-free before slot 11 was ever added,
+// so this is safe as-is. Slot 11 is left in place, harmlessly spare, matching this array's own
+// established "provisioned ahead, unused for now" precedent rather than being removed outright.
 const RADIAL_POSITIONS = [
   { x: 22, y: 8 },
   { x: 78, y: 8 },

@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Rocket } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MascotIcon from '../components/MascotIcon';
 import ChatConversation from '../components/ChatConversation';
-import { useOnboardingChat, buildOnboardingGreeting } from '../hooks/useOnboardingChat';
+import NarrativeReviewFooter from '../components/NarrativeReviewFooter';
+import { buildOnboardingGreeting } from '../hooks/useOnboardingChat';
+import { useNarrativeSession } from '../hooks/useNarrativeSession';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { NARRATIVE_OVERVIEW_CATEGORY_ID, NARRATIVE_OVERVIEW_PROJECT_TYPE_ID, getNarrativeProject } from '../data/projects';
-import { getEffectiveToday, toDateInputValue, computeMilestoneDueDates } from '../utils/dates';
-import { makeTaskId } from '../utils/ids';
 
 // AI Conversation Page: First-Impression Visual Design (see CLAUDE.md) — this is the student's
 // first real meeting with the AI, so it gets its own genuine "moment," not just Stage 2's plain
@@ -47,13 +46,20 @@ import { makeTaskId } from '../utils/ids';
 // longer reachable exactly once. Task 1: the conversation already persists via the exact same
 // generic `state`-to-`localStorage` mechanism every other field in this app already uses (nothing
 // special-cased `onboardingChatHistory` out of that — it's just a normal DEFAULT_STATE field), so
-// nothing needed to change here for it to survive a reload/new session. Task 3: a new, always-
-// unlocked hub tile ("Our Conversation," HubScreen.jsx) now reopens this SAME screen at any time —
-// `freshMeeting` already correctly resolves to `false` the instant real prior history exists, which
-// is exactly the condition a hub-triggered reentry meets, so the choreographed "meeting" sequence
-// above is automatically skipped for a revisit with zero additional logic needed; only the Back
-// button's own target needed a real change (see its own comment below) to route to the hub instead
-// of Survey once this is no longer necessarily the original first-time entry.
+// nothing needed to change here for it to survive a reload/new session. `freshMeeting` already
+// correctly resolves to `false` the instant real prior history exists, so the choreographed
+// "meeting" sequence above is automatically skipped for a revisit with zero additional logic
+// needed; only the Back button's own target needed a real change (see its own comment below) to
+// route to the hub instead of Survey once this is no longer necessarily the original first-time
+// entry.
+//
+// Multi-Session Chat (see CLAUDE.md) — the dedicated "Our Conversation" hub tile that used to
+// reopen this SAME screen for a revisit is gone; the identical conversation is now reachable as
+// the pinned "Our Conversation" tab inside "Ask MyPath AI anything" instead (`ChatSessionView.jsx`,
+// via the shared `useNarrativeSession()` hook this screen also now uses — see below). This SCREEN
+// itself still exists and is unchanged in every other respect — it's still the mandatory pre-hub
+// first-time flow (Sign Up -> Survey -> here -> Hub); only the SECOND way of reaching it (a hub
+// tile) moved to live inside the chat panel instead.
 const MASCOT_ENTER_MS = 900; // matches (with a little slack) .onboarding-mascot-figure's own CSS transition duration.
 const SETTLE_MS = 700; // matches (with a little slack) the stage-collapse + mascot-shrink CSS transition duration.
 // A generous safety net only — `useMascotSpeech`'s own internal worst-case (a ~4s fetch-latency
@@ -82,7 +88,11 @@ const PARTICLES = [
 
 export default function OnboardingConversationScreen() {
   const { state, patch } = useApp();
-  const { chatHistory, loading, sendMessage, editMessage } = useOnboardingChat();
+  // Multi-Session Chat (see CLAUDE.md) — `useNarrativeSession()` wraps the original
+  // `useOnboardingChat()` and adds the review/confirm layer that used to live inline in this
+  // file (below), extracted so both this original pre-hub screen AND the "Our Conversation" tab
+  // inside "Ask MyPath AI anything" (`ChatSessionView.jsx`) share one implementation.
+  const { chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview } = useNarrativeSession();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   // Frozen at mount, BEFORE `useOnboardingChat`'s own greeting-seeding effect ever runs (a plain
@@ -157,190 +167,6 @@ export default function OnboardingConversationScreen() {
   const showAtmosphere = phase !== 'chat';
   const showChatCard = phase === 'settling' || phase === 'chat';
 
-  // AI-First Onboarding, Stage 3 (see CLAUDE.md) — Task 4's own "reject and keep refining" review,
-  // built on the EXACT same precedent BuildYourOwnView's own `latestReadyPlan`/`dismissedReadyIndex`
-  // pair already established (see ProjectBuilderScreen.jsx): scan the persisted conversation for
-  // the MOST RECENT assistant turn that reported `readyForOverview: true`, so the review always
-  // reflects the latest thinking even if the student keeps refining after an earlier turn already
-  // reached it. `dismissedReadyIndex` tracks by the ready message's own INDEX (not a plain boolean)
-  // for the identical reason that precedent already documents: dismissing THIS turn's review must
-  // never suppress a LATER, genuinely new one if the student keeps talking and the model reaches
-  // readyForOverview again.
-  const latestReadyOverview = useMemo(() => {
-    for (let i = chatHistory.length - 1; i >= 0; i--) {
-      const m = chatHistory[i];
-      if (m.role === 'assistant' && m.readyForOverview && m.overviewPhaseTitles?.length) {
-        return {
-          narrativeTitle: m.narrativeTitle,
-          narrativeSummary: m.narrativeSummary,
-          overviewPhaseTitles: m.overviewPhaseTitles,
-          // Expand the Multi-Year Overview (see CLAUDE.md) — read the same defensive "|| null"/
-          // "|| []" way every other optional overview field already is, since a response from
-          // before this feature shipped simply won't have these fields at all.
-          overviewPhaseDescriptions: m.overviewPhaseDescriptions || null,
-          phaseDimensions: m.phaseDimensions || null,
-          overviewPhaseDayOffsets: m.overviewPhaseDayOffsets,
-          capstoneIdea: m.capstoneIdea || null,
-          // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — the
-          // 4 newly hard-required overview dimensions, read the same defensive "|| null" way.
-          courseGuidanceNote: m.courseGuidanceNote || null,
-          testingTimelineNote: m.testingTimelineNote || null,
-          collegeListNote: m.collegeListNote || null,
-          essayMaterialNote: m.essayMaterialNote || null,
-          thematicKeywords: m.thematicKeywords || [],
-          // Bug fix (see CLAUDE.md) — real, server-validated interest tags, read the same
-          // defensive "|| []" way thematicKeywords already is (a response from before this fix
-          // shipped simply won't have this field at all).
-          matchedInterestTags: m.matchedInterestTags || [],
-          sourceIndex: i,
-        };
-      }
-    }
-    return null;
-  }, [chatHistory]);
-  const [dismissedReadyIndex, setDismissedReadyIndex] = useState(-1);
-  const showReview = !!latestReadyOverview && latestReadyOverview.sourceIndex !== dismissedReadyIndex;
-
-  // Task 1 — reuses the SAME shared `computeMilestoneDueDates` Build Your Own's own project-
-  // confirmation flow already established (extracted to utils/dates.js specifically so both
-  // callers share one implementation) — every phase after the first gets a real, explicit `dueDate`
-  // from the model's own proposed `overviewPhaseDayOffsets`; phase 0 always anchors to the real
-  // start date below. Once THIS is written into a `startedProjects` entry shaped exactly like a
-  // Build Your Own project's own `overviewMilestones`, the "provisional-then-corrected" date
-  // behavior Task 1 asks for is completely automatic — `buildOverviewMilestoneChains`
-  // (roadmapGenerator.js) already prefers the max of a phase's real subSteps' dates over this
-  // initial guess the MOMENT that phase's own granular detail is generated later (via the exact
-  // same, already-existing `MilestonePlanningPanel`/`Roadmap.jsx` mechanism Build Your Own's own
-  // phases already use — see below for why that needed zero code changes here).
-  //
-  // Task 4's own "once confirmed, this becomes the real data Stage 4's 'My Narrative' view will
-  // display" — `state.narrativeSummary`/`state.narrativeThemes` are that real, durable data (Task
-  // 2/3); the generated PHASES themselves live as a real `startedProjects` entry, reusing
-  // `NARRATIVE_OVERVIEW_CATEGORY_ID`/`NARRATIVE_OVERVIEW_PROJECT_TYPE_ID` (data/projects.js) — a
-  // SEPARATE sentinel pair from Build Your Own's own (see that file's own comment for why they must
-  // stay distinct: HubScreen.jsx's own guided-sequence "has the student done something in Project
-  // Builder" check has to be able to tell the two apart). `Roadmap.jsx`'s existing `milestoneMeta`-
-  // keyed modal handling, `MilestonePlanningPanel`, and `roadmapGenerator.js`'s own
-  // `buildOverviewMilestoneChains`/`applyOverviewLocking` are ALL already fully generic over ANY
-  // `startedProjects` entry with `overviewMilestones` — confirmed directly by reading each one
-  // before writing this — so creating this entry here is the ENTIRE integration; none of those
-  // files needed a single line changed for a narrative-overview project to render, lock/unlock,
-  // and support its own per-phase planning chat exactly like a Build-Your-Own one already does.
-  //
-  // Persist and Allow Continuing the Onboarding Conversation (see CLAUDE.md), Task 2 — confirming
-  // a SECOND (or later) time no longer wholesale REPLACES the existing narrative project the way
-  // it originally did ("this does not try to preserve/merge whatever progress existed on the old
-  // phases" — the OLD claim this comment used to make, now superseded). Real, already-built
-  // progress must survive a direction update: a phase the student has already completed, or has
-  // already engaged with (real subSteps or a real scoped planning chat), is a genuine, permanent
-  // fact about the plan now — it should never quietly vanish just because a later conversation
-  // moved the FORWARD-LOOKING direction. `preservedCount` walks the OLD project's own milestones
-  // from index 0 and stops at the first one with zero real engagement — since
-  // `applyOverviewLocking` (roadmapGenerator.js) already guarantees phase N+1 can never be touched
-  // before phase N is done, this "leading engaged run" is well-defined and monotonic: everything
-  // before it is real, permanent history; everything from it onward is still forward-looking and
-  // fair game to regenerate. Those PRESERVED milestones are carried over completely verbatim (same
-  // id/desc/dueDate/subSteps/chatHistory) — their ids are what `completedNodes`/`taskOutcomes`
-  // already key off of, so keeping them stable is what keeps that real completion/outcome data
-  // meaningfully attached rather than orphaned. Only the milestones AT OR AFTER `preservedCount`
-  // are replaced with the model's own freshly regenerated ones (slicing its own
-  // overviewPhaseTitles/overviewPhaseDescriptions/phaseDimensions/overviewPhaseDayOffsets arrays
-  // the same way, so a preserved phase's own real content is never second-guessed by a newer
-  // generation that was never asked to replace it) — `computeMilestoneDueDates` is called ONLY
-  // over that suffix, anchored to TODAY (the real day of this re-confirm, not the project's
-  // original start date), which is exactly right: the next thing the student will actually work on
-  // should start from where they genuinely are now, not from a stale original anchor. The project's
-  // own `id`/`startDate` are preserved too when a narrative project already exists — this is
-  // genuinely the SAME evolving plan continuing, not a new one superseding it. When no narrative
-  // project exists yet (a first-time confirm), `preservedCount` is naturally 0 and every phase
-  // comes from the model's own regeneration — byte-for-byte the same behavior a first confirm
-  // already had before this change.
-  const confirmNarrative = () => {
-    if (!latestReadyOverview) return;
-    const todayStr = toDateInputValue(getEffectiveToday(state.dateOverride));
-    const existingProject = getNarrativeProject(state);
-    const oldMilestones = existingProject?.overviewMilestones || [];
-
-    let preservedCount = 0;
-    for (const m of oldMilestones) {
-      const engaged = !!state.completedNodes[m.id] || (m.subSteps || []).length > 0 || (m.chatHistory || []).length > 0;
-      if (!engaged) break;
-      preservedCount += 1;
-    }
-    const preservedMilestones = oldMilestones.slice(0, preservedCount);
-
-    const newTitles = latestReadyOverview.overviewPhaseTitles.slice(preservedCount);
-    const newDescriptions = (latestReadyOverview.overviewPhaseDescriptions || []).slice(preservedCount);
-    const newDimensions = (latestReadyOverview.phaseDimensions || []).slice(preservedCount);
-    const newDayOffsets = (latestReadyOverview.overviewPhaseDayOffsets || []).slice(preservedCount);
-    const newDueDates = computeMilestoneDueDates(todayStr, newTitles, newDayOffsets);
-
-    const freshMilestones = newTitles.map((title, i) => ({
-      id: makeTaskId('milestone'),
-      title,
-      // Expand the Multi-Year Overview (see CLAUDE.md), Task 2 — this is the REAL, rich,
-      // dimension-connected content a student now actually reads once a phase unlocks, replacing
-      // the old fixed boilerplate sentence ("Part of your [title] direction, developed through
-      // your first conversation with MyPath AI.") — kept ONLY as a safety-net fallback for the
-      // rare case `overviewPhaseDescriptions` came back null/mismatched (see api/onboarding-
-      // chat.js's own validateProposal comment for why that degrades rather than blocking the
-      // whole overview).
-      desc: newDescriptions[i]
-        || `Part of your ${latestReadyOverview.narrativeTitle} direction, developed through your conversation with MyPath AI.`,
-      // Task 1's own "summer plans, as their own distinct category" — a real, structured tag
-      // (never inferred from the title text) so MyNarrativeScreen.jsx can identify a summer
-      // phase reliably. Defaults to 'academic-year' when the array came back null/mismatched —
-      // the safe, more common case.
-      phaseType: newDimensions[i] || 'academic-year',
-      dueDate: newDueDates[i],
-      targetDate: null,
-      subSteps: [],
-      chatHistory: [],
-    }));
-
-    const newProject = {
-      id: existingProject?.id || makeTaskId('project'),
-      categoryId: NARRATIVE_OVERVIEW_CATEGORY_ID,
-      projectTypeId: NARRATIVE_OVERVIEW_PROJECT_TYPE_ID,
-      projectName: latestReadyOverview.narrativeTitle,
-      status: 'active',
-      aiSuggested: true,
-      startDate: existingProject?.startDate || todayStr,
-      overviewMilestones: [...preservedMilestones, ...freshMilestones],
-    };
-    const withoutOldNarrative = (state.startedProjects || [])
-      .filter((p) => p.projectTypeId !== NARRATIVE_OVERVIEW_PROJECT_TYPE_ID);
-    patch({
-      startedProjects: [...withoutOldNarrative, newProject],
-      narrativeSummary: latestReadyOverview.narrativeSummary,
-      narrativeThemes: latestReadyOverview.thematicKeywords,
-      // Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — the one distinctive capstone idea
-      // the overview identified, alongside narrativeSummary/narrativeThemes above. `null` (not
-      // overwritten with a stale value) if this specific generation didn't produce a valid one.
-      narrativeCapstoneIdea: latestReadyOverview.capstoneIdea,
-      // Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project Arc") — the 4
-      // newly hard-required dimensions, alongside the fields above.
-      narrativeCourseGuidance: latestReadyOverview.courseGuidanceNote,
-      narrativeTestingNote: latestReadyOverview.testingTimelineNote,
-      narrativeCollegeListNote: latestReadyOverview.collegeListNote,
-      narrativeEssayMaterialNote: latestReadyOverview.essayMaterialNote,
-      // Bug fix (see CLAUDE.md) — this is the ONE real fix for the reported "Careers of Interest
-      // won't click" bug: state.interestTags was left permanently empty by Stage 1's own removal
-      // of the Survey's interest-tag picker, which made DiscoveryScreen.jsx's own defensive
-      // "reached with zero real tracks, bounce back to hub" effect fire unconditionally for every
-      // real post-conversation student — not a locked tile, a genuinely broken click, for ALL
-      // THREE Discovery sub-steps (Careers/Majors/Programs), not just Careers specifically.
-      // Merged into whatever's already there (deduped), not a flat overwrite — a LATER
-      // re-confirmation whose own matchedInterestTags happens to come back thinner should never
-      // regress a real, already-working set of tags.
-      interestTags: [...new Set([...(state.interestTags || []), ...latestReadyOverview.matchedInterestTags])],
-    });
-    // Same footer-hiding mechanism "keep refining" already uses — marking this same turn's own
-    // index as dismissed is what makes the review disappear the moment it's been acted on, with no
-    // separate "confirmed" flag needed.
-    setDismissedReadyIndex(latestReadyOverview.sourceIndex);
-  };
-
   return (
     <div className={`onboarding-meeting-page${showAtmosphere ? ' onboarding-meeting-active' : ''}`}>
       {PARTICLES.map((p, i) => (
@@ -400,55 +226,7 @@ export default function OnboardingConversationScreen() {
               onEditMessage={editMessage}
               placeholder="Tell me what's on your mind…"
               footer={showReview && (
-                <div className="chat-task-confirm">
-                  <p>
-                    <strong>{latestReadyOverview.narrativeTitle}</strong> — {latestReadyOverview.overviewPhaseTitles.length} phases developed
-                    from your conversation so far.
-                  </p>
-                  <p>{latestReadyOverview.narrativeSummary}</p>
-                  <ol className="chat-task-confirm-list">
-                    {latestReadyOverview.overviewPhaseTitles.map((title, i) => (
-                      <li key={title}>
-                        {latestReadyOverview.phaseDimensions?.[i] === 'summer' && <span className="onboarding-phase-summer-tag">Summer</span>}
-                        {title}
-                      </li>
-                    ))}
-                  </ol>
-                  {/* Expand the Multi-Year Overview (see CLAUDE.md), Task 1 — shown here too, not
-                      just on the later My Narrative screen, so the student sees this real,
-                      distinctive candidate at the moment they confirm the whole plan. */}
-                  {latestReadyOverview.capstoneIdea && (
-                    <p className="onboarding-capstone-preview">
-                      <strong>Capstone idea:</strong> {latestReadyOverview.capstoneIdea}
-                    </p>
-                  )}
-                  {/* Bug fix (see CLAUDE.md, "Fix: Overview Only Generating Summers + Project
-                      Arc") — a compact confirmation that the 4 newly-mandatory dimensions are
-                      genuinely present, not just the project arc/summers — full text for each
-                      lives on the spacious My Narrative screen once confirmed, not crammed into
-                      this already-dense review card. */}
-                  {(latestReadyOverview.courseGuidanceNote || latestReadyOverview.testingTimelineNote
-                    || latestReadyOverview.collegeListNote || latestReadyOverview.essayMaterialNote) && (
-                    <p className="onboarding-dimensions-covered">
-                      Also covers: course rigor, testing timeline, college list, and essay material —
-                      all tied to this same direction.
-                    </p>
-                  )}
-                  <div className="task-form-actions">
-                    <button type="button" className="btn btn-primary" onClick={confirmNarrative}>
-                      <Rocket size={14} /> Confirm My Plan
-                    </button>
-                    {/* Task 4's own "reject and keep refining" option, the same real, visible
-                        second action Build Your Own's identical review footer already offers
-                        (see BuildYourOwnView, ProjectBuilderScreen.jsx) — only hides THIS review
-                        (dismissedReadyIndex, above); nothing in chatHistory/readyForOverview/the
-                        proposed phases is touched, so the conversation (and its input, already
-                        always visible) is immediately ready for more discussion. */}
-                    <button type="button" className="btn btn-ghost" onClick={() => setDismissedReadyIndex(latestReadyOverview.sourceIndex)}>
-                      Not quite right — keep refining
-                    </button>
-                  </div>
-                </div>
+                <NarrativeReviewFooter latestReadyOverview={latestReadyOverview} onConfirm={confirmNarrative} onDismiss={dismissReview} />
               )}
             />
           </div>

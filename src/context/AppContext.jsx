@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { makeTaskId } from '../utils/ids';
 
 const STORAGE_KEY = 'mypath-prototype-state';
 
@@ -358,6 +359,28 @@ const DEFAULT_STATE = {
   // (survives reload, cleared only by `reset()`); included in the Stage 1 compiled profile
   // (`profileCompiler.js`) so Stage 3's own multi-year overview generation can read it.
   onboardingChatHistory: [],
+  // Multi-Session Chat (see CLAUDE.md) — "Ask MyPath AI anything" is now a real multi-session
+  // system, matching how tools like ChatGPT/Claude.ai let a user hold several separate
+  // conversations at once. `chatSessions` holds only GENERAL sessions:
+  // `{ id, kind: 'general', title, history: [{ role, content, intent? }] }` — the exact same
+  // per-message shape `chatHistory` always used, just nested one level deeper, one array per
+  // session instead of one flat array for the whole app. The original narrative/onboarding
+  // conversation is deliberately NOT stored in this array — it keeps living in
+  // `onboardingChatHistory` above (untouched, so `useOnboardingChat.js`/`profileCompiler.js` need
+  // zero changes) and is represented in the UI as a fixed, hard-coded, always-first, non-deletable
+  // pseudo-session with the reserved id `'narrative'` — see `activeChatSessionId` below and
+  // `useChatSessions.js`/`ChatSessionView.jsx`. `chatHistory` itself (above) is a legacy field once
+  // this ships — never read/written again by new code, but left in place rather than deleted, the
+  // same "don't actively prune legacy fields" convention this file already follows elsewhere; a
+  // real existing user's own prior general-assistant history is instead folded into a genuine
+  // migrated session by `migrateChatSessions()` (see `loadInitialState()` below), not discarded.
+  chatSessions: [],
+  // Which session the "Ask MyPath AI anything" panel currently shows, persisted so it reopens on
+  // the same one across a reload. `'narrative'` is the reserved pseudo-id described above (never a
+  // real entry in `chatSessions`) and is the correct default for a brand-new user — the first
+  // thing they'd see if they open the panel is the same conversation they can "reaccess and build
+  // on," matching this feature's own explicit intent, not an arbitrary empty general session.
+  activeChatSessionId: 'narrative',
   // AI-First Onboarding, Stage 3 (see CLAUDE.md) — the confirmed direction summary and thematic
   // keywords from the Stage 2 conversation's own generated overview, once the student confirms it
   // (Task 4). Plain, flat fields (not nested under one object) matching this app's own general
@@ -418,10 +441,24 @@ const DEFAULT_STATE = {
   // reached (SignUpScreen's own canContinue gate is the only door into the hub).
 };
 
+// Multi-Session Chat (see CLAUDE.md) — a real existing user may already have real conversation
+// content sitting in the now-legacy flat `chatHistory` field from before this feature shipped;
+// this runs once, right after the normal DEFAULT_STATE merge, and folds it into a genuine general
+// session rather than stranding it (it would otherwise just sit unused forever, since nothing new
+// reads `chatHistory` directly anymore). Only ever fires when `chatSessions` is still empty — a
+// user who has already been migrated (or who never had one to begin with) is a pure no-op.
+function migrateChatSessions(merged) {
+  if ((merged.chatSessions?.length ?? 0) === 0 && merged.chatHistory?.length > 0) {
+    const session = { id: makeTaskId('chat-session'), kind: 'general', title: 'General Chat', history: merged.chatHistory };
+    return { ...merged, chatSessions: [session], activeChatSessionId: session.id };
+  }
+  return merged;
+}
+
 function loadInitialState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) };
+    if (raw) return migrateChatSessions({ ...DEFAULT_STATE, ...JSON.parse(raw) });
   } catch {
     // ignore corrupt storage
   }
