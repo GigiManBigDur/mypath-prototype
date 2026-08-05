@@ -8963,6 +8963,92 @@ plan) is the first real case that could ever fall below it.
   `api/onboarding-chat.js` (a new helper function, one parameter added to an existing function, one
   call-site update, one schema description correction), no client-side changes.
 
+**Factor International Student Status into the Strategy Conversation — the strategy discussion
+(see the feature above) now factors in a real, already-known fact — whether the student is
+international, per the Sign-Up citizenship field — as background context, never as a fifth
+dimension to interrogate the student about.** International status is a known FACT, not a
+preference, so it never becomes something the strategy discussion asks about or negotiates —
+only something it's already aware of while discussing the two real dimensions it genuinely
+touches (testing approach, college-list direction).
+- **Task 1 — `profileCompiler.js`'s `basicProfile` gained two new fields**, `citizenship` (the raw
+  value, `null` when blank) and `isInternationalStudent` (the SAME derived boolean
+  `roadmapGenerator.js`'s own rule-based TOEFL/F-1 task generation already computes via
+  `isInternationalStudent(state)` from the shared `internationalStudent.js` util — imported and
+  reused directly here, never re-derived a second, possibly-drifting way). `compileSuggestionProfile`
+  needed zero changes at all — it already spreads `basicProfile` wholesale from
+  `compileStudentProfile`, so both new fields flow through to it automatically, the same "add once
+  at the source, every consumer inherits it for free" precedent `passionText`/`currentMajor`/
+  `narrativeCapstoneIdea` already established. Since `useOnboardingChat.js` already sends the full
+  compiled profile with every request, the AI now genuinely has this real context on every single
+  turn with zero changes needed to the request-sending code itself.
+- **`api/onboarding-chat.js`'s `SYSTEM_PROMPT` gained one new bullet inside the existing "Strategy
+  discussion" section**, framed explicitly as real, known context rather than a topic to raise:
+  "International status is REAL, KNOWN CONTEXT you should factor in naturally — never a topic to
+  ask about or negotiate," reading `profileSummary.basicProfile.isInternationalStudent` directly.
+  When true: naturally mention the TOEFL/IELTS alongside the SAT/ACT while discussing testing
+  approach (a genuine real requirement for most international applicants, folded into that same
+  proposal rather than a separate question), and MAY note a genuinely relevant international-
+  student consideration while discussing college-list direction (e.g. schools known for strong
+  international-student support/aid) — explicitly forbidden from inventing an unverified specific
+  claim, the existing Honesty rule still governing this exactly like every other real-world claim
+  in this conversation. When false, or citizenship was never answered, the prompt explicitly
+  states: don't mention TOEFL/IELTS, visas, or anything international-specific at all. The bullet
+  also states plainly: never ask the student about their citizenship directly, or treat it as its
+  own dimension to discuss — it's a known fact, not a preference, satisfying the task's own
+  explicit "not a topic requiring back-and-forth negotiation" framing.
+- **The corresponding schema field descriptions for `testingTimelineNote`/`collegeListNote`, and
+  the matching numbered items (6/4) in the "Generating the overview" section, were each extended
+  with a short clause** reminding the model to carry an international mention through into the
+  FINAL packaged note if (and only if) it genuinely came up in the strategy discussion — the exact
+  same "package what was ACTUALLY discussed and agreed, never independently invent" rule the
+  broader strategy-discussion feature already established for these two fields, just extended to
+  cover this one additional real fact the conversation is now aware of.
+- **Task 2 — the existing rule-based TOEFL/F-1 visa task generation (`buildInternationalStudentItems`,
+  `roadmapGenerator.js`) is completely untouched** — confirmed directly via `git diff --stat`
+  before writing any tests, not assumed: this feature's entire change surface is exactly 2 files
+  (`api/onboarding-chat.js`, `src/utils/profileCompiler.js`); `roadmapGenerator.js` and
+  `internationalStudent.js` were never opened. This update is purely about the CONVERSATION
+  becoming aware of the same real fact that mechanism already keys off of — it changes nothing
+  about which real tasks get generated, when, or for whom.
+- Verified with three dedicated suites. A Node-level test (8 checks, loading the real
+  `profileCompiler.js` through Vite's own `ssrLoadModule`) confirms: an international citizenship
+  (e.g. "India") correctly compiles `isInternationalStudent: true` with the real citizenship value
+  preserved; a US citizenship compiles `false`; a blank/unanswered citizenship compiles `false`
+  with `citizenship: null` (the same "don't guess" convention this profile already holds
+  everywhere else); and `compileSuggestionProfile` inherits both new fields with zero extra wiring,
+  confirming the "add once at the source" claim directly rather than assuming it. A second
+  Node-level test (16 checks, mocking `global.fetch`, calling the real `api/onboarding-chat.js`
+  handler directly) confirms: the new prompt/schema text is genuinely present and correctly
+  conditioned (the "real known context, never negotiate" framing, the TOEFL/IELTS testing
+  instruction, the "never invent an unverified claim" college-list guardrail, the explicit "don't
+  mention anything if not international" rule, and the "never ask about citizenship directly"
+  rule); the pre-existing Strategy Discussion/Narrative Pushback sections are confirmed byte-for-
+  byte unchanged (a direct regression check); and the actual VALIDATION mechanism is confirmed
+  unaffected either way — a well-formed response genuinely mentioning TOEFL/international-support
+  still passes and carries that content through unchanged, and a US-citizenship student's response
+  with zero international mentions at all still validates identically. A third Node-level test
+  (8 checks, loading the real `generateRoadmap` the same way) directly re-confirms Task 2: an
+  international student with no partner school still gets the real, unmodified 4-item TOEFL/I-20/
+  SEVIS/F-1-interview process; one at a partner school (Roslyn) still gets only the lighter
+  `f1-status-check` task; a US-citizenship or blank-citizenship student still gets zero
+  international tasks of any kind — all exactly matching this mechanism's own pre-existing,
+  unmodified behavior. A dedicated 9-check Playwright suite drives 3 real click-through scenarios
+  (Sign Up → Survey → send a message on the onboarding conversation, mocking `/api/onboarding-chat`)
+  and confirms the REAL outgoing request in each case carries the correct compiled context: an
+  India-citizenship sign-up produces `isInternationalStudent: true`/`citizenship: "India"` in the
+  real request body; a United-States-citizenship sign-up produces `false`/`"United States"`; and a
+  sign-up that skips the optional citizenship field entirely produces `false`/`null` — confirming
+  the real end-to-end wiring, not just the compiler function in isolation. `npm run build`/
+  `npm run lint`/`npm run verify:spacing` (20/20) all stay clean.
+- **What can only be verified live**: whether the AI's own real reasoning, once deployed, actually
+  produces a natural-sounding TOEFL/IELTS mention while discussing testing approach for a real
+  international student (rather than an awkward tacked-on aside), and correctly stays silent about
+  it for a US-citizenship student in the same conversational position — this is the same
+  qualitative-judgment-call category this codebase's own established precedent says can only be
+  confirmed via real, repeated, unmocked calls against the deployed endpoint; the tests above prove
+  the mechanism/plumbing/conditioning logic is correct, not that the model's own conversational
+  phrasing reads naturally.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
@@ -11715,3 +11801,32 @@ download). Cover at minimum:
   silently rejecting an already-correct model response. `npm run build`/`npm run lint`/
   `npm run verify:spacing` (20/20) should all stay clean — this fix never opens
   `roadmapLayout.js`/`Roadmap.jsx` and touches no client-side file at all.
+- Factor International Student Status into the Strategy Conversation: a dedicated Node-level test
+  loading the real `profileCompiler.js` through Vite's own `ssrLoadModule` is the fastest way to
+  confirm `basicProfile.citizenship`/`basicProfile.isInternationalStudent` compile correctly for an
+  international citizenship, a US citizenship, and a blank/unanswered one (the last two must both
+  produce `isInternationalStudent: false`, and blank must produce `citizenship: null`, never a
+  guess) — and confirm `compileSuggestionProfile` inherits both fields with zero extra wiring. For
+  the server, mock `global.fetch` and call the real `api/onboarding-chat.js` handler directly: grep
+  the source for the new "REAL, KNOWN CONTEXT... never a topic to ask about or negotiate" framing,
+  the TOEFL/IELTS testing instruction, the "never invent an unverified claim" college-list
+  guardrail, and the explicit "don't mention anything if not international" rule; confirm the
+  pre-existing Strategy Discussion/Narrative Pushback sections are byte-for-byte unchanged (a real
+  regression check); and confirm the actual validation mechanism doesn't care about this content
+  either way — a response genuinely mentioning TOEFL passes exactly like one that doesn't. For
+  Task 2, load the real `generateRoadmap` the same way and confirm the existing rule-based TOEFL/
+  I-20/SEVIS/F-1-interview (or the lighter partner-school `f1-status-check`) task generation is
+  completely unaffected — this is the one check that most directly proves this update never
+  touched `roadmapGenerator.js`/`internationalStudent.js` at all (confirm via `git diff --stat`
+  too, not just by reading the test). For the full flow, mock `/api/onboarding-chat` and drive 3
+  real click-through Sign-Up scenarios (international citizenship, US citizenship, blank/skipped
+  citizenship) through to the first sent message, and confirm the REAL outgoing request body's own
+  `profileSummary.basicProfile.citizenship`/`isInternationalStudent` fields carry the correct real
+  values in each case — this is what actually proves the wiring end-to-end, not just the compiler
+  function in isolation. **Whether the AI's own real reasoning produces a naturally-phrased TOEFL/
+  IELTS mention for an international student (not an awkward tacked-on aside), and correctly says
+  nothing international-specific for a US-citizenship student in the same conversational position,
+  can only be confirmed via real, repeated, unmocked calls against the live deployed endpoint** —
+  the tests above only prove the conditioning/plumbing is correct, not that the model's own
+  phrasing reads naturally. `npm run build`/`npm run lint`/`npm run verify:spacing` (20/20) should
+  all stay clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx` either.

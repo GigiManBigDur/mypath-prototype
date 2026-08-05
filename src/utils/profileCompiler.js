@@ -17,6 +17,7 @@ import { calculateUCDavisGpa } from './ucdavisGpa';
 import { getEffectiveToday, realDaysBetween } from './dates';
 import { generateRoadmap } from './roadmapGenerator';
 import { resolveStageNames, TRUNK_STAGES } from '../data/trunkSteps';
+import { isInternationalStudent } from './internationalStudent';
 
 // Widened to every built track / every opportunity track, not just the narrow set the student's
 // own interest tags happen to map to — the same "a Browse-mode selection outside the student's
@@ -373,6 +374,15 @@ export function compileStudentProfile(state) {
       narrativeTestingNote: state.narrativeTestingNote || null,
       narrativeCollegeListNote: state.narrativeCollegeListNote || null,
       narrativeEssayMaterialNote: state.narrativeEssayMaterialNote || null,
+      // Factor International Student Status into the Strategy Conversation (see CLAUDE.md) — the
+      // real citizenship value (Sign-Up's own optional field, `null` when blank, matching this
+      // profile's own "don't guess/fabricate, just omit" convention) plus the SAME derived boolean
+      // `roadmapGenerator.js`'s own rule-based TOEFL/F-1 task generation already uses
+      // (`isInternationalStudent`, from the shared `internationalStudent.js` util — never a second,
+      // independently-computed version of this same rule) so the onboarding conversation can be
+      // AWARE of a student's real international status without re-deriving it a different way.
+      citizenship: state.citizenship || null,
+      isInternationalStudent: isInternationalStudent(state),
     },
     academic: resolveAcademic(state),
     goals: {
