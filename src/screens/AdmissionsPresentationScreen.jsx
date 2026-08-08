@@ -24,6 +24,13 @@ import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
 // beat with no entry yet (every module besides Introduction/The Big Picture, for now) keeps
 // falling back to that same placeholder, completely unchanged — later batches simply add more
 // entries to that one lookup, nothing here needs to change again as they land.
+//
+// Stage 2, Batch 2 of 5 (see CLAUDE.md) — `BEAT_VISUALS`' own object shape gained one more
+// optional field, `Illustration`, so a beat can be BOTH a mascot gesture AND a standalone
+// illustration at once (Essays' own "mascot pointing at an essay" beat — the mascot reuses its
+// existing pointing system to gesture toward the illustration, rather than the two being mutually
+// exclusive as Batch 1 first modeled them). The plain-function and gesture-only shapes from Batch 1
+// are completely unaffected — this only ever ADDS a third possible field to the object case.
 export default function AdmissionsPresentationScreen() {
   const { state, patch } = useApp();
   const [moduleIndex, setModuleIndex] = useState(0);
@@ -36,8 +43,10 @@ export default function AdmissionsPresentationScreen() {
   const isLastModule = moduleIndex === ADMISSIONS_MODULES.length - 1;
 
   const beatVisual = BEAT_VISUALS[`${currentModule.id}-${beatIndex}`];
-  const IllustrationComponent = typeof beatVisual === 'function' ? beatVisual : null;
-  const mascotGestureAngle = beatVisual && typeof beatVisual === 'object' ? beatVisual.mascotPointAngle : null;
+  const IllustrationComponent = typeof beatVisual === 'function'
+    ? beatVisual
+    : (beatVisual && typeof beatVisual === 'object' ? beatVisual.Illustration ?? null : null);
+  const mascotGestureAngle = beatVisual && typeof beatVisual === 'object' ? beatVisual.mascotPointAngle ?? null : null;
   const hasBuiltVisual = !!beatVisual;
 
   const isSpeaking = useMascotSpeech(showContinue ? null : currentBeat.narration, state.voiceMuted);

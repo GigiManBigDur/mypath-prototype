@@ -9680,6 +9680,67 @@ modules get their own separate, later batches, each confirmed working before the
   converging on a highlighted target ring. `npm run build`/`npm run lint` both stay clean — this
   batch never opens `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or any `api/*.js` file.
 
+**Admissions Overview Presentation, Stage 2, Batch 2 of 5: real visuals for Academics, Testing,
+Essays — 12 new beats, plus one genuine extension to the `BEAT_VISUALS` shape itself (a beat can
+now be both a mascot gesture AND a standalone illustration at once, not just one or the other).
+Batch 1's own Introduction/The Big Picture components and entries are completely untouched.**
+- **`BEAT_VISUALS`'s object-entry shape gained one more optional field, `Illustration`** — Essays'
+  own first beat ("the mascot pointing at an essay/document," Task 1's own literal example) is the
+  first real case where a beat is genuinely BOTH things at once: `'essays-0': { mascotPointAngle:
+  75, Illustration: EssayDocumentVisual }`. `AdmissionsPresentationScreen.jsx`'s own lookup
+  logic was extended to match (`beatVisual.Illustration ?? null`, alongside the pre-existing
+  `beatVisual.mascotPointAngle ?? null`) — Batch 1's own plain-function and gesture-only shapes are
+  completely unaffected by this, since the new field is purely additive to the object case. `75°`
+  (in this app's real `atan2(dy,dx)` pointing convention — 90° is directly below) was picked
+  specifically so the mascot's existing wand genuinely reaches DOWN toward the illustration, which
+  renders directly beneath it in the same vertical layout every other beat already uses — confirmed
+  visually, not just computed: the wand tip visibly lands right at the essay's own top edge.
+- **12 new illustration components** (`AdmissionsBeatVisuals.jsx`, appended after Batch 1's own 5,
+  none of which were touched), matched to their specific beat the same deliberate way Batch 1's
+  were: `BuildingOnTranscriptVisual` (a building resting on a ruled-line document base, for "your
+  transcript is the foundation everything else sits on"); `TwoPathsVisual` (a dashed flat path vs.
+  a solid uphill path ending in a flag, for "rigor... not just earning easy A's");
+  `CourseLevelUpVisual` (2 plain course rows + a 3rd, accent-tinted row with a star instead of a
+  plain marker, for "add honors or AP courses... you've already shown you can do well");
+  `RigorBarChartVisual` (3 ascending bars, no numeric year labels — matching Batch 1's own "abstract
+  shapes over literal text where the shapes alone already convey the meaning" convention);
+  `PracticeTargetVisual`/`PracticeExamStampVisual`/`RetakeCalendarVisual`/`DoorsChoiceVisual` (a
+  calm-colored bullseye, a rotated "PRACTICE" stamp over an exam page, a calendar with exactly one
+  highlighted retake cell, two labeled doors); `EssayDocumentVisual` (a folded-corner document with
+  paragraph lines and a small pencil, reused as the "Illustration" half of essays-0's combined
+  entry); `BookOpeningTabsVisual` (two overlapping, gently-rotated pages with 4 colored tabs sticking
+  out, for "a separate essay for nearly every school"); `DraftStackVisual` (3 offset, increasingly-
+  opaque page stacks each with a real "1"/"2"/"3" number badge, for "Draft 1 → 2 → 3");
+  `TwoVoicesVisual` (a flat gray speech bubble with a plain straight line vs. a vivid pink one with
+  an expressive wavy line, for "sound like you, not like what you think they want to hear").
+- **A deliberate, narrow exception to Batch 1's own "no literal text" convention, made only where
+  the beat's own Stage 1 script explicitly calls for a literal label/stamp/number** — "no pressure,"
+  a "PRACTICE" stamp, "Submit Scores"/"Test-Optional" door labels, and the draft numbers 1/2/3 all
+  use small, plain SVG `<text>` elements (IBM Plex Sans, matching this app's own established
+  typography) rather than inventing yet more abstract iconography to stand in for content that's
+  inherently textual — the simplest, most direct way to satisfy Task 1's own "clear... matching what
+  it's actually saying," not a step toward "elaborate." Every other new illustration (and all of
+  Batch 1's) still uses purely abstract shapes, exactly as before.
+- Verified with a dedicated 39-check Playwright suite: a direct regression check confirms Batch 1's
+  own Introduction (zero illustration, mascot gesture only, real inline `rotate()` transform intact)
+  and The Big Picture (its exact original 6-rect crossed-checklist illustration) are byte-for-byte
+  unaffected; each of Academics'/Testing's 4 beats shows its own distinct illustration matched to
+  its real narration (confirmed both structurally — bar counts, a single highlighted calendar cell,
+  both door labels present — and via real screenshots); Essays' first beat shows BOTH a real
+  `mascot-arm-raised`/inline-`rotate()` gesture AND the document illustration together (the direct
+  proof of the new combined-entry shape), with the remaining 3 Essays beats each showing their own
+  distinct illustration (book+tabs, the "1"/"2"/"3" draft stack, the two contrasting speech
+  bubbles); and a final regression check confirms Extracurriculars & the Spike (the next module,
+  not part of this batch) still shows Stage 1's plain placeholder note with zero illustration. Every
+  one of the 12 new beats' screenshots was also visually reviewed (not just DOM-checked) — the
+  building-on-transcript, the two-paths/flag, the leveled-up course row, the climbing bar chart, the
+  bullseye, the rubber-stamp exam page, the highlighted calendar, the two labeled doors, and —
+  Essays especially, per this batch's own explicit focus — the mascot's wand genuinely reaching down
+  toward the essay/pencil illustration, the book's colored tabs, the numbered draft stack, and the
+  flat-vs-colorful speech bubbles, all confirmed to read cleanly. `npm run build`/`npm run lint`
+  both stay clean — this batch never opens `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or
+  any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
