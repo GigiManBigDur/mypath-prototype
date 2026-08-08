@@ -9518,6 +9518,95 @@ fixes to the Final Alignment-Check Conversation feature above.**
   the right classes are present. `npm run build`/`npm run lint` both stay clean — this pass touches
   only `useNarrativeSession.js`, `HubScreen.jsx`, and `global.css`, no `api/*.js` changes.
 
+**Admissions Overview Presentation, Stage 1: real, beat-by-beat narration content — replaces the
+old one-line "Quick context: ..." hub dialogue (`ADMISSIONS_CONTEXT_LINES`, itself a condensed
+replacement for the original, long-deleted standalone Admissions Overview screen) with a genuine
+10-module presentation shown once, pre-hub, before the student's first AI conversation. This is a
+first build, not a revision of any prior work — grounded directly in real research supplied for
+this task (what a professional college consultant's services actually cover; the "spike" concept —
+selective schools favor depth in one or two areas over a broad, shallow activity list; and the real
+year-by-year shape of a high-school student's own admissions timeline). Stage 1's own explicit
+scope is real narration content plus a *described* visual concept per beat — the actual
+illustration/animation work is Stage 2, a separate, later, smaller-batched task given the larger
+~38-beat scope here (the original "~10 visuals" estimate this feature started from turned out to
+undercount once broken into real beats).**
+- **New flow**: Sign Up → Survey → **this presentation** → the onboarding AI conversation
+  (`OnboardingConversationScreen`) → Hub — one screen inserted between two already-existing ones.
+  `SurveyScreen.jsx`'s own Continue button is the single change that does this (its target moved
+  from `patch({ screen: 'onboardingConversation' })` to `patch({ screen: 'admissionsPresentation'
+  })`); `OnboardingConversationScreen` itself, its own choreographed entrance/greeting sequence, the
+  real narrative conversation, and everything after it are completely untouched — this new screen
+  only changes what happens *before* that screen, not anything inside it.
+- **`src/data/admissionsPresentation.js`** exports `ADMISSIONS_MODULES` — 10 modules (Introduction,
+  The Big Picture, Academics, Testing, Essays, Extracurriculars & the Spike, Recommendation
+  Letters, Building Your List, The Four-Year Arc, Transition), each holding 3-5 `{ narration,
+  visualConcept }` beats (38 total) — plain data, no logic, matching this codebase's own "data
+  files stay free of logic" convention (`courses.js`, `mascotDialogue.js`). Every beat is grounded
+  in the supplied research, not invented: Academics/Testing/The Four-Year Arc draw directly from
+  the real year-by-year timeline (freshman habit-building → sophomore PSAT/added rigor → junior
+  year's real SAT/ACT and leadership push → the "most critical summer" before senior year →
+  senior-year execution); Essays/Recommendation Letters/Building Your List draw from the real
+  consultant-services list (essay coaching through multiple drafts, asking for recommendation
+  letters junior year not senior fall, a genuinely balanced Reach/Match/Safety list); Extracurriculars
+  & the Spike is grounded directly in the dedicated "spike" research (depth over breadth, started
+  early and grown naturally rather than appearing suddenly junior year, which reads as
+  manufactured). Building Your List's own last beat ("This app already helps you build that
+  balanced list as you go, in your Academic Plan") is a real, honest connection to this app's own
+  existing Reach/Match/Safety grouping (`programs.js`'s `reachMatchSafetyTag`), not an invented
+  claim. Transition's own second beat deliberately echoes the real, existing scripted greeting the
+  AI conversation opens with (`buildOnboardingGreeting`, `useOnboardingChat.js` — "...before we
+  build anything, I want to actually get to know you — what excites you, what you've already
+  done") so the handoff between the two screens reads as continuous, not two disconnected scripts.
+- **`src/screens/AdmissionsPresentationScreen.jsx`** delivers each beat through the exact same
+  mascot speech/animation mechanism `OnboardingConversationScreen`'s own `'greeting'` phase already
+  established: `useMascotSpeech(currentBeat.narration, state.voiceMuted)` returns `isSpeaking`; a
+  `wasSpeakingRef` tracks the real true→false transition (genuine ElevenLabs audio timing when
+  unmuted, the estimated-duration fallback otherwise) to auto-advance `beatIndex` with no click
+  needed. Only once a module's own LAST beat finishes speaking does this stop auto-advancing and
+  reveal a "Continue" button instead (`showContinue`) — the literal delivery requirement ("beats
+  advance automatically within a module... a 'Continue' click moves between modules"). Clicking
+  Continue on any non-final module advances `moduleIndex`, resets `beatIndex` to 0 and
+  `showContinue` to false; on the final module (Transition) it instead
+  `patch({ screen: 'onboardingConversation' })`, continuing the existing, unmodified flow.
+  `moduleIndex`/`beatIndex`/`showContinue` are deliberately local, ephemeral `useState` — not
+  persisted — matching `OnboardingConversationScreen`'s own phase-state precedent and Project
+  Builder's own sub-view convention: a reload resets to module 0/beat 0, an acceptable tradeoff for
+  a one-time, watched-in-one-sitting presentation with no hub tile ever reaching it again (the same
+  "not reachable any other way" shape `onboardingConversation` itself already has). A plain "Back"
+  button targets `'survey'`, matching every other pre-hub screen's own precedent
+  (`OnboardingConversationScreen`'s own `.onboarding-meeting-back`) — no data-loss risk, since
+  Survey's own fields are already persisted in `state` regardless of navigating away and back.
+- **Stage 1's own visual scope is deliberately minimal, per its own explicit "describe, don't
+  build" instruction**: each beat's `visualConcept` renders as a small, distinctly-labeled dashed-
+  border placeholder note ("Visual concept (Stage 2): ...") right below the spoken narration
+  caption, so the description is genuinely visible for review (not just present in the data file)
+  while staying unmistakably marked as a future placeholder, not real art. New, minimal CSS only
+  (`.admissions-presentation-*`, `global.css`) — reuses this app's own established bloom-card/
+  button language (the caption reuses the identical visual weight
+  `.onboarding-meeting-greeting-bubble` already established) rather than inventing new visual
+  polish for a screen that's about to get real per-beat illustration work layered on top later.
+- **The old mechanism is fully removed, not just superseded.** `ADMISSIONS_CONTEXT_LINES`
+  (`mascotDialogue.js`) is deleted entirely — its sole consumer, the hub's own `careers` guided-
+  sequence step, dropped the "Quick context: ${ADMISSIONS_CONTEXT_LINES[...]}" prefix it used to
+  open with (that real context is now delivered up front by this new presentation instead), keeping
+  only its existing tail sentence, which already correctly varies on whether a real narrative was
+  confirmed (`state.narrativeSummary`) — completely unrelated to and untouched by this change.
+- Verified with a dedicated 23-check Playwright suite: completing Survey lands on
+  `screen: 'admissionsPresentation'`, not `onboardingConversation` directly; module 1's 3 beats
+  auto-advance with zero clicks, each real narration line rendering in turn, with "Continue"
+  appearing only once, after the module's own last beat finishes; clicking Continue correctly walks
+  all 10 modules in order (confirmed via the real "Module N of 10" progress text at each step)
+  before finally navigating to `onboardingConversation` on module 10's own Continue; the visual-
+  concept placeholder note renders real, distinct text for beats in different modules (confirmed
+  both module 1's and module 3's own real descriptions), clearly labeled as a Stage 2 placeholder;
+  the old "Quick context:" text is confirmed gone from the hub entirely while the careers step's own
+  real dialogue still renders correctly; and `OnboardingConversationScreen`'s own entrance/greeting
+  sequence is confirmed completely unaffected when reached via this new screen's Continue path. A
+  real screenshot confirms the composition reads cleanly (module progress, title, mascot, spoken
+  caption, and the clearly-labeled placeholder note, all legible together). `npm run build`/
+  `npm run lint` both stay clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`, adds
+  no new `AppContext.jsx` fields, and touches no `api/*.js` file at all.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

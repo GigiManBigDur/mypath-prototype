@@ -15,7 +15,7 @@ import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
 import { startOfToday, parseDateInputValue, realDaysBetween } from '../utils/dates';
-import { ADMISSIONS_CONTEXT_LINES, getMascotLine } from '../data/mascotDialogue';
+import { getMascotLine } from '../data/mascotDialogue';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { stopSpeaking } from '../utils/speech';
 import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen';
@@ -231,19 +231,19 @@ const GUIDED_SEQUENCE = [
   {
     id: 'careers', requiresPartnerSchool: false,
     isDone: (state) => state.selectedCareerIds.length > 0,
-    // "Return to Hub" routing restructure (see CLAUDE.md) — Admissions Overview was retired as
-    // its own standalone screen; this is the ONE dialogue entry in this whole sequence that's a
-    // function of `state` rather than a plain string, since the condensed admissions-context
-    // blurb it opens with varies by `state.educationLevel` (see ADMISSIONS_CONTEXT_LINES,
-    // mascotDialogue.js). Falls back to the High School line for the (unreachable in practice,
-    // since Survey requires picking a level to ever reach here) case of a missing/unrecognized
-    // level, rather than rendering nothing.
-    // AI-First Onboarding, Stage 5 (Task 3, see CLAUDE.md) — the tail now reads as confirming/
-    // reviewing the direction the conversation already found, not "figure out what excites you"
-    // from scratch, whenever a real narrative was actually confirmed (`state.narrativeSummary`);
-    // falls back to the original from-scratch framing for the one case where none exists (see
-    // `requiresNarrative`'s own comment above for why that's still a real, reachable state).
-    intro: (state) => `Quick context: ${ADMISSIONS_CONTEXT_LINES[state.educationLevel] || ADMISSIONS_CONTEXT_LINES.highschool} ${state.narrativeSummary ? "Now let's confirm the direction we found — here are some careers worth a closer look." : "Now, let's figure out what excites you."}`,
+    // Admissions Overview Presentation, Stage 1 (see CLAUDE.md) — the condensed "Quick context:
+    // ..." admissions-context blurb this entry used to open with (ADMISSIONS_CONTEXT_LINES,
+    // mascotDialogue.js) is gone; that real context is now delivered up front by the new
+    // presentation screen itself (Sign Up -> Survey -> presentation -> the AI conversation -> Hub),
+    // so this entry no longer needs to repeat a condensed version of it here. Still a function of
+    // `state`, though — the tail reads as confirming/reviewing the direction the conversation
+    // already found, not "figure out what excites you" from scratch, whenever a real narrative was
+    // actually confirmed (`state.narrativeSummary`); falls back to the original from-scratch
+    // framing for the one case where none exists (see `requiresNarrative`'s own comment above for
+    // why that's still a real, reachable state).
+    intro: (state) => (state.narrativeSummary
+      ? "Now let's confirm the direction we found — here are some careers worth a closer look."
+      : 'Now, let\'s figure out what excites you.'),
   },
   {
     id: 'majors', requiresPartnerSchool: false,

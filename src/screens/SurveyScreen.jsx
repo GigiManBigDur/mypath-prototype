@@ -362,7 +362,7 @@ export default function SurveyScreen() {
           type="button"
           className="btn btn-primary"
           disabled={!canContinue}
-          onClick={() => patch({ screen: 'onboardingConversation' })}
+          onClick={() => patch({ screen: 'admissionsPresentation' })}
         >
           Continue
         </button>
