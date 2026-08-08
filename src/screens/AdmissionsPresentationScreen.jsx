@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import MascotIcon from '../components/MascotIcon';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { ADMISSIONS_MODULES } from '../data/admissionsPresentation';
+import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
 
 // Admissions Overview Presentation, Stage 1 (see CLAUDE.md) — a real, research-grounded 10-module
 // presentation inserted into the pre-hub flow (Sign Up -> Survey -> THIS SCREEN -> the onboarding
@@ -18,9 +19,11 @@ import { ADMISSIONS_MODULES } from '../data/admissionsPresentation';
 // and reveal "Continue" instead — the literal Task 4 requirement ("beats advance automatically
 // within a module... a 'Continue' click moves between modules").
 //
-// Stage 1 scope (Task 3): each beat's `visualConcept` (admissionsPresentation.js) is shown as a
-// clearly-labeled placeholder note, not real illustration/animation — that's Stage 2, a separate,
-// later, smaller-batched task given the larger ~38-beat scope here.
+// Stage 2, Batch 1 of 5 (see CLAUDE.md) — a beat with a real, built visual (`BEAT_VISUALS`,
+// AdmissionsBeatVisuals.jsx) now renders it INSTEAD of Stage 1's own plain placeholder note; a
+// beat with no entry yet (every module besides Introduction/The Big Picture, for now) keeps
+// falling back to that same placeholder, completely unchanged — later batches simply add more
+// entries to that one lookup, nothing here needs to change again as they land.
 export default function AdmissionsPresentationScreen() {
   const { state, patch } = useApp();
   const [moduleIndex, setModuleIndex] = useState(0);
@@ -31,6 +34,11 @@ export default function AdmissionsPresentationScreen() {
   const currentBeat = currentModule.beats[beatIndex];
   const isLastBeatOfModule = beatIndex === currentModule.beats.length - 1;
   const isLastModule = moduleIndex === ADMISSIONS_MODULES.length - 1;
+
+  const beatVisual = BEAT_VISUALS[`${currentModule.id}-${beatIndex}`];
+  const IllustrationComponent = typeof beatVisual === 'function' ? beatVisual : null;
+  const mascotGestureAngle = beatVisual && typeof beatVisual === 'object' ? beatVisual.mascotPointAngle : null;
+  const hasBuiltVisual = !!beatVisual;
 
   const isSpeaking = useMascotSpeech(showContinue ? null : currentBeat.narration, state.voiceMuted);
   const wasSpeakingRef = useRef(false);
@@ -70,15 +78,31 @@ export default function AdmissionsPresentationScreen() {
       <h2 className="admissions-presentation-title">{currentModule.title}</h2>
 
       <div className="admissions-presentation-mascot">
-        <MascotIcon size={140} speaking={isSpeaking} />
+        <MascotIcon
+          size={140}
+          speaking={isSpeaking}
+          pointing={mascotGestureAngle !== null}
+          pointAngle={mascotGestureAngle}
+        />
       </div>
+
+      {IllustrationComponent && (
+        // key={beatKey via module+beatIndex} forces a fresh mount per beat, so the entrance
+        // fade-in (global.css's own `admissions-visual-in`) genuinely replays for each new
+        // illustration rather than only playing once for the first one ever shown.
+        <div className="admissions-presentation-illustration" key={`${currentModule.id}-${beatIndex}`}>
+          <IllustrationComponent />
+        </div>
+      )}
 
       <p className="admissions-presentation-caption">{currentBeat.narration}</p>
 
-      <div className="admissions-presentation-visual-note">
-        <span className="admissions-presentation-visual-note-label">Visual concept (Stage 2)</span>
-        <span className="admissions-presentation-visual-note-text">{currentBeat.visualConcept}</span>
-      </div>
+      {!hasBuiltVisual && (
+        <div className="admissions-presentation-visual-note">
+          <span className="admissions-presentation-visual-note-label">Visual concept (Stage 2)</span>
+          <span className="admissions-presentation-visual-note-text">{currentBeat.visualConcept}</span>
+        </div>
+      )}
 
       {showContinue && (
         <div className="btn-row admissions-presentation-continue-row">

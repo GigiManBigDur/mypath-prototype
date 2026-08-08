@@ -5678,6 +5678,28 @@ body:has(.onboarding-meeting-active) {
   .admissions-presentation-caption { animation: none; }
 }
 
+/* Admissions Overview Presentation, Stage 2, Batch 1 of 5 (see CLAUDE.md) — the beat illustrations
+   themselves (AdmissionsBeatVisuals.jsx). Deliberately ONE simple, shared entrance (a plain fade +
+   slight rise, no per-element stagger/particles) rather than a bespoke animation per visual — Task
+   3's own explicit "keep this simple... richer polish comes in Stage 3" scope. */
+.admissions-presentation-illustration {
+  width: min(100%, 260px);
+  margin: 4px 0 18px;
+  animation: admissions-visual-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.admissions-visual-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@keyframes admissions-visual-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admissions-presentation-illustration { animation: none; }
+}
+
 /* AI-First Onboarding, Stage 3 (see CLAUDE.md) — the overview review/confirm footer's own phase
    list, shown inside the shared `.chat-task-confirm` card. Mirrors `.milestone-ready-preview
    ol`/`li`'s exact styling values (Two-Phase Generation's own "proposed steps for this phase"

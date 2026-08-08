@@ -9607,6 +9607,79 @@ undercount once broken into real beats).**
   `npm run lint` both stay clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`, adds
   no new `AppContext.jsx` fields, and touches no `api/*.js` file at all.
 
+**Admissions Overview Presentation, Stage 2, Batch 1 of 5: real visuals for Introduction + The Big
+Picture — the first of several small, incremental Stage-2 batches, deliberately scoped to just 2
+of the 10 modules (6 of the 38 beats) per this feature's own history of ambitious visual/animation
+work needing to be built and verified in small pieces rather than all at once. The remaining 8
+modules get their own separate, later batches, each confirmed working before the next begins.**
+- **`src/components/AdmissionsBeatVisuals.jsx`** (new) exports 5 small, self-contained inline SVG
+  illustration components (`TangledToChecklistVisual`, `RoadmapDotsVisual`,
+  `CrossedChecklistVisual`, `PuzzlePiecesVisual`, `ConvergingArrowsVisual`) plus `BEAT_VISUALS`, a
+  lookup keyed by `${module.id}-${beatIndex}` (the real module ids from `admissionsPresentation.js`)
+  — matching this codebase's own standing preference for hand-drawn inline SVG over image assets
+  (`MascotIcon.jsx`, `WelcomeScreen`'s own trail), colored via the shared "bloom" CSS custom
+  properties, never a second, invented palette. Deliberately kept out of
+  `admissionsPresentation.js` itself, which stays plain data with no logic per Stage 1's own
+  documented convention — pairing a beat with a REACT COMPONENT reference would have broken that.
+  Each entry is one of two shapes: a component function (rendered as a standalone supporting
+  illustration alongside the mascot), or `{ mascotPointAngle: number }` (no separate illustration —
+  the beat is fundamentally about the mascot's OWN gesture, so it reuses the EXISTING pointing/
+  arm-raise system, `MascotIcon.jsx`'s `pointing`/`pointAngle` props, at one fixed, hand-picked
+  angle — Task 2's own explicit "reuse the mascot's existing animation system... rather than
+  building new mascot behaviors from scratch," applied literally: the mascot has no independent
+  "wave" gesture in its real design vocabulary (a robot with a wand, not hands), so "a welcoming
+  gesture" is honestly delivered via the SAME wand-raise mechanism every hub guided-sequence moment
+  already uses, not invented artwork). A beat with no entry at all (every module besides these two,
+  for now) falls through to `undefined`, which the screen reads as "not yet built."
+- **`AdmissionsPresentationScreen.jsx`** looks up `BEAT_VISUALS[\`${currentModule.id}-${beatIndex}\`]`
+  once per beat: a component reference renders as `<div className="admissions-presentation-
+  illustration"><IllustrationComponent /></div>`, `key`ed by the same beat-id string so a genuinely
+  NEW beat always mounts a fresh DOM node and its entrance fade replays (the same "new key = new
+  node = the animation naturally replays" pattern this codebase already uses everywhere else — hub
+  tile pop-in, transcript row reveal); an object entry sets `mascotGestureAngle`, passed straight
+  into `<MascotIcon pointing={mascotGestureAngle !== null} pointAngle={mascotGestureAngle} />`
+  alongside the always-present `speaking={isSpeaking}`; either way, `hasBuiltVisual` becomes true
+  and Stage 1's own plain placeholder note is hidden — a beat's visual is now EITHER the real
+  illustration/gesture OR the placeholder, never both, and never neither. A beat with no
+  `BEAT_VISUALS` entry (`hasBuiltVisual` false) renders exactly as Stage 1 shipped it, completely
+  unchanged — this is what keeps modules 3-10 fully untouched by this batch.
+- **New, minimal CSS only** (`.admissions-presentation-illustration`/`.admissions-visual-svg`,
+  `global.css`) — one small, shared entrance keyframe (`admissions-visual-in`, a plain fade + slight
+  rise, no per-element stagger or particle effects, `prefers-reduced-motion`-safe) applied uniformly
+  to every illustration, rather than a bespoke animation per visual — Task 3's own explicit "keep
+  this simple... richer polish comes in Stage 3, after all the visual batches are done."
+- **Each of the 6 illustrations was designed to match its own specific beat, not a generic stand-in**:
+  Introduction's own "not just one number" framing (Task 1's own example) doesn't literally appear
+  in these 2 modules' beats, but the equivalent real beats got the same treatment — a scattered,
+  squiggly-connected 4-dot cluster resolving via an arrow into a clean 3-row checklist with real
+  checkmarks (`TangledToChecklistVisual`, for "a clear, coordinated plan instead of guesswork"); a
+  10-dot horizontal track with the first 2 dots filled solid and the rest left as outline-only
+  circles (`RoadmapDotsVisual`, for the "we'll walk through..." table-of-contents beat — deliberately
+  NOT synced to per-word narration timing, which would have been the "elaborate" complexity Task 3
+  explicitly rules out for this batch); 3 checkbox outlines each with a real diagonal strike-through
+  path plus a muted label-line rect (`CrossedChecklistVisual`, for "admissions offices don't grade
+  you box by box"); 3 rounded-square "puzzle pieces" in 3 distinct bloom accent colors with matching
+  circular tab/notch bumps on their shared edges — a deliberate simplification of literal jigsaw
+  geometry per Task 3's own scope, while still reading clearly as pieces sliding together
+  (`PuzzlePiecesVisual`); and a central target ring with 3 colored dots and 3 arrows (a shared SVG
+  `<marker>` arrowhead, defined once and reused by all 3 paths) converging on it from 3 different
+  directions (`ConvergingArrowsVisual`, for "every part of your application should point in the same
+  direction").
+- Verified with a dedicated 23-check Playwright suite, covering both DOM structure and real content:
+  Introduction beat 1 shows zero illustration and zero placeholder note (mascot-only, confirmed via
+  a real inline `rotate(...)` transform and the existing `mascot-arm-raised` class — no new mascot
+  behavior); beats 2 and 3 each show a real, distinct SVG (4+ circles for the tangled-to-checklist
+  visual, exactly 10 circles for the roadmap-dots visual); The Big Picture's 3 beats each show their
+  own distinct illustration (6 rects + 3 strike paths for the crossed checklist; exactly 3 rects for
+  the puzzle pieces; exactly 3 marker-end arrow paths for the converging arrows); and — the direct
+  regression check — the Academics module (not in this batch) still shows Stage 1's plain
+  placeholder note with zero illustration, confirmed by clicking through both built modules first.
+  Real screenshots of all 6 beats were also taken and visually reviewed (not just DOM-checked) to
+  confirm each one genuinely reads as clean, purposeful, and matched to its own narration — the
+  tangled cluster resolving into a checklist, the puzzle pieces visibly interlocking, the arrows
+  converging on a highlighted target ring. `npm run build`/`npm run lint` both stay clean — this
+  batch never opens `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
