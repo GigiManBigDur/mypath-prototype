@@ -9741,6 +9741,94 @@ Batch 1's own Introduction/The Big Picture components and entries are completely
   both stay clean — this batch never opens `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or
   any `api/*.js` file.
 
+**Admissions Overview Presentation, Stage 2, Batch 3 of 5: real visuals for Extracurriculars & the
+Spike, Recommendation Letters, Building Your List — 12 more beats, plus a second real, mascot-
+gesture-plus-illustration combo beat (Recommendation Letters' own "a teacher writing on your
+behalf" beat, mirroring Essays' own precedent from Batch 2 exactly). Batches 1 and 2 are completely
+untouched.**
+- **12 new illustration components**, matched to their own specific beat the same deliberate way
+  every prior batch's were: `ClutteredClubsVisual` (10 small, deliberately overlapping muted dots,
+  for "it's tempting to join everything"); `SpikePeakVisual` (one tall accent-orange peak rising
+  clearly above several small teal hills — this batch's own explicit Task 1 example, applied
+  directly); `SpikeFocusVisual` (several scattered muted dots around one larger, glowing focused
+  point — a soft glow faked via a plain low-opacity circle behind the real one, not an SVG blur
+  filter, keeping with Task 2's own "no elaborate effects" scope); `GrowthComparisonVisual` (a
+  stem+leaf shape, reused/scaled at 3 sizes from small to large for "grows naturally," next to one
+  large dashed-outline leaf placed abruptly with no growth sequence before it — the leaf shape
+  itself is a direct, deliberate echo of `MascotIcon.jsx`'s own real leaf-sprout paths, not a
+  second, unrelated plant shape); `SpecificLetterVisual` (a letter with plain generic lines PLUS
+  one accent-highlighted "specific detail" line — the illustration half of `recommendation-
+  letters-0`'s combo entry); `RealConversationVisual` (two connected, colorful avatar circles with
+  a speech-line between them, versus a faded, muted "roster" list on the right);
+  `AskEarlyTimelineVisual` (a horizontal timeline with an early, larger accent marker for "junior
+  year" and a later, smaller muted marker for "senior fall" — a genuinely different visual shape
+  from Testing's own calendar-grid design, avoiding repetition for a second date-related beat);
+  `FolderHandoffVisual` (a folder with visible highlighted contents, an arrow, and a receiving
+  figure); `ReachMatchSafetyBasketsVisual` (3 baskets, each holding small "school" items — see
+  below); `FitCirclesVisual` (a real 3-way Venn diagram, each circle small-labeled "Academic" /
+  "Social" / "Financial" — Testing's own precedent for minimal text where a beat is inherently about
+  named categories, applied again here); `GenuineSafetyVisual` (a school/building icon with one
+  large, unambiguous green checkmark badge — deliberately NOT paired with a contrasting "shrug"
+  element, since the checkmark alone already reads as "genuinely happy" without needing extra
+  visual complexity); and `AcademicPlanIconVisual` (a hand-drawn compass — see its own bug-fix note
+  below — sitting on a dashed trail path, evoking this app's own real roadmap/plan iconography).
+- **`ReachMatchSafetyBasketsVisual` reuses this app's own real, already-established Reach/Match/
+  Safety color convention** (`programs.js`'s `reachMatchSafetyTag` / `ProgramSummaryScreen`'s own
+  RMS badges, confirmed directly via `global.css` before writing this — `--bloom-orange` for Reach,
+  `--bloom-yellow` for Match, `--bloom-green` for Safety) rather than inventing a second, unrelated
+  color mapping for the identical real concept — the one deliberate case in this whole feature
+  where a new illustration's own colors are NOT arbitrary bloom-palette picks, but a direct callback
+  to a real, existing app convention.
+- **`recommendation-letters-0` is this feature's SECOND combined mascot-gesture-plus-illustration
+  beat** (`{ mascotPointAngle: 75, Illustration: SpecificLetterVisual }`), reusing the exact
+  mechanism/shape Batch 2's own Essays beat already established with zero further extension needed
+  to `BEAT_VISUALS`'s own object shape or `AdmissionsPresentationScreen.jsx`'s lookup logic — this
+  batch's own Task 1 explicitly named "a teacher writing on your behalf" as another natural fit for
+  the same pattern, confirming it generalizes correctly to a second real case, not a one-off.
+- **A real, confirmed bug was found and fixed while screenshotting this batch, not shipped
+  silently**: the first version of `AcademicPlanIconVisual` nested the real `lucide-react` `Compass`
+  component's own root `<svg>` directly inside this file's own hand-drawn `<svg>` (via a `<g
+  transform>` wrapper, reasoning that nested `<svg>` elements are valid per the SVG spec) — this
+  rendered ZERO visible pixels in a real screenshot, even though a dedicated Playwright DOM check
+  confirmed the nested `<svg>` element genuinely existed (`.admissions-presentation-illustration svg
+  svg` count === 1) and every SIBLING element in the same illustration (a dashed path, a soft accent
+  circle) rendered completely normally — isolating the failure to the nested-icon technique itself,
+  not this component's other markup or the shared entrance animation. Rather than chase down exactly
+  why nesting a React-component-rendered SVG inside a hand-authored one failed to paint, the compass
+  was hand-drawn directly instead — a circle outline plus a classic two-triangle needle, matching
+  this file's own established "pure inline SVG shapes, nothing nested" pattern every other visual
+  here already uses (and a deliberate callback to this app's own real Compass motif — the brand icon
+  in the persistent header bar — rather than an arbitrary new shape). The now-unused `Compass` import
+  was removed along with it. **If a future batch is ever tempted to reuse a `lucide-react` icon
+  directly inside one of these hand-drawn illustrations, hand-draw it instead** — this exact
+  technique is now a confirmed dead end in this rendering pipeline.
+- **A second, real visual-quality issue was found and fixed via direct screenshot review, not just
+  the DOM-structure Playwright checks**: `SpikePeakVisual`'s own small background hills (`fill:
+  var(--bloom-card-border)` at 0.6 opacity, 16 units tall) were nearly invisible against the page's
+  own light background in a real screenshot, undercutting the beat's whole "one tall peak vs. many
+  small hills" contrast — every DOM check still correctly found the path elements, since presence
+  and visibility are different things a structural check alone can't catch. Fixed by switching the
+  hills to a genuinely visible teal fill at a taller 26-unit height, re-verified via a fresh
+  screenshot showing the intended contrast clearly. Both fixes are a direct example of why this
+  feature's own verification has always paired DOM/structural Playwright checks with real,
+  human-reviewed screenshots rather than trusting either one alone — this batch is the first time
+  that pairing actually caught something a structural check alone would have missed.
+- Verified with a dedicated 39-check Playwright suite (matching the fixed assertions above): a
+  direct regression check confirms Batches 1 and 2's own beats (Introduction's mascot-only gesture,
+  The Big Picture's exact original illustration, Academics' beat 1, Essays' own combined mascot-
+  gesture-plus-illustration beat) are byte-for-byte unaffected; each of the 12 new beats across all
+  3 modules shows its own distinct, structurally-verified illustration (a 10-dot cluster, a real
+  peak path, 8 circles for the scattered-plus-focused-point spike visual, multiple growth-stage
+  groups, Recommendation Letters' real mascot-gesture-plus-illustration combo confirmed via a real
+  inline `rotate()` transform AND `mascot-arm-raised`, 4 circles for the real-conversation-vs-roster
+  contrast, 2 timeline markers, folder+arrow paths, 3 real RMS-colored basket shapes, all 3 Venn-
+  diagram labels, a real checkmark path, and the fixed compass shape); and a final regression check
+  confirms The Four-Year Arc (the next module, not part of this batch) still shows Stage 1's plain
+  placeholder with zero illustration. Every one of the 12 new beats' screenshots was visually
+  reviewed (not just DOM-checked) — this is what caught both real bugs described above before they
+  shipped. `npm run build`/`npm run lint` both stay clean — this batch never opens
+  `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

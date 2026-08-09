@@ -350,6 +350,209 @@ export function TwoVoicesVisual() {
   );
 }
 
+// Stage 2, Batch 3 of 5 (see CLAUDE.md) — Extracurriculars & the Spike, Recommendation Letters,
+// Building Your List. Same conventions as Batches 1/2: simple static shapes, the shared
+// `admissions-visual-in` entrance fade only, bloom tokens only, minimal `<text>` reserved for
+// beats whose own Stage 1 script explicitly calls for a literal label/name.
+export function ClutteredClubsVisual() {
+  const dots = [18, 46, 74, 102, 130, 158, 186, 32, 88, 144];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 210 90" aria-hidden="true">
+      {dots.map((x, i) => (
+        <circle key={x} cx={x} cy={i % 2 === 0 ? 30 : 58} r="10" fill="var(--bloom-ink-soft)" opacity="0.28" />
+      ))}
+    </svg>
+  );
+}
+
+export function SpikePeakVisual() {
+  const hills = [24, 54, 150, 180];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <line x1="12" y1="108" x2="208" y2="108" stroke="var(--bloom-card-border)" strokeWidth="2.5" strokeLinecap="round" />
+      {hills.map((x) => (
+        <path key={x} d={`M ${x - 18} 108 Q ${x} 80 ${x + 18} 108 Z`} fill="var(--bloom-teal)" opacity="0.5" />
+      ))}
+      <path d="M 84 108 L 110 24 L 136 108 Z" fill="var(--bloom-orange)" />
+    </svg>
+  );
+}
+
+export function SpikeFocusVisual() {
+  const scattered = [
+    { x: 30, y: 26 }, { x: 172, y: 30 }, { x: 26, y: 90 }, { x: 176, y: 86 },
+    { x: 44, y: 60 }, { x: 158, y: 58 },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 120" aria-hidden="true">
+      {scattered.map((p) => (
+        <circle key={`${p.x}-${p.y}`} cx={p.x} cy={p.y} r="6" fill="var(--bloom-ink-soft)" opacity="0.3" />
+      ))}
+      {/* a soft glow behind the one focused point — a plain low-opacity circle, not an SVG
+          filter/blur, per Task 2's own "keep this simple" instruction */}
+      <circle cx="100" cy="58" r="26" fill="var(--bloom-yellow)" opacity="0.25" />
+      <circle cx="100" cy="58" r="15" fill="var(--bloom-yellow)" />
+    </svg>
+  );
+}
+
+export function GrowthComparisonVisual() {
+  // A small stem+leaf shape at 3 growing sizes (echoing the mascot's own leaf-sprout design —
+  // MascotIcon.jsx's `mascot-leaf-shape` paths — reused/scaled here rather than a second,
+  // unrelated plant shape) versus one placed abruptly full-size with a dashed "not real" outline.
+  const leaf = (scale, x, y, dashed) => (
+    <g key={x} transform={`translate(${x} ${y}) scale(${scale})`}>
+      <rect x="-2" y="0" width="4" height="20" rx="2" fill="var(--bloom-card-border)" />
+      <g transform="translate(0 0)" stroke={dashed ? 'var(--bloom-ink-soft)' : 'none'} strokeDasharray={dashed ? '3 3' : undefined} strokeWidth={dashed ? '1.5' : '0'}>
+        <path d="M 0 2 Q -13 -6 -8 -18 Q 5 -12 0 2 Z" fill={dashed ? 'none' : 'var(--bloom-accent)'} />
+        <path d="M 0 2 Q 13 -6 8 -18 Q -5 -12 0 2 Z" fill={dashed ? 'none' : 'var(--bloom-accent)'} />
+      </g>
+    </g>
+  );
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 110" aria-hidden="true">
+      <line x1="10" y1="95" x2="102" y2="95" stroke="var(--bloom-card-border)" strokeWidth="2" strokeDasharray="4 4" />
+      {leaf(0.5, 26, 75, false)}
+      {leaf(0.75, 54, 75, false)}
+      {leaf(1, 84, 75, false)}
+      <line x1="130" y1="95" x2="196" y2="95" stroke="var(--bloom-card-border)" strokeWidth="2" strokeDasharray="4 4" />
+      {leaf(1.15, 165, 75, true)}
+    </svg>
+  );
+}
+
+export function SpecificLetterVisual() {
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 160 130" aria-hidden="true">
+      <rect x="20" y="10" width="120" height="110" rx="8" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      {[28, 40, 52].map((y) => (
+        <rect key={y} x="36" y={y} width="88" height="5" rx="2.5" fill="var(--bloom-card-border)" opacity="0.7" />
+      ))}
+      <rect x="36" y="70" width="88" height="22" rx="6" fill="var(--bloom-accent)" opacity="0.18" stroke="var(--bloom-accent)" strokeWidth="2" />
+      <rect x="44" y="77" width="60" height="6" rx="3" fill="var(--bloom-accent)" />
+      <rect x="36" y="100" width="60" height="5" rx="2.5" fill="var(--bloom-card-border)" opacity="0.7" />
+    </svg>
+  );
+}
+
+export function RealConversationVisual() {
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <circle cx="46" cy="40" r="16" fill="var(--bloom-teal)" />
+      <circle cx="86" cy="46" r="13" fill="var(--bloom-purple)" />
+      <path d="M 60 38 Q 68 30 76 38" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <rect x="26" y="66" width="76" height="4" rx="2" fill="var(--bloom-card-border)" opacity="0.6" />
+
+      <g opacity="0.55">
+        <rect x="130" y="30" width="70" height="18" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" />
+        <circle cx="144" cy="39" r="6" fill="var(--bloom-card-border)" />
+        <rect x="156" y="36" width="36" height="5" rx="2.5" fill="var(--bloom-card-border)" />
+        <rect x="130" y="52" width="70" height="18" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" />
+        <circle cx="144" cy="61" r="6" fill="var(--bloom-card-border)" />
+        <rect x="156" y="58" width="36" height="5" rx="2.5" fill="var(--bloom-card-border)" />
+      </g>
+    </svg>
+  );
+}
+
+export function AskEarlyTimelineVisual() {
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 100" aria-hidden="true">
+      <line x1="20" y1="55" x2="200" y2="55" stroke="var(--bloom-card-border)" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="60" cy="55" r="10" fill="var(--bloom-accent)" />
+      <rect x="34" y="20" width="52" height="16" rx="8" fill="var(--bloom-accent)" opacity="0.85" />
+      <circle cx="176" cy="55" r="8" fill="var(--bloom-orange)" opacity="0.85" />
+      <rect x="146" y="70" width="60" height="16" rx="8" fill="var(--bloom-orange)" opacity="0.5" />
+    </svg>
+  );
+}
+
+export function FolderHandoffVisual() {
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 110" aria-hidden="true">
+      <path d="M 20 30 H 60 L 70 42 H 130 V 92 H 20 Z" fill="var(--bloom-yellow)" opacity="0.85" />
+      <rect x="34" y="50" width="18" height="24" rx="3" fill="var(--bloom-card)" />
+      <rect x="58" y="54" width="42" height="6" rx="3" fill="var(--bloom-card)" opacity="0.9" />
+      <rect x="58" y="66" width="30" height="6" rx="3" fill="var(--bloom-card)" opacity="0.9" />
+
+      <path d="M 140 60 H 168" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" />
+      <path d="M 162 53 L 172 60 L 162 67" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+
+      <circle cx="196" cy="55" r="14" fill="var(--bloom-purple)" opacity="0.85" />
+    </svg>
+  );
+}
+
+export function ReachMatchSafetyBasketsVisual() {
+  // Reuses this app's own real, already-established Reach/Match/Safety color convention
+  // (programs.js's reachMatchSafetyTag / ProgramSummaryScreen's own RMS badges — orange/yellow/
+  // green) rather than inventing a new color mapping for the identical concept.
+  const tiers = [
+    { x: 20, color: 'var(--bloom-orange)' },
+    { x: 90, color: 'var(--bloom-yellow)' },
+    { x: 160, color: 'var(--bloom-green)' },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 110" aria-hidden="true">
+      {tiers.map((t) => (
+        <g key={t.x}>
+          <path d={`M ${t.x} 60 H ${t.x + 40} L ${t.x + 36} 96 H ${t.x + 4} Z`} fill={t.color} opacity="0.85" />
+          <rect x={t.x + 6} y="42" width="12" height="14" rx="3" fill={t.color} />
+          <rect x={t.x + 22} y="46" width="12" height="14" rx="3" fill={t.color} opacity="0.7" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function FitCirclesVisual() {
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <circle cx="88" cy="55" r="46" fill="var(--bloom-teal)" opacity="0.55" />
+      <circle cx="132" cy="55" r="46" fill="var(--bloom-purple)" opacity="0.55" />
+      <circle cx="110" cy="90" r="46" fill="var(--bloom-orange)" opacity="0.55" />
+      <text x="60" y="42" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="11" fontWeight="700" fill="var(--bloom-ink)">Academic</text>
+      <text x="158" y="42" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="11" fontWeight="700" fill="var(--bloom-ink)">Social</text>
+      <text x="110" y="122" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="11" fontWeight="700" fill="var(--bloom-ink)">Financial</text>
+    </svg>
+  );
+}
+
+export function GenuineSafetyVisual() {
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 160 130" aria-hidden="true">
+      <rect x="30" y="60" width="100" height="50" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      <path d="M 22 60 L 80 24 L 138 60 Z" fill="var(--bloom-orange)" />
+      <rect x="66" y="80" width="28" height="30" fill="var(--bloom-card-border)" opacity="0.6" />
+      <circle cx="118" cy="34" r="18" fill="var(--bloom-accent)" />
+      <path d="M 111 34 L 116 40 L 127 27" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function AcademicPlanIconVisual() {
+  // A real, confirmed bug: nesting the lucide-react `Compass` component's own root <svg> directly
+  // inside this hand-drawn <svg> rendered ZERO visible pixels (confirmed via screenshot — even the
+  // surrounding dashed path/circle, which sit as plain sibling elements, showed up fine, isolating
+  // the problem to the nested-icon technique itself, not this component's other markup). Rather
+  // than chase that down, the compass is hand-drawn directly as plain SVG — a circle outline plus a
+  // classic two-triangle needle — matching this file's own established "pure inline SVG shapes,
+  // nothing nested" pattern every other visual here already uses, and a deliberate callback to this
+  // app's own real Compass motif (the brand icon in the persistent header bar, and the original
+  // pre-redesign mascot's own needle emblem) rather than an arbitrary new icon shape.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 120" aria-hidden="true">
+      <path d="M 20 100 Q 60 40 100 70 T 180 20" stroke="var(--bloom-card-border)" strokeWidth="3" strokeDasharray="6 6" fill="none" strokeLinecap="round" />
+      <circle cx="100" cy="60" r="34" fill="var(--bloom-accent)" opacity="0.16" />
+      <circle cx="100" cy="60" r="26" fill="var(--bloom-card)" stroke="var(--bloom-accent)" strokeWidth="3.5" />
+      <g transform="translate(100 60) rotate(-35)">
+        <path d="M 0 -18 L 6 0 L 0 6 Z" fill="var(--bloom-accent)" />
+        <path d="M 0 18 L -6 0 L 0 -6 Z" fill="var(--bloom-card-border)" />
+      </g>
+    </svg>
+  );
+}
+
 export const BEAT_VISUALS = {
   // "Before we dive in, let's walk through how college admissions actually works." — a welcoming
   // gesture, reusing the mascot's own existing arm-raise/pointing system at a fixed, friendly
@@ -380,4 +583,24 @@ export const BEAT_VISUALS = {
   'essays-1': BookOpeningTabsVisual,
   'essays-2': DraftStackVisual,
   'essays-3': TwoVoicesVisual,
+
+  // Extracurriculars & the Spike
+  'extracurriculars-spike-0': ClutteredClubsVisual,
+  'extracurriculars-spike-1': SpikePeakVisual,
+  'extracurriculars-spike-2': SpikeFocusVisual,
+  'extracurriculars-spike-3': GrowthComparisonVisual,
+
+  // Recommendation Letters — beat 1 is genuinely about a letter being written on the student's
+  // behalf, so — same "mascot gesture + illustration together" pattern Essays' own beat 0 already
+  // established — it gets both.
+  'recommendation-letters-0': { mascotPointAngle: 75, Illustration: SpecificLetterVisual },
+  'recommendation-letters-1': RealConversationVisual,
+  'recommendation-letters-2': AskEarlyTimelineVisual,
+  'recommendation-letters-3': FolderHandoffVisual,
+
+  // Building Your List
+  'building-your-list-0': ReachMatchSafetyBasketsVisual,
+  'building-your-list-1': FitCirclesVisual,
+  'building-your-list-2': GenuineSafetyVisual,
+  'building-your-list-3': AcademicPlanIconVisual,
 };
