@@ -9991,6 +9991,33 @@ pass.**
   matching visuals (Stage 1/Stage 2), now delivered with real, polished transition choreography
   throughout (Stage 3).
 
+**Bug fix: illustrations rendered off-center (shifted left of the mascot/caption) after Stage 3's
+transition polish, real and confirmed via a user-reported screenshot.** Root cause: before Stage 3,
+the illustration/caption/placeholder-note were direct children of `.admissions-presentation-page`
+(a flex column with `align-items: center`), which centers each one independently regardless of its
+own width — a narrower illustration (max 260px) and a wider caption (max 440px) both centered
+correctly on their own. Stage 3 wrapped all three in a new `.admissions-beat-content` div (so they
+could transition together as one unit) but gave that wrapper only an `animation` property, no
+layout of its own — so while the WRAPPER itself still centered correctly as a flex item of the
+page, its own CHILDREN lost their independent centering and just stacked in normal block flow: the
+narrower illustration sat flush against the wrapper's own left edge (which shrinks to match its
+widest child, the caption) instead of centering within it. Fixed the same way
+`.admissions-presentation-header` (added in the same Stage 3 pass) already handles it —
+`.admissions-beat-content` gained its own `display: flex; flex-direction: column; align-items:
+center;`, re-establishing per-child centering exactly matching the pre-Stage-3 layout. Verified two
+ways: a real geometric check (`getBoundingClientRect()`-derived center-X comparison, not just
+eyeballing) confirms the mascot/illustration/caption all resolve to the identical horizontal center
+(0.0px difference) on the exact beat reported (The Big Picture's converging-arrows illustration),
+plus a spot-check across 4 more beats with genuinely different illustration widths (Introduction's
+wide tangled-cluster visual, Academics' narrower building icon, Testing's practice-target bullseye)
+all confirming the same 0.0px alignment; a real screenshot of the originally-reported beat confirms
+it visually reads correctly now, directly below the mascot. The full pre-existing Stage 3
+regression suite (33 checks — both transition tiers, reduced motion, the full 10-module pass) was
+re-run after the fix and still passes in full, confirming this was a pure CSS layout fix with no
+side effects on the transition choreography itself. `npm run build`/`npm run lint` both stay clean
+— this fix touches only `global.css`, a single new CSS block on top of Stage 3's own already-shipped
+change.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
