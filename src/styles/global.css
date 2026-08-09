@@ -5648,7 +5648,6 @@ body:has(.onboarding-meeting-active) {
   font-weight: 600;
   line-height: 1.5;
   color: var(--bloom-ink);
-  animation: onboarding-greeting-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 .admissions-presentation-visual-note {
   max-width: 440px;
@@ -5673,19 +5672,14 @@ body:has(.onboarding-meeting-active) {
 .admissions-presentation-continue-row {
   margin-top: 24px;
   justify-content: center;
-}
-@media (prefers-reduced-motion: reduce) {
-  .admissions-presentation-caption { animation: none; }
+  animation: admissions-visual-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Admissions Overview Presentation, Stage 2, Batch 1 of 5 (see CLAUDE.md) — the beat illustrations
-   themselves (AdmissionsBeatVisuals.jsx). Deliberately ONE simple, shared entrance (a plain fade +
-   slight rise, no per-element stagger/particles) rather than a bespoke animation per visual — Task
-   3's own explicit "keep this simple... richer polish comes in Stage 3" scope. */
+   themselves (AdmissionsBeatVisuals.jsx). */
 .admissions-presentation-illustration {
   width: min(100%, 260px);
   margin: 4px 0 18px;
-  animation: admissions-visual-in 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .admissions-visual-svg {
   display: block;
@@ -5696,8 +5690,75 @@ body:has(.onboarding-meeting-active) {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Admissions Overview Presentation, Stage 3 (Final, see CLAUDE.md) — real animated transition
+   polish. Task 1's beat-to-beat transitions and Task 2's module-to-module transitions are the
+   SAME animation family at two different magnitudes/durations, not two unrelated techniques —
+   `.admissions-beat-content` wraps the illustration/caption/placeholder-note as ONE unit (moved
+   here from each having its own separate, un-keyed entrance — real bug in practice: the caption
+   never had a `key` at all before this pass, so its own text updated in place on every beat with
+   ZERO animation, the exact "abrupt swap" Task 1 exists to fix) and `.admissions-presentation-
+   header` wraps the title/progress line, keyed by `moduleIndex` alone in the screen's own JSX so
+   it only remounts (and replays its entrance) on a genuine module change, never a plain beat
+   change within one module.
+   Both reuse the EXISTING `admissions-visual-in` keyframe (Batch 1) for their own entrance, rather
+   than inventing a new one for what's visually the identical idea — "keep this consistent... not
+   varying wildly beat to beat," per this stage's own Task 1. The two EXIT variants below are what's
+   genuinely new: `-exiting` (quick, beat-level) and `-module-exiting` (slower, more movement,
+   module-level) — this app never had an exit animation on this screen's own content at all before
+   this pass, only entrances. */
+.admissions-beat-content {
+  animation: admissions-visual-in 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.admissions-beat-content-exiting {
+  animation: admissions-beat-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+.admissions-beat-content-module-exiting {
+  animation: admissions-module-out 320ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes admissions-beat-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+@keyframes admissions-module-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-16px) scale(0.96); }
+}
+
+.admissions-presentation-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: admissions-visual-in 340ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.admissions-presentation-header-exiting {
+  animation: admissions-module-out 320ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* A one-shot pulse marking a module landing — a SIBLING class layered on top of whatever
+   idle/speaking animation `.mascot-bob` is already running (never replacing it), the same
+   "a transient one-shot cue is independent of the ongoing idle/speaking animation" precedent
+   MascotIcon.jsx's own `thinking`/`speaking` props already established. Applied to the wrapper,
+   not the SVG itself, so it doesn't fight the mascot's own internal transforms. */
+.admissions-presentation-mascot-pulse {
+  animation: admissions-mascot-pulse 500ms ease-out;
+}
+@keyframes admissions-mascot-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .admissions-presentation-illustration { animation: none; }
+  .admissions-presentation-continue-row,
+  .admissions-beat-content,
+  .admissions-beat-content-exiting,
+  .admissions-beat-content-module-exiting,
+  .admissions-presentation-header,
+  .admissions-presentation-header-exiting,
+  .admissions-presentation-mascot-pulse {
+    animation: none;
+  }
 }
 
 /* AI-First Onboarding, Stage 3 (see CLAUDE.md) — the overview review/confirm footer's own phase

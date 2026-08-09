@@ -9900,6 +9900,97 @@ untouched.**
   scope) is the richer polish/transitions pass Task 3 of the very first batch always deferred to —
   not new per-beat content, but a cohesion pass across everything already built.
 
+**Admissions Overview Presentation, Stage 3 (FINAL): real animated transition polish — the
+"cool animated transitions... like a YouTube video" quality bar the original request named,
+across the whole 10-module presentation built in Stage 1/Stage 2. Pure animation/timing polish,
+zero content/positioning/visual changes — every module's real beats, every `BEAT_VISUALS` entry
+(`AdmissionsBeatVisuals.jsx`), and the module sequence itself are byte-for-byte untouched by this
+pass.**
+- **A real, confirmed pre-existing gap this pass fixes, not just adds polish on top of**: the
+  caption text (`.admissions-presentation-caption`) never had its own `key` before this pass — it
+  just updated its text content in place on every beat, with ZERO animation of any kind, even
+  though `.admissions-presentation-illustration` right next to it already had a real per-beat
+  entrance fade (Stage 2, Batch 1). This is the exact "abrupt swap" Task 1 exists to fix, not a
+  hypothetical one — confirmed directly by reading the pre-existing JSX before touching it.
+- **Two distinct transition tiers, the same animation family at two different magnitudes/
+  durations — not two unrelated techniques**, per Task 1/2's own framing:
+  - **Beat-to-beat** (auto-advancing within a module, on speech completion): the illustration,
+    caption, and Stage-1 placeholder note (whichever applies) are now wrapped in ONE new unit,
+    `.admissions-beat-content`, keyed by `${currentModule.id}-${beatIndex}` — so all three
+    transition together as a single beat, not as independently-timed pieces. A new local
+    `transitionPhase` state (`'idle' | 'beat-exit' | 'module-exit'`) sequences this: the auto-
+    advance `useEffect` (unchanged in every other respect — still driven by `useMascotSpeech`'s
+    real `isSpeaking` true→false transition, still gated by the same `wasSpeakingRef`) now sets
+    `'beat-exit'` FIRST, which applies `.admissions-beat-content-exiting` (a quick 200ms fade+rise-
+    out, `admissions-beat-out`) to the CURRENT content — only once that's had time to play
+    (`BEAT_EXIT_MS`, 220ms) does `beatIndex` actually advance, which is what changes the wrapper's
+    own `key` and triggers React to unmount the old node and mount a fresh one, replaying its
+    entrance (`admissions-visual-in`, the SAME keyframe Stage 2, Batch 1 already established for
+    the illustration — reused here for the whole unit rather than inventing a near-duplicate).
+  - **Module-to-module** (a real Continue click): a distinct, more pronounced variant of the same
+    family — `.admissions-beat-content-module-exiting` (a slower 320ms fade+rise+scale-down,
+    `admissions-module-out`) applies to the SAME beat-content wrapper, and a matching
+    `.admissions-presentation-header-exiting` applies to a NEW wrapper,
+    `.admissions-presentation-header`, around the title+progress line — keyed by `moduleIndex`
+    ALONE (not `beatIndex`), so it only remounts (and replays its own entrance) on a genuine
+    module change, never on a plain beat-to-beat advance within the same module. `handleContinue`
+    now sequences this the identical way (`setTransitionPhase('module-exit')` first, then
+    `moduleIndex`/`beatIndex`/`showContinue` only update after `MODULE_EXIT_MS` — 340ms — has
+    passed) rather than the old synchronous, un-animated state update. **A one-shot scale-pulse on
+    the mascot** (`.admissions-presentation-mascot-pulse`, a plain 500ms `scale(1) -> 1.06 ->
+    1`) fires the moment the new module actually lands — a SIBLING class layered on top of
+    whatever idle/speaking animation the mascot's own `.mascot-bob` is already running, never
+    replacing it, the same "a transient one-shot cue is independent of the ongoing idle/speaking
+    animation" precedent `MascotIcon.jsx`'s own `thinking`/`speaking` props already established —
+    and clears itself again automatically afterward, confirmed via a dedicated Playwright check
+    that it's genuinely a one-shot, not a stuck state.
+- **The Continue button disables itself the instant it's clicked** (`disabled={transitionPhase !==
+  'idle'}`, plus an early-return guard at the very top of `handleContinue` itself) — a real,
+  necessary fix once the module change became a real ~340ms-delayed transition rather than an
+  instant synchronous update: without this, a fast double-click during that window could have
+  fired `handleContinue` twice, desyncing `moduleIndex` by an extra step. Confirmed directly via a
+  screenshot caught mid-transition: the button visibly renders in its own disabled/muted state
+  while the outgoing module's content is still fading out.
+- **A real, deliberate cleanup-safety addition**: `pendingTimeouts` (a plain ref array) tracks every
+  `setTimeout` this pass introduces, cleared in a mount-only cleanup effect — so a student clicking
+  Back mid-transition (a genuinely reachable case, since Back stays live throughout) can never
+  trigger a stray "set state on an unmounted component" warning from a timer that was still
+  pending when the screen itself unmounted.
+- **`prefers-reduced-motion` disables every new animation via CSS AND collapses the new JS-side
+  transition delays to 0ms** (`runAfterDelay`, reading `useMediaQuery('(prefers-reduced-motion:
+  reduce)')` — the same hook `OnboardingConversationScreen.jsx` already uses), not just skipping
+  the animation while leaving the delay itself intact — matching this app's own established
+  reasoning that a real, RECURRING delay (this fires on every one of the presentation's 38 beats
+  and 9 module transitions, unlike a one-time entrance sequence) with nothing left to animate is
+  just dead waiting, not a graceful degradation. Confirmed directly: with reduced motion active,
+  beats/modules still advance correctly and the wrapper still settles back to a plain (non-
+  exiting) class afterward, never stuck.
+- Verified with a dedicated 33-check Playwright suite: a beat-to-beat transition genuinely shows
+  the `-exiting` class transiently before the next beat's real caption lands, then settles back to
+  a plain class; a module-to-module transition shows BOTH the header's and beat-content's own more
+  pronounced `-module-exiting` classes transiently, correctly lands on the real next module's
+  title, and the mascot pulse is confirmed to fire once and clear itself afterward (never stuck);
+  the Continue button is confirmed disabled the instant it's clicked; content/visuals are
+  completely unaffected (Introduction's mascot-only gesture, The Big Picture's exact original
+  6-rect illustration, and The Four-Year Arc's own timeline marker all spot-checked against their
+  already-confirmed Stage 2 values); reduced motion is confirmed to keep the presentation
+  genuinely advancing (not stuck) with the wrapper settling correctly, not stalled beyond
+  `useMascotSpeech`'s own pre-existing, unrelated worst-case timing; and a full, continuous
+  end-to-end pass through all 10 modules (matching Batch 4's own precedent, now WITH the new
+  transitions active throughout) confirms every module title appears in the correct order with
+  zero page errors, correctly landing on the real AI conversation screen afterward. Three real,
+  confirmed screenshots (a beat-level transition caught mid-fade, a module-level transition caught
+  mid-fade showing the WHOLE page content — title, mascot, illustration, caption, and the now-
+  disabled Continue button — moving together, and the new module correctly landed afterward with
+  its own real, unmodified content) confirm the transitions genuinely read as smooth and
+  intentional, not just structurally present in the DOM. `npm run build`/`npm run lint` both stay
+  clean — this pass touches only `AdmissionsPresentationScreen.jsx` and `global.css`; it never opens
+  `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`, `roadmapLayout.js`/`Roadmap.jsx`,
+  `AppContext.jsx`, or any `api/*.js` file. This completes the Admissions Overview Presentation
+  feature in full — all 10 modules, all 38 beats' worth of real research-grounded narration and
+  matching visuals (Stage 1/Stage 2), now delivered with real, polished transition choreography
+  throughout (Stage 3).
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
