@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MascotIcon from '../components/MascotIcon';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
@@ -58,6 +58,20 @@ import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
 // waiting, not a graceful degradation) — matching the reduced-motion handling this app's other
 // choreographed sequences (OnboardingConversationScreen's own entrance) already use, just applied
 // here to a delay that recurs on every beat/module rather than a one-time entrance.
+//
+// Skippable presentation (see CLAUDE.md) — a persistent "Skip presentation" control, visible from
+// module 1 onward (not gated by `showContinue`/`transitionPhase` the way Continue is), reusing the
+// exact `.btn-ghost` + colored-accent visual weight Project Builder's own "Skip for now"
+// (`.pb-skip`) already established for this app's other optional/skippable steps — smaller and
+// less prominent than the filled `.btn-primary` Continue button, never competing with it. Skipping
+// calls the IDENTICAL `patch({ screen: 'onboardingConversation' })` the last module's own Continue
+// already uses — this screen never writes any OTHER persisted state (moduleIndex/beatIndex/
+// transitionPhase are all local, ephemeral useState, never patched to the real app state), so
+// finishing normally and skipping early are structurally indistinguishable from the rest of the
+// app's own perspective — there's nothing downstream for skipping to desync. Unmounting (via
+// either path) already stops any in-flight speech and clears any pending transition timers on its
+// own (the existing `useMascotSpeech`/`pendingTimeouts` cleanup effects, both already unconditional
+// on unmount) — Skip needed no new cleanup logic of its own.
 const BEAT_EXIT_MS = 220;
 const MODULE_EXIT_MS = 340;
 const MASCOT_PULSE_MS = 500;
@@ -121,6 +135,10 @@ export default function AdmissionsPresentationScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSpeaking, showContinue, transitionPhase, isLastBeatOfModule]);
 
+  const handleSkip = () => {
+    patch({ screen: 'onboardingConversation' });
+  };
+
   const handleContinue = () => {
     if (transitionPhase !== 'idle') return; // guard against a double-click mid-transition
     if (isLastModule) {
@@ -153,9 +171,14 @@ export default function AdmissionsPresentationScreen() {
 
   return (
     <div className="admissions-presentation-page">
-      <button type="button" className="btn btn-ghost admissions-presentation-back" onClick={() => patch({ screen: 'survey' })}>
-        <ArrowLeft size={14} /> Back
-      </button>
+      <div className="admissions-presentation-topbar">
+        <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'survey' })}>
+          <ArrowLeft size={14} /> Back
+        </button>
+        <button type="button" className="btn btn-ghost admissions-presentation-skip" onClick={handleSkip}>
+          Skip presentation <ArrowRight size={14} />
+        </button>
+      </div>
 
       {/* Keyed by moduleIndex ONLY (not beatIndex) — this is what makes the header's own entrance
           animation replay exclusively on a real module change, never on a plain beat-to-beat

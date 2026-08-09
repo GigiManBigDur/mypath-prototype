@@ -5609,16 +5609,32 @@ body:has(.onboarding-meeting-active) {
   min-height: 74vh;
   max-width: 560px;
   margin: 0 auto;
-  padding: 56px 20px 40px;
+  padding: 24px 20px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
-.admissions-presentation-back {
-  position: absolute;
-  top: 8px;
-  left: 0;
+/* Skippable presentation (see CLAUDE.md) — Back and "Skip presentation" sit side by side, the
+   same real flex-row topbar pattern Project Builder's own `.pb-topbar`/`.pb-skip` already
+   established for this app's other skippable steps, reused here rather than a second bespoke
+   layout. Back moved out of its old `position: absolute` treatment into normal document flow as
+   part of this same change — it's now a real flex sibling of Skip rather than floating over the
+   page on its own. */
+.admissions-presentation-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 20px;
+}
+.admissions-presentation-skip {
+  color: var(--bloom-accent);
+  font-weight: 600;
+}
+.admissions-presentation-skip:hover:not(:disabled) {
+  color: var(--bloom-ink);
 }
 .admissions-presentation-progress {
   font-family: 'IBM Plex Sans', sans-serif;

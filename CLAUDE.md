@@ -10018,6 +10018,57 @@ side effects on the transition choreography itself. `npm run build`/`npm run lin
 — this fix touches only `global.css`, a single new CSS block on top of Stage 3's own already-shipped
 change.
 
+**Make the Admissions Overview Presentation Skippable — a persistent "Skip presentation" control,
+visible from module 1 onward, reusing the exact `.btn-ghost` + colored-accent visual weight
+Project Builder's own "Skip for now" (`.pb-skip`, `.pb-topbar`) already established for this app's
+other optional/skippable steps, rather than inventing a new secondary-action pattern.**
+- **Back and "Skip presentation" now sit side by side in a real flex-row topbar**
+  (`.admissions-presentation-topbar`, `display: flex; justify-content: space-between`), mirroring
+  Project Builder's own `.pb-topbar` structure directly. This required moving Back OUT of its old
+  `position: absolute; top: 8px; left: 0;` treatment into normal document flow — a real, deliberate
+  layout change (the page's own top padding was reduced from 56px to 24px to compensate for the
+  topbar now taking up real vertical space instead of floating over it), not an incidental side
+  effect; Back's own behavior/target (`patch({ screen: 'survey' })`) is completely unchanged.
+- **`.admissions-presentation-skip` reads `var(--bloom-accent)`** (a colored, if quiet, treatment —
+  not plain muted gray) **matching `.pb-skip`'s own established weight exactly**: `.btn-ghost` as
+  the base (no fill, matching Back's own quiet look) plus a colored accent that gives it slightly
+  more visual presence than plain text, while staying clearly secondary to the solid, filled
+  `.btn-primary` Continue button — "visible but not overly prominent," per this task's own explicit
+  framing, confirmed directly via screenshot rather than assumed from the CSS alone.
+- **Skipping calls the IDENTICAL `patch({ screen: 'onboardingConversation' })` the last module's
+  own Continue button already uses** — not a second, parallel navigation path. This screen never
+  writes any OTHER persisted state at all (`moduleIndex`/`beatIndex`/`transitionPhase`/
+  `showContinue`/`mascotPulse` are all local, ephemeral `useState`, never `patch()`-ed to the real
+  app state — confirmed directly by re-reading the whole component before writing this), so
+  finishing all 10 modules normally and skipping at any point are structurally indistinguishable
+  from the rest of the app's own perspective: there's no downstream state for skipping to ever
+  desync, because neither path ever wrote anything beyond the final `screen` key to begin with.
+- **Persistent, not gated by `showContinue`/`transitionPhase`** — unlike Continue (which only
+  appears once a module's own beats finish, and disables itself mid-transition), Skip is always
+  rendered and always clickable from the very first beat of module 1 through the last beat of
+  module 10, with no guard of its own: clicking it mid-beat, mid-transition, or mid-speech simply
+  unmounts the whole screen immediately, which is what makes "skipping at any point" work with zero
+  new cleanup logic — the existing `useMascotSpeech`/`pendingTimeouts` cleanup effects (both already
+  unconditional on unmount, built for Stage 3's own transition timers) already stop any in-flight
+  speech and clear any pending timer the instant this screen unmounts, regardless of which button
+  (Back, Skip, or a real Continue-to-conversation) triggered that unmount.
+- Verified with a dedicated 20-check Playwright suite: Skip is confirmed visible (and Back still
+  visible alongside it) on module 1's very first beat, before any narration has even finished
+  playing; confirmed to use the quiet `.btn-ghost` style rather than `.btn-primary`; skipping
+  immediately from module 1 correctly navigates to `onboardingConversation` with zero page errors,
+  and that screen is confirmed to genuinely render (not a blank/broken page); skipping partway
+  through (after finishing modules 1-3, mid-beat on module 4/Testing) works identically; and — the
+  most direct proof of "should not block or affect anything downstream" — a real state comparison
+  between skipping immediately and clicking through all 10 modules normally confirms both paths
+  land on the identical `screen` value AND produce byte-for-byte identical values for every other
+  state key, with nothing extra or missing either way. A regression pass confirms Introduction's own
+  mascot-only gesture beat and The Big Picture's own illustration/module-transition are completely
+  unaffected. A real screenshot confirms the topbar reads cleanly (Back left, Skip presentation
+  right, both quiet/secondary, neither competing with where Continue eventually appears). `npm run
+  build`/`npm run lint` both stay clean — this feature touches only `AdmissionsPresentationScreen.jsx`
+  and `global.css`; it never opens `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`,
+  `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
