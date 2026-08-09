@@ -553,6 +553,128 @@ export function AcademicPlanIconVisual() {
   );
 }
 
+// Stage 2, Batch 4 of 5 (see CLAUDE.md), FINAL module batch — The Four-Year Arc, Transition.
+// Same conventions as every prior batch: static shapes, the shared `admissions-visual-in` fade
+// only, bloom tokens only.
+//
+// The Four-Year Arc is the one module built as a single, CONTINUOUS motif (this batch's own Task
+// 1 instruction) rather than 5 independently-designed illustrations — a real timeline with 5
+// stops (Freshman/Sophomore/Junior/Summer/Senior), each with its own small distinguishing icon,
+// and a "you are here" marker + progress fill tracking how far along it the mascot has "walked" as
+// each beat advances. `FourYearArcTimeline({ stopIndex })` is the one shared internal component;
+// it's wrapped by 5 tiny, parameter-less named exports below so `BEAT_VISUALS` itself never needs
+// a new entry SHAPE for this — every other beat in this whole feature is still just `key ->
+// component-with-no-props`, so this keeps that one contract intact rather than special-casing the
+// screen's own lookup logic for one module.
+const YEAR_STOPS = [
+  { x: 30 }, { x: 83 }, { x: 136 }, { x: 189 }, { x: 240 },
+];
+
+function YearStopIcon({ index, color }) {
+  switch (index) {
+    case 0: // Freshman — a small leaf/sprout pair, echoing the mascot's own leaf design (habits,
+            // building a foundation)
+      return (
+        <g>
+          <path d="M 0 4 Q -8 -3 -5 -11 Q 3 -7 0 4 Z" fill={color} />
+          <path d="M 0 4 Q 8 -3 5 -11 Q -3 -7 0 4 Z" fill={color} />
+        </g>
+      );
+    case 1: // Sophomore — a small upward chevron (adding rigor)
+      return <path d="M -6 4 L 0 -6 L 6 4" stroke={color} strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+    case 2: // Junior — a small peak (the big push)
+      return <path d="M -8 4 L 0 -12 L 8 4 Z" fill={color} />;
+    case 3: // Summer — a small sun
+      return (
+        <g stroke={color} strokeWidth="2" strokeLinecap="round">
+          <circle cx="0" cy="-2" r="5" fill={color} stroke="none" />
+          <line x1="0" y1="-13" x2="0" y2="-9" />
+          <line x1="-9" y1="-2" x2="-12" y2="-2" />
+          <line x1="9" y1="-2" x2="12" y2="-2" />
+          <line x1="-6.5" y1="-7.5" x2="-8.5" y2="-9.5" />
+          <line x1="6.5" y1="-7.5" x2="8.5" y2="-9.5" />
+        </g>
+      );
+    default: // Senior — a small flag (finish line)
+      return (
+        <g>
+          <line x1="0" y1="4" x2="0" y2="-14" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M 0 -14 L 12 -10 L 0 -6 Z" fill={color} />
+        </g>
+      );
+  }
+}
+
+function FourYearArcTimeline({ stopIndex }) {
+  const activeX = YEAR_STOPS[stopIndex].x;
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 260 120" aria-hidden="true">
+      <line x1="25" y1="95" x2="240" y2="95" stroke="var(--bloom-card-border)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="25" y1="95" x2={activeX} y2="95" stroke="var(--bloom-accent)" strokeWidth="3" strokeLinecap="round" />
+      {YEAR_STOPS.map((stop, i) => {
+        const active = i === stopIndex;
+        return (
+          <g key={stop.x} transform={`translate(${stop.x} ${active ? 62 : 78}) scale(${active ? 1.3 : 0.85})`} opacity={active ? 1 : 0.5}>
+            <YearStopIcon index={i} color={active ? 'var(--bloom-accent)' : 'var(--bloom-card-border)'} />
+          </g>
+        );
+      })}
+      {/* the "you are here" marker, tracking progress along the real timeline */}
+      <circle cx={activeX} cy="95" r="12" fill="var(--bloom-accent)" opacity="0.22" />
+      <circle cx={activeX} cy="95" r="7" fill="var(--bloom-accent)" />
+    </svg>
+  );
+}
+
+export function FourYearArcFreshmanVisual() { return <FourYearArcTimeline stopIndex={0} />; }
+export function FourYearArcSophomoreVisual() { return <FourYearArcTimeline stopIndex={1} />; }
+export function FourYearArcJuniorVisual() { return <FourYearArcTimeline stopIndex={2} />; }
+export function FourYearArcSummerVisual() { return <FourYearArcTimeline stopIndex={3} />; }
+export function FourYearArcSeniorVisual() { return <FourYearArcTimeline stopIndex={4} />; }
+
+export function AllStopsLitVisual() {
+  // The exact same 10-dot roadmap geometry `RoadmapDotsVisual` (Batch 1's own Introduction module)
+  // already established — deliberately NOT that same component reused directly, since it's fixed
+  // at "only the first 2 dots lit" and Batch 1's own components must stay byte-for-byte untouched —
+  // this is a genuinely new, sibling component with every dot (and the baseline itself) lit, for
+  // "the same 10-stop map from the Introduction, now fully lit up."
+  const stops = Array.from({ length: 10 }, (_, i) => 20 + i * 22.2);
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 240 60" aria-hidden="true">
+      <line x1={stops[0]} y1="30" x2={stops[9]} y2="30" stroke="var(--bloom-accent)" strokeWidth="3" strokeLinecap="round" opacity="0.45" />
+      {stops.map((x) => (
+        <circle key={x} cx={x} cy="30" r="8" fill="var(--bloom-accent)" stroke="var(--bloom-accent)" strokeWidth="2.5" />
+      ))}
+    </svg>
+  );
+}
+
+export function YouPuzzlePieceVisual() {
+  // The same interlocking tab/notch technique `PuzzlePiecesVisual` (Batch 1's Big Picture module)
+  // already established, extended with a 4th, larger, distinctly-labeled piece joining the
+  // existing 3 — "a single puzzle piece labeled 'You' fitting into the picture from module 2."
+  const pieceY = 50;
+  const size = 38;
+  const colors = ['var(--bloom-purple)', 'var(--bloom-teal)', 'var(--bloom-yellow)'];
+  const xs = [14, 60, 106];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      {xs.map((x, i) => (
+        <g key={x} opacity="0.7">
+          <rect x={x} y={pieceY} width={size} height={size} rx="8" fill={colors[i]} />
+          <circle cx={x + size} cy={pieceY + size / 2} r="7" fill={colors[i]} />
+          {i > 0 && <circle cx={x} cy={pieceY + size / 2} r="7" fill="var(--bloom-bg)" />}
+        </g>
+      ))}
+      <g>
+        <rect x="152" y="38" width="56" height="56" rx="10" fill="var(--bloom-accent)" />
+        <circle cx="152" cy="66" r="9" fill="var(--bloom-bg)" />
+        <text x="180" y="72" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="15" fontWeight="800" fill="white">You</text>
+      </g>
+    </svg>
+  );
+}
+
 export const BEAT_VISUALS = {
   // "Before we dive in, let's walk through how college admissions actually works." — a welcoming
   // gesture, reusing the mascot's own existing arm-raise/pointing system at a fixed, friendly
@@ -603,4 +725,24 @@ export const BEAT_VISUALS = {
   'building-your-list-1': FitCirclesVisual,
   'building-your-list-2': GenuineSafetyVisual,
   'building-your-list-3': AcademicPlanIconVisual,
+
+  // The Four-Year Arc — one continuous timeline motif spanning all 5 beats; see the shared
+  // FourYearArcTimeline component's own comment above for why this doesn't need a new
+  // BEAT_VISUALS entry shape.
+  'four-year-arc-0': FourYearArcFreshmanVisual,
+  'four-year-arc-1': FourYearArcSophomoreVisual,
+  'four-year-arc-2': FourYearArcJuniorVisual,
+  'four-year-arc-3': FourYearArcSummerVisual,
+  'four-year-arc-4': FourYearArcSeniorVisual,
+
+  // Transition — the closing module, framed as a genuine handoff. Beat 1 is deliberately
+  // mascot-only with `mascotPointAngle: null` (a real, truthy BEAT_VISUALS entry — suppresses
+  // Stage 1's own placeholder note — that resolves to NO gesture and NO illustration): the
+  // mascot's own default, centered, forward-facing idle pose already IS "the mascot turning to
+  // face the student directly," so nothing further needed to be built for it. Beat 2 closes with
+  // the SAME mascot-gesture-plus-illustration pattern Essays/Recommendation Letters already
+  // established twice before, pointing at the new "You" piece joining the picture.
+  'transition-0': AllStopsLitVisual,
+  'transition-1': { mascotPointAngle: null },
+  'transition-2': { mascotPointAngle: 75, Illustration: YouPuzzlePieceVisual },
 };

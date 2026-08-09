@@ -9829,6 +9829,77 @@ untouched.**
   shipped. `npm run build`/`npm run lint` both stay clean — this batch never opens
   `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or any `api/*.js` file.
 
+**Admissions Overview Presentation, Stage 2, Batch 4 of 5, FINAL module batch: real visuals for The
+Four-Year Arc + Transition — completes visuals for all 10 modules. Every prior batch is completely
+untouched.**
+- **The Four-Year Arc is the one module built as a single, continuous motif rather than 5
+  independently-designed illustrations**, per this batch's own explicit Task 1 instruction. One
+  shared internal component, `FourYearArcTimeline({ stopIndex })`, renders a real 5-stop timeline
+  (Freshman/Sophomore/Junior/Summer/Senior) with a solid accent progress-fill line advancing from
+  the start up to whichever stop is currently active, a "you are here" marker riding at that same
+  point, and a small distinguishing icon per stop (a leaf/sprout pair for Freshman — deliberately
+  reusing `MascotIcon.jsx`'s own real leaf-sprout paths, not a second unrelated shape; an upward
+  chevron for Sophomore's added rigor; a small peak for Junior's "big push," echoing `SpikePeakVisual`'s
+  own motif at a smaller scale; a small sun for Summer; a flag for Senior's finish line) — the
+  active stop's own icon renders larger and at full accent color/opacity, every other stop shrinks
+  and mutes, so the whole timeline visibly reads as "how far along" a given beat is. **This did NOT
+  require any change to `BEAT_VISUALS`'s own entry shape or `AdmissionsPresentationScreen.jsx`'s
+  lookup logic** — 5 tiny, parameter-less named exports (`FourYearArcFreshmanVisual` through
+  `FourYearArcSeniorVisual`), each just calling the shared timeline with its own hardcoded
+  `stopIndex`, keep the existing "every `BEAT_VISUALS` entry is a component with no props" contract
+  completely intact rather than special-casing one module's own lookup.
+- **Transition — the closing module, framed as a genuine handoff, per this batch's own Task 1.**
+  `AllStopsLitVisual` is a new, DELIBERATE sibling of `RoadmapDotsVisual` (Batch 1's own Introduction
+  module) — not that same component reused directly, since Batch 1's own components have to stay
+  byte-for-byte untouched — with every one of the 10 dots (and the baseline itself) now solid accent-
+  colored instead of just the first 2, a direct, satisfying callback to "the same 10-stop map from
+  the Introduction, now fully lit up." **Transition's own middle beat
+  (`'transition-1': { mascotPointAngle: null }`) is a real, genuinely new pattern for this feature**:
+  a truthy `BEAT_VISUALS` object entry (correctly suppressing Stage 1's own placeholder note) whose
+  `mascotPointAngle` resolves to `null` — meaning NO gesture and NO illustration at all, just the
+  mascot's own default, centered, forward-facing idle pose. This is a deliberate reading of Task 1's
+  own "the mascot turning to face the student directly" instruction: since the mascot's default
+  layout on this screen is already centered and facing forward, that pose ALREADY IS "turning to
+  face the student" the moment nothing else is competing for attention — nothing new needed to be
+  built for it, matching Task 2's own "reuse... only build what the mascot itself can't convey" quite
+  literally. The closing beat, `'transition-2': { mascotPointAngle: 75, Illustration:
+  YouPuzzlePieceVisual }`, reuses the SAME mascot-gesture-plus-illustration pattern Essays and
+  Recommendation Letters already established twice before (Batches 2 and 3) — the mascot's wand
+  points down at `YouPuzzlePieceVisual`, which extends `PuzzlePiecesVisual`'s own interlocking tab/
+  notch technique (Batch 1, Big Picture) with a 4th, larger, distinctly-labeled "You" piece (the one
+  deliberate, minimal use of literal text in this batch, matching every prior batch's own "text only
+  where the beat is inherently about a name/label" convention) joining the same 3 existing colored
+  pieces — "a single puzzle piece labeled 'You' fitting into the picture from module 2," delivered as
+  a genuine, warm closing handoff rather than a generic goodbye.
+- **Task 3 — the full, completed 10-module presentation was reviewed end to end for the first time**,
+  not just this batch's own 2 new modules in isolation. A dedicated Playwright pass drives every
+  single module from Introduction through Transition in one continuous run, confirming each module's
+  own real title appears in the correct order, "Continue" genuinely advances through all 10, and the
+  presentation correctly lands on the real `onboardingConversation` screen afterward with zero page
+  errors anywhere across the whole run — the first real, comprehensive confirmation that all 5
+  batches' worth of independently-built visuals genuinely compose into one coherent, working
+  experience, not just individually-correct pieces.
+- Verified with a dedicated 42-check Playwright suite: a direct regression check confirms every
+  prior batch (Introduction's mascot-only gesture, The Big Picture's original illustration, Essays'
+  own combo beat, Extracurriculars & the Spike, Building Your List's RMS baskets) is byte-for-byte
+  unaffected; each of The Four-Year Arc's 5 beats shows the "you are here" marker at the real,
+  correct stop position (x=30/83/136/189/240) with the progress-fill line correctly extending to
+  match, confirmed to reach the full timeline exactly at the Senior beat; Transition's first beat
+  shows all 10 dots lit, its middle beat shows genuinely zero illustration AND zero active mascot
+  gesture (confirmed via the absence of any `rotate()` transform on the mascot's arm), and its final
+  beat shows both a real mascot gesture (the same `mascot-arm-raised`/inline-`rotate()` signature
+  every prior combo beat already used) AND all 4 puzzle pieces including the real "You" label; and
+  the full 10-module pass confirms every module title appears in the correct order with zero page
+  errors, ending correctly on the real AI conversation screen. Every one of the 8 new beats'
+  screenshots was also visually reviewed — the timeline's own progress-fill genuinely reads as
+  advancing across 5 real screenshots (freshman/sophomore/junior/summer/senior), and Transition's
+  closing handoff moment specifically was confirmed to read as a genuine, warm invitation into the
+  next part, not a generic ending. `npm run build`/`npm run lint` both stay clean — this batch never
+  opens `roadmapLayout.js`/`Roadmap.jsx`, `AppContext.jsx`, or any `api/*.js` file. All 10 modules'
+  worth of Stage 2 visuals are now complete; Batch 5 (per this feature's own original ~5-batch
+  scope) is the richer polish/transitions pass Task 3 of the very first batch always deferred to —
+  not new per-beat content, but a cohesion pass across everything already built.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
