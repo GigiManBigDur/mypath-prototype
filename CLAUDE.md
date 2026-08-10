@@ -10069,6 +10069,98 @@ other optional/skippable steps, rather than inventing a new secondary-action pat
   and `global.css`; it never opens `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`,
   `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
 
+**Add Background Music to the Admissions Overview Presentation — a real, Pixabay-sourced lofi
+track (properly licensed, provided directly by the user, not generated) plays quietly underneath
+the whole presentation, fading in on start, ducking slightly further while narration is actively
+speaking, and fading out on every exit path.** A pure static-asset addition — no new backend
+exception, no `api/*.js` file involved; `src/assets/audio/admissions-presentation-bgm.mp3` is
+imported through Vite's own asset pipeline (`import bgmUrl from '../assets/audio/...'`), which is
+what makes the resulting URL automatically correct under both Vercel's root-served deploy and
+GitHub Pages' own `/mypath-prototype/` base path with zero manual base-path handling — the same
+reason the reference-image feature audit elsewhere in this app treats a bundled asset import as the
+default choice over a `public/`-folder path string for anything base-path-sensitive.
+- **`src/utils/backgroundMusic.js`** is a plain module, not a hook — same reasoning `speech.js`
+  already established: there's only ever one thing meaningfully "playing" at a time for the whole
+  app (one screen mounted at a time), so a shared module-level start/stop/duck pair is simpler than
+  routing every call through React state. A single module-level `Audio` instance (`loop: true`,
+  since the ~2-minute track is very likely shorter than a full 10-module walkthrough) is created
+  once and reused for the screen's whole lifetime; `tweenVolume(target, durationMs, onDone)` is the
+  one real piece of new mechanism this feature needed — a plain `requestAnimationFrame`-driven ramp
+  with an ease-out-cubic curve (matching `useCountUp.js`'s own GPA count-up easing, this app's
+  already-established preference over a flat linear ramp) — since native `HTMLMediaElement` has no
+  built-in fade capability of its own. `setBackgroundMusicActive(muted, ducked)` is the one place
+  real `play()`/`pause()` actually happen (Task 1's fade-in on mount, Task 4's mute-toggle
+  response); `duckBackgroundMusic(ducked)` (Task 2) and `stopBackgroundMusic()` (Task 3) each drive
+  the same tween toward a different target. `BASE_VOLUME` (0.14) and `DUCKED_VOLUME` (0.05) are
+  hand-picked, conservative judgment calls favoring Task 2's own explicit priority ("must never
+  compete with or drown out narration") over audibility, since the actual mix couldn't be
+  auditioned in this environment — reasonable defaults for a full-mix lofi track playing
+  simultaneously with clear narration, not derived from measuring the real audio.
+- **A real, confirmed bug was found and fixed while verifying this, not shipped on faith.**
+  `HTMLMediaElement.volume` throws a genuine, synchronous `IndexSizeError` for any value outside
+  `[0, 1]` — confirmed directly via a monkey-patched `Audio` spy (the same "intercept the
+  constructor + instance methods to observe real calls without needing genuinely decodable audio
+  in a headless browser" technique this app's own ElevenLabs voice tests already established) that
+  the ease-out-cubic formula can overshoot by a tiny floating-point amount right as `t` approaches
+  1 (observed: `-0.000477815` instead of exactly `0`), and since that throw happens INSIDE the
+  `requestAnimationFrame` callback, BEFORE the line that schedules the next frame, it silently
+  killed the whole tween loop mid-fade — freezing the music at whatever volume it happened to be at
+  (in the confirmed case, permanently stuck at `0`, i.e. inaudible, with no error surfaced to the
+  student and no crash report). Fixed by clamping every computed volume to `[0, 1]`
+  (`Math.max(0, Math.min(1, ...))`) before assignment — the correct defensive practice for this
+  property regardless of the precise floating-point mechanism, since unlike most DOM properties,
+  `HTMLMediaElement.volume` strictly validates its range and throws rather than silently clamping.
+- **`src/hooks/useBackgroundMusic.js`** ties the module to `AdmissionsPresentationScreen`'s real
+  lifecycle — mirrors `useMascotSpeech.js`'s own "hook wraps a plain module, drives it off props/
+  lifecycle, cleans up on unmount" shape, called exactly once for the screen's whole mounted
+  lifetime: `useBackgroundMusic(state.voiceMuted, isSpeaking)`. `isSpeaking` — the SAME signal
+  already driving the mascot's own speaking animation via the pre-existing `useMascotSpeech` call —
+  is reused directly as the ducking signal (Task 2), rather than a second, independently-tracked
+  "is narration playing" concept. The hook's own unmount-only effect (`stopBackgroundMusic()`,
+  Task 3) fires on EVERY exit path this screen has — finishing all 10 modules, clicking "Skip
+  presentation," or clicking Back all unmount the screen identically — the same "unmounting already
+  handles cleanup regardless of which button triggered it" precedent the Skip feature's own entry
+  right above this one already established for speech/timers, extended here to cover music too with
+  zero special-casing per exit button. `duckBackgroundMusic`'s own module-level `lastDuckedState`
+  dedup check (skip a redundant call when the desired ducked state hasn't actually changed) is what
+  prevents the hook's separate ducking effect — which also fires on the SAME mount render as the
+  fade-in effect, since both are ordinary `useEffect`s with overlapping dependencies — from
+  cutting the intended ~2.2s fade-in short with a quicker ~450ms duck-transition tween.
+- **Task 4 reuses the app's one existing global mute toggle directly** (`state.voiceMuted`, the
+  same header `.voice-mute-toggle` button that already governs ElevenLabs narration everywhere) —
+  not a second, separate mute mechanism for music. Muting mid-presentation fades the music out
+  (matching Task 3's own "smooth, not abrupt" ethos, applied here too rather than an instant cut);
+  unmuting fades it back in from wherever it currently sits, both handled by the identical
+  `setBackgroundMusicActive` call the mount-time fade-in already uses, driven off the hook's own
+  live `[muted]` effect dependency.
+- Verified with a dedicated 24-check Playwright suite, using the monkey-patched `Audio` spy
+  technique described above (recording every `.volume` assignment, `.play()`/`.pause()` call, and
+  instance creation) rather than depending on genuinely audible playback in a headless browser
+  (which Chromium's own autoplay policy blocks without a prior real user gesture anyway — the same,
+  already-documented, expected `NotAllowedError` this app's ElevenLabs voice feature already hits
+  and gracefully handles the identical way, confirmed here to be harmless noise, not a bug, since
+  the volume-ramp logic itself is completely independent of whether real audible playback actually
+  succeeds): the fade-in starts from exactly `0`, is still well below its final target ~200ms in
+  (proving a real ramp, not an instant jump), and settles at the intended `0.14` ceiling after the
+  fade window elapses; the volume never exceeds that `0.14` ceiling at any point across a real
+  narrated beat, and genuinely dips to the ducked level while narration plays; Skip mid-module and
+  Back mid-presentation both produce a real, multi-step descent to silence (not one abrupt jump)
+  before `pause()` is eventually called, and Skip's own real navigation to `onboardingConversation`
+  is unaffected; clicking the real header mute toggle mid-presentation fades the music to silence
+  and calls `pause()`, and clicking it again fades the music back in and calls `play()` again; and a
+  student who starts already muted (e.g. via Sign-Up's own "Mascot voice" pre-emptive opt-out) never
+  hears an unwanted fade-in at all, with zero page errors. The full pre-existing Skip-feature
+  regression suite (20 checks — Skip's own visibility/styling, immediate and partway-through
+  skipping, the byte-for-byte state-parity check between skipping and finishing normally, and the
+  Introduction/Big-Picture content regression pass) was re-run against the screen with music wired
+  in and passes unchanged, confirming this addition doesn't disturb any of the screen's existing
+  beat/module/transition logic. `npm run build`/`npm run lint` both stay clean — the bundled audio
+  asset is correctly emitted as its own hashed file in `dist/assets/` at the real source byte count,
+  confirming a clean, complete copy; this feature touches
+  `src/screens/AdmissionsPresentationScreen.jsx` plus the two new files above, and never opens
+  `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`, `roadmapLayout.js`/`Roadmap.jsx`, or any
+  `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import MascotIcon from '../components/MascotIcon';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
+import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { ADMISSIONS_MODULES } from '../data/admissionsPresentation';
 import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
@@ -72,6 +73,23 @@ import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
 // either path) already stops any in-flight speech and clears any pending transition timers on its
 // own (the existing `useMascotSpeech`/`pendingTimeouts` cleanup effects, both already unconditional
 // on unmount) — Skip needed no new cleanup logic of its own.
+//
+// Background music (see CLAUDE.md) — a real, Pixabay-sourced, properly-licensed lofi track plays
+// quietly underneath the whole presentation, via `useBackgroundMusic` (backgroundMusic.js) — a
+// plain module mirroring speech.js's own "one shared module-level audio source, not routed through
+// React state" shape. `useBackgroundMusic(state.voiceMuted, isSpeaking)` is called exactly once,
+// for this screen's entire mounted lifetime: `isSpeaking` (the SAME signal already driving the
+// mascot's own speaking animation, reused rather than a second, independently-tracked one) is what
+// drives Task 2's optional ducking — the music dips slightly further whenever narration is
+// genuinely playing, easing back up between beats/modules. The hook's own unmount effect fires on
+// EVERY exit path this screen has (finishing all 10 modules, Skip, or Back all unmount it
+// identically), so Task 3's fade-out needed no special-casing per exit button, the same
+// "unmounting already handles cleanup regardless of which button triggered it" precedent Skip's own
+// comment above already established for speech/timers. `state.voiceMuted` — the app's one existing
+// global audio-mute toggle, already governing ElevenLabs narration everywhere — is reused directly
+// rather than a second, separate mute mechanism (Task 4): muting fades the music out, unmuting
+// mid-presentation fades it back in, exactly mirroring how narration itself already responds to the
+// same toggle.
 const BEAT_EXIT_MS = 220;
 const MODULE_EXIT_MS = 340;
 const MASCOT_PULSE_MS = 500;
@@ -102,6 +120,8 @@ export default function AdmissionsPresentationScreen() {
 
   const isSpeaking = useMascotSpeech(showContinue || transitionPhase !== 'idle' ? null : currentBeat.narration, state.voiceMuted);
   const wasSpeakingRef = useRef(false);
+
+  useBackgroundMusic(state.voiceMuted, isSpeaking);
 
   // Cleanup on unmount only — clears any transition timers still pending so a stray Back-button
   // click mid-transition can never trigger a "set state on an unmounted component" warning.
