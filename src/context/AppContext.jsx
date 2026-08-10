@@ -340,6 +340,13 @@ const DEFAULT_STATE = {
   // survive a reload, which is a reasonable bonus for a deliberate mute choice, not something
   // worth engineering around. "Start Over" resetting it back to on along with everything else is
   // fine — that's a fresh run of the app, same as every other DEFAULT_STATE field.
+  // Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — a SEPARATE
+  // mute flag, deliberately not reusing `voiceMuted` for both concerns. Governs ONLY background
+  // music (currently just the Admissions Overview Presentation's own track, via
+  // useBackgroundMusic.js) — every existing `voiceMuted` consumer (mascot narration everywhere)
+  // is completely untouched by this field's existence. Defaults ON (`false`, matching
+  // `voiceMuted`'s own "off means muted" convention) for the same reason `voiceMuted` does.
+  musicMuted: false,
   // `voiceURI` (the old "Show Available Voice Options" browser-voice picker's own pick) was
   // removed entirely once ElevenLabs Voice replaced the old SpeechSynthesis system — there's now
   // exactly one fixed voice for every mascot line, so there's nothing left to persist a pick for.

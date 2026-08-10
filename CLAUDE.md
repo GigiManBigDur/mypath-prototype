@@ -10161,6 +10161,81 @@ default choice over a `public/`-folder path string for anything base-path-sensit
   `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`, `roadmapLayout.js`/`Roadmap.jsx`, or any
   `api/*.js` file.
 
+**Independent Toggle Controls for AI Voice and Background Music — replaces the single sound
+button's old "one blanket mute governs both narration and music" behavior with two genuinely
+independent controls, each default ON.** The immediately-preceding feature (background music on
+the Admissions Overview Presentation) originally wired the music's own mute state to the SAME
+`state.voiceMuted` field the mascot's narration already used — a real, if reasonable-at-the-time,
+shortcut that this feature corrects: the two are now fully separate concerns.
+- **`state.musicMuted`** (`AppContext.jsx`, `false` by default — "off means muted," the same
+  convention `voiceMuted` already established) is a genuinely SEPARATE flag, not a second name for
+  the same thing. Every existing `voiceMuted` consumer (mascot narration everywhere — the general
+  chat, tutorial dialogue, `MilestonePlanningPanel`, `OnboardingConversationScreen`, the admissions
+  presentation's own narration, etc.) is completely untouched by this field's existence — Task 3's
+  own explicit "continues to work exactly as it did" requirement is satisfied by simply never
+  touching any of those call sites, not by any compatibility-preserving logic.
+  `AdmissionsPresentationScreen.jsx`'s `useBackgroundMusic(state.musicMuted, isSpeaking)` call is
+  the ONE real rewiring this feature required — previously `state.voiceMuted`, now its own field.
+  `isSpeaking` itself is still driven by `state.voiceMuted` (unchanged, from `useMascotSpeech`) —
+  even while voice is muted, that hook still fires `isSpeaking` on an ESTIMATED timer (to keep the
+  mascot's visual "talking" animation and beat-advance timing correct regardless of audio state),
+  so background-music ducking still tracks the real narration BEAT timing correctly no matter which
+  of the two channels happens to be independently muted.
+- **`src/components/SoundSettingsPopover.jsx`** (new, shared) replaces the old direct one-click
+  mute toggle — clicking the sound button now opens a small popover with two independent rows ("AI
+  Voice" / "Background Music"), each its own `.pill`-styled On/Off control (reusing the exact
+  "Voice on"/"Voice off" `.pill` idiom Sign-Up's own optional voice field already established,
+  rather than inventing a new toggle-switch visual language) reading/writing `state.voiceMuted`/
+  `state.musicMuted` independently. **Used by BOTH real render sites** — `App.jsx`'s generic
+  persistent header (shown on every screen except welcome/hub) and `HubScreen.jsx`'s own dedicated
+  top bar (the hub renders its own top bar instead of the generic one, per this codebase's own
+  established precedent) — extracted once specifically so the two headers' sound controls can never
+  independently drift, rather than duplicating the popover/positioning logic twice. The trigger
+  button keeps its exact original `voice-mute-toggle` class (now paired with each caller's own
+  `header-icon-btn`/`hub-icon-btn` base class via a new `buttonClassName` prop) so pre-existing
+  Playwright coverage (`test-voiceover.js`, `test-voice-picker.js`) keeps resolving it unmodified —
+  it's still genuinely "the sound button," just with a richer interaction now that there are two
+  independent things to control instead of one. The trigger's own icon reads `VolumeX` only once
+  BOTH channels are muted (`Volume2` otherwise) — if either is still on, there's genuinely still
+  sound coming from the app, so the icon should say so.
+- **Portaled to `document.body`, positioned via a real, measured `getBoundingClientRect()` on
+  whichever button triggered it** — the same "don't hardcode a fixed screen corner, measure the
+  real DOM position" approach `DateOverrideControl`/`PointerArrow` already establish, necessary
+  here specifically because this component renders from two structurally different headers, not
+  just one fixed location. Because it's portaled outside any `.app-shell-bloom`/`.app-shell-hub`
+  scoped ancestor, its own CSS (`.sound-settings-popover`, `global.css`) reads exclusively from the
+  globally-available `:root` "bloom" tokens (`--bloom-card`/`--bloom-card-border`/`--bloom-shadow-
+  hover`/`--bloom-ink`) rather than any screen-scoped override — which is what keeps it looking
+  identical regardless of which of the two headers (or which underlying screen palette) triggered
+  it. Uses `useModalExit` (the same shared fade-in/fade-out hook every other modal/popover in this
+  app already uses) for its own enter/exit animation, plus click-outside and Escape-to-close — a
+  real, if lightweight, expectation for any trigger-based popover, not something this task
+  explicitly asked for but a reasonable baseline given the button's own click action changed from
+  "toggle mute" to "open a menu."
+- Verified with a dedicated 28-check Playwright suite: opening the popover (from Survey's own
+  generic header) shows exactly two rows labeled "AI Voice"/"Background Music," both reading "On"
+  by default, with `state.voiceMuted`/`state.musicMuted` both confirmed false; toggling one row
+  changes only its own state field while the other stays completely untouched, confirmed across
+  several interleaved toggles in both directions; on the admissions presentation specifically,
+  muting only music (via a real fetch-intercept on `/api/tts` plus the same monkey-patched `Audio`
+  spy technique the background-music feature's own tests already established) confirms a real
+  narration request still fires while music's own volume never becomes audible, and the reverse
+  (muting only narration) confirms zero TTS requests fire while music still genuinely ramps up to
+  an audible volume — and a genuinely fresh student (no `voiceMuted`/`musicMuted` in the seed at
+  all) confirms both default on; the hub's own separate top-bar sound button opens the identical
+  two-toggle popover and correctly writes to the same real state fields, confirming Task 3's
+  "wherever the toggle already worked, it continues to work" holds for the hub's own tutorial
+  dialogue too; Escape and click-outside both close the popover; and a full regression pass
+  confirms zero page errors and the presentation's own existing content (Introduction's mascot-only
+  gesture beat) is unaffected. The full pre-existing Skip-feature regression suite (20 checks) was
+  re-run against the screen with this new wiring and passes unchanged. `npm run build`/`npm run
+  lint` both stay clean — this feature touches `AppContext.jsx` (one new field), `App.jsx`/
+  `HubScreen.jsx` (swapping the old inline button for the shared component, removing now-unused
+  `Volume2`/`VolumeX` imports and an unused `patch` destructure in `App.jsx`), `AdmissionsPresentation
+  Screen.jsx` (one rewired argument plus its own comment), `global.css`, and the one new
+  `SoundSettingsPopover.jsx` file — it never opens `roadmapLayout.js`/`Roadmap.jsx` or any
+  `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

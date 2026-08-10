@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
-  Volume2, VolumeX, TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
+  TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
@@ -11,6 +11,7 @@ import { AVATAR_OPTIONS } from './SignUpScreen';
 import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
 import HubChatPanel from '../components/HubChatPanel';
+import SoundSettingsPopover from '../components/SoundSettingsPopover';
 import { makeTaskId } from '../utils/ids';
 import { generateRoadmap } from '../utils/roadmapGenerator';
 import { compileStudentProfile } from '../utils/profileCompiler';
@@ -813,17 +814,11 @@ export default function HubScreen() {
           </button>
           {/* ElevenLabs Voice integration (see CLAUDE.md) — always renders now (no more
               `isSpeechAvailable()` client feature-detection gate, and no more separate "Choose
-              mascot voice" gear — see App.jsx's own matching comment for why). */}
-          <button
-            type="button"
-            className="hub-icon-btn voice-mute-toggle"
-            onClick={() => patch({ voiceMuted: !state.voiceMuted })}
-            aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-            aria-pressed={state.voiceMuted}
-            title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-          >
-            {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
+              mascot voice" gear — see App.jsx's own matching comment for why).
+              Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — the
+              old single-click mute button is now the shared SoundSettingsPopover (also used by
+              App.jsx's own generic header), exposing two genuinely independent controls. */}
+          <SoundSettingsPopover buttonClassName="hub-icon-btn" />
           <div className="hub-avatar" aria-hidden="true">
             {avatarOption ? <avatarOption.Icon size={17} /> : <User size={17} />}
           </div>

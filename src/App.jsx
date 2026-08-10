@@ -1,5 +1,6 @@
-import { Compass, Volume2, VolumeX } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
+import SoundSettingsPopover from './components/SoundSettingsPopover';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
@@ -58,7 +59,7 @@ const TRANSITION_SCREENS = new Set([
 ]);
 
 function AppShell() {
-  const { state, patch } = useApp();
+  const { state } = useApp();
   const screenKey = SCREENS[state.screen] ? state.screen : 'hub';
   const Screen = SCREENS[screenKey];
   // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
@@ -111,25 +112,20 @@ function AppShell() {
             <Compass />
             MyPath — prototype
           </div>
-          {/* ElevenLabs Voice integration (see CLAUDE.md) — the mute toggle now always renders,
+          {/* ElevenLabs Voice integration (see CLAUDE.md) — the sound control now always renders,
               unconditionally: it used to be gated on `isSpeechAvailable()` (a real client-side
               feature-detection question for the old browser SpeechSynthesis API), but a remote TTS
               API has no such static "is this supported on this device" question to ask — it either
               succeeds or fails per request, handled entirely by speech.js's own graceful fallback,
               never by hiding the control itself. The separate "Choose mascot voice" gear/settings
               panel is gone entirely along with it — this app now speaks in exactly one fixed voice,
-              so there's nothing left to choose between. */}
+              so there's nothing left to choose between.
+              Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — the
+              old single-click mute button is now SoundSettingsPopover, a shared component (also
+              used by HubScreen's own top bar) exposing two genuinely independent controls instead
+              of one blanket mute. */}
           <div className="header-actions">
-            <button
-              type="button"
-              className="header-icon-btn voice-mute-toggle"
-              onClick={() => patch({ voiceMuted: !state.voiceMuted })}
-              aria-label={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-              aria-pressed={state.voiceMuted}
-              title={state.voiceMuted ? 'Unmute mascot voiceover' : 'Mute mascot voiceover'}
-            >
-              {state.voiceMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-            </button>
+            <SoundSettingsPopover buttonClassName="header-icon-btn" />
           </div>
         </div>
       )}

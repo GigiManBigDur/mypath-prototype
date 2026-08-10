@@ -5949,3 +5949,43 @@ body:has(.onboarding-meeting-active) {
   border: 1px solid var(--bloom-card-border);
 }
 .narrative-phase-title-edit-btn { margin-left: 8px; }
+
+/* Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — a small
+   popover, portaled to document.body (see SoundSettingsPopover.jsx for why), so it can't rely on
+   any screen-scoped ".app-shell-bloom"/".app-shell-hub" variable overrides; every token here reads
+   from the globally-available :root set directly, which is what keeps it looking identical
+   regardless of which of the two real header render sites (App.jsx / HubScreen.jsx) triggered it. */
+.sound-settings-popover {
+  position: fixed;
+  z-index: 500;
+  width: 220px;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 12px;
+  box-shadow: var(--bloom-shadow-hover);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: sound-settings-in 140ms ease-out;
+}
+.sound-settings-popover-exit { animation: sound-settings-out 160ms ease-in forwards; }
+@keyframes sound-settings-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes sound-settings-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+}
+.sound-settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sound-settings-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bloom-ink);
+}
+.sound-settings-pill { padding: 6px 16px; font-size: 13px; min-width: 52px; text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  .sound-settings-popover, .sound-settings-popover-exit { animation: none; }
+}
