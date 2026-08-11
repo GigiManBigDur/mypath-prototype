@@ -5,11 +5,13 @@ import { useApp } from '../context/AppContext';
 import { useModalExit } from '../hooks/useModalExit';
 
 // Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — replaces the
-// old single-click "mute everything" sound button with a small popover exposing two genuinely
+// old single-click "mute everything" sound button with a small popover exposing genuinely
 // independent controls: AI Voice (`state.voiceMuted`, unchanged — still governs every mascot
-// narration line app-wide exactly as it always has) and Background Music (`state.musicMuted`, new
-// — currently governs only the Admissions Overview Presentation's own track). Muting one never
-// touches the other.
+// narration line app-wide exactly as it always has), Background Music (`state.musicMuted` —
+// currently governs only the Admissions Overview Presentation's own track), and Click Sound
+// Effects (`state.sfxMuted`, added by a later follow-up feature — governs the app-wide synthesized
+// button-click sound, see clickSound.js/useClickSounds.js). Muting one never touches the others —
+// three genuinely distinct sound categories, deliberately never conflated under one blanket mute.
 //
 // Shared by BOTH real render sites — App.jsx's generic persistent header (shown on every screen
 // except welcome/hub) and HubScreen.jsx's own dedicated top bar (the hub renders its own top bar
@@ -20,7 +22,7 @@ import { useModalExit } from '../hooks/useModalExit';
 // own surrounding header, while the shared `voice-mute-toggle` class stays on the trigger button
 // itself so pre-existing Playwright coverage (test-voiceover.js, test-voice-picker.js) keeps
 // resolving it unmodified — this component still IS "the sound button," just with a richer
-// interaction now that there are two independent things to control instead of one.
+// interaction now that there are several independent things to control instead of one.
 export default function SoundSettingsPopover({ buttonClassName }) {
   const { state, patch } = useApp();
   const [open, setOpen] = useState(false);
@@ -57,9 +59,9 @@ export default function SoundSettingsPopover({ buttonClassName }) {
     };
   }, [open]);
 
-  // The trigger's own icon reads as "sound off" only once BOTH channels are muted — if either is
-  // still on, there's genuinely still sound coming from this app, so the icon should say so.
-  const bothMuted = state.voiceMuted && state.musicMuted;
+  // The trigger's own icon reads as "sound off" only once ALL THREE channels are muted — if any
+  // one is still on, there's genuinely still sound coming from this app, so the icon should say so.
+  const allMuted = state.voiceMuted && state.musicMuted && state.sfxMuted;
 
   return (
     <>
@@ -73,7 +75,7 @@ export default function SoundSettingsPopover({ buttonClassName }) {
         aria-expanded={open}
         title="Sound settings"
       >
-        {bothMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        {allMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
       </button>
       {rendered && pos && createPortal(
         <div
@@ -103,6 +105,21 @@ export default function SoundSettingsPopover({ buttonClassName }) {
               onClick={() => patch({ musicMuted: !state.musicMuted })}
             >
               {state.musicMuted ? 'Off' : 'On'}
+            </button>
+          </div>
+          {/* Click Sound Effects (see CLAUDE.md) — a THIRD independent row, governing the app-wide
+              synthesized button-click sound (Task 4) — its own state field, not a reuse of either
+              row above it. */}
+          <div className="sound-settings-row">
+            <span className="sound-settings-label">Click Sounds</span>
+            <button
+              type="button"
+              className={`pill sound-settings-pill${!state.sfxMuted ? ' selected' : ''}`}
+              aria-pressed={!state.sfxMuted}
+              aria-label={state.sfxMuted ? 'Turn click sounds on' : 'Turn click sounds off'}
+              onClick={() => patch({ sfxMuted: !state.sfxMuted })}
+            >
+              {state.sfxMuted ? 'Off' : 'On'}
             </button>
           </div>
         </div>,

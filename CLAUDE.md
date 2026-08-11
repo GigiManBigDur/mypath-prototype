@@ -10236,6 +10236,99 @@ shortcut that this feature corrects: the two are now fully separate concerns.
   `SoundSettingsPopover.jsx` file — it never opens `roadmapLayout.js`/`Roadmap.jsx` or any
   `api/*.js` file.
 
+**Click Sound Effects — a short, simple synthesized click/blip plays on every button click
+app-wide, with slight randomized pitch variation per play so repeated clicks don't sound identical
+and robotic (the same principle behind Minecraft's block-breaking sound variation), and a THIRD
+independent sound-control toggle governing it.**
+- **Task 1 — `src/utils/clickSound.js`** generates the tone entirely via the Web Audio API rather
+  than sourcing a real audio file — unlike the Admissions Overview Presentation's own licensed
+  background-music track, a clean short UI click tone is straightforward to synthesize
+  programmatically and needs no recorded asset. A plain module (not a hook), same reasoning
+  `speech.js`/`backgroundMusic.js` already established: `playClickSound()` lazily creates a
+  module-level `AudioContext` on first real call (always inside a genuine click handler, i.e. a
+  real user gesture — the safest way to never need to reason about autoplay-policy edge cases at
+  all), then builds a fresh `OscillatorNode` (`type: 'triangle'`, a bit more "click" character than
+  a pure sine tone) → `GainNode` → `destination` chain per play — oscillators are one-shot/
+  disposable in Web Audio, so a new pair is created every time, matching how this API is meant to
+  be used. A fixed, fast attack/decay gain envelope (`exponentialRampToValueAtTime`, since a linear
+  ramp to a literal `0` target would both sound like a harder pop and isn't even valid for that
+  method — it requires a nonzero target, which is why the envelope bottoms out at `0.0001`, not
+  `0`) plus a fixed downward frequency sweep (`SWEEP_RATIO`) give the tone its own consistent
+  "click" shape — "same base sound each time," per the task's own explicit framing. Wrapped in a
+  `try/catch` that fails completely silently on any error (a missing `AudioContext` entirely, or
+  any runtime failure) — the same "a UI polish sound should never risk breaking a real button
+  click" posture `speech.js`/`backgroundMusic.js` already established for their own audio calls.
+- **Task 2 — pitch is randomized on every single play**, not just picked once: `pitchMultiplier =
+  1 - PITCH_VARIATION/2 + Math.random() * PITCH_VARIATION`, applied to both the oscillator's own
+  starting AND ending (sweep-target) frequency together, so the whole note's pitch shifts up or
+  down as one unit rather than distorting its internal sweep shape. `PITCH_VARIATION` is `0.12`
+  (±12%) — deliberately narrower than Minecraft's own real block-sound range (roughly ±20%, the
+  explicit reference this feature is modeled on), tuned down specifically because a much shorter
+  UI blip reads as proportionally MORE "different-sounding" per percent of pitch shift than a
+  longer sample does — the task's own explicit calibration note ("enough to feel varied without
+  sounding like a different sound entirely") is what drove picking a value below the reference
+  technique's own range rather than copying it exactly.
+- **Task 3 — applied app-wide via ONE delegated `document`-level click listener
+  (`src/hooks/useClickSounds.js`), attached exactly once (from `AppShell` in `App.jsx`) for the
+  whole app's lifetime — not added to any individual button.** This codebase has NO single shared
+  Button React component to hook into — confirmed directly via grep across all 39 files that render
+  a `<button>` before building this, rather than assumed — every clickable element in this app is a
+  plain, inline `<button>`, matching its own already-established convention (`.polish`'s own
+  press-feedback CSS, `global.css`, already scopes to `.btn`/`button.card`/`.tag`/`.pill`/etc., all
+  of which resolve to real `<button>` elements in the DOM). A document-level listener checking
+  `event.target.closest('button, [role="button"]')` is the JS equivalent of that SAME shared
+  selector set — the closest, most faithful way to "hook into the same shared interactive-element
+  definition the button-press animation already goes through" given there's no component to attach
+  to, only a shared CSS scope. `[role="button"]` covers the 5 documented, confirmed exceptions
+  (`CourseSelectionScreen.jsx` ×2, `MyNarrativeScreen.jsx`, `HubChatPanel.jsx`, `YearOverview.jsx`)
+  where a clickable card can't itself be a real `<button>` since it nests its own separate real
+  `<button>` inside (a `<button>` can't legally nest another one — the exact reasoning this
+  codebase's own prior "Course Selection card body isn't a `<button>` either" precedent already
+  documents). **Deliberately universal, NOT scoped to `.polish`'s own screen exclusions** (the hub,
+  Map 2/`Roadmap.jsx`) — those exclusions exist specifically to avoid STACKING two different
+  visual press-animation systems on the same element, a concern that doesn't apply to an audio cue
+  at all, so a click anywhere in the app plays the sound, matching Task 3's own literal "every
+  clickable button in the app." A `useRef` (not a `useEffect` dependency) tracks the live mute
+  value so toggling it never requires tearing down and re-attaching the listener — it's attached
+  exactly once; only the live mute check inside the handler changes.
+- **Task 4 — a THIRD independent row in the existing `SoundSettingsPopover.jsx`** ("Click Sounds"),
+  governed by its own new `state.sfxMuted` field (`AppContext.jsx`, `false` by default) — not a
+  reuse of `voiceMuted` or `musicMuted`, matching this app's own explicit, just-established design
+  decision (the immediately-preceding "Independent Toggle Controls" feature) that distinct sound
+  categories should never be conflated under one blanket mute; a click sound is neither narration
+  nor music, so it gets its own category rather than being awkwardly folded into either existing
+  one. The popover's own trigger icon now reads "sound off" only once ALL THREE channels are muted
+  together (`allMuted`, renamed from the prior feature's `bothMuted`) — if any one channel is still
+  on, there's genuinely still sound coming from the app.
+- Verified with a dedicated 24-check Playwright suite, using a monkey-patched `AudioContext` spy
+  (wrapping `createOscillator`/`createGain`/`osc.frequency.setValueAtTime`/`osc.start`/`osc.stop`
+  to record every real call — the Web Audio equivalent of the `Audio`-element spy technique this
+  app's own background-music tests already established, necessary here too since headless
+  Chromium's autoplay policy and Web Audio's own node lifecycle mean genuine audible output can't
+  be reliably asserted directly, only that the correct nodes/calls genuinely happened): a real
+  click produces a genuine oscillator+gain node pair, a real `start()`/`stop()` call each, and a
+  real, sane frequency value; 12 repeated clicks on the identical button produce 12 genuinely
+  DISTINCT frequency values (853–953 Hz observed, an 11.1% real spread — audibly varied, but a
+  small, coherent range, not a different-sounding tone); 3 structurally different buttons across 2
+  different screens (an interest-adjacent pill, an education-level pill, a Back button) each
+  independently trigger the sound; muting only Click Sounds (with AI Voice and Background Music
+  both left on) produces zero oscillator starts, while muting AI Voice and Background Music
+  together (Click Sounds left on) still produces a real click sound — confirming true 3-way
+  independence, not just voice-vs-music; toggling Click Sounds off via the real popover UI leaves
+  the other two rows' own state completely untouched and immediately silences further real clicks;
+  and a hub-specific button (deliberately outside `.polish`'s own scoping, confirming Task 3's
+  "universal, not scoped to `.polish`" design point directly) still plays the sound with zero page
+  errors. The full pre-existing Independent Toggle Controls suite (27 of its 28 checks) and the
+  Skip-feature regression suite (20 checks) were both re-run against the updated popover and pass
+  unchanged — the one expected exception is that suite's own stale "exactly two toggle rows" count
+  assertion, superseded by this feature's own deliberate addition of a third row (already
+  re-confirmed directly by this feature's own "exactly three toggle rows total" check), the same
+  "update a pre-existing test after an intentional, expected change" pattern this codebase's own
+  test history has already needed many times before, not a regression. `npm run build`/`npm run
+  lint` both stay clean — this feature touches `AppContext.jsx` (one new field), `App.jsx` (one new
+  hook call), `SoundSettingsPopover.jsx` (a third row, the renamed `allMuted` icon check), and adds
+  the two new files above — it never opens `roadmapLayout.js`/`Roadmap.jsx` or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

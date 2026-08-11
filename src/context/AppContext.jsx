@@ -347,6 +347,12 @@ const DEFAULT_STATE = {
   // is completely untouched by this field's existence. Defaults ON (`false`, matching
   // `voiceMuted`'s own "off means muted" convention) for the same reason `voiceMuted` does.
   musicMuted: false,
+  // Click Sound Effects (see CLAUDE.md) — a THIRD independent sound category, governing the app-
+  // wide synthesized click sound (clickSound.js/useClickSounds.js) — deliberately its own field
+  // rather than reusing `voiceMuted`/`musicMuted`, matching this app's own explicit, just-
+  // established design decision that distinct sound categories should never be conflated under one
+  // blanket mute. Defaults ON (`false`), same convention as the other two.
+  sfxMuted: false,
   // `voiceURI` (the old "Show Available Voice Options" browser-voice picker's own pick) was
   // removed entirely once ElevenLabs Voice replaced the old SpeechSynthesis system — there's now
   // exactly one fixed voice for every mascot line, so there's nothing left to persist a pick for.

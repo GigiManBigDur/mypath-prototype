@@ -1,6 +1,7 @@
 import { Compass } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import SoundSettingsPopover from './components/SoundSettingsPopover';
+import { useClickSounds } from './hooks/useClickSounds';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import HubScreen from './screens/HubScreen';
@@ -60,6 +61,9 @@ const TRANSITION_SCREENS = new Set([
 
 function AppShell() {
   const { state } = useApp();
+  // Click Sound Effects (see CLAUDE.md) — one delegated listener for the app's whole lifetime,
+  // reading its own independent `state.sfxMuted` (Task 4) — never `voiceMuted`/`musicMuted`.
+  useClickSounds(state.sfxMuted);
   const screenKey = SCREENS[state.screen] ? state.screen : 'hub';
   const Screen = SCREENS[screenKey];
   // The Plan screen now has two sub-views (see AcademicPlanScreen.jsx): Map 1 (the Year
