@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { playClickSound } from '../utils/clickSound';
+import { playClickSound, preloadClickSound } from '../utils/clickSound';
 
 // Click Sound Effects (see CLAUDE.md), Task 3 — applied app-wide via a SINGLE delegated click
 // listener (attached once, from AppShell in App.jsx, for the app's whole lifetime) rather than
@@ -27,6 +27,14 @@ export function useClickSounds(muted) {
   // the app's whole lifetime; only the live mute check inside it changes.
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
+
+  // Fix: playback delay — preload/pre-decode the real click-sound file as early as possible (see
+  // clickSound.js's own header comment for the full mechanism), unconditionally, regardless of the
+  // CURRENT mute state — a student who starts muted and unmutes later should still get an instant
+  // first click, not a late decode delay just because sfx happened to be off at app load.
+  useEffect(() => {
+    preloadClickSound();
+  }, []);
 
   useEffect(() => {
     const onClick = (e) => {

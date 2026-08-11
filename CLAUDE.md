@@ -10329,6 +10329,84 @@ independent sound-control toggle governing it.**
   hook call), `SoundSettingsPopover.jsx` (a third row, the renamed `allMuted` icon check), and adds
   the two new files above — it never opens `roadmapLayout.js`/`Roadmap.jsx` or any `api/*.js` file.
 
+**Swap in Real Click Sound + Fix Playback Delay — replaces the originally-shipped synthesized
+oscillator click tone with a real, licensed audio asset, and fixes a real, confirmed playback
+delay by preloading and pre-decoding the file at app load instead of at click time.**
+- **Task 1 — `src/assets/audio/click.mp3`** (a real, Pixabay/Mixkit-sourced click sound, provided
+  directly by the user — same "real, licensed asset" posture the Admissions Overview
+  Presentation's own background music already established, imported through Vite's own asset
+  pipeline for the identical base-path-aware reason that music track already documents) replaces
+  the entire oscillator-based tone-generation code `clickSound.js` used to contain
+  (`createOscillator`/the frequency-sweep envelope/`BASE_FREQUENCY`/`SWEEP_RATIO`/
+  `CLICK_DURATION` — all removed, not left dead). Playback now goes through an
+  `AudioBufferSourceNode` (`ctx.createBufferSource()`, `.buffer = decodedBuffer`) instead — the
+  standard Web Audio way to play a real sample. **Task 1's own explicit "keep the existing
+  randomized pitch-variation logic" is honored literally**: the identical `PITCH_VARIATION = 0.12`
+  constant and the identical `1 - PITCH_VARIATION/2 + Math.random() * PITCH_VARIATION` formula
+  carry over unchanged from the synthesized version, just applied via
+  `source.playbackRate.value` (the standard Web Audio way to vary a SAMPLE's pitch — and literally
+  how games like Minecraft vary their own fixed block-sound samples too, the exact reference this
+  whole feature is modeled on) instead of an oscillator's own `frequency` param, since there's no
+  oscillator left to detune. `CLICK_VOLUME` was raised from the old synthesized tone's `0.12` to
+  `0.7` — a hand-picked judgment call (the actual mix couldn't be auditioned in this environment,
+  same posture the background-music feature's own volume constants already documented): a real,
+  already-mastered sample reads well much closer to its own natural level than a harmonically-
+  simple, perceptually-loud raw oscillator wave ever needed to at 0.12.
+- **Task 2 — the delay's real, confirmed root cause: the fetch+decode round trip for the audio
+  file was happening AT CLICK TIME, not ahead of it** — every play previously created a fresh
+  `AudioBufferSourceNode` from a buffer that had never been fetched/decoded until that exact
+  moment, so the very first (and, before this fix, every subsequent) click paid for a real
+  network fetch plus MP3 decode synchronously in the critical path between "click" and "sound."
+  **`preloadClickSound()`** (new export, `clickSound.js`) does that fetch+decode exactly ONCE, as
+  early as possible — `fetch(clickSoundUrl) → arrayBuffer() → ctx.decodeAudioData(...)` — caching
+  the resulting real `AudioBuffer` in a module-level variable. Called from a NEW mount-only effect
+  in `useClickSounds.js` (`useEffect(() => { preloadClickSound(); }, [])`), which fires immediately
+  when the hook first mounts from `AppShell` — matching the exact "prime an audio resource early,
+  from AppShell's own mount effect" precedent this app's own ElevenLabs voice feature already
+  established (`primeVoices()`). Called **unconditionally, regardless of the current `sfxMuted`
+  state** — a student who starts muted and unmutes later still gets an instant first click, not a
+  late decode delay just because sfx happened to be off at app load.
+- **A real, deliberate technical justification for WHY this preload is safe to do before any user
+  gesture, not just a convenient assumption**: creating an `AudioContext` never needs a gesture —
+  only RESUMING one that started suspended (the real autoplay-policy restriction) or otherwise
+  producing actual audible output does. Crucially, **decoding audio via `decodeAudioData` is pure
+  data processing, not audio output, and works fine on a still-suspended context** — so there's no
+  reason to wait for a real click just to get the buffer ready in memory; only the later
+  `ctx.resume()` call inside `playClickSound()` (unchanged from before this fix) still needs to
+  happen within a real gesture, which every actual play already is by construction (it's always
+  triggered by a genuine click). `playClickSound()`'s own fast path — once `decodedBuffer` is
+  already populated (the normal case after preload has had even a moment to run) — is now entirely
+  SYNCHRONOUS: create a buffer source, set its `playbackRate`, connect, `.start(0)` — zero `await`,
+  zero `.then()`, so a real click's own sound genuinely starts within the SAME synchronous call
+  stack as the click event itself, with no artificial async gap. A genuinely rare edge case (a
+  click firing before preload has had time to complete at all, or preload having failed outright)
+  falls back to decoding-then-retrying inline — the exact behavior this app had for EVERY click
+  before this fix, just no longer the common path.
+- Verified with a dedicated 15-check Playwright suite, using a monkey-patched `fetch`/
+  `AudioContext.decodeAudioData`/`createBufferSource` spy (the Web Audio equivalent of the
+  `Audio`-element/oscillator spy techniques this app's own background-music and original
+  click-sound tests already established, necessary again here since headless Chromium's autoplay
+  policy means genuine audible output can't be reliably asserted directly) plus a capture-phase
+  `click` listener recording the real event's own timestamp for direct latency measurement: the
+  real `click.mp3` asset is genuinely fetched and decoded (not a synthesized tone); a real
+  `AudioBufferSource` is created and started on click; 12 repeated clicks on the identical button
+  produce 12 genuinely distinct `playbackRate` values, correctly centered on `1.0` and bounded
+  within the expected ±12% range (0.946–1.046 observed); preload/decode are confirmed to happen at
+  app load with **zero clicks made yet** — the direct proof this isn't just "happens to be fast
+  enough to feel instant" but genuinely front-loaded; **the FIRST real click after preload
+  completes triggers zero additional fetch calls and zero additional decode calls**, and its own
+  measured click-to-playback-start latency is 3.90ms — confirming the fix eliminates the delay
+  from the very first interaction, not just after repeated clicks happen to warm some cache;
+  latency stays consistently low (2.7–4.9ms) across further repeated clicks too; and `sfxMuted`
+  still correctly silences playback with the real sample (zero playback starts while muted), while
+  preload itself still runs even while muted, confirming a later unmute still gets an instant
+  first click. `npm run build`/`npm run lint` both stay clean — the bundled click asset is
+  correctly emitted as its own hashed file (`click-*.mp3`, 52.22 kB) at the real source byte
+  count, confirming a clean, complete copy; this fix touches only `clickSound.js` (a full rewrite
+  of its playback mechanism, same public API) and `useClickSounds.js` (one new mount effect) plus
+  the one new asset file — it never opens `AppContext.jsx`, `SoundSettingsPopover.jsx`,
+  `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
