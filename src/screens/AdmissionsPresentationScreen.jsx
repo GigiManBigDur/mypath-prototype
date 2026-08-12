@@ -162,13 +162,19 @@ export default function AdmissionsPresentationScreen() {
   }, [isSpeaking, showContinue, transitionPhase, isLastBeatOfModule]);
 
   const handleSkip = () => {
-    patch({ screen: 'onboardingConversation' });
+    // Connect the AI Conversation's Opening to the Admissions Overview (see CLAUDE.md) — the one
+    // real signal the conversation's own greeting needs, alongside the same navigation this
+    // button always did.
+    patch({ screen: 'onboardingConversation', admissionsPresentationSkipped: true });
   };
 
   const handleContinue = () => {
     if (transitionPhase !== 'idle') return; // guard against a double-click mid-transition
     if (isLastModule) {
-      patch({ screen: 'onboardingConversation' });
+      // Written explicitly (not just left to DEFAULT_STATE's own `false`) — this is genuinely
+      // reachable a second time in principle, so the correct value should never depend on what
+      // this field happened to be left at before.
+      patch({ screen: 'onboardingConversation', admissionsPresentationSkipped: false });
       return;
     }
     setTransitionPhase('module-exit');

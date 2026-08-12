@@ -10407,6 +10407,58 @@ delay by preloading and pre-decoding the file at app load instead of at click ti
   the one new asset file — it never opens `AppContext.jsx`, `SoundSettingsPopover.jsx`,
   `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
 
+**Connect the AI Conversation's Opening to the Admissions Overview — the onboarding
+conversation's scripted greeting now varies depending on whether the student skipped the
+Admissions Overview Presentation or watched it all the way through, so the two never read as two
+separate, back-to-back introductions.**
+- **`state.admissionsPresentationSkipped`** (`AppContext.jsx`, `false` by default) is the one new
+  signal this needed — before this feature, `AdmissionsPresentationScreen.jsx` genuinely had NO
+  way to distinguish "finished all 10 modules" from "clicked Skip" once the student reached
+  `onboardingConversation`: both paths called the exact identical `patch({ screen:
+  'onboardingConversation' })` with no other state written (per this file's own prior, explicit
+  documentation of that screen's Skip feature — "this screen never writes any OTHER persisted
+  state at all... finishing normally and skipping early are structurally indistinguishable from
+  the rest of the app's own perspective"). Same "explicitly skipped OR explicitly finished, never
+  left ambiguous" shape `projectBuilderSkipped` already established for an analogous problem. Set
+  explicitly on BOTH real exit paths (`handleSkip` → `true`, `handleContinue`'s `isLastModule`
+  branch → `false`) — not left to rely on `DEFAULT_STATE`'s own default for the finish path, since
+  this screen is genuinely reachable more than once in principle and the correct value should
+  never depend on whatever this field happened to be left at from a prior visit.
+- **`buildOnboardingGreeting(username, skipped)`** (`useOnboardingChat.js`) gained a second
+  parameter and now branches between the two real opening lines — Task 1's own explicit "keep the
+  current opening exactly as it is" is honored literally (the original full-introduction string is
+  byte-for-byte unchanged, just moved into the `skipped: true` branch); Task 2's shorter, connected
+  line drops the "who I am and why we're here" preamble entirely (already covered by the
+  presentation itself) while still ending on the SAME real question the original does ("what do
+  you find yourself genuinely excited about, in or out of school?") — deliberate continuity, so
+  the actual conversational HOOK stays identical regardless of which path a student took, only the
+  amount of re-introduction varies. **Both real call sites were updated together** — the exact
+  reason this function was originally extracted into one shared source in the first place (per its
+  own header comment: "one shared source for the string, so the two can never independently drift
+  apart"): `useOnboardingChat.js`'s own greeting-seeding effect (writes the real, persisted
+  `chatHistory[0]` entry) and `OnboardingConversationScreen.jsx`'s own `greetingText` (drives the
+  mascot's speaking animation/voiceover during the choreographed 'greeting' phase, shown in a
+  standalone bubble before the line is technically part of `chatHistory` yet) — both now pass
+  `state.admissionsPresentationSkipped` through identically, so the spoken line and the persisted
+  line can never show two different openings for the same real visit.
+- Verified with a dedicated 18-check Playwright suite driving the REAL click-through flow both
+  ways (not seeded state alone, since confirming the actual navigation/state-write wiring matters
+  here): clicking "Skip presentation" sets `admissionsPresentationSkipped: true` and produces a
+  greeting containing the real original full-introduction wording (confirmed present in both the
+  live-rendered page text AND the persisted `chatHistory[0]` entry) while the shorter line is
+  confirmed ABSENT; finishing all 10 real modules (including Transition) sets
+  `admissionsPresentationSkipped: false` and produces the shorter, connected greeting (confirmed
+  present in both the rendered page and persisted history) while the original full-introduction
+  wording — including its own "I'm your MyPath guide" self-introduction specifically — is confirmed
+  ABSENT, with the shared closing question confirmed present either way (the continuity check); and
+  a regression case (the field entirely absent from a seed, as any pre-existing saved session would
+  have it) confirms zero page errors and correct fallback via `DEFAULT_STATE`. `npm run build`/
+  `npm run lint` both stay clean — this feature touches `AppContext.jsx` (one new field),
+  `AdmissionsPresentationScreen.jsx` (two explicit writes on its two existing exit paths),
+  `useOnboardingChat.js` (the shared greeting function's own new parameter), and
+  `OnboardingConversationScreen.jsx` (its one call site updated to match) — it never opens
+  `roadmapLayout.js`/`Roadmap.jsx` or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

@@ -315,6 +315,13 @@ const DEFAULT_STATE = {
   // moment ProjectBuilderScreen's "Skip for now" button is clicked — mirrors the same shape
   // `transcriptCompleted` already established for a different "done OR explicitly skipped" step.
   projectBuilderSkipped: false,
+  // Connect the AI Conversation's Opening to the Admissions Overview (see CLAUDE.md) — set once,
+  // the moment the presentation screen is actually left (either via its own "Skip presentation"
+  // button, `true`, or by finishing all 10 modules normally, `false`) — the one signal
+  // `useOnboardingChat.js`'s greeting needs to pick between its two opening lines. Same "explicitly
+  // skipped OR explicitly finished, never left ambiguous" shape `projectBuilderSkipped` already
+  // established just above.
+  admissionsPresentationSkipped: false,
   roadmapTooltipsSeen: false, // the Academic Plan's paired first-visit callouts (full-bleed
   // canvas + pan/zoom controls) — dismissing either one sets this true and hides both, since
   // they're shown/dismissed as one onboarding moment. Persisted (not just session-scoped) so a

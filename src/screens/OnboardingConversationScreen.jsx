@@ -132,7 +132,7 @@ export default function OnboardingConversationScreen() {
   // phase; every other phase passes `null`, so it never re-triggers later even though the identical
   // text becomes a real, independently-replayable (opt-in Play button) message inside the chat the
   // moment 'settling' begins.
-  const greetingText = buildOnboardingGreeting(state.username);
+  const greetingText = buildOnboardingGreeting(state.username, state.admissionsPresentationSkipped);
   const isSpeaking = useMascotSpeech(phase === 'greeting' ? greetingText : null, state.voiceMuted);
   const wasSpeakingRef = useRef(false);
   useEffect(() => {

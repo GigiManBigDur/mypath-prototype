@@ -19,9 +19,23 @@ import { requestOnboardingChatReply } from '../utils/onboardingChatRequest';
 // animation/voiceover during its dedicated `'greeting'` phase (shown in a standalone speech bubble,
 // before it's technically part of `chatHistory` yet) — one shared source for the string, so the
 // two can never independently drift apart.
-export function buildOnboardingGreeting(username) {
+//
+// Connect the AI Conversation's Opening to the Admissions Overview (see CLAUDE.md) — a SECOND
+// parameter, `skipped`, picks between two real opening lines depending on whether the student just
+// watched the Admissions Overview Presentation all the way through or skipped it:
+// - `skipped: true` (Task 1) — the ORIGINAL full introduction, byte-for-byte unchanged. The
+//   presentation was never seen, so the mascot still needs to introduce itself and explain why
+//   this conversation is happening at all.
+// - `skipped: false` (Task 2) — a shorter, connected line that continues from the presentation's
+//   own Transition module handoff rather than re-introducing the mascot from scratch — the
+//   "who I am and why we're here" part was already covered there, so repeating it here would read
+//   as two separate introductions stacked back to back instead of one continuous conversation.
+export function buildOnboardingGreeting(username, skipped) {
   const name = username || 'there';
-  return `Hey ${name}! I'm your MyPath guide, and before we build anything, I want to actually get to know you — what excites you, what you've already done, and help you figure out a direction that's genuinely yours. So — what do you find yourself genuinely excited about, in or out of school?`;
+  if (skipped) {
+    return `Hey ${name}! I'm your MyPath guide, and before we build anything, I want to actually get to know you — what excites you, what you've already done, and help you figure out a direction that's genuinely yours. So — what do you find yourself genuinely excited about, in or out of school?`;
+  }
+  return `Now that you've seen how this all works, let's actually talk about you. What do you find yourself genuinely excited about, in or out of school?`;
 }
 
 export function useOnboardingChat() {
@@ -38,7 +52,7 @@ export function useOnboardingChat() {
   useEffect(() => {
     if (chatHistory.length > 0) return;
     patch({
-      onboardingChatHistory: [{ role: 'assistant', content: buildOnboardingGreeting(state.username) }],
+      onboardingChatHistory: [{ role: 'assistant', content: buildOnboardingGreeting(state.username, state.admissionsPresentationSkipped) }],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
