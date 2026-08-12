@@ -10459,6 +10459,88 @@ separate, back-to-back introductions.**
   `OnboardingConversationScreen.jsx` (its one call site updated to match) — it never opens
   `roadmapLayout.js`/`Roadmap.jsx` or any `api/*.js` file.
 
+**Admissions Overview Presentation for Undergrad (Grad School), Stage 1: Script — a second,
+parallel 10-module script specifically for graduate-school admissions, shown instead of the
+original High School college-admissions script to students on the Undergraduate track. Same
+infrastructure end to end; only the content is new, mirroring the exact "script first, real
+visuals a later stage" split the original HS Stage 1 already established.**
+- **`src/data/admissionsPresentationGrad.js`** (new) exports `ADMISSIONS_MODULES_GRAD` — the
+  identical `{ id, title, beats: [{ narration, visualConcept }] }` shape the HS script
+  (`admissionsPresentation.js`) already established, so the screen needs zero structural changes
+  to render either one. **Every module id is deliberately namespaced (`grad-*`)** rather than
+  reusing the HS script's own ids (`introduction`, `big-picture`, etc.) — this is what keeps this
+  a genuinely clean Stage 1: a `grad-*` id can never accidentally match an entry in
+  `AdmissionsBeatVisuals.jsx`'s `BEAT_VISUALS` lookup (built only for the HS script's own real ids),
+  so every grad beat correctly falls through to the SAME honest placeholder-note rendering the HS
+  script's own beats used before its own Stage 2 ever built real illustrations — never an
+  accidentally mismatched HS illustration bleeding through just because two unrelated ids happened
+  to collide.
+- **10 modules, 39 beats total** (3-5 per module, matching Task 2's own explicit rhythm
+  requirement and landing in the same scale as the HS script's own 38 beats): Introduction: The
+  Big Picture; Academic Record; Testing; The Statement of Purpose; Research Experience & Fit;
+  Recommendation Letters; Building Your Program List; The Timeline; Transition. Content is
+  grounded in real, well-established, non-controversial graduate/professional-admissions practice
+  — holistic-but-differently-weighted review (Statement of Purpose, transcript/research record,
+  letters, sometimes test scores, all read together, with program/faculty fit mattering
+  enormously, not just GPA); the Statement of Purpose's own real standard (a program/faculty-
+  specific narrative, naming real faculty and labs, never a generic resume recap — "I've always
+  been passionate about this field" reads as a real weakness, not a strength); research depth and
+  faculty fit as the field's own equivalent of the HS "spike" concept (real depth in one focused
+  area pointing toward specific aligned faculty, not broad shallow involvement); recommendation
+  letters needing to come from people who can speak to real research/work (a supervisor, a
+  professor you've done real work with), not a general character reference; the real, current
+  test-optional trend in many fields (GRE/GMAT/LSAT/MCAT depending on field, but increasingly
+  optional in the sciences/humanities specifically); and the real fall/winter application cycle
+  most programs run on, including faculty outreach starting well before the application itself in
+  research-heavy fields. **Two beats deliberately echo the HS script's own wording where the
+  underlying reason is genuinely identical, not by accident**: Building Your Program List's own
+  closing beat ("This app already helps you track programs and their real fit as you go, in your
+  Academic Plan") and Transition's own middle beat ("Next, I want to actually get to know you...")
+  — the latter especially, since BOTH scripts hand off into the exact same real onboarding
+  conversation (`onboardingConversation`), which itself shows the exact same "shorter, connected"
+  greeting afterward regardless of which script was watched (see the immediately-preceding
+  "Connect the AI Conversation's Opening" feature — its own `admissionsPresentationSkipped` flag
+  tracks Skip-vs-Finish only, not which script produced the finish), so genuine continuity into
+  that one shared handoff calls for the same sentiment either way.
+- **`AdmissionsPresentationScreen.jsx` gained exactly ONE real branch point** — a new
+  `activeModules` value (`state.educationLevel === 'undergraduate' ? ADMISSIONS_MODULES_GRAD :
+  ADMISSIONS_MODULES`), computed once near the top of the component, with every existing reference
+  to the old, hardcoded `ADMISSIONS_MODULES` (module lookup, `isLastModule`, the "Module X of Y"
+  progress line) switched to read `activeModules` instead — Task 3's own explicit "reuse all
+  existing infrastructure" requirement is satisfied literally: the click-to-continue mechanism,
+  beat-advance timing, mascot narration/voiceover, transitions, Skip button, background music, and
+  the sound settings popover all needed ZERO changes, since none of them were ever specific to
+  which script's data happened to be loaded. `state.educationLevel` is guaranteed set by the time
+  this screen is ever reached (Survey's own `canContinue` gate already requires it before Continue
+  is enabled), so there's no "not yet answered" fallback case to handle. **High School and Transfer
+  both deliberately stay on the original, completely unmodified HS script** — Transfer was never
+  asked for its own dedicated content by this feature, so it keeps what it already had, matching
+  this codebase's own established "an unscoped level keeps its existing content rather than
+  silently inheriting new, unrequested content" convention (the same posture the 6 newer interest
+  tracks' own undergraduate-aliased-to-highschool content already established for an analogous
+  "no dedicated content commissioned yet" situation).
+- Verified with a dedicated Playwright suite driving a REAL, full 10-module click-through as an
+  Undergraduate student (not seeded state alone): all 10 real module titles appear in the correct
+  order (`Introduction` → `The Big Picture` → `Academic Record` → `Testing` → `The Statement of
+  Purpose` → `Research Experience & Fit` → `Recommendation Letters` → `Building Your Program List`
+  → `The Timeline` → `Transition`) with zero page errors across the whole walkthrough; real
+  grad-specific terminology (Statement of Purpose, GRE/GMAT/LSAT/MCAT, faculty, the real module
+  titles themselves) is confirmed present in the rendered page text while HS-only terms (PSAT, AP
+  courses, the HS module titles) are confirmed absent; a direct check against the real data file
+  confirms every module has 3-5 beats, each with real narration under a 45-word sanity ceiling (no
+  long blocks) and a real described visual concept, all ids namespaced and unique, and the total
+  beat count sits in the same scale as the HS script; a High School seed still starts on
+  "Introduction" and still shows "The Big Picture" as module 2 — the exact original content,
+  confirmed unaffected; a Transfer seed likewise stays on the original HS script with zero
+  grad-specific terms present; and Skip, background music (confirmed via the same monkey-patched
+  `Audio` volume spy the original background-music feature's own tests established — real,
+  audible playback confirmed), and the sound settings popover (all three independent toggles
+  present) all work identically to the HS version. `npm run build`/`npm run lint` both stay clean
+  — this feature touches only `AdmissionsPresentationScreen.jsx` (one new branch point) and adds
+  the one new `admissionsPresentationGrad.js` data file — it never opens
+  `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`, `AppContext.jsx`,
+  `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

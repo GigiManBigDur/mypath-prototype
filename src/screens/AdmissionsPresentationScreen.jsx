@@ -6,6 +6,7 @@ import { useMascotSpeech } from '../hooks/useMascotSpeech';
 import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { ADMISSIONS_MODULES } from '../data/admissionsPresentation';
+import { ADMISSIONS_MODULES_GRAD } from '../data/admissionsPresentationGrad';
 import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
 
 // Admissions Overview Presentation, Stage 1 (see CLAUDE.md) — a real, research-grounded 10-module
@@ -103,6 +104,20 @@ const MASCOT_PULSE_MS = 500;
 export default function AdmissionsPresentationScreen() {
   const { state, patch } = useApp();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  // Admissions Overview Presentation for Undergrad (Grad School) (see CLAUDE.md) — the ONE real
+  // branch point this feature needed: Undergraduate-track students (already applying to grad
+  // school, per this app's own existing `educationLevel` semantics — LEVEL_LABEL elsewhere already
+  // treats `undergraduate` as "graduate-school") see the grad-admissions script instead of the
+  // original High School college-admissions one. `state.educationLevel` is guaranteed set by the
+  // time this screen is ever reached — Survey's own `canContinue` gate already requires it before
+  // Continue is even enabled — so there's no "not yet answered" case to handle here. High School
+  // and Transfer both keep the original, unmodified `ADMISSIONS_MODULES` (Transfer was never asked
+  // for its own dedicated script by this feature, so it stays on what it already had, matching this
+  // app's own established "an unscoped level keeps its existing content rather than inheriting new,
+  // unrequested content" convention). EVERYTHING below this line reads `activeModules` generically
+  // — no other code in this component needed to change, per Task 3's own "reuse all existing
+  // infrastructure" requirement.
+  const activeModules = state.educationLevel === 'undergraduate' ? ADMISSIONS_MODULES_GRAD : ADMISSIONS_MODULES;
   const [moduleIndex, setModuleIndex] = useState(0);
   const [beatIndex, setBeatIndex] = useState(0);
   const [showContinue, setShowContinue] = useState(false);
@@ -112,10 +127,10 @@ export default function AdmissionsPresentationScreen() {
   const [mascotPulse, setMascotPulse] = useState(false);
   const pendingTimeouts = useRef([]);
 
-  const currentModule = ADMISSIONS_MODULES[moduleIndex];
+  const currentModule = activeModules[moduleIndex];
   const currentBeat = currentModule.beats[beatIndex];
   const isLastBeatOfModule = beatIndex === currentModule.beats.length - 1;
-  const isLastModule = moduleIndex === ADMISSIONS_MODULES.length - 1;
+  const isLastModule = moduleIndex === activeModules.length - 1;
 
   const beatVisual = BEAT_VISUALS[`${currentModule.id}-${beatIndex}`];
   const IllustrationComponent = typeof beatVisual === 'function'
@@ -217,7 +232,7 @@ export default function AdmissionsPresentationScreen() {
           advance within the same module. */}
       <div className={headerClass} key={moduleIndex}>
         <div className="admissions-presentation-progress">
-          Module {moduleIndex + 1} of {ADMISSIONS_MODULES.length}
+          Module {moduleIndex + 1} of {activeModules.length}
         </div>
         <h2 className="admissions-presentation-title">{currentModule.title}</h2>
       </div>
