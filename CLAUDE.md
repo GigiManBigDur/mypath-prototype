@@ -10682,6 +10682,69 @@ script.
   script, are still placeholder-only — future batches, not attempted in this pass per Task 3's own
   explicit "test only these two modules before reporting back" instruction.
 
+**Undergrad Admissions Overview, Stage 2 (Batch 2 of 5): real visuals for the grad script's own
+Academic Record, Testing, and The Statement of Purpose — Batch 1's own Introduction/Big Picture
+entries are appended after, never modified, confirmed via a dedicated regression check re-run
+alongside this batch's own new content.** 13 beats covered (Academic Record's 4, Testing's 4, The
+Statement of Purpose's 5), namespaced the identical `grad-*` way every entry in this file already
+is.
+- **11 new components**, each matched to its own specific beat: a faint, dashed-outline overall GPA
+  number beside a magnifying glass revealing real, distinct colored per-course grade marks
+  (`GpaZoomVisual`); a 4-row transcript with major-relevant rows accent-highlighted and irrelevant
+  ones dimmed (`MajorRelevantTranscriptVisual`); a muted folder already holding transcript lines,
+  receiving a flask-marked research document via an arrow (`ResearchIntoFolderVisual`, deliberately
+  differentiated from the visually-similar `FolderHandoffVisual`/HS precedent via its own muted
+  color and flask marking, not a literal copy); a 5-point line graph with a real dip at point 2
+  still resolving to a clear upward trend (`GrowthTrendVisual`); four labeled doors (GRE/GMAT/LSAT/
+  MCAT), GRE lit as the general default (`FourTestDoorsVisual`); the same 4-door layout each leading
+  to a distinctly-colored building icon for business/law/medicine/general-grad-study
+  (`TestToBuildingVisual`); 3 plain closed doors beside one genuinely swung-open door (a rect rotated
+  around its own bottom-left hinge point) with a checkmark replacing a lock/test icon
+  (`TestOptionalDoorVisual`); a policy document with a magnifying glass over one section
+  (`ProgramPolicyCheckVisual`); a document with a real soft glow behind it and an accent-colored
+  border (`SopDocumentVisual`, the SOP's own more-emphasized version of `EssayDocumentVisual`,
+  since this document is "the most important one to get right"); a faded, struck-through resume
+  (with its own profile-photo circle, reading unmistakably as a resume) beside a distinct
+  accent-colored document taking its place (`ResumeCrossedOutVisual`); a "You" circle connected by a
+  line with a pen ACTIVELY drawing at its leading edge to a diamond-shaped faculty icon
+  (`WritingTheConnectionVisual` — deliberately a different visual language from Big Picture's own
+  `FacultyFitVisual`, a dashed-snap-into-place line + hexagon, even though the two beats share a
+  related "fit" theme: this one is specifically about the ACT of writing that connection); a document
+  with two accent-outlined highlight blocks standing out against its own plain lines
+  (`SpecificFacultyDocumentVisual`, for the highlighted faculty-name/lab-name beat); and one document
+  showing both real states at once — a dashed-outline (never filled) vague top half flagged by a
+  small red flag, and a solid, confident accent-colored specific bottom half (`VagueToSpecificVisual`,
+  blending Stage 1's own "red flag rising next to a vague sentence" concept with this batch's own
+  "document revised from vague to specific" guidance).
+- **Two SOP beats are mascot-gesture-plus-illustration combos** (`grad-statement-of-purpose-0`
+  pointing at `SopDocumentVisual`; `grad-statement-of-purpose-3` pointing at
+  `SpecificFacultyDocumentVisual`) — the same pattern Essays/Recommendation Letters/Transition/Big
+  Picture's own "fit" beat already established, applied here per the task's own literal example
+  ("a beat about specificity to a program could show the mascot pointing at a document with a
+  specific faculty name/lab highlighted, echoing the HS version's 'pointing at an essay' visual").
+- Verified with a dedicated Playwright suite that FIRST re-walks Batch 1 (Introduction, Big Picture)
+  to confirm zero regression before touching the new content, then walks all 3 new modules,
+  confirming every beat shows a real visual (illustration and/or mascot gesture) with zero
+  placeholder note, every module's own beats are mutually distinct (direct SVG-content comparison),
+  and both expected SOP mascot-combo beats carry a real pointing gesture; a final regression check
+  confirms module 6 (Research Experience & Fit, not part of this batch) still shows the plain
+  Stage 1 placeholder. Every SOP beat's own screenshot was individually reviewed (per the task's own
+  explicit "screenshotting the Statement of Purpose module specifically, given its importance"
+  instruction) and confirmed to read clearly — the glowing central document under the mascot's own
+  gesture, the struck-through resume giving way to the real document, the pen actively drawing the
+  You-to-faculty connection, the two highlighted faculty/lab callouts, and the vague-flagged-vs-
+  solid-specific closing beat all composed exactly as intended. A real, confirmed off-by-one bug was
+  found and fixed in this batch's OWN test code (not the app): the hand-written Batch 1 regression
+  check waited only 3 times for Big Picture's 4 beats to reach Continue, one short of the 4 waits
+  actually needed (beat0→1, 1→2, 2→3, 3→continue) — the `walkModule` helper used for the real new
+  content never had this bug, since it separately handles the final beat's own wait after its own
+  loop; fixed by correcting the loop count. `npm run build`/`npm run lint` both stay clean — this
+  batch touches only `AdmissionsBeatVisuals.jsx` (11 new `BEAT_VISUALS` entries plus 11 new
+  components, appended after Batch 1's own content, nothing there modified) — it never opens
+  `AdmissionsPresentationScreen.jsx`, either data file, `AppContext.jsx`, `roadmapLayout.js`/
+  `Roadmap.jsx`, or any `api/*.js` file. The remaining 5 grad modules (Research Experience & Fit
+  through Transition), and the entire Transfer script, are still placeholder-only — future batches.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

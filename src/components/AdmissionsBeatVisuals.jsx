@@ -783,6 +783,253 @@ export function GpaExpandsVisual() {
   );
 }
 
+// Undergrad (Grad School) Admissions Overview, Stage 2, Batch 2 of 5 (see CLAUDE.md) — real,
+// distinct visuals for the grad script's own Academic Record, Testing, and The Statement of
+// Purpose modules (13 beats). Batch 1's own Introduction/Big Picture components and BEAT_VISUALS
+// entries above are completely untouched — this batch only appends new content. Same conventions
+// as every prior batch: pure inline SVG, bloom tokens only, one shared entrance fade
+// (`admissions-visual-in`, global.css), no elaborate particle effects. `<text>` is used only where
+// a beat is genuinely about a specific label (the 4 named exams, a faculty/lab name placeholder) —
+// the same minimal-text-where-needed precedent the HS script's own batches already established.
+export function GpaZoomVisual() {
+  // "A magnifying glass zooming past an overall GPA number toward specific course grades" — a
+  // faint, dashed-outline overall GPA number, with a magnifying glass revealing real, distinct
+  // per-course grade marks instead.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <circle cx="60" cy="65" r="38" fill="none" stroke="var(--bloom-card-border)" strokeWidth="2.5" strokeDasharray="5 5" opacity="0.6" />
+      <text x="60" y="72" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="20" fontWeight="800" fill="var(--bloom-card-border)">3.6</text>
+      <circle cx="146" cy="55" r="34" fill="var(--bloom-card)" stroke="var(--bloom-accent)" strokeWidth="3.5" />
+      <line x1="170" y1="79" x2="188" y2="97" stroke="var(--bloom-accent)" strokeWidth="5" strokeLinecap="round" />
+      {[0, 1, 2].map((i) => (
+        <rect key={i} x="128" y={40 + i * 11} width={i === 1 ? 26 : 18} height="6" rx="3" fill={['var(--bloom-teal)', 'var(--bloom-purple)', 'var(--bloom-orange)'][i]} />
+      ))}
+    </svg>
+  );
+}
+
+export function MajorRelevantTranscriptVisual() {
+  // "A transcript with major-relevant courses highlighted, others dimmed."
+  const rows = [true, false, true, false];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 140" aria-hidden="true">
+      {rows.map((relevant, i) => (
+        <g key={i} transform={`translate(20 ${10 + i * 30})`}>
+          <rect width="180" height="22" rx="6" fill={relevant ? 'var(--bloom-accent)' : 'var(--bloom-card)'} opacity={relevant ? 0.18 : 1} stroke={relevant ? 'var(--bloom-accent)' : 'var(--bloom-card-border)'} strokeWidth="2" />
+          <rect x="10" y="8" width="120" height="6" rx="3" fill={relevant ? 'var(--bloom-accent)' : 'var(--bloom-card-border)'} opacity={relevant ? 1 : 0.6} />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function ResearchIntoFolderVisual() {
+  // "A research-paper icon sliding into the same folder as the transcript" — a folder already
+  // holding transcript-like ruled lines, with a distinctly flask-marked document (research,
+  // not just any document) arriving via an arrow.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <path d="M 16 28 H 56 L 66 40 H 126 V 90 H 16 Z" fill="var(--bloom-card-border)" opacity="0.5" />
+      <rect x="30" y="48" width="86" height="6" rx="3" fill="var(--bloom-card)" opacity="0.9" />
+      <rect x="30" y="60" width="60" height="6" rx="3" fill="var(--bloom-card)" opacity="0.9" />
+      <rect x="30" y="72" width="70" height="6" rx="3" fill="var(--bloom-card)" opacity="0.9" />
+      <path d="M 138 58 H 166" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" />
+      <path d="M 160 51 L 170 58 L 160 65" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="180" y="32" width="30" height="40" rx="4" fill="var(--bloom-teal)" />
+      <path d="M 192 44 V 52 L 185 66 H 205 L 198 52 V 44 Z" fill="var(--bloom-card)" opacity="0.9" />
+    </svg>
+  );
+}
+
+export function GrowthTrendVisual() {
+  // "A line graph trending upward despite one dip" — a real dip at the second point, still
+  // resolving to a clear overall upward trend.
+  const points = [[24, 70], [70, 82], [116, 50], [162, 34], [196, 18]];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <line x1="20" y1="100" x2="200" y2="100" stroke="var(--bloom-card-border)" strokeWidth="2" strokeLinecap="round" />
+      <path d={`M ${points.map((p) => p.join(' ')).join(' L ')}`} stroke="var(--bloom-accent)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {points.map(([x, y]) => (
+        <circle key={`${x}-${y}`} cx={x} cy={y} r="4.5" fill="var(--bloom-accent)" />
+      ))}
+    </svg>
+  );
+}
+
+export function FourTestDoorsVisual() {
+  // "Four labeled test-icon doors, one lit up based on field" — GRE lit, as the most general/
+  // common of the four for a field-unspecified default framing.
+  const doors = [
+    { label: 'GRE', lit: true },
+    { label: 'GMAT', lit: false },
+    { label: 'LSAT', lit: false },
+    { label: 'MCAT', lit: false },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      {doors.map((d, i) => (
+        <g key={d.label} transform={`translate(${10 + i * 52} 15)`}>
+          <rect width="42" height="80" rx="6" fill={d.lit ? 'var(--bloom-accent)' : 'var(--bloom-card-border)'} opacity={d.lit ? 0.9 : 0.35} />
+          <circle cx="34" cy="42" r="2.5" fill="var(--bloom-card)" />
+          <text x="21" y="98" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="10" fontWeight="700" fill="var(--bloom-ink-soft)">{d.label}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function TestToBuildingVisual() {
+  // "The same four doors, each now leading to a distinct building icon" — 4 distinctly-colored
+  // building/roof icons, one per field (business, law, medicine, general graduate study).
+  const colors = ['var(--bloom-purple)', 'var(--bloom-orange)', 'var(--bloom-teal)', 'var(--bloom-yellow)'];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      {colors.map((c, i) => (
+        <g key={c} transform={`translate(${14 + i * 52} 0)`}>
+          <rect y="60" width="30" height="34" rx="4" fill="var(--bloom-card-border)" opacity="0.4" />
+          <line x1="15" y1="60" x2="15" y2="30" stroke="var(--bloom-ink-soft)" strokeWidth="2" strokeDasharray="3 3" opacity="0.6" />
+          <path d="M 0 30 L 15 8 L 30 30 Z" fill={c} opacity="0.9" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function TestOptionalDoorVisual() {
+  // "One of the four doors shown propped open, no test icon required" — 3 plain closed/muted
+  // doors beside one genuinely swung-open door (a rotated rect hinged near its own bottom-left
+  // corner) with a checkmark in place of a lock/test icon.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <g key={i} transform={`translate(${14 + i * 46} 15)`}>
+          <rect width="36" height="80" rx="6" fill="var(--bloom-card-border)" opacity="0.4" />
+          <circle cx="30" cy="42" r="2.5" fill="var(--bloom-card)" />
+        </g>
+      ))}
+      <g transform="translate(158 15)">
+        <rect width="36" height="80" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+        <g transform="rotate(-32 4 76)">
+          <rect width="36" height="80" rx="6" fill="var(--bloom-accent)" opacity="0.85" />
+        </g>
+        <circle cx="18" cy="40" r="12" fill="var(--bloom-accent)" opacity="0.2" />
+        <path d="M 12 40 L 17 45 L 26 33" stroke="var(--bloom-accent)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </svg>
+  );
+}
+
+export function ProgramPolicyCheckVisual() {
+  // "A magnifying glass over one specific program's own requirements page."
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 130" aria-hidden="true">
+      <rect x="20" y="15" width="110" height="100" rx="8" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      {[32, 46, 60, 74, 88].map((y, i) => (
+        <rect key={y} x="34" y={y} width={i === 4 ? 50 : 82} height="6" rx="3" fill="var(--bloom-card-border)" opacity="0.6" />
+      ))}
+      <circle cx="140" cy="70" r="30" fill="var(--bloom-card)" opacity="0.4" stroke="var(--bloom-accent)" strokeWidth="4" />
+      <line x1="161" y1="91" x2="182" y2="112" stroke="var(--bloom-accent)" strokeWidth="6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SopDocumentVisual() {
+  // "The mascot pointing at a glowing, central document" — the SOP's own version of
+  // EssayDocumentVisual (HS's Essays beat 0), given a real glow (a soft, low-opacity accent
+  // circle behind it) and an accent-colored border instead of a plain one, to read as genuinely
+  // the MOST important document, not just another essay. Paired with a real mascot gesture below.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 160 140" aria-hidden="true">
+      <circle cx="80" cy="70" r="52" fill="var(--bloom-accent)" opacity="0.14" />
+      <path d="M 34 18 H 100 L 120 38 V 122 H 34 Z" fill="var(--bloom-card)" stroke="var(--bloom-accent)" strokeWidth="2.5" />
+      <path d="M 100 18 L 100 38 L 120 38 Z" fill="var(--bloom-accent)" opacity="0.7" />
+      {[52, 64, 76, 88, 100].map((y, i) => (
+        <rect key={y} x="46" y={y} width={i === 4 ? 40 : 62} height="5" rx="2.5" fill="var(--bloom-card-border)" opacity="0.75" />
+      ))}
+    </svg>
+  );
+}
+
+export function ResumeCrossedOutVisual() {
+  // "A resume being crossed out, replaced by a different document" — a faded, struck-through
+  // resume (with its own small "profile photo" circle, reading unmistakably as a resume rather
+  // than a generic document) beside a distinct, accent-colored document taking its place.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <g opacity="0.45">
+        <rect x="16" y="16" width="80" height="100" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+        <circle cx="40" cy="36" r="8" fill="var(--bloom-card-border)" />
+        {[54, 66, 78, 90].map((y) => (
+          <rect key={y} x="26" y={y} width="60" height="5" rx="2.5" fill="var(--bloom-card-border)" />
+        ))}
+        <path d="M 12 12 L 100 120" stroke="var(--bloom-orange)" strokeWidth="3" strokeLinecap="round" />
+      </g>
+      <path d="M 108 66 H 132" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" />
+      <path d="M 126 59 L 136 66 L 126 73" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="146" y="16" width="60" height="100" rx="6" fill="var(--bloom-accent)" opacity="0.16" stroke="var(--bloom-accent)" strokeWidth="2.5" />
+      {[36, 48, 60, 72, 84, 96].map((y, i) => (
+        <rect key={y} x="156" y={y} width={i % 2 === 0 ? 40 : 30} height="5" rx="2.5" fill="var(--bloom-accent)" opacity="0.8" />
+      ))}
+    </svg>
+  );
+}
+
+export function WritingTheConnectionVisual() {
+  // "A line drawing connecting a 'You' icon to a specific faculty/research icon" — deliberately a
+  // DIFFERENT visual treatment from Big Picture's own `FacultyFitVisual` (a dashed line snapping
+  // into place, a hexagon icon), even though the two beats share a related "fit" theme: here the
+  // line is being actively DRAWN, a pen mid-stroke at its leading edge, ending at a diamond-shaped
+  // icon rather than a hexagon — this beat is specifically about the act of WRITING that
+  // connection, not just recognizing that it exists.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 120" aria-hidden="true">
+      <circle cx="30" cy="60" r="16" fill="var(--bloom-teal)" />
+      <path d="M 48 60 H 130" stroke="var(--bloom-accent)" strokeWidth="2.5" fill="none" />
+      <g transform="translate(134 60) rotate(45)">
+        <rect x="-4" y="-16" width="8" height="24" rx="2" fill="var(--bloom-ink)" />
+        <path d="M -4 -16 L 0 -24 L 4 -16 Z" fill="var(--bloom-orange)" />
+      </g>
+      <path d="M 168 32 L 190 60 L 168 88 L 146 60 Z" fill="var(--bloom-purple)" />
+    </svg>
+  );
+}
+
+export function SpecificFacultyDocumentVisual() {
+  // "A document with a highlighted faculty name and a specific lab name" — two distinct
+  // accent-outlined highlight blocks standing out from the document's own plain, muted lines,
+  // reading as "these two specific things are called out." Paired with a real mascot gesture,
+  // the task's own literal example for this exact beat.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 160 130" aria-hidden="true">
+      <path d="M 30 10 H 92 L 110 28 V 110 H 30 Z" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      <path d="M 92 10 L 92 28 L 110 28 Z" fill="var(--bloom-card-border)" />
+      <rect x="42" y="42" width="52" height="4" rx="2" fill="var(--bloom-card-border)" opacity="0.6" />
+      <rect x="42" y="54" width="64" height="12" rx="4" fill="var(--bloom-accent)" opacity="0.2" stroke="var(--bloom-accent)" strokeWidth="1.5" />
+      <rect x="42" y="72" width="50" height="12" rx="4" fill="var(--bloom-accent)" opacity="0.2" stroke="var(--bloom-accent)" strokeWidth="1.5" />
+      <rect x="42" y="94" width="46" height="4" rx="2" fill="var(--bloom-card-border)" opacity="0.6" />
+    </svg>
+  );
+}
+
+export function VagueToSpecificVisual() {
+  // Blends Stage 1's own "a red flag rising next to a vague, faded sentence" with this batch's own
+  // "a document being revised from vague to specific text" guidance: the same document's own top
+  // half shows dashed-outline (never filled) vague lines flagged by a small red flag, its bottom
+  // half shows solid, confident, accent-colored specific lines — one document, two real states.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 130" aria-hidden="true">
+      <rect x="20" y="12" width="120" height="106" rx="8" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      <rect x="34" y="30" width="92" height="5" rx="2.5" fill="none" stroke="var(--bloom-card-border)" strokeWidth="1.5" strokeDasharray="3 3" />
+      <rect x="34" y="42" width="70" height="5" rx="2.5" fill="none" stroke="var(--bloom-card-border)" strokeWidth="1.5" strokeDasharray="3 3" />
+      <path d="M 150 20 L 150 46" stroke="var(--bloom-orange)" strokeWidth="3" strokeLinecap="round" />
+      <path d="M 150 20 L 168 27 L 150 34 Z" fill="var(--bloom-orange)" />
+      <rect x="34" y="66" width="92" height="6" rx="3" fill="var(--bloom-accent)" opacity="0.85" />
+      <rect x="34" y="80" width="76" height="6" rx="3" fill="var(--bloom-accent)" opacity="0.85" />
+      <rect x="34" y="94" width="60" height="6" rx="3" fill="var(--bloom-accent)" opacity="0.85" />
+    </svg>
+  );
+}
+
 export const BEAT_VISUALS = {
   // "Before we dive in, let's walk through how college admissions actually works." — a welcoming
   // gesture, reusing the mascot's own existing arm-raise/pointing system at a fixed, friendly
@@ -873,4 +1120,26 @@ export const BEAT_VISUALS = {
   'grad-big-picture-1': FourDocsConvergeVisual,
   'grad-big-picture-2': { mascotPointAngle: 75, Illustration: FacultyFitVisual },
   'grad-big-picture-3': GpaExpandsVisual,
+
+  // Undergrad (Grad School) script — Batch 2: Academic Record, Testing, The Statement of Purpose.
+  'grad-academic-record-0': GpaZoomVisual,
+  'grad-academic-record-1': MajorRelevantTranscriptVisual,
+  'grad-academic-record-2': ResearchIntoFolderVisual,
+  'grad-academic-record-3': GrowthTrendVisual,
+
+  'grad-testing-0': FourTestDoorsVisual,
+  'grad-testing-1': TestToBuildingVisual,
+  'grad-testing-2': TestOptionalDoorVisual,
+  'grad-testing-3': ProgramPolicyCheckVisual,
+
+  // The Statement of Purpose — beats 0 and 3 are both genuinely about the mascot's own gesture
+  // (pointing at the document itself; pointing at the specific highlighted faculty/lab callouts
+  // within it), so both get the same "mascot points, illustration sits below it" combo Essays/
+  // Recommendation Letters/Transition already established for the HS script, and Big Picture's own
+  // 'fit' beat already established for this one.
+  'grad-statement-of-purpose-0': { mascotPointAngle: 75, Illustration: SopDocumentVisual },
+  'grad-statement-of-purpose-1': ResumeCrossedOutVisual,
+  'grad-statement-of-purpose-2': WritingTheConnectionVisual,
+  'grad-statement-of-purpose-3': { mascotPointAngle: 75, Illustration: SpecificFacultyDocumentVisual },
+  'grad-statement-of-purpose-4': VagueToSpecificVisual,
 };
