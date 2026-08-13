@@ -10745,6 +10745,69 @@ is.
   `Roadmap.jsx`, or any `api/*.js` file. The remaining 5 grad modules (Research Experience & Fit
   through Transition), and the entire Transfer script, are still placeholder-only — future batches.
 
+**Undergrad Admissions Overview, Stage 2 (Batch 3 of 5): real visuals for the grad script's own
+Research Experience & Fit, Recommendation Letters, and Building Your Program List — Batches 1 and
+2 are appended after, never modified, confirmed via a dedicated regression pass re-run alongside
+this batch's own new content.** 12 beats covered (4 per module), namespaced the identical `grad-*`
+way every entry in this file already is.
+- **11 new components, most explicitly built by reusing an established motif rather than starting
+  from a blank page — per this batch's own explicit "consider reusing a similar visual motif"
+  guidance for Research Experience & Fit specifically**: a peak-among-hills (echoing the HS
+  script's own "spike" `SpikePeakVisual`, not reused directly since this beat's own description
+  adds a genuinely new element) with a real magnifying glass zoomed onto the summit
+  (`ResearchPeakZoomVisual`); the same "scattered dim points around one glowing focused point"
+  motif `SpikeFocusVisual` already established, with every point — scattered and focused alike —
+  redrawn as a small flask shape instead of a plain dot, so it reads as research-specific, not
+  generic (`ResearchFocusVisual`); a flask connected by a solid line to a person-silhouette
+  "faculty" icon with a small nameplate rectangle beneath it, reading as "named"
+  (`ResearchToFacultyVisual` — deliberately a third, distinct visual language from both Big
+  Picture's `FacultyFitVisual` (hexagon, dashed line) and SOP's `WritingTheConnectionVisual`
+  (diamond, pen), even though all three beats share a related "fit" theme); one continuous winding,
+  deepening path beside several short, faint, disconnected segments (`WindingDepthPathVisual`); two
+  labeled envelopes, "Generic" (muted) and "Specific" (accent-filled) (`TwoEnvelopesVisual`); a lab
+  bench scene — two figures with a small flask between them, not a curved speech-line — beside the
+  same faded "roster" contrast `RealConversationVisual` (HS) already established
+  (`LabConversationVisual`, this batch's own key example — a distinct LAB setting per this batch's
+  own explicit "distinguishing this from the HS version's teacher-focused imagery" instruction);
+  a faded, generic letter replaced via arrow by a solid, multi-line detailed one
+  (`GenericToDetailedLetterVisual`); a folder holding 3 real, individually labeled content tabs
+  (CV/Research/SOP — the exact items the beat's own narration names, not a generic unlabeled stack)
+  with a small onward-handoff arrow (`HandoffFolderVisual`); a plain "FIT" label front and center
+  above 3 baskets — deliberately NOT the HS script's own Reach/Match/Safety-colored
+  `ReachMatchSafetyBasketsVisual`, since this beat never mentions that concept
+  (`FitBasketsVisual`); a faint, muted university building beside a real magnifying glass revealing
+  a distinct lab icon (`UniversityToLabZoomVisual`); and one large, dim circle (size alone reading
+  as "impressive") beside one small circle carrying the only real glow, directly undercutting a
+  size-as-prestige assumption (`MatchedVsPrestigeVisual`).
+- **`grad-recommendation-letters-1` is this batch's own mascot-gesture-plus-illustration combo**
+  (`{ mascotPointAngle: 75, Illustration: LabConversationVisual }`) — the same pattern established
+  throughout this file, applied here per this batch's own literal instruction ("show the mascot
+  gesturing toward a research/lab setting rather than a classroom").
+- **`grad-building-your-list-3` reuses `AcademicPlanIconVisual` directly** (not a new sibling) —
+  this beat's own Stage 1 description is literally "MyPath's own roadmap/plan icon," the identical
+  concept the HS script's own equivalent beat already uses that exact component for, matching the
+  same direct-reuse precedent `RoadmapDotsVisual` already established in Batch 1.
+- Verified with a dedicated Playwright suite that FIRST re-confirms Batches 1 and 2 (Introduction
+  through The Statement of Purpose, 5 modules) — a lighter-weight regression pass than each batch's
+  own original exhaustive per-beat verification, confirming each module's real title, that its own
+  first beat still shows a real visual with zero placeholder, and that it still reaches its own
+  Continue with zero page errors — before touching any of the new content. The 3 new modules were
+  then walked in full: every beat shows a real visual (illustration and/or mascot gesture) with
+  zero placeholder note, every module's own beats are mutually distinct (direct SVG-content
+  comparison), and Recommendation Letters' own combo beat carries a real mascot-pointing gesture. A
+  final regression check confirms module 9 (The Timeline, not part of this batch) still shows the
+  plain Stage 1 placeholder. Every one of the 12 new beats' own screenshot was individually
+  reviewed and confirmed to read cleanly — the flask-peak-with-magnifying-glass, the flask-shaped
+  scattered-vs-focused contrast, the two labeled envelopes, the mascot pointing at the real lab
+  conversation (distinctly NOT a classroom), the CV/Research/SOP folder tabs, the "FIT" baskets, the
+  university-to-lab zoom, and the small-glowing-vs-large-dim program comparison. `npm run build`/
+  `npm run lint` both stay clean — this batch touches only `AdmissionsBeatVisuals.jsx` (12 new
+  `BEAT_VISUALS` entries — 11 new components plus 1 direct reuse of an existing one — appended after
+  Batch 2's own content, nothing there modified) — it never opens `AdmissionsPresentationScreen.jsx`,
+  either data file, `AppContext.jsx`, `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file. The
+  remaining 2 grad modules (The Timeline, Transition), and the entire Transfer script, are still
+  placeholder-only — future batches.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

@@ -1030,6 +1030,229 @@ export function VagueToSpecificVisual() {
   );
 }
 
+// Undergrad (Grad School) Admissions Overview, Stage 2, Batch 3 of 5 (see CLAUDE.md) — real,
+// distinct visuals for the grad script's own Research Experience & Fit, Recommendation Letters,
+// and Building Your Program List modules (12 beats). Batches 1 and 2 above are completely
+// untouched — this batch only appends new content. Same conventions as every prior batch: pure
+// inline SVG, bloom tokens only, one shared entrance fade, minimal `<text>` only where a beat is
+// genuinely about a specific label.
+export function ResearchPeakZoomVisual() {
+  // "One tall peak, paired with a magnifying glass zoomed in tight on it" — echoes the HS script's
+  // own "spike" peak-among-hills motif (Extracurriculars & the Spike's own `SpikePeakVisual`,
+  // NOT reused directly since this beat's own description adds a genuinely new element on top of
+  // it), with a real magnifying glass zoomed onto the peak's own summit — the grad-specific
+  // "research fit" equivalent of the HS "spike," per Task 1's own explicit reuse-the-motif guidance.
+  const hills = [24, 54, 150, 180];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 140" aria-hidden="true">
+      <line x1="12" y1="118" x2="208" y2="118" stroke="var(--bloom-card-border)" strokeWidth="2.5" strokeLinecap="round" />
+      {hills.map((x) => (
+        <path key={x} d={`M ${x - 18} 118 Q ${x} 92 ${x + 18} 118 Z`} fill="var(--bloom-teal)" opacity="0.5" />
+      ))}
+      <path d="M 84 118 L 110 34 L 136 118 Z" fill="var(--bloom-orange)" />
+      <circle cx="110" cy="44" r="26" fill="var(--bloom-card)" opacity="0.55" stroke="var(--bloom-accent)" strokeWidth="3.5" />
+      <line x1="128" y1="62" x2="144" y2="78" stroke="var(--bloom-accent)" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ResearchFocusVisual() {
+  // "One glowing research icon, versus several dim, scattered ones" — the same "scattered dim
+  // points around one glowing focused point" motif `SpikeFocusVisual` (HS) already established,
+  // adapted to research/lab imagery per Task 1's own instruction: every point (scattered and
+  // focused alike) is a small flask shape, not a plain dot, so this reads as research-specific.
+  const flask = (x, y, color, opacity, scale = 1) => (
+    <g key={`${x}-${y}`} transform={`translate(${x} ${y}) scale(${scale})`} opacity={opacity}>
+      <path d="M -5 -10 V -2 L -12 12 H 12 L 5 -2 V -10 Z" fill={color} />
+    </g>
+  );
+  const scattered = [
+    { x: 30, y: 26 }, { x: 172, y: 30 }, { x: 26, y: 96 }, { x: 176, y: 92 },
+    { x: 46, y: 64 }, { x: 156, y: 62 },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 120" aria-hidden="true">
+      {scattered.map((p) => flask(p.x, p.y, 'var(--bloom-ink-soft)', 0.3, 0.7))}
+      <circle cx="100" cy="60" r="28" fill="var(--bloom-yellow)" opacity="0.22" />
+      {flask(100, 60, 'var(--bloom-yellow)', 1, 1.2)}
+    </svg>
+  );
+}
+
+export function ResearchToFacultyVisual() {
+  // "A line connecting a research icon directly to a named faculty icon" — a flask (research,
+  // not a plain "You" icon) connected by a solid line to a person silhouette with a small
+  // nameplate rectangle beneath it (reading as "named," per the beat's own wording) — deliberately
+  // a different visual language from both `FacultyFitVisual` (Big Picture's hexagon + dashed line)
+  // and `WritingTheConnectionVisual` (SOP's diamond + pen), even though all three beats share a
+  // related "fit" theme.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 120" aria-hidden="true">
+      <path d="M 30 40 V 52 L 16 76 H 52 L 38 52 V 40 Z" fill="var(--bloom-teal)" />
+      <path d="M 58 60 H 130" stroke="var(--bloom-accent)" strokeWidth="2.5" fill="none" />
+      <circle cx="158" cy="46" r="14" fill="var(--bloom-purple)" />
+      <path d="M 138 84 Q 158 64 178 84 Z" fill="var(--bloom-purple)" />
+      <rect x="138" y="92" width="40" height="12" rx="3" fill="var(--bloom-card)" stroke="var(--bloom-purple)" strokeWidth="1.5" />
+      <rect x="144" y="96" width="28" height="4" rx="2" fill="var(--bloom-purple)" opacity="0.6" />
+    </svg>
+  );
+}
+
+export function WindingDepthPathVisual() {
+  // "A single winding path deepening over time, versus several short, disconnected ones."
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <g stroke="var(--bloom-card-border)" strokeWidth="2.5" strokeLinecap="round" opacity="0.6">
+        <path d="M 20 24 L 40 30" fill="none" />
+        <path d="M 20 46 L 44 40" fill="none" />
+        <path d="M 24 68 L 46 72" fill="none" />
+      </g>
+      <path d="M 70 20 Q 100 40 90 62 T 130 88 Q 160 100 200 96" stroke="var(--bloom-accent)" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+      <circle cx="70" cy="20" r="5" fill="var(--bloom-accent)" />
+      <circle cx="200" cy="96" r="6" fill="var(--bloom-accent)" />
+    </svg>
+  );
+}
+
+export function TwoEnvelopesVisual() {
+  // "Two envelopes: one labeled generic, one labeled specific."
+  const envelope = (x, color, opacity, label) => (
+    <g key={x} transform={`translate(${x} 20)`}>
+      <rect width="80" height="56" rx="6" fill={color} opacity={opacity} stroke={color} strokeWidth="2" />
+      <path d="M 4 6 L 40 34 L 76 6" stroke="var(--bloom-card)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <text x="40" y="76" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="11" fontWeight="700" fill="var(--bloom-ink-soft)">{label}</text>
+    </g>
+  );
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 100" aria-hidden="true">
+      {envelope(14, 'var(--bloom-card-border)', 0.35, 'Generic')}
+      {envelope(126, 'var(--bloom-accent)', 0.85, 'Specific')}
+    </svg>
+  );
+}
+
+export function LabConversationVisual() {
+  // Task 1's own explicit instruction: "a beat about needing letters from people who know your
+  // actual work could show the mascot gesturing toward a research/lab setting rather than a
+  // classroom, distinguishing this from the HS version's teacher-focused imagery." Reuses the same
+  // "real conversation vs. faded roster" contrast `RealConversationVisual` (HS) already
+  // established, but a small flask sits between the two figures instead of a curved speech-line —
+  // a lab bench, not a classroom desk. Paired with a real mascot gesture (BEAT_VISUALS entry
+  // below).
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <circle cx="46" cy="40" r="16" fill="var(--bloom-teal)" />
+      <circle cx="86" cy="46" r="13" fill="var(--bloom-purple)" />
+      <path d="M 60 40 V 48 L 54 60 H 68 L 62 48 V 40 Z" fill="var(--bloom-accent)" opacity="0.85" />
+      <rect x="24" y="66" width="82" height="4" rx="2" fill="var(--bloom-card-border)" opacity="0.6" />
+      <g opacity="0.5">
+        <rect x="130" y="30" width="70" height="18" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" />
+        <circle cx="144" cy="39" r="6" fill="var(--bloom-card-border)" />
+        <rect x="156" y="36" width="36" height="5" rx="2.5" fill="var(--bloom-card-border)" />
+        <rect x="130" y="52" width="70" height="18" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" />
+        <circle cx="144" cy="61" r="6" fill="var(--bloom-card-border)" />
+        <rect x="156" y="58" width="36" height="5" rx="2.5" fill="var(--bloom-card-border)" />
+      </g>
+    </svg>
+  );
+}
+
+export function GenericToDetailedLetterVisual() {
+  // "A generic 'great student!' letter fading, replaced by a specific, detailed one."
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <g opacity="0.35">
+        <rect x="16" y="20" width="76" height="80" rx="6" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+        <rect x="30" y="50" width="48" height="5" rx="2.5" fill="var(--bloom-card-border)" />
+      </g>
+      <path d="M 104 60 H 128" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" />
+      <path d="M 122 53 L 132 60 L 122 67" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="140" y="20" width="76" height="80" rx="6" fill="var(--bloom-accent)" opacity="0.16" stroke="var(--bloom-accent)" strokeWidth="2.5" />
+      {[38, 50, 62, 74, 86].map((y, i) => (
+        <rect key={y} x="152" y={y} width={i % 2 === 0 ? 50 : 38} height="5" rx="2.5" fill="var(--bloom-accent)" opacity="0.85" />
+      ))}
+    </svg>
+  );
+}
+
+export function HandoffFolderVisual() {
+  // "A folder being handed over, its contents visibly highlighted" — 3 real, individually labeled
+  // content tabs (CV, Research, SOP — the exact items the beat's own narration names) rather than
+  // a generic, unlabeled stack, plus a small arrow showing it's being passed onward.
+  const items = [
+    { label: 'CV', color: 'var(--bloom-teal)' },
+    { label: 'Research', color: 'var(--bloom-purple)' },
+    { label: 'SOP', color: 'var(--bloom-orange)' },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 120" aria-hidden="true">
+      <path d="M 30 34 H 80 L 92 48 H 190 V 100 H 30 Z" fill="var(--bloom-yellow)" opacity="0.85" />
+      {items.map((item, i) => (
+        <g key={item.label} transform={`translate(${50 + i * 44} 58)`}>
+          <rect width="36" height="34" rx="4" fill="var(--bloom-card)" stroke={item.color} strokeWidth="2.5" />
+          <text x="18" y="21" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="9" fontWeight="700" fill={item.color}>{item.label}</text>
+        </g>
+      ))}
+      <path d="M 168 20 L 190 6" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M 178 4 L 192 6 L 186 18" stroke="var(--bloom-ink-soft)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function FitBasketsVisual() {
+  // "Three labeled baskets, 'Fit' front and center above them" — deliberately NOT the HS script's
+  // own Reach/Match/Safety-colored `ReachMatchSafetyBasketsVisual` (a genuinely different real
+  // concept this beat never mentions); a plain "FIT" label sits front and center above 3 baskets
+  // instead.
+  const tiers = [
+    { x: 20, color: 'var(--bloom-teal)' },
+    { x: 90, color: 'var(--bloom-purple)' },
+    { x: 160, color: 'var(--bloom-orange)' },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <text x="110" y="26" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="16" fontWeight="800" fill="var(--bloom-accent)" letterSpacing="1">FIT</text>
+      {tiers.map((t) => (
+        <g key={t.x}>
+          <path d={`M ${t.x} 66 H ${t.x + 40} L ${t.x + 36} 106 H ${t.x + 4} Z`} fill={t.color} opacity="0.85" />
+          <rect x={t.x + 8} y="48" width="12" height="16" rx="3" fill={t.color} />
+          <rect x={t.x + 22} y="52" width="12" height="16" rx="3" fill={t.color} opacity="0.7" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+export function UniversityToLabZoomVisual() {
+  // "Zooming past a university logo into a specific department/lab icon" — a faint, muted
+  // university building in the background, with a real magnifying glass revealing a distinct lab
+  // icon.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 130" aria-hidden="true">
+      <g opacity="0.35">
+        <rect x="20" y="70" width="80" height="40" fill="var(--bloom-card-border)" />
+        <path d="M 12 70 L 60 40 L 108 70 Z" fill="var(--bloom-card-border)" />
+      </g>
+      <circle cx="140" cy="60" r="36" fill="var(--bloom-card)" stroke="var(--bloom-accent)" strokeWidth="3.5" />
+      <line x1="165" y1="85" x2="184" y2="104" stroke="var(--bloom-accent)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M 140 44 V 54 L 128 74 H 152 L 140 54 Z" fill="var(--bloom-teal)" />
+    </svg>
+  );
+}
+
+export function MatchedVsPrestigeVisual() {
+  // "Two program icons: one small but glowing (matched), one large but dim (mismatched)" — the
+  // large circle deliberately reads as more "impressive" by sheer size alone, while the small one
+  // carries the only real glow, directly undercutting a size-as-prestige assumption.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <circle cx="150" cy="65" r="48" fill="var(--bloom-card-border)" opacity="0.35" />
+      <circle cx="52" cy="65" r="18" fill="var(--bloom-yellow)" opacity="0.25" />
+      <circle cx="52" cy="65" r="11" fill="var(--bloom-yellow)" />
+    </svg>
+  );
+}
+
 export const BEAT_VISUALS = {
   // "Before we dive in, let's walk through how college admissions actually works." — a welcoming
   // gesture, reusing the mascot's own existing arm-raise/pointing system at a fixed, friendly
@@ -1142,4 +1365,28 @@ export const BEAT_VISUALS = {
   'grad-statement-of-purpose-2': WritingTheConnectionVisual,
   'grad-statement-of-purpose-3': { mascotPointAngle: 75, Illustration: SpecificFacultyDocumentVisual },
   'grad-statement-of-purpose-4': VagueToSpecificVisual,
+
+  // Undergrad (Grad School) script — Batch 3: Research Experience & Fit, Recommendation Letters,
+  // Building Your Program List.
+  'grad-research-fit-0': ResearchPeakZoomVisual,
+  'grad-research-fit-1': ResearchFocusVisual,
+  'grad-research-fit-2': ResearchToFacultyVisual,
+  'grad-research-fit-3': WindingDepthPathVisual,
+
+  // Recommendation Letters — beat 1 is genuinely about the mascot's own gesture (per Task 1's
+  // explicit "mascot gesturing toward a research/lab setting" instruction), so it gets the same
+  // "mascot points, illustration sits below it" combo already established throughout this file.
+  'grad-recommendation-letters-0': TwoEnvelopesVisual,
+  'grad-recommendation-letters-1': { mascotPointAngle: 75, Illustration: LabConversationVisual },
+  'grad-recommendation-letters-2': GenericToDetailedLetterVisual,
+  'grad-recommendation-letters-3': HandoffFolderVisual,
+
+  // Building Your Program List — beat 3 reuses `AcademicPlanIconVisual` directly (not a new
+  // sibling), the same real, unmodified component the HS script's own equivalent beat already
+  // uses — the beat's own Stage 1 description is literally "MyPath's own roadmap/plan icon," the
+  // identical concept either script means by it.
+  'grad-building-your-list-0': FitBasketsVisual,
+  'grad-building-your-list-1': UniversityToLabZoomVisual,
+  'grad-building-your-list-2': MatchedVsPrestigeVisual,
+  'grad-building-your-list-3': AcademicPlanIconVisual,
 };
