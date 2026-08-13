@@ -10618,6 +10618,70 @@ the Transfer track. Same infrastructure end to end as both prior scripts; only t
   it never opens `AdmissionsBeatVisuals.jsx`, either prior script's data file, `AppContext.jsx`,
   `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
 
+**Undergrad Admissions Overview, Stage 2 (Batch 1 of 5): real visuals for the GRAD SCRIPT's own
+Introduction + The Big Picture — mirrors the HS script's own Stage 2, Batch 1 exactly (same file,
+same conventions, same small-incremental-batch approach), extending `AdmissionsBeatVisuals.jsx`
+rather than duplicating it.** 7 beats covered (`grad-introduction`'s 3, `grad-big-picture`'s 4),
+namespaced under the grad script's own `grad-*` module ids so nothing here can collide with the
+HS entries already in this same file, or with the (still entirely placeholder-only) Transfer
+script.
+- **5 new components** (`BroadVsFocusedVisual`, `WeightedScaleVisual`, `FourDocsConvergeVisual`,
+  `FacultyFitVisual`, `GpaExpandsVisual`), each matched to its own specific beat, not a generic
+  stand-in: two low, wide, muted shapes beside one tall, narrow, accent-colored one (`BroadVsFocused
+  Visual`, for "less about a broad, well-rounded profile, more about a focused, well-argued fit");
+  an asymmetrically-tilted balance beam with one pan hanging noticeably lower (`WeightedScaleVisual`,
+  for "holistic too — but the weighting is different," deliberately NOT a level scale); four small
+  document icons converging via thin lines into one central folder (`FourDocsConvergeVisual`, for
+  "SOP, transcript, letters, and sometimes test scores... all read together"); a "You" circle
+  connected by a dashed line to a distinctly-shaped hexagon "lab/faculty" icon, with a small glow
+  where they align (`FacultyFitVisual`, the task's own literal example for the "fit" beat — paired
+  with a real mascot gesture, below); and a central "GPA" badge with lines fanning out to a document/
+  flask/envelope representing SOP, research fit, and letters (`GpaExpandsVisual`, for "a strong GPA
+  alone doesn't make the case," reading the Stage 1 script's own "documents converging on one target"
+  concept in reverse — one number expanding out to the real factors that argue the case together —
+  per this batch's own explicit "echo the number-expanding-to-multiple-factors idea" guidance).
+- **Two beats deliberately reuse EXISTING components rather than building new, near-duplicate
+  ones**: `grad-introduction-0` reuses the exact `{ mascotPointAngle: -55 }` friendly-greeting angle
+  the HS script's own `introduction-0` already established (a genuine reuse of the already-built
+  mascot animation system, Task 2's own explicit instruction, not a new gesture invented for this
+  script); `grad-introduction-2` reuses `RoadmapDotsVisual` directly (the exact same parameter-less
+  component, not a new sibling) — the beat describes the identical "10-stop table-of-contents, each
+  stop lighting up" concept the HS script's own equivalent beat already uses, so sharing the
+  component is a safe, correct reuse rather than needless duplication (unlike `AllStopsLitVisual`,
+  which genuinely needed to be a new sibling since its own meaning — every dot lit, not just the
+  first 2 — actually differs).
+- **`grad-big-picture-2` (the "fit" beat) is this batch's one mascot-gesture-plus-illustration
+  combo** (`{ mascotPointAngle: 75, Illustration: FacultyFitVisual }`) — the same pattern Essays/
+  Recommendation Letters/Transition already established for the HS script, applied here because the
+  task's own explicit guidance names this exact beat ("a beat about research/program fit mattering
+  could show the mascot connecting a student icon to a specific lab/faculty icon") as the natural
+  fit for it.
+- Verified with a dedicated Playwright suite driving a real click-through of just these two modules
+  (Task 3's own explicit scope — the remaining 8 grad modules were not touched in this pass): beat 1
+  shows a real mascot gesture with zero illustration and zero placeholder note; beats 2 and 3 each
+  auto-advance (no click needed) into their own distinct, real illustration, confirmed via a direct
+  SVG-content comparison (not just "an SVG exists twice"); all 4 Big Picture beats show a real
+  visual (illustration and/or mascot gesture) with zero placeholder note, confirmed mutually
+  distinct the same way, and beat 3 specifically is confirmed to carry the real mascot-pointing
+  gesture; and — the direct proof this batch stayed scoped to just 2 modules — module 3 (Academic
+  Record, not part of this batch) still shows Stage 1's own plain placeholder note with zero
+  illustration and zero mascot gesture, unchanged. A real, confirmed test-timing bug (not an app
+  bug) was found and fixed while building this suite: the estimated-speech-duration fallback
+  (`useMascotSpeech`, used whenever `voiceMuted` is true) can take up to 6 seconds for a longer
+  beat, so a flat short sleep between checks caused false "no illustration yet" failures on the
+  first run — fixed by polling for either a real caption-text change or the Continue button, never
+  a fixed wait, matching the established pattern this app's own admissions-presentation test suites
+  already use elsewhere. Real screenshots of all 7 beats were also visually reviewed (not just
+  DOM-checked) and confirmed to read cleanly — the tilted scale, the four documents landing in the
+  folder, the "You"-to-faculty connection under the mascot's own gesture, and the GPA badge fanning
+  out to its 3 real factors. `npm run build`/`npm run lint` both stay clean — this batch touches
+  only `AdmissionsBeatVisuals.jsx` (7 new `BEAT_VISUALS` entries plus 5 new components, appended
+  after the existing HS/Batch-4 content, nothing there modified) — it never opens
+  `AdmissionsPresentationScreen.jsx`, either data file, `AppContext.jsx`, `roadmapLayout.js`/
+  `Roadmap.jsx`, or any `api/*.js` file. The remaining 8 grad modules, and the entire Transfer
+  script, are still placeholder-only — future batches, not attempted in this pass per Task 3's own
+  explicit "test only these two modules before reporting back" instruction.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

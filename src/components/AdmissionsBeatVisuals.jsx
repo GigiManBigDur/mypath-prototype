@@ -675,6 +675,114 @@ export function YouPuzzlePieceVisual() {
   );
 }
 
+// Undergrad (Grad School) Admissions Overview, Stage 2, Batch 1 of 5 (see CLAUDE.md) — real,
+// distinct visuals for the GRAD SCRIPT's own Introduction and The Big Picture modules (7 beats:
+// grad-introduction's 3, grad-big-picture's 4) — the first Stage-2 visual batch for the grad
+// script, mirroring the exact "small, incremental batches" approach the HS script's own Stage 2
+// already established above. Same conventions throughout: pure inline SVG, bloom tokens only, one
+// shared entrance fade (`admissions-visual-in`, global.css), no elaborate particle effects (that's
+// the final transition-polish stage, once every visual batch across every script is done). Every
+// entry below is keyed under the grad script's own namespaced `grad-*` module ids
+// (admissionsPresentationGrad.js), so nothing here can ever collide with the HS entries above or
+// bleed into that script's own rendering — the same "namespace the ids, never worry about
+// collision" guarantee Stage 1 already established for the grad script's own content.
+export function BroadVsFocusedVisual() {
+  // "Two silhouettes side by side: one wide and shallow, one narrow and deep" — two low, wide,
+  // muted shapes (broad, shallow) beside one tall, narrow, accent-colored shape (focused, deep).
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <line x1="15" y1="120" x2="205" y2="120" stroke="var(--bloom-card-border)" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
+      <rect x="15" y="94" width="46" height="26" rx="7" fill="var(--bloom-card-border)" opacity="0.55" />
+      <rect x="66" y="94" width="46" height="26" rx="7" fill="var(--bloom-card-border)" opacity="0.4" />
+      <rect x="150" y="26" width="40" height="94" rx="10" fill="var(--bloom-purple)" />
+    </svg>
+  );
+}
+
+export function WeightedScaleVisual() {
+  // "A scale, subtly different in shape from a college-admissions scale" — a balance beam tilted
+  // asymmetrically (not perfectly level), with one pan hanging noticeably lower/heavier than the
+  // other, to read as "holistic, but weighted differently" rather than an evenly-balanced scale.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 200 130" aria-hidden="true">
+      <line x1="100" y1="34" x2="100" y2="105" stroke="var(--bloom-card-border)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="70" y1="105" x2="130" y2="105" stroke="var(--bloom-card-border)" strokeWidth="3" strokeLinecap="round" />
+      <line x1="32" y1="26" x2="168" y2="46" stroke="var(--bloom-ink-soft)" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="100" cy="35" r="4" fill="var(--bloom-ink-soft)" />
+      <line x1="32" y1="26" x2="32" y2="50" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      <path d="M 16 50 A 16 9 0 0 0 48 50 Z" fill="var(--bloom-teal)" opacity="0.85" />
+      <line x1="168" y1="46" x2="168" y2="76" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      <path d="M 149 76 A 19 10 0 0 0 187 76 Z" fill="var(--bloom-orange)" />
+    </svg>
+  );
+}
+
+export function FourDocsConvergeVisual() {
+  // "Four documents converging into one folder" — four small document icons at the corners, each
+  // with a thin connecting line leading into one central folder receiving all four.
+  const docs = [
+    { x: 20, y: 14 }, { x: 160, y: 14 }, { x: 20, y: 84 }, { x: 160, y: 84 },
+  ];
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 140" aria-hidden="true">
+      {docs.map((d) => (
+        <g key={`${d.x}-${d.y}`}>
+          <rect x={d.x} y={d.y} width="34" height="42" rx="4" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+          <rect x={d.x + 6} y={d.y + 10} width="22" height="3" rx="1.5" fill="var(--bloom-card-border)" />
+          <rect x={d.x + 6} y={d.y + 18} width="22" height="3" rx="1.5" fill="var(--bloom-card-border)" />
+          <rect x={d.x + 6} y={d.y + 26} width="14" height="3" rx="1.5" fill="var(--bloom-card-border)" />
+        </g>
+      ))}
+      <path d="M 50 40 L 90 62" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" fill="none" opacity="0.6" />
+      <path d="M 165 40 L 130 62" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" fill="none" opacity="0.6" />
+      <path d="M 50 90 L 90 76" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" fill="none" opacity="0.6" />
+      <path d="M 165 90 L 130 76" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" fill="none" opacity="0.6" />
+      <path d="M 88 60 H 112 L 122 70 H 160 V 104 H 88 Z" fill="var(--bloom-accent)" opacity="0.9" />
+    </svg>
+  );
+}
+
+export function FacultyFitVisual() {
+  // The task's own explicit example for a beat about research/program fit mattering: a "You" icon
+  // connecting to a specific lab/faculty icon — a uniquely-shaped hexagon (not just another circle)
+  // to read as "one particular match," not an interchangeable connection — with a small glow where
+  // the dashed line snaps into alignment. Paired with a real mascot gesture (BEAT_VISUALS entry
+  // below), the same "mascot points, illustration sits below it" combo Essays/Recommendation
+  // Letters/Transition already established for the HS script.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 180 120" aria-hidden="true">
+      <circle cx="34" cy="60" r="18" fill="var(--bloom-teal)" />
+      <path d="M 52 60 H 108" stroke="var(--bloom-accent)" strokeWidth="2.5" strokeDasharray="4 4" fill="none" opacity="0.85" />
+      <circle cx="108" cy="60" r="7" fill="var(--bloom-accent)" opacity="0.25" />
+      <path d="M 146 34 L 168 47 L 168 73 L 146 86 L 124 73 L 124 47 Z" fill="var(--bloom-purple)" />
+    </svg>
+  );
+}
+
+export function GpaExpandsVisual() {
+  // "Several documents all pointing/aligning toward one single target" (Stage 1's own described
+  // concept), read the OTHER direction per this batch's own explicit guidance — a single GPA
+  // number expanding out to the real, distinct factors (SOP, research fit, letters) that have to
+  // argue the same case alongside it, echoing the same "not just one number" idea the HS script's
+  // own Introduction/Big Picture batch already applied wherever it genuinely fit.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 130" aria-hidden="true">
+      <circle cx="40" cy="65" r="26" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2.5" />
+      <text x="40" y="71" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="15" fontWeight="800" fill="var(--bloom-ink-soft)">GPA</text>
+      <path d="M 66 50 L 118 26" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" opacity="0.6" fill="none" />
+      <path d="M 68 65 L 118 65" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" opacity="0.6" fill="none" />
+      <path d="M 66 80 L 118 104" stroke="var(--bloom-ink-soft)" strokeWidth="1.5" opacity="0.6" fill="none" />
+      {/* SOP — a small document */}
+      <rect x="122" y="14" width="30" height="24" rx="4" fill="var(--bloom-orange)" />
+      {/* research fit — a small flask */}
+      <path d="M 128 58 L 128 66 L 118 82 H 154 L 144 66 L 144 58 Z" fill="var(--bloom-teal)" />
+      {/* letters — a small envelope */}
+      <rect x="122" y="98" width="34" height="22" rx="3" fill="var(--bloom-purple)" />
+      <path d="M 122 98 L 139 111 L 156 98" stroke="var(--bloom-card)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export const BEAT_VISUALS = {
   // "Before we dive in, let's walk through how college admissions actually works." — a welcoming
   // gesture, reusing the mascot's own existing arm-raise/pointing system at a fixed, friendly
@@ -745,4 +853,24 @@ export const BEAT_VISUALS = {
   'transition-0': AllStopsLitVisual,
   'transition-1': { mascotPointAngle: null },
   'transition-2': { mascotPointAngle: 75, Illustration: YouPuzzlePieceVisual },
+
+  // Undergrad (Grad School) script — Introduction. Beat 0 reuses the EXACT same friendly
+  // welcoming-gesture angle as the HS script's own 'introduction-0' (a genuine reuse of the already
+  // -built mascot animation system, not a new one invented for this script). Beat 2 reuses
+  // `RoadmapDotsVisual` directly (not a new sibling component) — the beat describes the identical
+  // "10-stop table-of-contents, each stop lighting up" concept the HS script's own equivalent beat
+  // already uses, and the component is parameter-less/pure, so sharing it here is a safe, direct
+  // reuse rather than needless duplication (unlike `AllStopsLitVisual`, which had to be a genuinely
+  // NEW sibling because ITS meaning — every dot lit — actually differs from `RoadmapDotsVisual`'s).
+  'grad-introduction-0': { mascotPointAngle: -55 },
+  'grad-introduction-1': BroadVsFocusedVisual,
+  'grad-introduction-2': RoadmapDotsVisual,
+
+  // Undergrad (Grad School) script — The Big Picture. Beat 2 is genuinely about the mascot's own
+  // gesture (connecting a student to a specific faculty match), so it gets the same "mascot points,
+  // illustration sits below it" combo Essays/Recommendation Letters/Transition already established.
+  'grad-big-picture-0': WeightedScaleVisual,
+  'grad-big-picture-1': FourDocsConvergeVisual,
+  'grad-big-picture-2': { mascotPointAngle: 75, Illustration: FacultyFitVisual },
+  'grad-big-picture-3': GpaExpandsVisual,
 };
