@@ -10808,6 +10808,59 @@ way every entry in this file already is.
   remaining 2 grad modules (The Timeline, Transition), and the entire Transfer script, are still
   placeholder-only — future batches.
 
+**Undergrad Admissions Overview, Stage 2, Batch 4 of 5 (FINAL MODULE BATCH): real visuals for the
+grad script's own The Timeline and Transition — completes visuals for all 10 grad modules.**
+Batches 1-3 are appended after, never modified, confirmed via a regression pass re-run alongside
+this batch's own new content, plus (per Task 3's own explicit requirement) a completely separate
+full continuous 10-module walkthrough confirming the whole presentation flows correctly together
+as one piece.
+- **3 new components, 4 direct reuses** — 7 beats total (The Timeline's 4, Transition's 3).
+  `ApplicationDeadlineCalendarVisual` shows a genuinely CLUSTERED group of highlighted cells
+  (deliberately distinct from the HS script's own `RetakeCalendarVisual`, a single highlighted
+  cell). `FacultyOutreachTimelineVisual` positions an email-reaching-toward-a-faculty-icon pairing
+  clearly EARLIER on a real horizontal timeline than a flag/deadline marker positioned clearly
+  LATER on that same line. **`NowForwardTimelineVisual` is this batch's own key deliverable, built
+  directly from Task 1's own explicit guidance**: since Undergrad students are already partway
+  through their academic journey (not starting fresh like an HS freshman), this beat uses a
+  "shorter, forward-looking timeline anchored at the student's current point" instead of the HS
+  script's own full multi-stop four-year arc — a single "NOW" badge partway along a plain line,
+  with a dashed arrow reaching forward toward "Apps Open," matching the beat's own literal Stage 1
+  wording.
+- **The Timeline's own beat 2 ("Draft 1 → 2 → 3") reuses `DraftStackVisual` directly** (the HS
+  script's own Essays beat 2) — this beat's own Stage 1 description is the literal, identical
+  concept that component already renders, the same direct-reuse precedent `RoadmapDotsVisual`/
+  `AcademicPlanIconVisual` already established in earlier batches.
+- **Transition mirrors the HS script's own equivalent module beat-for-beat, reusing its exact
+  components/gesture shapes directly rather than building near-duplicates**: `AllStopsLitVisual`
+  (the same 10-stop map, now fully lit); a mascot-only `{ mascotPointAngle: null }` listening pose
+  with no illustration (the mascot's own default, centered, forward-facing idle pose already reads
+  as "leaning in, listening," matching Task 1's own "same handoff feeling as the HS version"
+  instruction and the identical reasoning the HS script's own equivalent beat already documented);
+  and `{ mascotPointAngle: 75, Illustration: YouPuzzlePieceVisual }`, the mascot pointing at the
+  "You" puzzle piece joining the picture.
+- Verified with a dedicated Playwright suite in two parts. Part 1 first re-confirms Batches 1-3
+  (all 8 prior modules) via the same lighter-weight regression pass established in Batch 3 — real
+  title, a real first-beat visual, reaching Continue, zero page errors — before walking the 2 new
+  modules in full: every beat shows a real visual with zero placeholder note, every module's own
+  beats are mutually distinct, Transition's own listening beat correctly shows NEITHER an
+  illustration NOR a placeholder (the mascot-only pose is the whole point), and its closing beat
+  correctly carries a real mascot-pointing gesture. **Part 2 is a completely separate, fresh page
+  session driving all 10 modules start to finish in one continuous run** — the real Task 3
+  requirement — confirming every module title appears in the correct order, the final module's own
+  Continue button reads "Continue to my conversation" (not plain "Continue"), and completing it
+  lands on the real `onboardingConversation` screen, with zero page errors across the whole
+  walkthrough. Every one of the 7 new beats' own screenshot was individually reviewed and confirmed
+  to read cleanly — the clustered fall/winter deadlines, the early-outreach-vs-later-deadline
+  timeline, and especially the "NOW → Apps Open" forward-looking timeline (Task 1's own key
+  deliverable), plus Transition's fully-lit map, listening pose, and closing "You" handoff. `npm
+  run build`/`npm run lint` both stay clean — this batch touches only `AdmissionsBeatVisuals.jsx`
+  (7 new `BEAT_VISUALS` entries — 3 new components plus 4 direct reuses of existing ones, appended
+  after Batch 3's own content, nothing there modified) — it never opens
+  `AdmissionsPresentationScreen.jsx`, either data file, `AppContext.jsx`, `roadmapLayout.js`/
+  `Roadmap.jsx`, or any `api/*.js` file. **All 10 grad modules' worth of Stage 2 visuals are now
+  complete.** Only the entire Transfer script remains placeholder-only — a possible future batch,
+  not part of this pass.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

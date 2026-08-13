@@ -1253,6 +1253,77 @@ export function MatchedVsPrestigeVisual() {
   );
 }
 
+// Undergrad (Grad School) Admissions Overview, Stage 2, Batch 4 of 5 (see CLAUDE.md), FINAL
+// MODULE BATCH — real, distinct visuals for the grad script's own The Timeline and Transition
+// modules (7 beats). This completes visuals for all 10 grad modules. Batches 1-3 above are
+// completely untouched. Same conventions as every prior batch: pure inline SVG, bloom tokens
+// only, one shared entrance fade, minimal `<text>` only where a beat is genuinely about a
+// specific label.
+export function ApplicationDeadlineCalendarVisual() {
+  // "A calendar with application deadlines clustered in fall/winter" — a genuinely CLUSTERED
+  // group of highlighted cells, deliberately distinct from the HS script's own
+  // `RetakeCalendarVisual` (a single highlighted retake cell).
+  const cells = [];
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 5; col++) {
+      cells.push({ x: 32 + col * 24, y: 64 + row * 18, highlight: (row === 1 && col >= 2) || (row === 2 && col <= 2) });
+    }
+  }
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 180 150" aria-hidden="true">
+      <rect x="20" y="25" width="140" height="110" rx="10" fill="var(--bloom-card)" stroke="var(--bloom-card-border)" strokeWidth="2" />
+      <rect x="20" y="25" width="140" height="24" rx="10" fill="var(--bloom-orange)" opacity="0.85" />
+      <circle cx="55" cy="20" r="4" fill="var(--bloom-ink-soft)" />
+      <circle cx="125" cy="20" r="4" fill="var(--bloom-ink-soft)" />
+      {cells.map((c) => (
+        <rect key={`${c.x}-${c.y}`} x={c.x} y={c.y} width="16" height="12" rx="3" fill={c.highlight ? 'var(--bloom-orange)' : 'var(--bloom-card-border)'} opacity={c.highlight ? 1 : 0.55} />
+      ))}
+    </svg>
+  );
+}
+
+export function FacultyOutreachTimelineVisual() {
+  // "An email icon reaching toward a faculty icon, well ahead of a deadline marker on the same
+  // timeline" — the email+faculty pair sits early on the line, a real flag/deadline marker sits
+  // clearly later, both anchored to the same real horizontal timeline.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 110" aria-hidden="true">
+      <line x1="20" y1="70" x2="200" y2="70" stroke="var(--bloom-card-border)" strokeWidth="3" strokeLinecap="round" />
+      <g transform="translate(50 40)">
+        <rect x="-16" y="-8" width="32" height="20" rx="3" fill="var(--bloom-teal)" />
+        <path d="M -16 -8 L 0 4 L 16 -8" stroke="var(--bloom-card)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+      <path d="M 66 44 Q 90 40 108 46" stroke="var(--bloom-accent)" strokeWidth="2" strokeDasharray="3 3" fill="none" />
+      <circle cx="118" cy="46" r="12" fill="var(--bloom-purple)" />
+      <circle cx="50" cy="70" r="6" fill="var(--bloom-teal)" />
+      <g transform="translate(178 40)">
+        <line x1="0" y1="18" x2="0" y2="-8" stroke="var(--bloom-orange)" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M 0 -8 L 12 -4 L 0 0 Z" fill="var(--bloom-orange)" />
+      </g>
+      <circle cx="178" cy="70" r="6" fill="var(--bloom-orange)" />
+    </svg>
+  );
+}
+
+export function NowForwardTimelineVisual() {
+  // Task 1's own explicit guidance for The Timeline module: "a shorter, forward-looking timeline
+  // anchored at the student's current point" rather than the HS script's own full multi-stop
+  // four-year arc — a single "NOW" marker partway along a plain line, with a dashed forward arrow
+  // reaching toward "Apps Open," matching the beat's own literal wording.
+  return (
+    <svg className="admissions-visual-svg" viewBox="0 0 220 100" aria-hidden="true">
+      <line x1="20" y1="55" x2="200" y2="55" stroke="var(--bloom-card-border)" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="70" cy="55" r="10" fill="var(--bloom-accent)" />
+      <rect x="46" y="20" width="48" height="18" rx="9" fill="var(--bloom-accent)" opacity="0.85" />
+      <text x="70" y="33" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="10" fontWeight="800" fill="white">NOW</text>
+      <path d="M 86 55 H 172" stroke="var(--bloom-accent)" strokeWidth="2.5" strokeDasharray="5 5" fill="none" />
+      <path d="M 164 47 L 176 55 L 164 63" stroke="var(--bloom-accent)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="138" y="70" width="70" height="16" rx="8" fill="var(--bloom-orange)" opacity="0.5" />
+      <text x="173" y="82" textAnchor="middle" fontFamily="'IBM Plex Sans', sans-serif" fontSize="10" fontWeight="700" fill="var(--bloom-ink-soft)">Apps Open</text>
+    </svg>
+  );
+}
+
 export const BEAT_VISUALS = {
   // "Before we dive in, let's walk through how college admissions actually works." — a welcoming
   // gesture, reusing the mascot's own existing arm-raise/pointing system at a fixed, friendly
@@ -1389,4 +1460,21 @@ export const BEAT_VISUALS = {
   'grad-building-your-list-1': UniversityToLabZoomVisual,
   'grad-building-your-list-2': MatchedVsPrestigeVisual,
   'grad-building-your-list-3': AcademicPlanIconVisual,
+
+  // Undergrad (Grad School) script — Batch 4 (FINAL): The Timeline, Transition. Beat 2 reuses
+  // `DraftStackVisual` (HS's own `essays-2`) directly — this beat's own Stage 1 description
+  // ("Draft 1 → 2 → 3") is the literal, identical concept that component already renders, the same
+  // direct-reuse precedent `RoadmapDotsVisual`/`AcademicPlanIconVisual` already established.
+  'grad-timeline-0': ApplicationDeadlineCalendarVisual,
+  'grad-timeline-1': FacultyOutreachTimelineVisual,
+  'grad-timeline-2': DraftStackVisual,
+  'grad-timeline-3': NowForwardTimelineVisual,
+
+  // Transition — mirrors the HS script's own equivalent module beat-for-beat, reusing its exact
+  // components/gesture shapes directly (identical concepts: the same stop-by-stop map now fully
+  // lit; a mascot-only listening pose with no illustration needed; the mascot pointing at the "You"
+  // puzzle piece joining the picture).
+  'grad-transition-0': AllStopsLitVisual,
+  'grad-transition-1': { mascotPointAngle: null },
+  'grad-transition-2': { mascotPointAngle: 75, Illustration: YouPuzzlePieceVisual },
 };
