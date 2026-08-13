@@ -7,6 +7,7 @@ import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { ADMISSIONS_MODULES } from '../data/admissionsPresentation';
 import { ADMISSIONS_MODULES_GRAD } from '../data/admissionsPresentationGrad';
+import { ADMISSIONS_MODULES_TRANSFER } from '../data/admissionsPresentationTransfer';
 import { BEAT_VISUALS } from '../components/AdmissionsBeatVisuals';
 
 // Admissions Overview Presentation, Stage 1 (see CLAUDE.md) — a real, research-grounded 10-module
@@ -104,20 +105,22 @@ const MASCOT_PULSE_MS = 500;
 export default function AdmissionsPresentationScreen() {
   const { state, patch } = useApp();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-  // Admissions Overview Presentation for Undergrad (Grad School) (see CLAUDE.md) — the ONE real
-  // branch point this feature needed: Undergraduate-track students (already applying to grad
-  // school, per this app's own existing `educationLevel` semantics — LEVEL_LABEL elsewhere already
-  // treats `undergraduate` as "graduate-school") see the grad-admissions script instead of the
-  // original High School college-admissions one. `state.educationLevel` is guaranteed set by the
-  // time this screen is ever reached — Survey's own `canContinue` gate already requires it before
-  // Continue is even enabled — so there's no "not yet answered" case to handle here. High School
-  // and Transfer both keep the original, unmodified `ADMISSIONS_MODULES` (Transfer was never asked
-  // for its own dedicated script by this feature, so it stays on what it already had, matching this
-  // app's own established "an unscoped level keeps its existing content rather than inheriting new,
-  // unrequested content" convention). EVERYTHING below this line reads `activeModules` generically
-  // — no other code in this component needed to change, per Task 3's own "reuse all existing
-  // infrastructure" requirement.
-  const activeModules = state.educationLevel === 'undergraduate' ? ADMISSIONS_MODULES_GRAD : ADMISSIONS_MODULES;
+  // Admissions Overview Presentation, per-level scripts (see CLAUDE.md) — the ONE real branch
+  // point this feature needed, now a 3-way switch: Undergraduate-track students (already applying
+  // to grad school, per this app's own existing `educationLevel` semantics — LEVEL_LABEL elsewhere
+  // already treats `undergraduate` as "graduate-school") see the grad-admissions script;
+  // Transfer-track students see the transfer-admissions script; High School students keep the
+  // original, unmodified `ADMISSIONS_MODULES` (first-year college-admissions content).
+  // `state.educationLevel` is guaranteed set by the time this screen is ever reached — Survey's own
+  // `canContinue` gate already requires it before Continue is even enabled — so there's no "not yet
+  // answered" case to handle here. EVERYTHING below this line reads `activeModules` generically —
+  // no other code in this component needed to change, per Task 3's own "reuse all existing
+  // infrastructure" requirement (unchanged across both the grad and transfer additions).
+  const activeModules = state.educationLevel === 'undergraduate'
+    ? ADMISSIONS_MODULES_GRAD
+    : state.educationLevel === 'transfer'
+      ? ADMISSIONS_MODULES_TRANSFER
+      : ADMISSIONS_MODULES;
   const [moduleIndex, setModuleIndex] = useState(0);
   const [beatIndex, setBeatIndex] = useState(0);
   const [showContinue, setShowContinue] = useState(false);

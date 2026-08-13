@@ -10541,6 +10541,83 @@ visuals a later stage" split the original HS Stage 1 already established.**
   `AdmissionsBeatVisuals.jsx`, `admissionsPresentation.js`, `AppContext.jsx`,
   `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
 
+**Admissions Overview Presentation for Transfer students, Stage 1: Script — a THIRD, parallel
+10-module script specifically for transfer admissions, shown instead of either the original High
+School (first-year college admissions) or Undergrad (grad-school admissions) script to students on
+the Transfer track. Same infrastructure end to end as both prior scripts; only the content is new.**
+- **`src/data/admissionsPresentationTransfer.js`** (new) exports `ADMISSIONS_MODULES_TRANSFER` —
+  the identical `{ id, title, beats: [{ narration, visualConcept }] }` shape both prior scripts
+  already established, so the screen needs zero further structural changes. **Every module id is
+  deliberately namespaced (`transfer-*`)**, the same "zero `BEAT_VISUALS` collision risk" reasoning
+  the grad script's own `grad-*` namespacing already established — confirmed via a direct grep
+  before writing any content that none of this script's own distinctive terms
+  (`articulation`/`TAG`/`college professors`/`rehash`/`every institution`/`January through
+  March`/`3.5`/`3.7`) appear anywhere in either the HS or grad script, so the three scripts can
+  never be mistaken for one another in a rendered-text check either.
+- **10 modules, 38 beats total** (3-5 per module, matching Task 2's own explicit rhythm
+  requirement and landing in the same scale as both prior scripts): Introduction; The Big Picture;
+  Academic Record; Testing; The Transfer Essay; Credit Transfer & Articulation; Recommendation
+  Letters; Building Your Target List; The Timeline; Transition. Content is grounded in real,
+  well-established transfer-admissions practice: transfer review evaluates DEMONSTRATED college
+  performance rather than first-year readiness, so the college record — not the high-school one —
+  becomes the primary story from here on; college GPA as the primary credential, with real
+  illustrative benchmarks (3.5+ generally advisable, 3.7+ to be competitive at more selective
+  schools); testing policy genuinely varying school by school for transfer applicants specifically
+  (some still require/accept self-reported SAT/ACT, others don't ask at all); the transfer essay's
+  own real standard of focusing on academic growth and genuine transfer motivation, **explicitly
+  NOT a reused/rehashed high-school personal statement** (Testing/Task 1's own literal example,
+  landed on `The Transfer Essay`'s own second beat: "It's not a rehash of the personal statement
+  you wrote for your first college — reusing that essay here is a real mistake"); real credit-
+  transfer mechanics — course-to-course articulation agreements, program/"2+2" articulation
+  agreements, and state transfer equivalency databases — illustrated with a real, concrete example
+  (California's TAG program guaranteeing UC admission for community-college students meeting
+  published GPA requirements, its own dedicated closing beat in `Credit Transfer & Articulation`);
+  the critical, real rule that transfer recommendation letters must come from **college
+  professors**, never high school teachers, since target schools want to know how the student has
+  actually performed in real college-level work (`Recommendation Letters`'s own second beat states
+  this literally: "these need to come from college professors, not high school teachers"); and the
+  real, common admissions-file pitfall of a missing transcript from one of several attended
+  institutions (`The Timeline`'s own real "every institution you've attended" language), set
+  against the real January-through-March transfer application window most four-year schools use
+  for fall entry. **Two beats echo the prior two scripts' own wording where the underlying reason
+  is genuinely identical, not by accident** (matching the exact precedent the grad script's own
+  entry above already documents) — Building Your Target List's own closing beat ("This app already
+  helps you track your target programs and how your record lines up, in your Academic Plan") and
+  Transition's own middle beat ("Next, I want to actually get to know you...") — both hand off into
+  the same real onboarding conversation every script eventually reaches.
+- **`AdmissionsPresentationScreen.jsx`'s own single branch point widened from a 2-way to a 3-way
+  switch** (`state.educationLevel === 'undergraduate' ? ADMISSIONS_MODULES_GRAD : state.
+  educationLevel === 'transfer' ? ADMISSIONS_MODULES_TRANSFER : ADMISSIONS_MODULES`) — everything
+  else about the component (the click-to-continue mechanism, beat-advance timing, mascot narration/
+  voiceover, transitions, Skip button, background music, the sound settings popover) is completely
+  untouched, exactly matching Task 3's own explicit "reuse all existing infrastructure" requirement
+  for a THIRD time now with zero further changes needed. High School's own original script and the
+  grad script's own Undergrad routing are both unaffected — confirmed directly via regression tests
+  against both, not just the new Transfer path.
+- Verified with a dedicated Playwright suite driving a REAL, full 10-module click-through as a
+  Transfer student (not seeded state alone): all 10 real module titles appear in the correct order
+  (`Introduction` → `The Big Picture` → `Academic Record` → `Testing` → `The Transfer Essay` →
+  `Credit Transfer & Articulation` → `Recommendation Letters` → `Building Your Target List` → `The
+  Timeline` → `Transition`) with zero page errors across the whole walkthrough; real
+  transfer-specific terminology (articulation, TAG, the literal "college professors, not high
+  school teachers" rule, the literal "not a rehash" essay guidance, "every institution," "January
+  through March," 3.5/3.7 GPA benchmarks) is confirmed present in the rendered page text while both
+  HS-only terms (PSAT, AP courses, the HS module titles) AND grad-only terms (Statement of Purpose,
+  GRE/GMAT/LSAT/MCAT, Research Experience & Fit) are confirmed absent; a direct check against the
+  real data file confirms every module has 3-5 beats, each with real narration under a 45-word
+  sanity ceiling (no long blocks) and a real described visual concept, all ids namespaced and
+  unique, and the total beat count (38) sits in the same scale as both prior scripts; a High School
+  seed still starts on "Introduction" and still shows "The Big Picture" as module 2 (the original,
+  unmodified HS content) and an Undergraduate seed still shows the grad script's own module 2 with
+  zero transfer-specific terms present — both confirming this addition disturbs neither prior
+  script; and Skip, background music (confirmed via the same monkey-patched `Audio` volume spy
+  both prior scripts' own tests already established), and the sound settings popover (all three
+  independent toggles present) all work identically to the other two versions. `npm run build`/
+  `npm run lint` both stay clean — this feature touches only `AdmissionsPresentationScreen.jsx`
+  (widening one branch point) and adds the one new `admissionsPresentationTransfer.js` data file —
+  it never opens `AdmissionsBeatVisuals.jsx`, either prior script's data file, `AppContext.jsx`,
+  `roadmapLayout.js`/`Roadmap.jsx`, or any `api/*.js` file.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
