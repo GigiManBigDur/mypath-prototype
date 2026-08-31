@@ -4,6 +4,7 @@ import { makeTaskId } from '../utils/ids';
 import PriorExperiencesEditor, { SAMPLE_PRIOR_EXPERIENCES } from '../components/PriorExperiencesEditor';
 import MascotWidget from '../components/MascotWidget';
 import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
+import { isDevToolsEnabled } from '../utils/devTools';
 
 // Prior Experience Collection + New Profile Page (see CLAUDE.md), Task 3 — a new hub tile/screen,
 // deliberately small in scope right now: it only shows and manages `state.priorExperiences`, the
@@ -62,7 +63,7 @@ export default function ProfileScreen() {
         onAdd={addExperience}
         onEdit={editExperience}
         onRemove={removeExperience}
-        onFillSample={fillSampleExperiences}
+        onFillSample={isDevToolsEnabled() ? fillSampleExperiences : undefined}
       />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>

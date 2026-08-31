@@ -6,6 +6,7 @@ import Roadmap from '../components/Roadmap';
 import YearOverview from '../components/YearOverview';
 import DateOverrideControl from '../components/DateOverrideControl';
 import useRealTimeTick from '../hooks/useRealTimeTick';
+import { isDevToolsEnabled } from '../utils/devTools';
 
 // The Academic Plan is two sub-views:
 //   - Map 1 (Year Overview, `state.planYearIndex === null`): a small animated list of the years
@@ -71,7 +72,7 @@ export default function AcademicPlanScreen() {
           onReset={reset}
         />
       )}
-      <DateOverrideControl state={state} patch={patch} />
+      {isDevToolsEnabled() && <DateOverrideControl state={state} patch={patch} />}
     </>
   );
 }

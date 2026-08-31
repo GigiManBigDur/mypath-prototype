@@ -16,6 +16,7 @@ import GpaBox from '../components/GpaBox';
 import TransferHighSchoolTranscript from '../components/TransferHighSchoolTranscript';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
+import { isDevToolsEnabled } from '../utils/devTools';
 
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
@@ -218,7 +219,7 @@ export default function TranscriptScreen() {
           this app's own established "testing tool" visual language (flask icon, orange accent,
           explicit "(Testing)" copy — DateOverrideControl's own precedent), so it reads unmistakably
           as a developer/tester convenience, never a real student-facing feature. */}
-      {!checkpoint && (
+      {!checkpoint && isDevToolsEnabled() && (
         <div className="testing-fill-row">
           <button type="button" className="testing-fill-btn" onClick={fillSampleTranscript}>
             <FlaskConical size={13} /> Fill Sample Transcript (Testing)

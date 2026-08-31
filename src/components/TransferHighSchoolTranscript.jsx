@@ -7,6 +7,7 @@ import { calculateUnweightedGpa, calculateWeightedGpa, calculate4ScaleGpa } from
 import { makeTaskId } from '../utils/ids';
 import CourseSearchField from './CourseSearchField';
 import GpaBox from './GpaBox';
+import { isDevToolsEnabled } from '../utils/devTools';
 
 // Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md) — a few plausible
 // free-text course names for the "Other" (non-Roslyn) high school path, which has no real catalog
@@ -100,11 +101,13 @@ function RoslynHsTranscript({ state, patch }) {
 
   return (
     <>
-      <div className="testing-fill-row">
-        <button type="button" className="testing-fill-btn" onClick={fillSampleTranscript}>
-          <FlaskConical size={13} /> Fill Sample Transcript (Testing)
-        </button>
-      </div>
+      {isDevToolsEnabled() && (
+        <div className="testing-fill-row">
+          <button type="button" className="testing-fill-btn" onClick={fillSampleTranscript}>
+            <FlaskConical size={13} /> Fill Sample Transcript (Testing)
+          </button>
+        </div>
+      )}
 
       <div className="transcript-form">
         <div className="transcript-form-field" style={{ flex: '1 1 260px' }}>
@@ -242,11 +245,13 @@ function OtherHsTranscript({ state, patch }) {
 
   return (
     <>
-      <div className="testing-fill-row">
-        <button type="button" className="testing-fill-btn" onClick={fillSampleOther}>
-          <FlaskConical size={13} /> Fill Sample Transcript (Testing)
-        </button>
-      </div>
+      {isDevToolsEnabled() && (
+        <div className="testing-fill-row">
+          <button type="button" className="testing-fill-btn" onClick={fillSampleOther}>
+            <FlaskConical size={13} /> Fill Sample Transcript (Testing)
+          </button>
+        </div>
+      )}
 
       <p className="field-hint" style={{ fontStyle: 'italic' }}>
         We don't have detailed course catalog or grading data for this school yet, so this is a

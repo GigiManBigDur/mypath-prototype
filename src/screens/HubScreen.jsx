@@ -23,6 +23,7 @@ import { useMarkMascotSeen, useMascotSeenSnapshot } from '../hooks/useMascotSeen
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { NARRATIVE_OVERVIEW_PROJECT_TYPE_ID, getNarrativeProject } from '../data/projects';
 import { useOnboardingChat } from '../hooks/useOnboardingChat';
+import { isDevToolsEnabled } from '../utils/devTools';
 
 // Dashboard/Guide feature, Stage 2/3 (see CLAUDE.md) — the central hub, now the landing screen
 // after sign-up (replacing the old direct-to-survey entry). Stage 2 was layout + mascot + working
@@ -1047,14 +1048,16 @@ export default function HubScreen() {
 
       <AddTaskModal isOpen={addTaskOpen} onCancel={() => setAddTaskOpen(false)} onSubmit={addTask} />
 
-      <div className="hub-debug-row">
-        <button type="button" className="hub-reset-btn" onClick={handleReset}>
-          <RotateCcw size={12} /> Reset
-        </button>
-        <button type="button" className="hub-debug-profile-btn" onClick={openProfileDebug}>
-          <Bug size={12} /> View AI Profile (Testing)
-        </button>
-      </div>
+      {isDevToolsEnabled() && (
+        <div className="hub-debug-row">
+          <button type="button" className="hub-reset-btn" onClick={handleReset}>
+            <RotateCcw size={12} /> Reset
+          </button>
+          <button type="button" className="hub-debug-profile-btn" onClick={openProfileDebug}>
+            <Bug size={12} /> View AI Profile (Testing)
+          </button>
+        </div>
+      )}
 
       {profileDebugData && createPortal(
         <div className="overlay" onClick={() => setProfileDebugData(null)}>
