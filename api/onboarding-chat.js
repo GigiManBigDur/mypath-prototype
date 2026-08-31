@@ -24,6 +24,8 @@
 // latent risk here: no vercel.json/per-function config anywhere in this repo meant every AI-calling
 // function ran on whatever short default timeout the deployment applies. A real, thoughtful
 // narrative conversation can legitimately take several seconds; this makes the ceiling explicit.
+import { checkRateLimit } from './_rateLimit.js';
+
 export const config = {
   maxDuration: 60,
 };
@@ -627,6 +629,17 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Pre-Public-Sharing Confidentiality Check (see CLAUDE.md), Task 5 — this is the app's first,
+  // primary onboarding conversation (potentially the longest real one a student has), so a
+  // generous but real per-IP window (see _rateLimit.js's own header for what this does and
+  // doesn't protect against).
+  const rl = checkRateLimit(req, { windowMs: 5 * 60 * 1000, maxRequests: 30 });
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many requests — please wait a bit and try again.' });
     return;
   }
 

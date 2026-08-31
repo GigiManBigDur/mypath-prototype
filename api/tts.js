@@ -16,6 +16,8 @@
 // Bug fix (see CLAUDE.md, api/build-your-own-chat.js's own detailed comment for the full
 // diagnosis) — applied here too for consistency, though TTS synthesis is normally fast enough
 // that this endpoint was never the one actually observed running long.
+import { checkRateLimit } from './_rateLimit.js';
+
 export const config = {
   maxDuration: 60,
 };
@@ -56,6 +58,17 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Pre-Public-Sharing Confidentiality Check (see CLAUDE.md), Task 5 — this fires on nearly every
+  // mascot dialogue line during totally normal use, so it needs real headroom above every other
+  // endpoint here or a single thorough visitor session could trip it (see _rateLimit.js's own
+  // header for what this does and doesn't protect against).
+  const rl = checkRateLimit(req, { windowMs: 5 * 60 * 1000, maxRequests: 60 });
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many requests — please wait a bit and try again.' });
     return;
   }
 

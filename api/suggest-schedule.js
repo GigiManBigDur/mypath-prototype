@@ -11,6 +11,8 @@
 // needed), same forced-tool-call reliability approach, and the same code-enforced external-fact
 // guardrail (applied per-block, since a full day's worth of blocks could mix purely routine ones
 // with one that does name something specific).
+import { checkRateLimit } from './_rateLimit.js';
+
 export const config = {
   maxDuration: 60,
 };
@@ -206,6 +208,16 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Pre-Public-Sharing Confidentiality Check (see CLAUDE.md), Task 5 — student-initiated via a
+  // real button click, not auto-triggered, so a moderate per-IP window (see _rateLimit.js's own
+  // header for what this does and doesn't protect against).
+  const rl = checkRateLimit(req, { windowMs: 5 * 60 * 1000, maxRequests: 20 });
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many requests — please wait a bit and try again.' });
     return;
   }
 

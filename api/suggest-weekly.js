@@ -14,6 +14,8 @@
 // answers this too), same forced-tool-call reliability approach, and the same code-enforced
 // external-fact guardrail (applied per-task here, since a SET of tasks can each independently
 // reference something specific).
+import { checkRateLimit } from './_rateLimit.js';
+
 export const config = {
   maxDuration: 60,
 };
@@ -233,6 +235,17 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Pre-Public-Sharing Confidentiality Check (see CLAUDE.md), Task 5 — this is auto-triggered at
+  // most once per real calendar week per visitor, so legitimate volume is naturally low; a
+  // tighter window than the conversational endpoints is appropriate (see _rateLimit.js's own
+  // header for what this does and doesn't protect against).
+  const rl = checkRateLimit(req, { windowMs: 5 * 60 * 1000, maxRequests: 15 });
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many requests — please wait a bit and try again.' });
     return;
   }
 

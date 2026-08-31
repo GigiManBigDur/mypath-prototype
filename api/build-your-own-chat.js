@@ -32,6 +32,8 @@
 // without a vercel.json — 60s (the Hobby-plan ceiling, so this is safe regardless of which plan
 // this project is actually on) is comfortably above every measured real duration with real margin,
 // not a razor-thin fit.
+import { checkRateLimit } from './_rateLimit.js';
+
 export const config = {
   maxDuration: 60,
 };
@@ -336,6 +338,16 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Pre-Public-Sharing Confidentiality Check (see CLAUDE.md), Task 5 — a real, user-initiated,
+  // potentially multi-turn conversation, so a generous but real per-IP window (see _rateLimit.js's
+  // own header for what this does and doesn't protect against).
+  const rl = checkRateLimit(req, { windowMs: 5 * 60 * 1000, maxRequests: 30 });
+  if (!rl.allowed) {
+    res.setHeader('Retry-After', String(rl.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many requests — please wait a bit and try again.' });
     return;
   }
 
