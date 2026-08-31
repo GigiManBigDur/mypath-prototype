@@ -5986,6 +5986,19 @@ body:has(.onboarding-meeting-active) {
   color: var(--bloom-ink);
 }
 .sound-settings-pill { padding: 6px 16px; font-size: 13px; min-width: 52px; text-align: center; }
+/* Force-Disable and Lock Voice on the Production/Submission Deployment (see CLAUDE.md) — the AI
+   Voice row's own locked/disabled state, visible ONLY on a production build (SoundSettingsPopover
+   only ever adds `.sound-settings-row-locked`/renders `.sound-settings-locked-note` when
+   isVoiceLockedOff() is true), so this never shows on `npm run dev`. */
+.sound-settings-row-locked .sound-settings-label { color: var(--bloom-ink-soft); }
+.sound-settings-pill:disabled { opacity: 0.45; cursor: not-allowed; }
+.sound-settings-locked-note {
+  margin: -4px 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  font-style: italic;
+  color: var(--bloom-ink-soft);
+}
 @media (prefers-reduced-motion: reduce) {
   .sound-settings-popover, .sound-settings-popover-exit { animation: none; }
 }

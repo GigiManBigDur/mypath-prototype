@@ -19,6 +19,8 @@
 // endpoint's own URL isn't sensitive (it's a public API route with its own origin allowlist, see
 // api/tts.js), and a prototype doesn't need the extra indirection of a configurable value that
 // still requires a full rebuild to change either way.
+import { isVoiceLockedOff } from './voiceLock';
+
 const TTS_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/api/tts';
 
 let currentAudio = null;
@@ -60,6 +62,18 @@ export function stopSpeaking() {
 export function speak(text, { onStart, onEnd } = {}) {
   stopSpeaking();
   if (!text) return;
+
+  // Force-Disable and Lock Voice on the Production/Submission Deployment (see CLAUDE.md) — the
+  // real ElevenLabs call never fires on a production build, full stop, regardless of what
+  // `state.voiceMuted` itself holds or which caller reached this function. Handled exactly like
+  // every OTHER real failure path below (a missing key, a network error, ElevenLabs itself
+  // erroring): `onEnd` still fires so the caller's own speaking-animation state doesn't get
+  // stuck (it falls back to the estimated-duration timing, same as any other silent failure), and
+  // the caller's own dialogue TEXT — already rendered independent of this call — is unaffected.
+  if (isVoiceLockedOff()) {
+    if (onEnd) onEnd();
+    return;
+  }
 
   const controller = new AbortController();
   currentAbortController = controller;

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useModalExit } from '../hooks/useModalExit';
+import { isVoiceLockedOff } from '../utils/voiceLock';
 
 // Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — replaces the
 // old single-click "mute everything" sound button with a small popover exposing genuinely
@@ -59,9 +60,16 @@ export default function SoundSettingsPopover({ buttonClassName }) {
     };
   }, [open]);
 
+  // Force-Disable and Lock Voice on the Production/Submission Deployment (see CLAUDE.md) —
+  // computed once per render; on a production build this is always `true`, on `npm run dev`
+  // always `false`, with no way for anything in this component to flip it either way.
+  const voiceLocked = isVoiceLockedOff();
+
   // The trigger's own icon reads as "sound off" only once ALL THREE channels are muted — if any
-  // one is still on, there's genuinely still sound coming from this app, so the icon should say so.
-  const allMuted = state.voiceMuted && state.musicMuted && state.sfxMuted;
+  // one is still on, there's genuinely still sound coming from this app, so the icon should say
+  // so. Voice counts as muted here whenever it's locked, regardless of what state.voiceMuted
+  // itself still holds underneath.
+  const allMuted = (voiceLocked || state.voiceMuted) && state.musicMuted && state.sfxMuted;
 
   return (
     <>
@@ -83,18 +91,22 @@ export default function SoundSettingsPopover({ buttonClassName }) {
           className={`sound-settings-popover${closing ? ' sound-settings-popover-exit' : ''}`}
           style={{ top: pos.top, right: pos.right }}
         >
-          <div className="sound-settings-row">
+          <div className={`sound-settings-row${voiceLocked ? ' sound-settings-row-locked' : ''}`}>
             <span className="sound-settings-label">AI Voice</span>
             <button
               type="button"
-              className={`pill sound-settings-pill${!state.voiceMuted ? ' selected' : ''}`}
-              aria-pressed={!state.voiceMuted}
-              aria-label={state.voiceMuted ? 'Turn AI voice on' : 'Turn AI voice off'}
-              onClick={() => patch({ voiceMuted: !state.voiceMuted })}
+              className={`pill sound-settings-pill${(!voiceLocked && !state.voiceMuted) ? ' selected' : ''}`}
+              aria-pressed={!voiceLocked && !state.voiceMuted}
+              aria-label={voiceLocked ? 'AI voice is unavailable in this demo' : (state.voiceMuted ? 'Turn AI voice on' : 'Turn AI voice off')}
+              disabled={voiceLocked}
+              onClick={() => { if (!voiceLocked) patch({ voiceMuted: !state.voiceMuted }); }}
             >
-              {state.voiceMuted ? 'Off' : 'On'}
+              {(voiceLocked || state.voiceMuted) ? 'Off' : 'On'}
             </button>
           </div>
+          {voiceLocked && (
+            <p className="sound-settings-locked-note">Voice narration is unavailable in this demo.</p>
+          )}
           <div className="sound-settings-row">
             <span className="sound-settings-label">Background Music</span>
             <button
