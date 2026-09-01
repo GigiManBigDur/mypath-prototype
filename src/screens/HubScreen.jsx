@@ -252,14 +252,26 @@ const GUIDED_SEQUENCE = [
     id: 'courseSelection', requiresPartnerSchool: true,
     // UC Davis and Roslyn track selected courses in two deliberately separate fields (see
     // AppContext.jsx) — check whichever one applies to this student's own partner school.
+    // Bug fix (see CLAUDE.md, "Course Selection stuck locked" follow-up) — Course Selection's own
+    // Continue has never required a selection to proceed (see CourseSelectionScreen.jsx's own
+    // "Course Selection Stage 3" comment), so a real student who genuinely finishes this screen
+    // without picking a course — a fully legitimate path — used to leave this step permanently
+    // stuck "not done," since `selectedCourseIds`/`selectedUCDavisCourseIds` could never become
+    // non-empty. `moduleReviewsConfirmed.courseSelection` (set the moment the reactive module
+    // review is genuinely Confirmed, see useModuleReview.js) is the real, current "the student
+    // finished this screen" signal — confirmed live via a real walkthrough where selecting a
+    // course too, or the module review being confirmed alone, both correctly unstick this step.
     isDone: (state) => (state.currentSchool === 'UC Davis'
       ? state.selectedUCDavisCourseIds.length > 0
-      : state.selectedCourseIds.length > 0),
+      : state.selectedCourseIds.length > 0) || !!state.moduleReviewsConfirmed?.courseSelection,
     intro: "Let's pick out next year's courses.",
   },
   {
     id: 'opportunities', requiresPartnerSchool: false,
-    isDone: (state) => state.selectedOpportunityIds.length > 0,
+    // Bug fix (see CLAUDE.md, "Course Selection stuck locked" follow-up) — the exact same gap as
+    // courseSelection right above: Opportunity Finder's own Continue also never requires a real
+    // selection, so `moduleReviewsConfirmed.opportunities` is the same real fallback.
+    isDone: (state) => state.selectedOpportunityIds.length > 0 || !!state.moduleReviewsConfirmed?.opportunities,
     intro: "Let's find some real opportunities worth pursuing.",
   },
   {

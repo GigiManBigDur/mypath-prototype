@@ -166,6 +166,26 @@ const DEFAULT_STATE = {
   // the moment the student resolves it (Confirm, which also advances to the hub; or "keep
   // refining," which just returns them to the module to reconsider — see useModuleReview.js).
   activeModuleReview: null,
+  // Bug fix (see CLAUDE.md, "Course Selection stuck locked" follow-up — the real, live-diagnosed
+  // cause) — a plain object, `{ [moduleId]: true }`, set by `useModuleReview.js`'s own `confirm()`
+  // the moment ANY module's reactive review is genuinely confirmed (all six modules write here
+  // uniformly, even though only two currently need to READ it — see below). This exists because
+  // `GUIDED_SEQUENCE`'s own `courseSelection`/`opportunities` steps (HubScreen.jsx) used to check
+  // ONLY `selectedCourseIds.length > 0`/`selectedOpportunityIds.length > 0` — a real, confirmed
+  // mismatch: unlike Careers/Majors/Programs (whose own Continue button is disabled until
+  // something is selected, so a real selection is always guaranteed by the time that check runs),
+  // Course Selection's and Opportunity Finder's own Continue buttons have never required a
+  // selection to proceed (a deliberate, pre-existing, unrelated design choice — see this file's
+  // own "Course Selection Stage 3" section). A real student who genuinely finishes either screen
+  // without picking anything (a fully legitimate path) would leave the guided sequence
+  // permanently stuck pointing back at that same step forever, since its own `isDone` could never
+  // become true — silently blocking the final alignment-check conversation (and the "your plan is
+  // ready" completion state) from ever firing. Confirmed live, not guessed: a real walkthrough
+  // through the real app (Course Selection + Opportunity Finder, neither with a selection made,
+  // exactly as their own Continue buttons allow) left `mascotSeenKeys` stuck at
+  // `hub-guided-courseSelection` and `finalReviewTriggered` false even after every other real
+  // step — including a real started Project Builder project — was genuinely done.
+  moduleReviewsConfirmed: {},
   transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
   // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.

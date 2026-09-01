@@ -93,8 +93,18 @@ export function useModuleReview(moduleId, introKey, onConfirm) {
   // refining" only clears the flag — the module's own selection UI was never navigated away from
   // in the first place (see ModuleReviewWidget.jsx), so the student is simply looking at it again,
   // free to change their choice and trigger a fresh review whenever they're ready.
+  //
+  // Bug fix (see CLAUDE.md, "Course Selection stuck locked" follow-up) — Confirm is also where
+  // `state.moduleReviewsConfirmed[moduleId]` gets set, for every module uniformly (not just the
+  // two that currently read it — see AppContext.jsx's own comment on that field). This is the one
+  // real, unambiguous "this module is genuinely done" moment: reaching Confirm always requires
+  // having clicked that module's own real Continue button first, regardless of whether anything
+  // was actually selected there.
   const confirm = () => {
-    patch({ activeModuleReview: null });
+    patch({
+      activeModuleReview: null,
+      moduleReviewsConfirmed: { ...state.moduleReviewsConfirmed, [moduleId]: true },
+    });
     onConfirm();
   };
   const keepRefining = () => patch({ activeModuleReview: null });
