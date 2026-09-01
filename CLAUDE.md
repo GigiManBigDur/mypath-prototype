@@ -84,27 +84,30 @@ npm package, publishing to `https://gigimanbigdur.github.io/mypath-prototype/`. 
 the repo to stay **public** — Pages needs that on the free tier, which is why it was made
 public.
 
-**Vercel deploys are now standing/automatic, paired with every git push — a deliberate policy
-change from this file's own earlier "opt-in only" rule.** The earlier rule existed mostly because
-of an account-level issue that's since resolved (every deploy used to get stuck at status
-`UNKNOWN` with zero build logs — confirmed via `vercel ls` to be an account block, not a code
-problem; deploys have worked reliably since). The change was prompted by a real, concrete cost of
-staying opt-in: `api/suggest.js`/`api/tts.js`/`api/creative-suggest.js` are real serverless
-functions the client always calls at a fixed, live Vercel URL regardless of where the frontend
-itself is served from (even `localhost:5173` calls the deployed function, since Vite's dev server
-can't run one) — so a client-side fix to any AI/voice feature can sit correctly committed and
-pushed to GitHub for multiple sessions while the LIVE backend still runs old code, producing a
-symptom that looks exactly like a persisting bug and costs real debugging time to untangle (see
-the chain-attachment bug's own history above — two fixes, then a whole extra diagnostic pass, before
-the actual cause turned out to be a stale deploy, not a code regression). **So: run `npx vercel
-deploy --prod --yes` as a standing step alongside every meaningful `git push` to `origin/main` —
-not opt-in, not something to ask about each time** — the same "do this proactively, without
-waiting to be asked" posture the git commit+push step above already has. GitHub Pages
-(`npm run deploy:pages`) is a SEPARATE decision and stays opt-in exactly as documented above —
-this change only applies to Vercel. Verify a deploy actually took effect the same way this file's
-own past debugging sessions have: a quick `curl` against the live endpoint with a representative
-payload, checking its response shape against what the current code expects, rather than assuming
-success from the CLI output alone.
+**Vercel deploys are opt-in again — a second reversal on this exact point.** Vercel deploys were
+briefly made standing/automatic (paired with every `git push`, via `npx vercel deploy --prod
+--yes`) for a real, concrete reason: `api/*.js` are real serverless functions the client always
+calls at a fixed, live Vercel URL regardless of where the frontend itself is served from (even
+`localhost:5173` calls the deployed function, since Vite's dev server can't run one) — so a
+client-side fix to any AI/voice feature could sit correctly committed and pushed to GitHub for
+multiple sessions while the LIVE backend still ran old code, producing a symptom that looks
+exactly like a persisting bug (see the chain-attachment bug's own history above — two fixes, then
+a whole extra diagnostic pass, before the actual cause turned out to be a stale deploy, not a code
+regression). That reasoning is still correct — but the user then explicitly reversed the policy
+itself ("always push to http://localhost:5173, unless I say something different"), the same way
+they'd already reversed GitHub Pages' own standing-auto-redeploy earlier. **So: do not run `vercel
+deploy` proactively after a push, the same "opt-in only" rule GitHub Pages already documents above
+— only deploy to Vercel when the user explicitly asks for it** (a Vercel link, "deploy it,"
+"push this live," or similar). Until then, the everyday testing target is the local dev server
+(`localhost:5173`) — which means a client-side-only fix is fully visible there immediately, but
+**any change to an `api/*.js` file genuinely will NOT take effect anywhere, including localhost,
+until it's actually deployed** (per the architecture above — every environment calls the same
+fixed live Vercel URL for these endpoints, there's no local proxy) — say so plainly when that's
+the case, rather than letting a real, deployed-but-stale `api/*.js` bug look like it wasn't fixed.
+When a deploy *is* requested: `npx vercel deploy --prod --yes`, then verify it actually took
+effect the same way this file's own past debugging sessions have — a quick `curl` against the
+live endpoint with a representative payload, checking its response shape against what the current
+code expects, rather than assuming success from the CLI output alone.
 
 ## Architecture
 
