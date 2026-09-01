@@ -72,23 +72,14 @@ export function useNarrativeSession() {
     }
     return null;
   }, [chatHistory]);
-  // The scan above already excludes resolved messages, so there's no separate index-comparison
-  // needed anymore — `latestReadyOverview` being non-null already means "a real, unresolved review
-  // exists."
-  const showReview = !!latestReadyOverview;
 
   // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) — a
   // genuinely EARLIER, separate milestone from the overview review above (mirroring how
-  // `finalReviewComplete` is a genuinely LATER, separate one), scanned the exact same way. This one
-  // deliberately does NOT need its own "resolved" marker field the way `latestReadyOverview` does:
-  // `!state.transcriptCompleted` alone is a complete, correct show/hide guard in both directions —
-  // it stays true (show the hand-off action) until the transcript is genuinely finished/skipped,
-  // and if the student backs out of TranscriptScreen without finishing, `onboardingTranscriptPause
-  // Active` is cleared but `transcriptCompleted` is still false, so this naturally re-shows with
-  // zero extra bookkeeping. `hasRealTranscriptFlow(state)` is the client-side authoritative guard
-  // (defense in depth, matching this app's own "the model proposes, the client decides" posture
-  // everywhere else) — a plain Undergraduate not at UC Davis has no real transcript screen to hand
-  // off to at all, so this never shows for them even if the model mistakenly proposed it.
+  // `finalReviewComplete` is a genuinely LATER, separate one), scanned the exact same way.
+  // `hasRealTranscriptFlow(state)` is the client-side authoritative guard (defense in depth,
+  // matching this app's own "the model proposes, the client decides" posture everywhere else) — a
+  // plain Undergraduate not at UC Davis has no real transcript screen to hand off to at all, so
+  // this never shows for them even if the model mistakenly proposed it.
   const latestTranscriptPause = useMemo(() => {
     for (let i = chatHistory.length - 1; i >= 0; i--) {
       const m = chatHistory[i];
@@ -96,10 +87,54 @@ export function useNarrativeSession() {
     }
     return null;
   }, [chatHistory]);
-  const showTranscriptPause = !!latestTranscriptPause && !state.transcriptCompleted && hasRealTranscriptFlow(state);
+
+  // Bug fix (see CLAUDE.md, "Course Selection Stuck Locked After Transcript & GPA Moved Into
+  // Session 1") — a real, confirmed gap: `readyForOverview`'s own system-prompt precondition never
+  // HARD-required the transcript pause to have already happened first, and nothing server-side can
+  // enforce that either (the sanitized `history` sent to the model on every call strips every
+  // structured field — including `readyForTranscriptPause` — down to plain role/content text, see
+  // `sanitizeHistory` in api/onboarding-chat.js, so the server has no reliable way to check "did
+  // this already happen" beyond the model's own memory of its own prior turns). Confirmed directly
+  // (a live reproduction, mocking a response that reaches `readyForOverview: true` while
+  // `readyForTranscriptPause` stays false on every turn) that this lets a real, eligible student
+  // confirm a full overview and reach the hub with `state.transcriptCompleted` still false — and
+  // since the standalone Transcript & GPA hub tile is gone (see "Implement the Corrected Flow
+  // Order" above), there was no way back in: Course Selection (and, for a partner-school student,
+  // Opportunity Finder too) stayed permanently locked, with no hand-off action anywhere to recover
+  // it, even after reopening "Our Conversation."
+  //
+  // Fixed here, client-side, matching this app's own "the model proposes, the client decides"
+  // posture everywhere else — completely independent of whether the model ever actually emitted
+  // `readyForTranscriptPause`. `transcriptStillNeeded` is the one real, deterministic fact:
+  // eligible (`hasRealTranscriptFlow`) AND genuinely not done yet — this alone is a complete,
+  // correct show/hide guard in both directions (it stays true until the transcript is genuinely
+  // finished/skipped, and if the student backs out of TranscriptScreen without finishing,
+  // `onboardingTranscriptPauseActive` is cleared but `transcriptCompleted` is still false, so this
+  // naturally re-shows with zero extra bookkeeping). The hand-off action itself is offered whenever
+  // the student still needs it AND the conversation has reached a point that calls for it — either
+  // the model explicitly proposed it (the normal, intended path) OR the model already reached
+  // `readyForOverview` without ever proposing it (the fallback this fix closes). The overview
+  // review is correspondingly suppressed in BOTH cases while the transcript is still outstanding,
+  // so a student can never confirm an overview — and reach the hub — while their real Transcript &
+  // GPA is still missing.
+  const transcriptStillNeeded = hasRealTranscriptFlow(state) && !state.transcriptCompleted;
+  const showTranscriptPause = transcriptStillNeeded && (!!latestTranscriptPause || !!latestReadyOverview);
+  // The scan above already excludes resolved messages, so there's no separate index-comparison
+  // needed for that — `latestReadyOverview` being non-null already means "a real, unresolved
+  // review exists." `!transcriptStillNeeded` is the second, new condition: never show (or allow
+  // confirming) a review while the transcript is still genuinely outstanding.
+  const showReview = !!latestReadyOverview && !transcriptStillNeeded;
 
   const beginTranscriptPause = () => {
-    if (!latestTranscriptPause) return;
+    if (!hasRealTranscriptFlow(state)) return;
+    // If we're here via the fallback path above (the model reached `readyForOverview` without
+    // ever proposing the pause first), the overview it generated was built without the student's
+    // real transcript/GPA data. Mark that stale ready-message resolved the exact same way "keep
+    // refining" already does (`markReviewResolved`, below) — never confirmable once we return, so
+    // the resumed conversation (now genuinely informed by real academic data) is what produces the
+    // overview the student actually confirms, not a stale, pre-transcript guess. A no-op on the
+    // normal path, where `readyForOverview` hasn't happened yet and `latestReadyOverview` is null.
+    if (latestReadyOverview) markReviewResolved(latestReadyOverview.sourceIndex);
     patch({ onboardingTranscriptPauseActive: true, screen: 'transcript' });
   };
 
