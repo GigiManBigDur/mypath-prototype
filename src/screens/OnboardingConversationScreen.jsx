@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import MascotIcon from '../components/MascotIcon';
 import ChatConversation from '../components/ChatConversation';
 import NarrativeReviewFooter from '../components/NarrativeReviewFooter';
+import TranscriptPauseFooter from '../components/TranscriptPauseFooter';
 import { buildOnboardingGreeting } from '../hooks/useOnboardingChat';
 import { useNarrativeSession } from '../hooks/useNarrativeSession';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
@@ -92,7 +93,10 @@ export default function OnboardingConversationScreen() {
   // `useOnboardingChat()` and adds the review/confirm layer that used to live inline in this
   // file (below), extracted so both this original pre-hub screen AND the "Our Conversation" tab
   // inside "Ask MyPath AI anything" (`ChatSessionView.jsx`) share one implementation.
-  const { chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview } = useNarrativeSession();
+  const {
+    chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview,
+    showTranscriptPause, beginTranscriptPause,
+  } = useNarrativeSession();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   // Frozen at mount, BEFORE `useOnboardingChat`'s own greeting-seeding effect ever runs (a plain
@@ -225,9 +229,11 @@ export default function OnboardingConversationScreen() {
               onSend={sendMessage}
               onEditMessage={editMessage}
               placeholder="Tell me what's on your mind…"
-              footer={showReview && (
+              footer={showTranscriptPause ? (
+                <TranscriptPauseFooter onBegin={beginTranscriptPause} />
+              ) : showReview ? (
                 <NarrativeReviewFooter latestReadyOverview={latestReadyOverview} onConfirm={confirmNarrative} onDismiss={dismissReview} />
-              )}
+              ) : null}
             />
           </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Briefcase, GraduationCap, Landmark, FileText, BookOpen, Search, Hammer,
+  Briefcase, GraduationCap, Landmark, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
   TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
 } from 'lucide-react';
@@ -124,30 +124,15 @@ const TILES = [
     unlock: (state) => state.selectedProgramKeys.length > 0,
     lockedReason: () => 'Select at least one program first',
   },
-  {
-    // Always visible, from the very first hub view — before the survey, eligibility is genuinely
-    // unknown, so this stays locked with a shared placeholder reason (`partnerSchoolGate`) rather
-    // than disappearing; only once the survey reveals NO partner school was selected does it get
-    // filtered out below (the one case where hiding, not locking, is actually correct — the
-    // answer is known for certain by then). `requiresPartnerSchool` is read by that same filter,
-    // and ONLY applies post-survey — see the `tiles` filter in HubScreen() itself.
-    id: 'transcript', screen: 'transcript', Icon: FileText,
-    title: 'Transcript & GPA',
-    desc: 'Log your grades and see your calculated GPA.',
-    requiresPartnerSchool: true,
-    // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — this tile also
-    // stays visible for ANY Transfer student post-survey, not just one who selected a real partner
-    // school, since TranscriptScreen.jsx now has a real, reachable branch for them too (the shared
-    // high school transcript section, TransferOnlyTranscriptScreen). Read by the `tiles` filter
-    // below, alongside `requiresPartnerSchool`/`hasPartnerSchool`. `courseSelection`'s own tile is
-    // deliberately NOT given this same treatment — Course Selection still has no real content for
-    // a non-UC-Davis transfer student (no course catalog to pick from).
-    visibleForTransfer: true,
-    ...partnerSchoolGate(
-      (state) => state.selectedProgramKeys.length > 0,
-      () => 'Select at least one program first',
-    ),
-  },
+  // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md),
+  // Task 3 — the standalone "Transcript & GPA" tile that used to live here (unlocked once a
+  // program was selected, reached via TranscriptScreen.jsx directly) is REMOVED entirely, not just
+  // locked/hidden: that step now happens mid-way through "Our Conversation" itself, well before the
+  // hub is ever reached for the first time — see useNarrativeSession.js's own
+  // `beginTranscriptPause`/`showTranscriptPause` and TranscriptScreen.jsx's own new
+  // `onboardingPause` mode. `courseSelection`'s own tile right below is untouched — it still reads
+  // `state.transcriptCompleted` directly (now set during the conversation instead of via this
+  // tile), so its own unlock timing is completely unaffected by this removal.
   {
     id: 'courseSelection', screen: 'courseSelection', Icon: BookOpen,
     title: 'Course Selection',
@@ -257,17 +242,12 @@ const GUIDED_SEQUENCE = [
     isDone: (state) => state.selectedProgramKeys.length > 0,
     intro: 'Time to browse some real programs!',
   },
-  {
-    id: 'transcript', requiresPartnerSchool: true,
-    // High School Selection + Transcript for Transfer Students (see CLAUDE.md) — same widened
-    // reachability as the tile's own `visibleForTransfer` (TILES above): the mascot's guided
-    // walkthrough now also includes this step for a Transfer student with no partner school, since
-    // TranscriptScreen.jsx's own TransferOnlyTranscriptScreen branch is real, reachable content for
-    // them now, not just a locked/hidden tile.
-    visibleForTransfer: true,
-    isDone: (state) => state.transcriptCompleted,
-    intro: "Let's log your grades and calculate your GPA.",
-  },
+  // Implement the Corrected Flow Order (see CLAUDE.md), Task 3 — the 'transcript' guided step that
+  // used to live here is gone too, same reasoning as the TILES removal above: Transcript & GPA now
+  // happens mid-conversation, before the hub's own guided walkthrough ever starts, so
+  // `state.transcriptCompleted` is already true (or the student has no real transcript flow at
+  // all, see hasRealTranscriptFlow) by the time this sequence begins — there's no "next thing to
+  // do" left here for the mascot to point at.
   {
     id: 'courseSelection', requiresPartnerSchool: true,
     // UC Davis and Roslyn track selected courses in two deliberately separate fields (see

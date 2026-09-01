@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { compileStudentProfile } from '../utils/profileCompiler';
 import { requestOnboardingChatReply } from '../utils/onboardingChatRequest';
@@ -70,14 +70,17 @@ export function useOnboardingChat() {
   // actually changes its behavior server-side (see api/onboarding-chat.js). Every existing call site
   // (`sendMessage`/`editMessage`, both still `{ silent: false, finalReview: false }` by default) is
   // byte-for-byte unaffected.
-  const sendFrom = (baseHistory, trimmed, { silent = false, finalReview = false } = {}) => {
+  // Implement the Corrected Flow Order (see CLAUDE.md) — `resumeAfterTranscript` generalizes this
+  // the exact same way `finalReview` already did: a third silent, no-typed-text trigger sharing
+  // this one send/append/error-handling path rather than a second, parallel implementation.
+  const sendFrom = (baseHistory, trimmed, { silent = false, finalReview = false, resumeAfterTranscript = false } = {}) => {
     const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
     const afterUser = silent ? baseHistory : [...baseHistory, { role: 'user', content: trimmed }];
     if (!silent) patch({ onboardingChatHistory: afterUser });
     setLoading(true);
     const profileSummary = compileStudentProfile(state);
     requestOnboardingChatReply(
-      { history, prompt: trimmed, profileSummary, finalReview },
+      { history, prompt: trimmed, profileSummary, finalReview, resumeAfterTranscript },
       {
         onResult: (proposal) => {
           setLoading(false);
@@ -96,6 +99,10 @@ export function useOnboardingChat() {
             onboardingChatHistory: [...afterUser, {
               role: 'assistant',
               content: proposal.reply,
+              // Implement the Corrected Flow Order (see CLAUDE.md) — persisted the same "store the
+              // fact directly on the message" way every other overview field already is (see
+              // useNarrativeSession.js's own `latestTranscriptPause` scan for how this is read).
+              readyForTranscriptPause: proposal.readyForTranscriptPause,
               readyForOverview: proposal.readyForOverview,
               narrativeTitle: proposal.narrativeTitle,
               narrativeSummary: proposal.narrativeSummary,
@@ -157,6 +164,30 @@ export function useOnboardingChat() {
   // HubScreen.jsx's own new 'finalReview' GUIDED_SEQUENCE entry and its guarded one-shot effect,
   // which is the only real caller of this function).
   const triggerFinalReview = () => sendFrom(chatHistory, null, { silent: true, finalReview: true });
+  // Implement the Corrected Flow Order (see CLAUDE.md) — the mirror-image automatic, no-typed-text
+  // turn that resumes this conversation once TranscriptScreen.jsx's own `advance()` (in
+  // onboarding-pause mode) has finished/skipped the real transcript form and returned here.
+  const triggerTranscriptResume = () => sendFrom(chatHistory, null, { silent: true, resumeAfterTranscript: true });
+
+  // Implement the Corrected Flow Order (see CLAUDE.md) — the auto-fire effect for the resume
+  // trigger above, mirroring HubScreen.jsx's own `finalReviewFiredRef`/`finalReviewTriggered`
+  // guard shape exactly: a `useRef` checked FIRST (a bare persisted-state check alone races React
+  // 18 StrictMode's dev-only mount/remount replay, since `patch()` doesn't re-render
+  // synchronously), with both the ref AND the persisted flag cleared synchronously before the
+  // async request starts. `state.pendingOnboardingTranscriptResume` is set by TranscriptScreen.jsx
+  // itself (both the Roslyn/UC-Davis/Transfer-only variants) right before navigating back to
+  // `screen: 'onboardingConversation'` — this hook is what actually notices that flag and fires
+  // the real resume turn, regardless of whether it's currently mounted via the original pre-hub
+  // screen or (in principle) the "Our Conversation" tab.
+  const transcriptResumeFiredRef = useRef(false);
+  useEffect(() => {
+    if (transcriptResumeFiredRef.current) return;
+    if (!state.pendingOnboardingTranscriptResume) return;
+    transcriptResumeFiredRef.current = true;
+    patch({ pendingOnboardingTranscriptResume: false });
+    triggerTranscriptResume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pendingOnboardingTranscriptResume]);
 
   return { chatHistory, loading, sendMessage, editMessage, triggerFinalReview };
 }

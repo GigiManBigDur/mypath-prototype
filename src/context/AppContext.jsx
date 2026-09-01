@@ -130,6 +130,32 @@ const DEFAULT_STATE = {
   // non-checkpoint branch only — Course Selection Stage 4's per-year/per-quarter checkpoints are
   // a separate, later mechanism with their own `part1Done` tracking and don't touch this field).
   transcriptCompleted: false,
+  // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) —
+  // Transcript & GPA is no longer a standalone hub tile visited later; it's now embedded mid-way
+  // through "Our Conversation" itself, reusing the exact same TranscriptScreen.jsx (and its
+  // UCDavis/TransferOnly variants) unchanged, just reached and returned from differently.
+  // `onboardingTranscriptPauseActive` is set (alongside `screen: 'transcript'`) the moment the
+  // student clicks the conversation's own "Enter my transcript & GPA" action
+  // (useNarrativeSession.js's `beginTranscriptPause`) — the SAME "set a flag right before
+  // navigating, the destination screen checks it to know it's in a special mode" shape
+  // `activeCourseCheckpoint`/`activeUCDavisCheckpoint` already establish elsewhere in this file,
+  // just a plain boolean here since there's no "part"/stage concept to track, only one pause.
+  // TranscriptScreen.jsx reads this to show different copy and to route its own Continue/Skip/Back
+  // to `screen: 'onboardingConversation'` instead of `'hub'` (which hasn't even been reached yet
+  // the first time this happens — see the corrected flow order). Cleared back to `false` the
+  // moment either the transcript form is actually finished/skipped, or the student backs out
+  // without finishing (in which case the conversation's own hand-off action simply becomes
+  // available again, with zero extra state needed to represent that).
+  onboardingTranscriptPauseActive: false,
+  // The read-once-then-clear signal that actually fires the resume turn — set by
+  // TranscriptScreen.jsx's own `advance()` (in onboarding-pause mode only) alongside
+  // `transcriptCompleted: true` and the real `gpa` write, right before navigating back to
+  // `screen: 'onboardingConversation'`. useOnboardingChat.js is the one place that notices this
+  // and fires the real, automatic "resume" conversation turn (`triggerTranscriptResume`) — the
+  // same "an unrelated screen just sets a flag and navigates, the destination hook picks it up"
+  // decoupling this file's own `discoveryEntryStep` already established, rather than coupling
+  // TranscriptScreen.jsx directly to the chat-sending mechanism.
+  pendingOnboardingTranscriptResume: false,
   transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
   // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.

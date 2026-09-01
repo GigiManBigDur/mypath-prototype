@@ -4,6 +4,7 @@ import { useOnboardingChat } from './useOnboardingChat';
 import { NARRATIVE_OVERVIEW_CATEGORY_ID, NARRATIVE_OVERVIEW_PROJECT_TYPE_ID, getNarrativeProject } from '../data/projects';
 import { getEffectiveToday, toDateInputValue, computeMilestoneDueDates } from '../utils/dates';
 import { makeTaskId } from '../utils/ids';
+import { hasRealTranscriptFlow } from '../utils/transcriptEligibility';
 
 // Multi-Session Chat (see CLAUDE.md) — wraps the existing, untouched `useOnboardingChat()` and
 // adds the review/confirm layer that used to live inline in `OnboardingConversationScreen.jsx`
@@ -75,6 +76,32 @@ export function useNarrativeSession() {
   // needed anymore — `latestReadyOverview` being non-null already means "a real, unresolved review
   // exists."
   const showReview = !!latestReadyOverview;
+
+  // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) — a
+  // genuinely EARLIER, separate milestone from the overview review above (mirroring how
+  // `finalReviewComplete` is a genuinely LATER, separate one), scanned the exact same way. This one
+  // deliberately does NOT need its own "resolved" marker field the way `latestReadyOverview` does:
+  // `!state.transcriptCompleted` alone is a complete, correct show/hide guard in both directions —
+  // it stays true (show the hand-off action) until the transcript is genuinely finished/skipped,
+  // and if the student backs out of TranscriptScreen without finishing, `onboardingTranscriptPause
+  // Active` is cleared but `transcriptCompleted` is still false, so this naturally re-shows with
+  // zero extra bookkeeping. `hasRealTranscriptFlow(state)` is the client-side authoritative guard
+  // (defense in depth, matching this app's own "the model proposes, the client decides" posture
+  // everywhere else) — a plain Undergraduate not at UC Davis has no real transcript screen to hand
+  // off to at all, so this never shows for them even if the model mistakenly proposed it.
+  const latestTranscriptPause = useMemo(() => {
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+      const m = chatHistory[i];
+      if (m.role === 'assistant' && m.readyForTranscriptPause) return { sourceIndex: i };
+    }
+    return null;
+  }, [chatHistory]);
+  const showTranscriptPause = !!latestTranscriptPause && !state.transcriptCompleted && hasRealTranscriptFlow(state);
+
+  const beginTranscriptPause = () => {
+    if (!latestTranscriptPause) return;
+    patch({ onboardingTranscriptPauseActive: true, screen: 'transcript' });
+  };
 
   // Remove Redundant Narrative Card (see CLAUDE.md) — the one place a ready-message's own
   // `reviewResolved` flag is ever written, called by both `confirmNarrative` (below) and
@@ -227,5 +254,8 @@ export function useNarrativeSession() {
 
   const dismissReview = () => markReviewResolved(latestReadyOverview.sourceIndex);
 
-  return { chatHistory, loading, sendMessage, editMessage, latestReadyOverview, showReview, confirmNarrative, dismissReview };
+  return {
+    chatHistory, loading, sendMessage, editMessage, latestReadyOverview, showReview, confirmNarrative, dismissReview,
+    showTranscriptPause, beginTranscriptPause,
+  };
 }

@@ -114,6 +114,18 @@ const ONBOARDING_SCHEMA = {
       type: 'string',
       description: 'Your next line in this ongoing, natural conversation with the student — exactly what gets shown to them. Ask about ONE thing at a time; never stack multiple questions into one reply. Keep it warm, genuinely curious, and concise (a real conversational turn, not an essay).',
     },
+    // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) —
+    // a real, EARLIER milestone than readyForOverview below, and a genuinely SEPARATE one:
+    // mirroring finalReviewComplete's own "independent milestone" shape (a plain boolean, always
+    // required, never dependent on readyForOverview's own bundle of fields), this fires once,
+    // early, to hand the student off to the real Transcript & GPA form so the REST of this
+    // conversation — activities, narrative pushback, and the strategy discussion — can be grounded
+    // in real academic standing instead of guesswork. See the "Transcript & GPA pause" section of
+    // the system prompt below for exactly when to set this and what to do once it resumes.
+    readyForTranscriptPause: {
+      type: 'boolean',
+      description: 'True ONLY ONCE, early in this conversation — right after a genuine initial exchange about the student\'s interests/passions and BEFORE going deep into their prior activities/experience. See the "Transcript & GPA pause" instructions below for the full rule, including when this must stay false (before that natural point, and for the ENTIRE rest of the conversation once it has already happened once — check profileSummary.academic for real GPA/transcript data, which only appears AFTER this has already fired and resumed). False for every other turn.',
+    },
     readyForOverview: {
       type: 'boolean',
       description: 'True ONLY once ALL of the following have genuinely happened in this conversation: (1) real interests and at least one real piece of prior experience have been established, (2) if you ever suggested reconsidering their direction, whether the student actually agreed to it or not is settled, and (3) you have had a genuine strategy discussion (see the "Strategy discussion" instructions below) — proposing something specific across course rigor, testing approach, college-list direction, and essay material, and genuinely incorporating the student\'s real response (agreement, pushback, or their own alternative) for each. Never skip straight from a settled narrative direction to the overview without that real strategy back-and-forth. False for anything less developed than that.',
@@ -233,7 +245,7 @@ const ONBOARDING_SCHEMA = {
     },
   },
   required: [
-    'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
+    'reply', 'readyForTranscriptPause', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
     'overviewPhaseTitles', 'overviewPhaseDescriptions', 'phaseDimensions', 'overviewPhaseDayOffsets',
     'capstoneIdea', 'courseGuidanceNote', 'testingTimelineNote', 'collegeListNote',
     'essayMaterialNote', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
@@ -252,6 +264,15 @@ const TOOL_DESCRIPTION = "Respond with your next natural line in this ongoing fi
 // this fires live in the "Final review" section of SYSTEM_PROMPT below, not in this string itself
 // — this is just the provider-facing stand-in for a user turn, kept short and generic.
 const FINAL_REVIEW_TRIGGER_MESSAGE = '(Automatic final review — the student has completed every other step in the app. Review their real, concrete choices in profileSummary against what was originally discussed in this conversation, per your own Final review instructions.)';
+
+// Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) — the
+// mirror-image of FINAL_REVIEW_TRIGGER_MESSAGE above, same reasoning: a fixed, server-owned string
+// stands in for "the student's message" on the ONE automatic, no-typed-text turn that fires the
+// moment the student has finished (or explicitly skipped) the real Transcript & GPA form the
+// conversation just handed them off to — never anything client-supplied. The real instructions for
+// what to actually DO once this fires live in the "Transcript & GPA pause" section of SYSTEM_PROMPT
+// below, not in this string itself.
+const TRANSCRIPT_RESUME_TRIGGER_MESSAGE = '(Automatic resume — the student has just finished, or explicitly skipped, entering their real transcript and GPA. Their real academic record (or an honestly empty one, for a genuine incoming student with nothing yet) is now available in profileSummary.academic for the first time. Briefly and naturally acknowledge it, then continue the conversation into their activities/experience, per your own Transcript & GPA pause instructions.)';
 
 // Task 1 — the "why this conversation matters" framing, and Task 3 — what it actually needs to
 // accomplish (replacing the old interest-tag question and prior-experience field entirely, via
@@ -298,6 +319,12 @@ Your purpose in this conversation:
 - This REPLACES an old interest-tag checklist and a separate "list your prior experience" form — you are gathering both through genuine dialogue instead, so never ask a rigid, form-style list of questions. Ask about ONE thing at a time, follow up on what they actually say, and let the conversation go wherever it naturally goes.
 - Find out what genuinely excites the student — hobbies, passions, things they think about outside of school — and what they've already actually done (activities, clubs, jobs, projects, volunteering, competitions). Real specifics matter far more than broad categories.
 - Be genuinely curious and specific in your follow-ups, the way a good conversationalist (not a survey) would.
+
+Transcript & GPA pause (a REQUIRED, ONE-TIME step, early in this conversation):
+- This app has a real Transcript & GPA form already built — check profileSummary.basicProfile.educationLevel and currentSchool: it's real and reachable for a High School student, a Transfer student (any current school, or none), or a student at UC Davis specifically (any level). A plain Undergraduate NOT at UC Davis has no real transcript form in this app at all — for THAT student only, skip this whole step entirely (never set readyForTranscriptPause true) and just continue the conversation normally once you've covered interests.
+- For every other student: once you've had a genuine initial exchange about what excites the student — even just one or two real exchanges about their interests/passions is enough, this does not need to be exhaustive — but BEFORE going deep into their prior activities/experience, set readyForTranscriptPause to true, exactly once. Your reply in that SAME turn should be a short, warm, natural transition line explaining that you're handing them over to enter their real transcript and GPA now, so the rest of this conversation can be grounded in their actual academic record instead of guesswork — not a cold, abrupt cutoff.
+- After this happens, the conversation will automatically continue with a system-generated turn once the student has entered (or explicitly skipped, e.g. a genuine incoming student with nothing yet) their transcript. At that point, profileSummary.academic will show their real GPA/transcript for the very first time — briefly and naturally acknowledge whatever it actually shows (a real GPA and real courses, or an honestly empty transcript) before continuing into their activities/experience, narrative pushback, and the strategy discussion below — all of which should now genuinely be informed by this real academic data, not generic.
+- Never set readyForTranscriptPause true a second time in this same conversation — once profileSummary.academic already shows real data (or is honestly empty because the student explicitly skipped), this step is permanently done; do not revisit it.
 
 Narrative pushback (use this rarely, and only when it's real):
 - As the conversation continues, listen for anything specific, unusual, or genuinely non-obvious the student shares. If — and only if — a real, well-reasoned connection exists between something specific they've told you and an academic field, major, or direction they haven't mentioned, you may offer it as a genuine suggestion: explain your specific reasoning clearly, and ask if they'd be interested in exploring it, the way a thoughtful consultant would.
@@ -396,12 +423,16 @@ function expectedPhaseCount(profileSummary) {
 function validateProposal(input, profileSummary) {
   if (!input || typeof input !== 'object') return null;
   const {
-    reply, readyForOverview, narrativeTitle, narrativeSummary,
+    reply, readyForTranscriptPause, readyForOverview, narrativeTitle, narrativeSummary,
     overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets,
     capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote,
     thematicKeywords, matchedInterestTags, mentionsSpecificFact, finalReviewComplete,
   } = input;
   if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
+  // Implement the Corrected Flow Order (see CLAUDE.md) — hard-rejected at the same tier as
+  // mentionsSpecificFact/finalReviewComplete below, and always carried through unchanged (never
+  // nulled) — a genuinely independent, earlier milestone from readyForOverview's own bundle.
+  if (typeof readyForTranscriptPause !== 'boolean') return null;
   if (typeof readyForOverview !== 'boolean') return null;
   if (typeof mentionsSpecificFact !== 'boolean') return null;
   // Final Alignment-Check Conversation (see CLAUDE.md) — hard-rejected at the same tier as
@@ -411,6 +442,7 @@ function validateProposal(input, profileSummary) {
 
   const notReady = {
     reply: reply.trim(),
+    readyForTranscriptPause,
     readyForOverview: false,
     narrativeTitle: null,
     narrativeSummary: null,
@@ -496,6 +528,7 @@ function validateProposal(input, profileSummary) {
 
   return {
     reply: reply.trim(),
+    readyForTranscriptPause,
     readyForOverview: true,
     narrativeTitle: narrativeTitle.trim(),
     narrativeSummary: narrativeSummary.trim(),
@@ -661,12 +694,20 @@ export default async function handler(req, res) {
   // student message to require. Every other request (the entire ordinary conversation lifecycle)
   // is completely unaffected — `finalReview` is simply absent/false, and `prompt` is required
   // exactly as before.
-  const { history, prompt, profileSummary, finalReview } = req.body || {};
-  if ((!finalReview && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
+  //
+  // Implement the Corrected Flow Order (see CLAUDE.md) — `resumeAfterTranscript: true` is the
+  // mirror-image second automatic, no-typed-text turn: fires once the student has finished (or
+  // explicitly skipped) the real Transcript & GPA form the conversation just handed them off to.
+  const { history, prompt, profileSummary, finalReview, resumeAfterTranscript } = req.body || {};
+  if ((!finalReview && !resumeAfterTranscript && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
     res.status(400).json({ error: 'Missing prompt/profileSummary/history' });
     return;
   }
-  const effectivePrompt = finalReview === true ? FINAL_REVIEW_TRIGGER_MESSAGE : prompt;
+  const effectivePrompt = finalReview === true
+    ? FINAL_REVIEW_TRIGGER_MESSAGE
+    : resumeAfterTranscript === true
+      ? TRANSCRIPT_RESUME_TRIGGER_MESSAGE
+      : prompt;
 
   try {
     const result = await provider.call(apiKey, history, effectivePrompt, profileSummary);

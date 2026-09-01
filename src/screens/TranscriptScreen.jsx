@@ -17,6 +17,7 @@ import TransferHighSchoolTranscript from '../components/TransferHighSchoolTransc
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
 import { getMascotLine } from '../data/mascotDialogue';
 import { isDevToolsEnabled } from '../utils/devTools';
+import { hasRealTranscriptFlow } from '../utils/transcriptEligibility';
 
 const YEAR_OPTIONS = [8, 9, 10, 11, 12];
 const WEIGHT_LABELS = { ap: 'AP', research_honors: 'Research Honors', honors: 'Honors', standard: 'Standard' };
@@ -44,8 +45,13 @@ export default function TranscriptScreen() {
   // students — who have no real current-college data behind them in this prototype at all — with
   // no way to ever add that context. Undergraduate (non-transfer) students are unaffected: they
   // still need a real partner school (UC Davis) to reach this screen at all, same as before.
-  const isTransfer = state.educationLevel === 'transfer';
-  const hasCourseFlow = isHighSchool || isCollegeAtUCDavis || isTransfer;
+  //
+  // Implement the Corrected Flow Order (see CLAUDE.md) — `hasCourseFlow` itself is now sourced
+  // from transcriptEligibility.js's own `hasRealTranscriptFlow(state)` (byte-identical logic to
+  // what used to live inline here as `isHighSchool || isCollegeAtUCDavis || isTransfer`) so
+  // useNarrativeSession.js's own mid-conversation pause can check the exact same real condition
+  // before ever proposing the hand-off, rather than a second, possibly-drifting copy.
+  const hasCourseFlow = hasRealTranscriptFlow(state);
 
   // Course Selection Stage 4's "revisit" checkpoint (Part 1) reuses this exact screen rather than
   // rebuilding the transcript-entry mechanism — set by Roadmap.jsx right before navigating here.
@@ -54,6 +60,13 @@ export default function TranscriptScreen() {
   // Selection Stage 4 hasn't been built for UC Davis yet), so this is always null for a college
   // student regardless.
   const checkpoint = state.activeCourseCheckpoint?.part === 'transcript' ? state.activeCourseCheckpoint : null;
+  // Implement the Corrected Flow Order (see CLAUDE.md) — the THIRD real mode this screen can be
+  // reached in, alongside plain onboarding and a course-selection checkpoint: set by
+  // useNarrativeSession.js's own `beginTranscriptPause` right before navigating here from mid-way
+  // through "Our Conversation." Mutually exclusive with `checkpoint` in practice (a checkpoint only
+  // exists once a real multi-year plan has already been generated, well after this pause could ever
+  // fire), but written defensively as its own independent check either way.
+  const onboardingPause = !checkpoint && !!state.onboardingTranscriptPauseActive;
 
   // Defensive: this screen only applies to High School or a UC-Davis-selecting Undergraduate/
   // Transfer student — routing already never sends anyone else here, but if state ever ends up
@@ -187,12 +200,36 @@ export default function TranscriptScreen() {
       });
       return;
     }
+    // Implement the Corrected Flow Order (see CLAUDE.md) — returns to the conversation instead of
+    // the hub (which hasn't even been reached yet the first time this happens) and sets the
+    // read-once resume signal `useOnboardingChat.js` is watching for. `transcriptCompleted: true`
+    // is still written exactly as before — Course Selection's own hub tile still unlocks on it
+    // later, once the hub is actually reached.
+    if (onboardingPause) {
+      patch({
+        gpa: newGpa,
+        transcriptCompleted: true,
+        onboardingTranscriptPauseActive: false,
+        pendingOnboardingTranscriptResume: true,
+        screen: 'onboardingConversation',
+      });
+      return;
+    }
     patch({ gpa: newGpa, transcriptCompleted: true, screen: 'hub' });
   };
 
   const goBack = () => {
     if (checkpoint) {
       patch({ activeCourseCheckpoint: null, screen: 'plan' });
+      return;
+    }
+    // Implement the Corrected Flow Order (see CLAUDE.md) — backing out without finishing just
+    // returns to the conversation and clears the pause flag; nothing about `transcriptCompleted`/
+    // `gpa` changes, and useNarrativeSession.js's own `showTranscriptPause` naturally re-shows the
+    // hand-off action (still `!state.transcriptCompleted`), so the student can pick it back up
+    // whenever they're ready — no extra state needed to represent "backed out mid-pause."
+    if (onboardingPause) {
+      patch({ onboardingTranscriptPauseActive: false, screen: 'onboardingConversation' });
       return;
     }
     patch({ screen: 'hub' });
@@ -205,12 +242,14 @@ export default function TranscriptScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={3} total={8} />}
+      {!checkpoint && !onboardingPause && <StepProgress step={3} total={8} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint
           ? "Add the courses you've just completed — this refreshes your GPA everywhere it's used, including your program Reach/Match/Safety tags."
-          : "Search for the real courses you've taken, enter your grade and the year you took each one — we'll calculate your GPA from it automatically."}
+          : onboardingPause
+            ? "Let's get this entered so the rest of our conversation can be grounded in your real academic record — we'll pick right back up once you're done."
+            : "Search for the real courses you've taken, enter your grade and the year you took each one — we'll calculate your GPA from it automatically."}
       </p>
 
       {/* Add Testing-Only Prefill Buttons for Transcript & Experiences (see CLAUDE.md), Task 1 —
@@ -344,7 +383,7 @@ export default function TranscriptScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          {checkpoint ? 'Save & Continue to Part 2' : 'Continue'}
+          {checkpoint ? 'Save & Continue to Part 2' : onboardingPause ? 'Continue our conversation' : 'Continue'}
         </button>
       </div>
     </div>
@@ -377,6 +416,9 @@ function UCDavisTranscriptScreen({ state, patch }) {
   // screen for its Part 1, same reuse principle Roslyn's own checkpoint already established. Every
   // quarter (Fall/Winter/Spring/Summer) is two-part now, so this is reachable for any of them.
   const checkpoint = state.activeUCDavisCheckpoint?.part === 'transcript' ? state.activeUCDavisCheckpoint : null;
+  // Implement the Corrected Flow Order (see CLAUDE.md) — same third mode as the Roslyn variant
+  // above, same reasoning.
+  const onboardingPause = !checkpoint && !!state.onboardingTranscriptPauseActive;
 
   const ucdavisTranscript = state.ucdavisTranscript || [];
   const gpa = useMemo(() => calculateUCDavisGpa(ucdavisTranscript), [ucdavisTranscript]);
@@ -455,12 +497,28 @@ function UCDavisTranscriptScreen({ state, patch }) {
       });
       return;
     }
+    // Implement the Corrected Flow Order (see CLAUDE.md) — same real return-to-conversation +
+    // resume-trigger shape as the Roslyn variant above.
+    if (onboardingPause) {
+      patch({
+        gpa: newGpa,
+        transcriptCompleted: true,
+        onboardingTranscriptPauseActive: false,
+        pendingOnboardingTranscriptResume: true,
+        screen: 'onboardingConversation',
+      });
+      return;
+    }
     patch({ gpa: newGpa, transcriptCompleted: true, screen: 'hub' });
   };
 
   const goBack = () => {
     if (checkpoint) {
       patch({ activeUCDavisCheckpoint: null, screen: 'plan' });
+      return;
+    }
+    if (onboardingPause) {
+      patch({ onboardingTranscriptPauseActive: false, screen: 'onboardingConversation' });
       return;
     }
     patch({ screen: 'hub' });
@@ -473,12 +531,14 @@ function UCDavisTranscriptScreen({ state, patch }) {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && <StepProgress step={3} total={8} />}
+      {!checkpoint && !onboardingPause && <StepProgress step={3} total={8} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'UC Davis Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint
           ? "Add the courses you've just completed — this refreshes your GPA everywhere it's used, including your program Reach/Match/Safety tags."
-          : "Search for the real UC Davis courses you've taken, enter your letter grade and when you took each one — we'll calculate your GPA from it automatically."}
+          : onboardingPause
+            ? "Let's get this entered so the rest of our conversation can be grounded in your real academic record — we'll pick right back up once you're done."
+            : "Search for the real UC Davis courses you've taken, enter your letter grade and when you took each one — we'll calculate your GPA from it automatically."}
       </p>
 
       {!checkpoint && (
@@ -659,7 +719,7 @@ function UCDavisTranscriptScreen({ state, patch }) {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          {checkpoint ? 'Save & Continue to Part 2' : 'Continue'}
+          {checkpoint ? 'Save & Continue to Part 2' : onboardingPause ? 'Continue our conversation' : 'Continue'}
         </button>
       </div>
     </div>
@@ -681,6 +741,10 @@ function UCDavisTranscriptScreen({ state, patch }) {
 // this branch is neither), so it's always the plain one-time onboarding visit.
 function TransferOnlyTranscriptScreen({ state, patch }) {
   const hasHsSection = !!state.transferHighSchool;
+  // Implement the Corrected Flow Order (see CLAUDE.md) — this branch never had a checkpoint
+  // concept (Course Selection Stage 4's own per-year revisit is scoped to highschool/UC-Davis
+  // students only), so `onboardingPause` is the ONLY special mode it needs to account for.
+  const onboardingPause = !!state.onboardingTranscriptPauseActive;
   // Same shared 'transcript-empty'/'transcript-intro'/'transcript-revisit' dialogue keys the
   // Roslyn and UC Davis variants above already reuse for the identical reason documented on
   // UCDavisTranscriptScreen — a student who somehow encounters more than one of these three
@@ -698,20 +762,43 @@ function TransferOnlyTranscriptScreen({ state, patch }) {
   // misrepresent what that number means everywhere else it's read (Reach/Match/Safety,
   // ProgramsStep's curated program list) — the same "don't guess" contract every other blank-GPA
   // consumer in this app already honors.
-  const advance = () => patch({ transcriptCompleted: true, screen: 'hub' });
+  // Implement the Corrected Flow Order (see CLAUDE.md) — same real return-to-conversation +
+  // resume-trigger shape every other branch of this screen now shares; this branch never writes
+  // `gpa` regardless of mode, unchanged from before this feature.
+  const advance = () => {
+    if (onboardingPause) {
+      patch({
+        transcriptCompleted: true,
+        onboardingTranscriptPauseActive: false,
+        pendingOnboardingTranscriptResume: true,
+        screen: 'onboardingConversation',
+      });
+      return;
+    }
+    patch({ transcriptCompleted: true, screen: 'hub' });
+  };
+
+  const goBack = () => {
+    if (onboardingPause) {
+      patch({ onboardingTranscriptPauseActive: false, screen: 'onboardingConversation' });
+      return;
+    }
+    patch({ screen: 'hub' });
+  };
 
   return (
     <div>
       <MascotWidget text={mascotText} />
-      <button type="button" className="btn btn-ghost" onClick={() => patch({ screen: 'hub' })}>
+      <button type="button" className="btn btn-ghost" onClick={goBack}>
         <ArrowLeft size={14} /> Back
       </button>
 
-      <StepProgress step={3} total={8} />
+      {!onboardingPause && <StepProgress step={3} total={8} />}
       <h1 className="page-title">Transcript & GPA</h1>
       <p className="page-sub">
-        We don't have your current school's course catalog on file yet, but since transfer
-        applications typically also consider your high school record, you can add that here.
+        {onboardingPause
+          ? "Let's get this entered so the rest of our conversation can be grounded in your real academic record — we'll pick right back up once you're done. We don't have your current school's course catalog on file yet, but since transfer applications typically also consider your high school record, you can add that here."
+          : "We don't have your current school's course catalog on file yet, but since transfer applications typically also consider your high school record, you can add that here."}
       </p>
 
       {!hasHsSection && (
@@ -725,7 +812,7 @@ function TransferOnlyTranscriptScreen({ state, patch }) {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          Continue
+          {onboardingPause ? 'Continue our conversation' : 'Continue'}
         </button>
       </div>
     </div>

@@ -20,11 +20,16 @@ const ONBOARDING_CHAT_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/api/
 // forwarded verbatim; `false`/omitted for every ordinary call (the vast majority), `true` only for
 // the one automatic, no-typed-text check-in `useOnboardingChat.js`'s own `triggerFinalReview`
 // fires — see that file and `api/onboarding-chat.js`'s own handler for what it changes server-side.
-export function requestOnboardingChatReply({ history, prompt, profileSummary, finalReview = false }, { onResult, onError } = {}) {
+//
+// Implement the Corrected Flow Order (see CLAUDE.md) — `resumeAfterTranscript` is the mirror-image
+// second optional flag, `true` only for the one automatic, no-typed-text turn
+// `useOnboardingChat.js`'s own `triggerTranscriptResume` fires once the student has finished (or
+// explicitly skipped) the real Transcript & GPA form.
+export function requestOnboardingChatReply({ history, prompt, profileSummary, finalReview = false, resumeAfterTranscript = false }, { onResult, onError } = {}) {
   fetch(ONBOARDING_CHAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history, prompt, profileSummary, finalReview }),
+    body: JSON.stringify({ history, prompt, profileSummary, finalReview, resumeAfterTranscript }),
   })
     .then((res) => {
       if (!res.ok) throw new Error(`Onboarding chat request failed: ${res.status}`);
