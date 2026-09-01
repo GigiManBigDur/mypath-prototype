@@ -9,7 +9,9 @@ import MajorsStep from './discovery/MajorsStep';
 import ProgramsStep from './discovery/ProgramsStep';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
+import ModuleReviewWidget from '../components/ModuleReviewWidget';
 import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
+import { useModuleReview } from '../hooks/useModuleReview';
 
 const SUB_STEPS = ['careers', 'majors', 'programs'];
 
@@ -188,6 +190,15 @@ export default function DiscoveryScreen() {
   // internal chaining on Back would have been asymmetric and confusing.
   const handleNext = () => patch({ screen: 'hub' });
 
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — `subStep` itself
+  // ('careers' | 'majors' | 'programs') is already the exact same module id string
+  // api/onboarding-chat.js's own MODULE_LABELS expects, so no separate mapping is needed here.
+  // `DISCOVERY_MASCOT_KEYS[subStep].intro` reuses the EXACT scripted line this screen already
+  // shows via MascotWidget (Task 5) as the reactive conversation's own opening message; `handleNext`
+  // (unchanged above) is the module's own real, already-existing advance action, only now run once
+  // the student explicitly Confirms rather than the instant Continue is clicked.
+  const moduleReview = useModuleReview(subStep, DISCOVERY_MASCOT_KEYS[subStep].intro, handleNext);
+
   // AI-First Onboarding, Stage 5 (Task 3, see CLAUDE.md) — resolved once here rather than inline,
   // since both careers' and majors' own `sub` functions read it; programs' own `sub` simply ignores
   // the second argument.
@@ -252,10 +263,12 @@ export default function DiscoveryScreen() {
       )}
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" disabled={!canAdvance} onClick={handleNext}>
+        <button type="button" className="btn btn-primary" disabled={!canAdvance} onClick={moduleReview.beginReview}>
           Continue
         </button>
       </div>
+
+      <ModuleReviewWidget review={moduleReview} label={SUB_STEP_COPY[subStep].title} />
     </div>
   );
 }

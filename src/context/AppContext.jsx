@@ -156,6 +156,16 @@ const DEFAULT_STATE = {
   // decoupling this file's own `discoveryEntryStep` already established, rather than coupling
   // TranscriptScreen.jsx directly to the chat-sending mechanism.
   pendingOnboardingTranscriptResume: false,
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — a real module id string
+  // ('careers' | 'majors' | 'programs' | 'courseSelection' | 'opportunities' | 'projectBuilder')
+  // or `null`, set by that module's own useModuleReview() hook the moment its explicit "done"
+  // action fires (Task 1) — never on every selection click, only this one real trigger. Since a
+  // student is only ever on one module screen at a time, one flat flag (not a per-module map) is
+  // enough: `ModuleReviewWidget.jsx` on the currently-active module's own screen watches for this
+  // to equal ITS OWN moduleId to know a real reaction just triggered, and clears it back to `null`
+  // the moment the student resolves it (Confirm, which also advances to the hub; or "keep
+  // refining," which just returns them to the module to reconsider — see useModuleReview.js).
+  activeModuleReview: null,
   transcript: [], // [{ id, courseId, gradeEarned (0-100 number), yearTaken (8-12) }] — entered on
   // TranscriptScreen via a search-select over the real course catalog (src/data/courses.js), never
   // free text. courseId references COURSES; gpa.js derives all 3 GPA numbers from this array.

@@ -31,7 +31,9 @@ import { getThematicCourseMatches } from '../utils/thematicCourseMatch';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 import MascotWidget from '../components/MascotWidget';
+import ModuleReviewWidget from '../components/ModuleReviewWidget';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
+import { useModuleReview } from '../hooks/useModuleReview';
 import { getMascotLine } from '../data/mascotDialogue';
 import { TrackIcon } from '../components/TrackVisuals';
 import { DEPARTMENT_TRACK_MAP, UCDAVIS_AREA_TRACK_MAP, getDepartmentColor, getUCDavisAreaColor } from '../data/courseTrackMap';
@@ -261,6 +263,14 @@ export default function CourseSelectionScreen() {
   // always null for a college student regardless.
   const checkpoint = state.activeCourseCheckpoint?.part === 'courses' ? state.activeCourseCheckpoint : null;
   const checkpointProgress = checkpoint ? state.courseCheckpoints?.[checkpoint.stageName] : null;
+
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — 'courseSelection' matches
+  // api/onboarding-chat.js's own MODULE_LABELS key; 'courseSelection-intro' is the exact scripted
+  // line already shown via MascotWidget above (Task 5). Checkpoint mode (Course Selection Stage
+  // 4's own per-year revisit) is a separate, non-tutorial concern with its own "Save & Return to
+  // Plan" flow — the hook is still called unconditionally (Rules of Hooks), but its `beginReview`
+  // is only ever wired to the real Continue button below, never the checkpoint save path.
+  const moduleReview = useModuleReview('courseSelection', 'courseSelection-intro', () => patch({ screen: 'hub' }));
 
   // Defensive: same reasoning as TranscriptScreen's own bounce — Course Selection only applies to
   // High School or a UC-Davis-selecting Undergraduate/Transfer student, and routing already never
@@ -826,12 +836,14 @@ export default function CourseSelectionScreen() {
               });
               return;
             }
-            patch({ screen: 'hub' });
+            moduleReview.beginReview();
           }}
         >
           {checkpoint ? 'Save & Return to Plan' : 'Continue'}
         </button>
       </div>
+
+      {!checkpoint && <ModuleReviewWidget review={moduleReview} label="Course Selection" />}
     </div>
   );
 }
@@ -917,6 +929,12 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   const checkpointProgress = checkpoint
     ? state.ucdavisQuarterCheckpoints?.[checkpoint.stageName]?.[checkpoint.quarter]
     : null;
+
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — same 'courseSelection'
+  // module id/intro key as Roslyn's own variant above; a UC Davis student reaches this same
+  // screen at the identical hub-tutorial position, so it shares the identical reactive
+  // conversation rather than a second, UC-Davis-specific one.
+  const moduleReview = useModuleReview('courseSelection', 'courseSelection-intro', () => patch({ screen: 'hub' }));
 
   // Defensive: same reasoning as Roslyn's own bounce — every quarter's Part 2 is locked until
   // Part 1 is done for that same quarter; Roadmap.jsx's own modal already disables the button
@@ -1307,12 +1325,14 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
               });
               return;
             }
-            patch({ screen: 'hub' });
+            moduleReview.beginReview();
           }}
         >
           {checkpoint ? 'Save & Return to Plan' : 'Continue'}
         </button>
       </div>
+
+      {!checkpoint && <ModuleReviewWidget review={moduleReview} label="Course Selection" />}
     </div>
   );
 }

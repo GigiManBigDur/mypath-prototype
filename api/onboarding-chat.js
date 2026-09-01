@@ -274,6 +274,29 @@ const FINAL_REVIEW_TRIGGER_MESSAGE = '(Automatic final review — the student ha
 // below, not in this string itself.
 const TRANSCRIPT_RESUME_TRIGGER_MESSAGE = '(Automatic resume — the student has just finished, or explicitly skipped, entering their real transcript and GPA. Their real academic record (or an honestly empty one, for a genuine incoming student with nothing yet) is now available in profileSummary.academic for the first time. Briefly and naturally acknowledge it, then continue the conversation into their activities/experience, per your own Transcript & GPA pause instructions.)';
 
+// Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — a THIRD, mirror-image
+// automatic no-typed-text trigger, fired once the student takes an explicit "done with this
+// module" action on one of the app's own selection-based hub modules (never on every click — see
+// Task 1). Same "fixed, server-owned string stands in for the student's turn" shape as
+// FINAL_REVIEW_TRIGGER_MESSAGE/TRANSCRIPT_RESUME_TRIGGER_MESSAGE above. `MODULE_LABELS` is the
+// one place a short client-sent id (e.g. 'careers') resolves to the real, human module name —
+// deliberately small and hand-maintained (this app's own established "each Vercel function stays
+// standalone, duplicate a small mapping rather than import from src/" precedent, same reasoning
+// VALID_INTEREST_TAGS above already documents).
+const MODULE_LABELS = {
+  careers: 'Careers of Interest',
+  majors: 'Related College Majors',
+  programs: 'Recommended Programs',
+  courseSelection: 'Course Selection',
+  opportunities: 'Opportunity Finder',
+  projectBuilder: 'Project Builder',
+};
+
+function buildModuleReactionTrigger(moduleId) {
+  const label = MODULE_LABELS[moduleId] || moduleId;
+  return `(Automatic module reaction — the student just took the "done with this module" action in the "${label}" module. React to their real, current choice there — see profileSummary for exactly what they selected — per your own Module reaction instructions.)`;
+}
+
 // Task 1 — the "why this conversation matters" framing, and Task 3 — what it actually needs to
 // accomplish (replacing the old interest-tag question and prior-experience field entirely, via
 // real dialogue rather than a disguised form). Task 4 — the genuine, deliberately-bounded
@@ -354,6 +377,16 @@ Generating the overview (Stage 3 — do this only once, and only once the conver
 - narrativeSummary must accurately reflect the REAL settled direction, including explicitly naming any narrative-pushback suggestion the student actually agreed to (or noting they stuck with their own original direction if they declined one).
 - Don't rush this — a conversation that's only covered one or two surface-level answers is not ready. But once it genuinely has, generate a real, specific overview rather than continuing to ask more questions than necessary.
 - Even after readyForOverview is true, keep talking naturally if the student wants to discuss further — you can set these fields again on a later turn if the direction changes.
+
+Module reaction (a SEPARATE, LATER, REPEATING moment — fires automatically each time the student takes an explicit "done with this module" action on one of the app's own real modules, one at a time, well after the overview above has already been generated and confirmed):
+- You will receive a message telling you which specific module the student just confirmed (Careers of Interest, Related College Majors, Recommended Programs, Course Selection, Opportunity Finder, or Project Builder). By this point in the conversation, the student has ALREADY settled on a real narrative direction and been through the strategy discussion above — react to their real, current choice AS a genuine extension of that same relationship, not as a fresh, disconnected check-in. Use the FULL conversation history for real context, exactly as you already do everywhere else.
+- Look up their real, CURRENT selection for that specific module in profileSummary: careers -> profileSummary.goals.careers (real names), majors -> profileSummary.goals.majors, programs -> profileSummary.goals.programs (each also carries its own real reachMatchSafety tag), Course Selection -> profileSummary.academic.currentCourses (real course names), Opportunity Finder -> profileSummary.activities.opportunities (real names/tracks), Project Builder -> profileSummary.activities.projects (the real project they just started, including its name). Never react to a stale/remembered selection from earlier in the conversation — always the real, current one.
+- Your reply must follow this real structure, like a genuine consultant discussing the choice with a student, not a script:
+  1. Acknowledge SPECIFICALLY what they actually chose — name the real career/major/program/courses/opportunity/project by name. Never a generic "nice pick!" with no real reference to what it actually is.
+  2. Connect it back to the narrative direction settled earlier in THIS conversation. If it genuinely aligns well, say so specifically (name WHY it fits, referencing the real narrative). If there's a genuine tension or mismatch worth naming — the choice pulls away from the direction you both settled on, or sits oddly next to something else they've already picked — name that HONESTLY and specifically. Do NOT smooth over or gloss past a real mismatch just to be agreeable; that would be a worse, less useful conversation than an honest one. Equally, do NOT manufacture tension that isn't really there just to seem thorough — if it genuinely fits, say so plainly.
+  3. Ask exactly ONE genuine question that invites either affirmation or reconsideration — never a rhetorical "sound good?" with only one acceptable answer. A real example of genuine tension: a student whose narrative centers on hands-on community organizing selecting a highly theoretical, research-heavy program with little applied component — naming that specific tension and asking whether it's still the right fit, or whether a different real option among what they can still pick would serve the direction better.
+- After this, continue the conversation naturally — the student may agree, push back, ask you something, or want to talk it through further. Keep responding genuinely; the app itself will show them a persistent Confirm / "keep refining" choice once this begins, so you never need to declare anything "resolved" yourself — just have a real conversation for as long as they want one.
+- This can happen up to six separate times over the course of the app (once per module) — treat each one as its own real moment about that specific choice, never a repeat of an earlier module's own reaction.
 
 Final review (a SEPARATE, LATER moment — this fires automatically, on its own, once the student has finished every OTHER real step in the app, not something you decide to start yourself):
 - By the time this happens, the student has already selected real careers/majors/programs, logged a real transcript and GPA, picked real courses, selected real opportunities (some possibly completed), and possibly started a project — all of this is now available to you in profileSummary, reflecting what they ACTUALLY did, not just what was discussed in the abstract earlier in this conversation. This is the first point where you have full visibility into their real, concrete choices.
@@ -698,8 +731,13 @@ export default async function handler(req, res) {
   // Implement the Corrected Flow Order (see CLAUDE.md) — `resumeAfterTranscript: true` is the
   // mirror-image second automatic, no-typed-text turn: fires once the student has finished (or
   // explicitly skipped) the real Transcript & GPA form the conversation just handed them off to.
-  const { history, prompt, profileSummary, finalReview, resumeAfterTranscript } = req.body || {};
-  if ((!finalReview && !resumeAfterTranscript && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
+  //
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — `moduleReaction` is the
+  // THIRD automatic, no-typed-text trigger: a real module id string (e.g. 'careers'), never a
+  // boolean, since (unlike the other two, each of which only ever fires once) this one repeats —
+  // up to six times, once per module.
+  const { history, prompt, profileSummary, finalReview, resumeAfterTranscript, moduleReaction } = req.body || {};
+  if ((!finalReview && !resumeAfterTranscript && !moduleReaction && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
     res.status(400).json({ error: 'Missing prompt/profileSummary/history' });
     return;
   }
@@ -707,7 +745,9 @@ export default async function handler(req, res) {
     ? FINAL_REVIEW_TRIGGER_MESSAGE
     : resumeAfterTranscript === true
       ? TRANSCRIPT_RESUME_TRIGGER_MESSAGE
-      : prompt;
+      : moduleReaction
+        ? buildModuleReactionTrigger(moduleReaction)
+        : prompt;
 
   try {
     const result = await provider.call(apiKey, history, effectivePrompt, profileSummary);

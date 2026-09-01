@@ -25,11 +25,16 @@ const ONBOARDING_CHAT_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/api/
 // second optional flag, `true` only for the one automatic, no-typed-text turn
 // `useOnboardingChat.js`'s own `triggerTranscriptResume` fires once the student has finished (or
 // explicitly skipped) the real Transcript & GPA form.
-export function requestOnboardingChatReply({ history, prompt, profileSummary, finalReview = false, resumeAfterTranscript = false }, { onResult, onError } = {}) {
+//
+// Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — `moduleReaction` is a THIRD
+// optional flag, a real module id string (e.g. 'careers') rather than a boolean, since this one
+// fires repeatedly — once per module the student completes, via `useOnboardingChat.js`'s own
+// `triggerModuleReaction`.
+export function requestOnboardingChatReply({ history, prompt, profileSummary, finalReview = false, resumeAfterTranscript = false, moduleReaction = null }, { onResult, onError } = {}) {
   fetch(ONBOARDING_CHAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history, prompt, profileSummary, finalReview, resumeAfterTranscript }),
+    body: JSON.stringify({ history, prompt, profileSummary, finalReview, resumeAfterTranscript, moduleReaction }),
   })
     .then((res) => {
       if (!res.ok) throw new Error(`Onboarding chat request failed: ${res.status}`);

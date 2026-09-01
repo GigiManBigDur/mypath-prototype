@@ -67,6 +67,20 @@
 // `transform`, so it can run as a plain `animation` alongside the wand's own `transition`-driven
 // extend/retract with zero property conflicts) — active only while actually raised, so it never
 // runs during idle.
+// Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md), Task 2 — a FIFTH distinct
+// animation state, consistent with idle/speaking/pointing/thinking above: a genuinely NEW piece of
+// markup (a hand-drawn magnifying glass, `.mascot-reviewing-glass`) rather than reusing any
+// existing element, so it reads unmistakably as "looking closely at something real," not a variant
+// of pointing (which is about DIRECTING attention toward a target elsewhere) or thinking (which is
+// about COMPOSING a reply, not examining an existing choice). The glass sits low, near where a hand
+// would hold it up to something, and sweeps in a slow side-to-side scan (`.mascot-reviewing-glass`'s
+// own `animation`, translateX-only so it composes safely with the fixed positioning `transform` on
+// this same element the usual way this codebase already handles it — see the leaf-sprout's own
+// "outer g carries position, inner g carries the CSS animation" split for the identical reasoning).
+// The body ALSO gets its own new bob variant, `.mascot-reviewing` (a slower, more settled "focused,
+// tilted down" hold rather than a continuous bounce — reading as "paused to genuinely look," not
+// "actively talking/thinking") — reusing the same shared elements idle/speaking/thinking already
+// animate, exactly like those three already do, rather than a second illustration.
 const MAX_LEAN_DEG = 10;
 
 // Improve the AI "Thinking" Indicator (see CLAUDE.md) — a FOURTH distinct animation state,
@@ -82,7 +96,7 @@ const MAX_LEAN_DEG = 10;
 // independent prop/class, so an unexpected simultaneous case would just show both animations
 // rather than silently breaking.
 export default function MascotIcon({
-  size = 140, speaking = false, pointing = false, pointAngle = null, thinking = false,
+  size = 140, speaking = false, pointing = false, pointAngle = null, thinking = false, reviewing = false,
 }) {
   // A real pointing pose needs a real, measured angle — with none (still measuring, e.g. the very
   // first frame after mount), the character simply stays in its centered idle pose rather than
@@ -113,13 +127,13 @@ export default function MascotIcon({
         className={`mascot-pose${hasAngle ? ' mascot-pointing' : ''}`}
         style={hasAngle ? { transform: `rotate(${leanDeg}deg)` } : undefined}
       >
-        <g className={`mascot-bob${speaking ? ' mascot-speaking' : ''}${thinking ? ' mascot-thinking' : ''}`}>
+        <g className={`mascot-bob${speaking ? ' mascot-speaking' : ''}${thinking ? ' mascot-thinking' : ''}${reviewing ? ' mascot-reviewing' : ''}`}>
           <rect className="mascot-body" x="35" y="30" width="90" height="112" rx="45" />
           <circle className="mascot-ear" cx="38" cy="74" r="7" />
           <circle className="mascot-ear" cx="122" cy="74" r="7" />
           <rect className="mascot-face" x="52" y="56" width="56" height="42" rx="21" />
-          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}`} d="M 64 79 Q 69 71 74 79" />
-          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}`} d="M 86 79 Q 91 71 96 79" />
+          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}${reviewing ? ' mascot-eye-reviewing' : ''}`} d="M 64 79 Q 69 71 74 79" />
+          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}${reviewing ? ' mascot-eye-reviewing' : ''}`} d="M 86 79 Q 91 71 96 79" />
           <circle className={`mascot-chest-light${speaking ? ' mascot-chest-light-talking' : ''}${thinking ? ' mascot-chest-light-thinking' : ''}`} cx="80" cy="119" r="6" />
           {/* Leaf sprout — sways independently via its own inner <g>, same "outer <g> carries the
               positioning translate, inner <g> carries only the CSS-animated transform" split this
@@ -159,6 +173,28 @@ export default function MascotIcon({
           lean/pointing transform — thinking and pointing never co-occur in practice (this app's
           only pointing context, the hub's own guided-sequence dialogue, never triggers a
           request), but keeping this independent means it wouldn't silently break if they ever did. */}
+      {/* Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md), Task 2 — a genuinely
+          NEW piece of markup, a sibling of `.mascot-pose` (never inherits any lean/pointing
+          transform, same reasoning the thinking-dots sibling below already documents). Positioned
+          low and to the character's own right, as if held up to look at something just below/
+          beside it — a real, deliberate visual distinct from the wand's own pointing gesture
+          (raised, extended outward toward a target elsewhere) and from thinking's dots (near the
+          head, about composing a reply, not examining something already chosen). */}
+      {reviewing && (
+        // The exact "outer <g> carries the positioning translate via a real attribute, inner <g>
+        // carries only the CSS-animated transform" split this file's own leaf-sprout sway already
+        // established — a CSS `transform` REPLACES a presentation-attribute `transform` on the
+        // SAME element rather than composing with it, so putting both the position and the
+        // animation on one element would silently drop the position the instant the scan animation
+        // applied (the exact landmine this codebase has already documented hitting more than once).
+        <g transform="translate(104, 100)">
+          <g className="mascot-reviewing-glass">
+            <circle className="mascot-glass-lens" cx="0" cy="0" r="11" />
+            <line className="mascot-glass-handle" x1="8" y1="8" x2="18" y2="18" />
+          </g>
+        </g>
+      )}
+
       {thinking && (
         <g className="mascot-thought-bubble">
           <circle className="mascot-thinking-dot" cx="128" cy="30" r="4" style={{ animationDelay: '0s' }} />

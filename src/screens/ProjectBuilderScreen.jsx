@@ -17,7 +17,9 @@ import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
 import MascotIcon from '../components/MascotIcon';
 import ChatConversation from '../components/ChatConversation';
+import ModuleReviewWidget from '../components/ModuleReviewWidget';
 import { useMarkMascotSeen, useMascotSeenSnapshot, useMascotRevisitOnce } from '../hooks/useMascotSeen';
+import { useModuleReview } from '../hooks/useModuleReview';
 import { getMascotLine } from '../data/mascotDialogue';
 
 // Move: Build Your Own (see CLAUDE.md) — the real, AI-powered feature originally built as AI
@@ -133,6 +135,17 @@ export default function ProjectBuilderScreen() {
   // counts as "the student was asked and chose to skip."
   const skip = () => patch({ screen: 'hub', projectBuilderSkipped: true });
 
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — this screen has no single
+  // forced "Continue" exit the way the other 5 modules do (Back and "Go to my Academic Plan" have
+  // always both been reachable at any time, since Project Builder is explicitly optional/
+  // skippable by design — see this file's own established precedent). The real "done with this
+  // module" moment here is genuinely STARTING a project (curated or Build Your Own) — that's the
+  // real, specific choice worth reacting to — so `confirmStart()` below triggers the review right
+  // after a project is actually created, rather than gating a screen-exit button. `onConfirm` is a
+  // no-op: unlike the other 5 modules, there's no real "advance" action to run afterward — the
+  // student simply keeps browsing/adding steps or leaves whenever they choose, exactly as before.
+  const moduleReview = useModuleReview('projectBuilder', 'projectBuilder-intro', () => {});
+
   const openCategory = (id) => { setCategoryId(id); setProjectTypeId(null); setView('category'); };
   const openProjectType = (id) => { setProjectTypeId(id); setShowStartPicker(false); setStartDate(''); setView('projectType'); };
   // Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md), Task 2 — reachable
@@ -225,6 +238,7 @@ export default function ProjectBuilderScreen() {
       setStartedBuildYourOwnProject(newProject);
       setShowStartPicker(false);
       setStartDate('');
+      moduleReview.beginReview();
       return;
     }
     if (!category || !projectType) return;
@@ -240,6 +254,7 @@ export default function ProjectBuilderScreen() {
     patch({ startedProjects: [...(state.startedProjects || []), newProject] });
     setShowStartPicker(false);
     setStartDate('');
+    moduleReview.beginReview();
   };
 
   // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — the intro line is a one-time, ever line
@@ -319,6 +334,8 @@ export default function ProjectBuilderScreen() {
           onGoToPlan={() => patch({ screen: 'plan' })}
         />
       )}
+
+      <ModuleReviewWidget review={moduleReview} label="Project Builder" />
     </div>
   );
 }

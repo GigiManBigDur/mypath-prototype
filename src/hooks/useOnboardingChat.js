@@ -73,14 +73,18 @@ export function useOnboardingChat() {
   // Implement the Corrected Flow Order (see CLAUDE.md) — `resumeAfterTranscript` generalizes this
   // the exact same way `finalReview` already did: a third silent, no-typed-text trigger sharing
   // this one send/append/error-handling path rather than a second, parallel implementation.
-  const sendFrom = (baseHistory, trimmed, { silent = false, finalReview = false, resumeAfterTranscript = false } = {}) => {
+  //
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — `moduleReaction` (a real
+  // module id string, not a boolean — see requestOnboardingChatReply's own comment for why) is a
+  // FOURTH option on this same shared path, alongside the existing three.
+  const sendFrom = (baseHistory, trimmed, { silent = false, finalReview = false, resumeAfterTranscript = false, moduleReaction = null } = {}) => {
     const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
     const afterUser = silent ? baseHistory : [...baseHistory, { role: 'user', content: trimmed }];
     if (!silent) patch({ onboardingChatHistory: afterUser });
     setLoading(true);
     const profileSummary = compileStudentProfile(state);
     requestOnboardingChatReply(
-      { history, prompt: trimmed, profileSummary, finalReview, resumeAfterTranscript },
+      { history, prompt: trimmed, profileSummary, finalReview, resumeAfterTranscript, moduleReaction },
       {
         onResult: (proposal) => {
           setLoading(false);
@@ -168,6 +172,15 @@ export function useOnboardingChat() {
   // turn that resumes this conversation once TranscriptScreen.jsx's own `advance()` (in
   // onboarding-pause mode) has finished/skipped the real transcript form and returned here.
   const triggerTranscriptResume = () => sendFrom(chatHistory, null, { silent: true, resumeAfterTranscript: true });
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — the mirror-image automatic,
+  // no-typed-text turn a module's own "done" action fires (via useModuleReview.js). Takes an
+  // EXPLICIT `baseHistory` argument (rather than always reading this hook's own `chatHistory`
+  // closure) because the caller typically just appended the module's own scripted opening line to
+  // history in the SAME synchronous block, via its own separate `patch()` call — `chatHistory`
+  // here wouldn't reflect that yet until the next render, the same "pass an effectiveState, don't
+  // trust a stale closure" precedent this app's own Stage 2 auto-suggestion trigger already
+  // established. Falls back to this hook's own `chatHistory` when the caller has nothing newer.
+  const triggerModuleReaction = (moduleId, baseHistory) => sendFrom(baseHistory ?? chatHistory, null, { silent: true, moduleReaction: moduleId });
 
   // Implement the Corrected Flow Order (see CLAUDE.md) — the auto-fire effect for the resume
   // trigger above, mirroring HubScreen.jsx's own `finalReviewFiredRef`/`finalReviewTriggered`
@@ -189,5 +202,5 @@ export function useOnboardingChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.pendingOnboardingTranscriptResume]);
 
-  return { chatHistory, loading, sendMessage, editMessage, triggerFinalReview };
+  return { chatHistory, loading, sendMessage, editMessage, triggerFinalReview, triggerModuleReaction };
 }

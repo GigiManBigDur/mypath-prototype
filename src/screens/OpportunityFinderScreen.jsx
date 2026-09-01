@@ -6,7 +6,9 @@ import { getOpportunityPool, getSchoolOpportunities } from '../data/opportunitie
 import { anchorDate, formatDate, getEffectiveToday } from '../utils/dates';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
+import ModuleReviewWidget from '../components/ModuleReviewWidget';
 import { useMascotIntroThenRevisit } from '../hooks/useMascotSeen';
+import { useModuleReview } from '../hooks/useModuleReview';
 import { TrackIcon, getTrackColor } from '../components/TrackVisuals';
 
 export default function OpportunityFinderScreen() {
@@ -70,6 +72,11 @@ export default function OpportunityFinderScreen() {
   // itself, and the Profile screen's own always-available editor for it, are untouched — only
   // this screen's own one-time gate for collecting it is removed.
   const mascotText = useMascotIntroThenRevisit('opportunities-intro', 'opportunities-revisit');
+
+  // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — 'opportunities' matches
+  // api/onboarding-chat.js's own MODULE_LABELS key; 'opportunities-intro' is the exact scripted
+  // line MascotWidget already shows above (Task 5), reused verbatim as the opening line.
+  const moduleReview = useModuleReview('opportunities', 'opportunities-intro', () => patch({ screen: 'hub' }));
 
   return (
     <div>
@@ -210,10 +217,12 @@ export default function OpportunityFinderScreen() {
       </div>
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
-        <button type="button" className="btn btn-primary" onClick={() => patch({ screen: 'hub' })}>
+        <button type="button" className="btn btn-primary" onClick={moduleReview.beginReview}>
           Continue
         </button>
       </div>
+
+      <ModuleReviewWidget review={moduleReview} label="Opportunity Finder" />
     </div>
   );
 }
