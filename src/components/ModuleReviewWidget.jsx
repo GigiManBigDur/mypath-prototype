@@ -35,19 +35,40 @@ import { stopSpeaking } from '../utils/speech';
 // true (Task 1's own trigger), regardless of whether the student had it open already — the
 // reactive sequence should never require them to separately go find and click the toggle
 // themselves.
+// Fix: Confirm/Reconsider Button Appears Before Bot Finishes Speaking — the footer used to render
+// the instant `review.isActive` was true, with zero regard for `review.loading` (the "Thinking"
+// state) or whether the reply that just arrived was still being read aloud, so it could become
+// clickable while the bot's own current message hadn't genuinely finished yet. `responseSettled`
+// is the real gate: not still generating a reply, AND (via the new `onPlayingChange` wiring below)
+// not actively playing that reply's own audio — both have to be true before the student is offered
+// a real decision. `audioPlaying` resets to `false` whenever the review deactivates (Confirm/keep
+// refining/close), so a stale "still playing" flag can never linger into the next activation.
 export default function ModuleReviewWidget({ review, label }) {
   const [open, setOpen] = useState(false);
+  const [audioPlaying, setAudioPlaying] = useState(false);
 
   useEffect(() => {
     if (review.isActive) setOpen(true);
+    else setAudioPlaying(false);
   }, [review.isActive]);
 
   const handleClose = () => {
     stopSpeaking();
+    setAudioPlaying(false);
     setOpen(false);
   };
 
   const reviewing = review.isActive && review.phase === 'reviewing';
+  // `!== 'chat'` (not `=== 'reviewing'`) is deliberate: `useModuleReview`'s own phase-setting
+  // effect hasn't run yet on the very first render right after `beginReview()` fires (React flushes
+  // passive effects after paint), so `review.phase` can still transiently read its OLD value
+  // ('idle', left behind by the previous cycle) for a real, paintable frame while `review.isActive`
+  // is already true. Gating on `phase === 'reviewing'` alone would fall through to the ChatConversation
+  // branch during that split second — with nothing loading yet — reproducing the exact same
+  // premature-footer bug this fix exists to close, just one step earlier. Treating "active but not
+  // yet at 'chat'" as the reviewing beat closes that gap regardless of effect-scheduling timing.
+  const showReviewingBeat = review.isActive && review.phase !== 'chat';
+  const responseSettled = !review.loading && !audioPlaying;
 
   return createPortal(
     <>
@@ -78,7 +99,7 @@ export default function ModuleReviewWidget({ review, label }) {
             while nothing else has happened yet) — a real, larger rendering of the exact same
             `reviewing` animation state, so it reads as a genuine, deliberate moment rather than a
             flicker. Transitions to the real conversation the instant `phase` becomes 'chat'. */}
-        {reviewing ? (
+        {showReviewingBeat ? (
           <div className="module-review-reviewing">
             <MascotIcon size={64} reviewing />
             <p>Taking a real look at what you picked…</p>
@@ -89,9 +110,10 @@ export default function ModuleReviewWidget({ review, label }) {
             loading={review.loading}
             onSend={review.sendMessage}
             onEditMessage={review.editMessage}
+            onPlayingChange={(index) => setAudioPlaying(index !== null)}
             placeholder="Tell me what's on your mind…"
             emptyHint="Ask about your plan, or anything about MyPath."
-            footer={review.isActive && (
+            footer={review.isActive && responseSettled && (
               <ModuleReviewFooter onConfirm={review.confirm} onKeepRefining={review.keepRefining} />
             )}
           />

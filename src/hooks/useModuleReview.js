@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useOnboardingChat } from './useOnboardingChat';
 import { getMascotLine } from '../data/mascotDialogue';
@@ -29,6 +29,22 @@ import { getMascotLine } from '../data/mascotDialogue';
 // shorter, since this is a small in-context beat, not a whole-screen "first meeting."
 const REVIEW_DURATION_MS = 1400;
 
+// Fix: Confirm/Reconsider Button Appears Before Bot Finishes Speaking — both effects below are
+// deliberately `useLayoutEffect`, not the plain `useEffect` they started as. `useEffect` callbacks
+// are flushed AFTER the browser has already painted the commit that triggered them — so a chain
+// like "isActive flips true -> effect sets phase to 'reviewing'" or "phase flips to 'chat' -> effect
+// calls triggerModuleReaction, which sets loading true" each has a real, PAINTABLE frame in between
+// where the intermediate state (isActive=true but phase still 'idle'; phase='chat' but loading
+// still false) is genuinely on screen — confirmed directly via instrumented polling before this fix,
+// not assumed: a request landing at 2486ms showed `reviewing=0, loading=false` (footer visible) for
+// one real frame before `loading=true` landed 124ms later. `useLayoutEffect` runs SYNCHRONOUSLY
+// after DOM mutations but BEFORE paint, and React keeps flushing any further layout-effect-triggered
+// state updates in the same synchronous pass until things settle — so this whole idle -> reviewing
+// -> chat -> loading chain now resolves in one commit, with nothing intermediate ever reaching the
+// screen. `ModuleReviewWidget.jsx`'s own `showReviewingBeat` check (isActive && phase !== 'chat',
+// rather than phase === 'reviewing' alone) stays in place as a second, independent guard against the
+// same category of gap — cheap, harmless, and no longer strictly load-bearing now that the root
+// cause is fixed here, but worth keeping rather than trusting effect-timing alone a second time.
 export function useModuleReview(moduleId, introKey, onConfirm) {
   const { state, patch } = useApp();
   const { chatHistory, loading, sendMessage, editMessage, triggerModuleReaction } = useOnboardingChat();
@@ -41,7 +57,7 @@ export function useModuleReview(moduleId, introKey, onConfirm) {
   // establish.
   const firedRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isActive) {
       setPhase('idle');
       firedRef.current = false;
@@ -62,7 +78,7 @@ export function useModuleReview(moduleId, introKey, onConfirm) {
   // conversation at all). A later re-trigger (after "keep refining," Task 6) skips straight to a
   // fresh AI reaction with no repeated opening line, avoiding the same scripted text cluttering
   // the persisted transcript on every reconsideration.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (phase !== 'chat' || firedRef.current) return;
     firedRef.current = true;
     const alreadyOpened = chatHistory.some((m) => m.moduleReviewOpening === moduleId);

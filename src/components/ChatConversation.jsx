@@ -48,9 +48,16 @@ import { speak, stopSpeaking } from '../utils/speech';
 //   edit hands `(index, newContent)` up to the caller, which is expected to truncate its own
 //   history at that index and regenerate a fresh reply for the corrected message — this component
 //   has no opinion on how that regeneration happens, only that it's the caller's job.
+//
+// Fix: Confirm/Reconsider Button Appears Before Bot Finishes Speaking — `onPlayingChange` is a new,
+// purely optional prop (undefined/no-op for every existing caller, matching `onInputFocus`'s own
+// precedent) firing whenever `playingIndex` changes. `ModuleReviewWidget.jsx` uses this to know
+// when a message's audio is actively playing, so it can hold its own confirm/reconsider footer back
+// until playback (not just the reply's arrival) has genuinely finished — this component itself has
+// no opinion on what a caller does with that signal.
 export default function ChatConversation({
   messages, loading, onSend, emptyHint, placeholder = 'Type a message…', renderMessageExtra, footer, onInputFocus,
-  onEditMessage,
+  onEditMessage, onPlayingChange,
 }) {
   const { state } = useApp();
   const [inputValue, setInputValue] = useState('');
@@ -62,6 +69,11 @@ export default function ChatConversation({
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, loading]);
+
+  useEffect(() => {
+    onPlayingChange?.(playingIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playingIndex]);
 
   // Navigating away mid-playback (this component unmounting) shouldn't leave audio running over
   // whatever's rendered next — the same "don't let it keep talking past its own screen" contract
