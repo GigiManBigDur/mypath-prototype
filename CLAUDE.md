@@ -13224,6 +13224,93 @@ without waiting for any hand-off at all.**
   `useOnboardingChat.js`) was re-run and passes unchanged. `npm run build`/`npm run lint` both stay
   clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`.
 
+**Course Selection: Visible Selection List + Auto-Pick Button — a real, always-visible "shopping
+list" panel replacing the old scroll-to-the-bottom chip strip, plus a one-click "Auto-pick my
+courses" button reusing this app's own existing recommendation logic, for both the Roslyn and UC
+Davis Course Selection screens.**
+- **Task 1 — `src/components/SelectedCoursesPanel.jsx` (new, shared by both catalogs)** is a real
+  `position: fixed` panel, bottom-LEFT (the opposite corner from `ModuleReviewWidget`'s own
+  bottom-right toggle/panel, which renders on this exact screen too — same "opposite corners so
+  neither visually collides" precedent that widget's own header comment already documents for
+  `MapChatWidget`). Deliberately has NO collapse/expand toggle at all — it renders in full the
+  entire time there's at least one selection, with its own internal `overflow-y: auto` list region
+  so a long, legitimately-multi-track selection never grows the panel itself past a reasonable
+  height. Rendered via `createPortal(..., document.body)`, not inline — Course Selection is one of
+  the screens wrapped in `.screen-transition`, whose fill-mode entrance animation makes it a
+  containing block for `position: fixed` descendants (the exact same landmine `ModuleReviewWidget`
+  already works around on this identical screen) — without the portal, the panel would anchor to
+  that wrapper's box instead of the real viewport. `getLabel` is an optional prop (defaults to
+  `course.name`) so the UC Davis variant can pass a real `${code} — ${name}` — a small, genuine
+  improvement over the bare course CODE the old inline chip strip showed there. Each row's own
+  remove button calls the exact same `toggleCourse`/checkpoint-aware handler every other selection
+  control on the screen already uses — removing directly from the panel is byte-for-byte identical
+  to removing from wherever the course was originally selected. Renders in BOTH onboarding and
+  checkpoint mode (Course Selection Stage 4's per-year revisit reuses this same screen) — the panel
+  itself has no opinion on which; only the new Auto-Pick button (Task 2, below) is scoped out of
+  checkpoint mode.
+- **Task 2 — `computeAutoPickedCourseIds` (Roslyn)** reuses three real, already-existing pieces of
+  data/logic rather than inventing a new selection algorithm: (1) the merged interest-based
+  `recommendedCourses` list — byte-identical to what "Recommended for you" already computes; (2)
+  `getProgramTypeCourses` per selected major's own program type — byte-identical to what
+  "Program-Specific Course Recommendations" already shows; and (3), for the student's actual
+  school's own real graduation requirements, the exact same `creditsEarnedFor`/
+  `SUBJECT_CREDIT_REQUIREMENTS` pair the policy card's own credit-progress bars already compute —
+  filling in one real, deterministic course per subject the transcript shows is still genuinely
+  below its real credit minimum, only when nothing from (1)/(2) already covers that department.
+  Deduped via a `Map` keyed by course id. **"Verified school-specific requirements"
+  (`schoolRequirements.js`) is deliberately NOT used as a course SOURCE** — those entries are real,
+  independently-verified free TEXT (e.g. "3 credits of Chemistry or Physics"), with no structured
+  course-id mapping behind them; mechanically guessing which catalog course "counts" from that text
+  would be exactly the kind of invented selection logic this task explicitly says to avoid. That
+  layer is still genuinely surfaced, honestly: `handleAutoPick`'s own confirmation message names the
+  real requirement (when one applies to a currently-selected program) so the student reviews it
+  themselves, rather than silently ignoring it. UC Davis has no program-type/school-specific
+  equivalent at all, so its own `handleAutoPick` is genuinely simpler — it reuses only the one real
+  structured source that exists there (the major-based `recommendedCourses` list), nothing invented
+  to fill the gap.
+- **Task 3 — a deliberate MERGE, never a replace.** Both variants' `handleAutoPick` computes a
+  UNION with `currentSelectedIds` (`[...new Set([...currentSelectedIds, ...newIds])]`) and writes
+  straight to the exact same `state.selectedCourseIds`/`state.selectedUCDavisCourseIds` field every
+  manual `toggleCourse` call already writes to — never a second, parallel "auto-picked courses"
+  concept. A student who's already built part of their list by hand never has a manual pick
+  silently discarded just for clicking the button, and every course in the resulting list —
+  auto-picked or manual — is freely addable/removable through the identical `toggleCourse`/panel-
+  remove/detail-modal controls with zero special-casing. Nothing navigates away or gets locked in;
+  it's a plain `patch()` into state the student is still standing on the same screen to keep
+  editing. A plain local `autoPickMessage` (no toast system exists in this app) shows a real,
+  honest confirmation naming what actually happened — this app's own established "a one-off inline
+  confirmation just stays" convention, not an auto-dismissing toast.
+- **Task 4 — the reactive AI check-in needed ZERO changes to fire correctly regardless of how the
+  list was built.** Confirmed directly (not assumed) before writing any of this:
+  `profileCompiler.js`'s own `currentCourses` (what the reactive conversation's module-reaction
+  actually reads for Course Selection) is already derived straight from `state.selectedCourseIds`
+  — the identical field both a manual `toggleCourse` call and the new `handleAutoPick` write to,
+  with no concept anywhere of "was this course auto-picked or manual." Since Continue's own
+  `moduleReview.beginReview()` call was never conditioned on how the list came to be, a list built
+  entirely via Auto-Pick, entirely by hand, or any mix of both triggers the identical reviewing
+  beat → real conversation → Confirm/keep-refining flow every time.
+- Verified with two dedicated Playwright suites (34 checks) against the real dev server, mocking
+  `/api/onboarding-chat`: manually selecting a course shows it in a real panel confirmed genuinely
+  `position: fixed` (identical viewport position before/after scrolling 600px), and removing it
+  from the panel — not from the grid — correctly updates `state.selectedCourseIds` and makes the
+  panel disappear once empty; clicking Auto-Pick (seeded with a real interest tag, a real
+  program-type-mapped major, and a real verified `selectedProgramKeys` entry, against an empty
+  transcript so every subject genuinely needs graduation-requirement filling) produces a real,
+  non-trivial list, a confirmation message that honestly names the real verified Cornell
+  requirement, and a panel reflecting the new, larger count; adding one more course manually on top
+  of an auto-picked list, then removing one of the ORIGINAL auto-picked courses via the panel, both
+  work exactly as they would on a purely manual list; and clicking Continue on that manually-edited,
+  auto-pick-originated list fires the real reviewing beat and conversation, with the outgoing
+  request's own `profileSummary.academic.currentCourses` carrying the exact real, current course
+  names (not stale ids, not a placeholder) matching the FINAL edited count. A second suite confirms
+  the UC Davis variant's own simpler (interest/major-only) Auto-Pick produces a real list and still
+  triggers its own reactive check-in, and confirms a real checkpoint-mode regression check: the
+  Auto-Pick button is correctly absent during a checkpoint, the panel still works there
+  (correctly writing to the checkpoint's own nested `courseCheckpoints[stageName].
+  selectedCourseIds` slot, never the top-level field), and real prerequisite-locked courses (an
+  empty transcript against real catalog prerequisites) are correctly skipped when picking a
+  selectable course to test with. `npm run build`/`npm run lint` both stay clean.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

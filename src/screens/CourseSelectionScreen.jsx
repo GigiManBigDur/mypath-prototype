@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, GraduationCap, BookOpen, Award, Clock, Scale, Star, FileCheck, X, Check, Plus, Lock } from 'lucide-react';
+import { ArrowLeft, GraduationCap, BookOpen, Award, Clock, Scale, Star, FileCheck, X, Check, Plus, Lock, Wand2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, TRACK_LABELS } from '../data/interests';
 import { COURSES, getCourseById, WEIGHT_MULTIPLIERS } from '../data/courses';
@@ -12,6 +12,7 @@ import {
   getProgramTypeCourses,
 } from '../data/programRecommendations';
 import { getSchoolRequirement } from '../data/schoolRequirements';
+import SelectedCoursesPanel from '../components/SelectedCoursesPanel';
 import { checkPrerequisite } from '../utils/prerequisites';
 import { STAGE_PLAN, TRUNK_STAGES, DEFAULT_SCHOOL_YEAR, getStage0TargetLabel } from '../data/trunkSteps';
 import {
@@ -165,6 +166,45 @@ function creditsEarnedFor(departments, transcript) {
   }, 0);
 }
 
+// Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2 — reuses
+// three real, already-existing pieces of data/logic rather than inventing a new selection
+// algorithm: (1) the merged interest-based recommended list — byte-identical to what "Recommended
+// for you" already computes and shows; (2) the program-specific recommended list per selected
+// major — byte-identical to what the "Program-Specific Course Recommendations" section already
+// shows; and (3), for the student's actual SCHOOL's own real graduation requirements, the exact
+// same `creditsEarnedFor`/`SUBJECT_CREDIT_REQUIREMENTS` pair the policy card's own credit-progress
+// bars already compute above — filling in one real course per subject the transcript shows is
+// still genuinely below its real credit minimum (never a second, invented metric, and never
+// touching a subject that already has real coverage from (1)/(2)). Deduped via a Map keyed by
+// course id, so the same course recommended by more than one source only ever counts once.
+//
+// "Verified school-specific requirements" (schoolRequirements.js) is deliberately NOT a course
+// SOURCE here — those entries are real, independently-verified TEXT (e.g. "3 credits of Chemistry
+// or Physics"), with no structured course-id mapping behind them; mechanically guessing which
+// catalog course "counts" from free text would be exactly the kind of invented selection logic
+// this task explicitly says to avoid. That layer is still genuinely surfaced, honestly — see
+// `handleAutoPick`'s own confirmation message below, which names the real requirement so the
+// student reviews it themselves, rather than silently ignoring it.
+function computeAutoPickedCourseIds({ recommendedCourses, selectedProgramTypes, transcript }) {
+  const picked = new Map();
+  for (const c of recommendedCourses) picked.set(c.id, c);
+  for (const type of selectedProgramTypes) {
+    for (const c of getProgramTypeCourses(type, getCourseById)) picked.set(c.id, c);
+  }
+  for (const req of SUBJECT_CREDIT_REQUIREMENTS) {
+    const earned = creditsEarnedFor(req.departments, transcript || []);
+    if (earned >= req.required) continue;
+    const alreadyCovered = [...picked.values()].some((c) => req.departments.includes(c.department));
+    if (alreadyCovered) continue;
+    // The first standard-credit course in the real catalog for this department — a plain,
+    // deterministic pick (COURSES' own natural order), not a "best" one; the student can freely
+    // swap it for any other real course in that same department afterward (Task 3).
+    const candidate = COURSES.find((c) => req.departments.includes(c.department) && c.credit != null);
+    if (candidate) picked.set(candidate.id, candidate);
+  }
+  return [...picked.keys()];
+}
+
 // Shared card JSX for every place a course grid renders (main recommended/browse grid, and each
 // program-type group below) — same "extract once, render identically everywhere" precedent
 // ProgramCard already set for Discovery's Programs step (see CLAUDE.md). `ineligibleReason` is
@@ -290,6 +330,11 @@ export default function CourseSelectionScreen() {
   const [gradeFilter, setGradeFilter] = useState([]);
   const [creditFilter, setCreditFilter] = useState([]);
   const [attrFilter, setAttrFilter] = useState([]);
+  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 — a
+  // plain, local confirmation message, not a toast (this app has no toast system) — persists until
+  // the button is clicked again or the screen unmounts, the same "a one-off inline confirmation
+  // just stays" convention this app's own other single-shot confirmations already use.
+  const [autoPickMessage, setAutoPickMessage] = useState(null);
 
   // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — checkpoint mode always shows the same
   // repeatable "courseSelection-checkpoint" line (never marked seen, matching TranscriptScreen's
@@ -361,6 +406,41 @@ export default function CourseSelectionScreen() {
       return;
     }
     patch({ selectedCourseIds: newIds });
+  };
+
+  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 — a
+  // deliberate MERGE (union with `currentSelectedIds`), never a replace: a student who's already
+  // built part of their list by hand should never have a manual pick silently discarded just for
+  // clicking this. Writes to the exact same `state.selectedCourseIds` field every manual
+  // `toggleCourse` call already writes to — this is what makes Task 4 (the reactive AI check-in)
+  // fall out for free with zero further wiring: `profileCompiler.js`'s own `currentCourses` (what
+  // the reactive conversation's own module-reaction actually reads) is already derived straight
+  // from this same field, with no separate concept of "was this course auto-picked or manual."
+  // Never offered in checkpoint mode (see the button's own render guard below) — a checkpoint's own
+  // real prerequisite-locking (`ineligibleReasonFor`) is a genuinely separate concern this task
+  // doesn't touch, so this stays scoped to the plain onboarding selection only.
+  const handleAutoPick = () => {
+    const newIds = computeAutoPickedCourseIds({
+      recommendedCourses,
+      selectedProgramTypes,
+      transcript: state.transcript,
+    });
+    const merged = [...new Set([...currentSelectedIds, ...newIds])];
+    const addedCount = merged.length - currentSelectedIds.length;
+    patch({ selectedCourseIds: merged });
+
+    // Honestly surfaces a real, verified school-specific requirement (if one applies to a
+    // currently-selected program) rather than silently ignoring that layer — see
+    // computeAutoPickedCourseIds's own header comment for why it's never used as a course SOURCE.
+    const verifiedReq = state.selectedProgramKeys
+      .map((key) => ({ key, req: getSchoolRequirement(key) }))
+      .find((r) => r.req);
+    const reqNote = verifiedReq
+      ? ` ${verifiedReq.key.split('::')[0]} also has its own verified requirement for ${verifiedReq.key.split('::')[1]} — worth a look under School-Specific Requirements below.`
+      : '';
+    setAutoPickMessage(addedCount > 0
+      ? `Added ${addedCount} course${addedCount === 1 ? '' : 's'} based on your interests, selected majors, and Roslyn's own graduation requirements.${reqNote}`
+      : `Your current selections already cover everything this can suggest right now.${reqNote}`);
   };
 
   // Real prerequisite check against the (just-refreshed, if this is a checkpoint) transcript —
@@ -506,6 +586,28 @@ export default function CourseSelectionScreen() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 —
+          a real, one-click way to build (or add to) the list, reusing the exact same recommendation
+          data the sections below already compute — see computeAutoPickedCourseIds's own header
+          comment. Deliberately never offered in checkpoint mode (Part 2's own real prerequisite
+          locking is a separate concern this task doesn't touch). Doesn't navigate away or lock
+          anything in (Task 3) — it's a plain patch() into the same state Continue already reads,
+          same as any manual selection. */}
+      {!checkpoint && (
+        <div className="field-block">
+          <div className="auto-pick-row">
+            <button type="button" className="btn btn-outline" onClick={handleAutoPick}>
+              <Wand2 size={14} /> Auto-pick my courses
+            </button>
+            <p className="field-hint" style={{ margin: 0 }}>
+              Builds your list from your interests, selected majors, and Roslyn's own graduation
+              requirements — you can still add, remove, or change anything afterward.
+            </p>
+          </div>
+          {autoPickMessage && <p className="auto-pick-confirm">{autoPickMessage}</p>}
         </div>
       )}
 
@@ -799,23 +901,14 @@ export default function CourseSelectionScreen() {
         document.body,
       )}
 
-      {selectedCourses.length > 0 && (
-        <div className="field-block" style={{ marginTop: 32 }}>
-          <div className="field-label">Your selected courses ({selectedCourses.length})</div>
-          <div className="tag-list" style={{ padding: 0 }}>
-            {selectedCourses.map((course) => (
-              <button
-                type="button"
-                key={course.id}
-                className="tag selected course-selected-chip"
-                onClick={() => toggleCourse(course.id)}
-              >
-                {course.name} <X size={12} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 1 —
+          REPLACES the old inline "Your selected courses (N)" chip strip (which used to render here,
+          at the very bottom of the page, well below the policy/recommendation/program/school
+          sections above — a student had to scroll all the way past everything to check it) with a
+          real, always-visible fixed panel. Rendered in BOTH onboarding and checkpoint mode (the
+          panel itself is agnostic to which — `toggleCourse` already branches internally), unlike
+          the Auto-Pick button above, which is onboarding-only. */}
+      <SelectedCoursesPanel courses={selectedCourses} onRemove={toggleCourse} />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button
@@ -920,6 +1013,9 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   const [standingFilter, setStandingFilter] = useState([]);
   const [unitsFilter, setUnitsFilter] = useState([]);
   const [attrFilter, setAttrFilter] = useState([]);
+  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 — same
+  // plain, persistent local confirmation as the Roslyn variant above.
+  const [autoPickMessage, setAutoPickMessage] = useState(null);
 
   // UC Davis Course Selection Stage 4's own checkpoint (see CLAUDE.md) reuses this exact screen
   // for whichever quarter's course-selection step is due. Every quarter (Fall/Winter/Spring/
@@ -1045,6 +1141,30 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
     }
     patch({ selectedUCDavisCourseIds: newIds });
   };
+
+  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 — UC
+  // Davis has no program-specific/school-specific course-id mapping the way Roslyn's own
+  // programRecommendations.js/schoolRequirements.js do (see the Roslyn variant's own
+  // computeAutoPickedCourseIds comment), so this genuinely simpler auto-pick reuses the ONE real
+  // structured source that exists here: the exact same major/interest-based `recommendedCourses`
+  // list "Recommended for you" already computes and shows — nothing invented. Same deliberate
+  // MERGE (never replace) as the Roslyn variant, writing to the identical
+  // `state.selectedUCDavisCourseIds` field every manual `toggleCourse` call already uses — which is
+  // what makes Task 4 (the reactive AI check-in) apply with zero further wiring, same reasoning.
+  // Never offered in checkpoint mode, matching the Roslyn variant's own scope decision.
+  const handleAutoPick = () => {
+    const newIds = recommendedCourses.map((c) => c.id);
+    const merged = [...new Set([...currentSelectedIds, ...newIds])];
+    const addedCount = merged.length - currentSelectedIds.length;
+    patch({ selectedUCDavisCourseIds: merged });
+    const collegeNote = selectedColleges.length > 0
+      ? ` Your selected college(s) also have their own real requirements — see above.`
+      : '';
+    setAutoPickMessage(addedCount > 0
+      ? `Added ${addedCount} course${addedCount === 1 ? '' : 's'} based on your selected majors${thematicUCDavisCourses.length > 0 ? ' and the direction from your first conversation' : ''}.${collegeNote}`
+      : `Your current selections already cover everything this can suggest right now.${collegeNote}`);
+  };
+
   const toggleInFilter = (arr, setArr, val) => {
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   };
@@ -1123,6 +1243,24 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
           </p>
         )}
       </div>
+      )}
+
+      {/* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 —
+          same real, one-click list-building action as the Roslyn variant above, scoped to the one
+          real structured source UC Davis actually has (see handleAutoPick's own comment). */}
+      {!checkpoint && (
+        <div className="field-block">
+          <div className="auto-pick-row">
+            <button type="button" className="btn btn-outline" onClick={handleAutoPick}>
+              <Wand2 size={14} /> Auto-pick my courses
+            </button>
+            <p className="field-hint" style={{ margin: 0 }}>
+              Builds your list from your selected majors — you can still add, remove, or change
+              anything afterward.
+            </p>
+          </div>
+          {autoPickMessage && <p className="auto-pick-confirm">{autoPickMessage}</p>}
+        </div>
       )}
 
       <div className="field-block">
@@ -1287,23 +1425,16 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
         document.body,
       )}
 
-      {selectedCourses.length > 0 && (
-        <div className="field-block" style={{ marginTop: 32 }}>
-          <div className="field-label">Your selected courses ({selectedCourses.length})</div>
-          <div className="tag-list" style={{ padding: 0 }}>
-            {selectedCourses.map((course) => (
-              <button
-                type="button"
-                key={course.id}
-                className="tag selected course-selected-chip"
-                onClick={() => toggleCourse(course.id)}
-              >
-                {course.code} <X size={12} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 1 —
+          same real, always-visible fixed panel as the Roslyn variant, replacing the old inline chip
+          strip. `getLabel` shows the real `${code} — ${name}` here — a small, genuine improvement
+          over the bare course code the old chip showed (confirmed via the removed JSX above), not
+          a functional change. */}
+      <SelectedCoursesPanel
+        courses={selectedCourses}
+        onRemove={toggleCourse}
+        getLabel={(course) => `${course.code} — ${course.name}`}
+      />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button

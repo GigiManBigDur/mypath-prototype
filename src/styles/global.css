@@ -3401,6 +3401,113 @@ button.card.passed:hover {
   .module-review-panel { bottom: 76px; width: min(320px, calc(100vw - 24px)); max-height: min(420px, calc(100vh - 160px)); }
 }
 
+/* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 1 — a real,
+   always-visible "shopping list" panel (SelectedCoursesPanel.jsx), fixed bottom-LEFT — the opposite
+   corner from `.module-review-toggle`/`.module-review-panel` right above (both render together on
+   this exact screen). Unlike that panel, this one has no collapsed/hidden state at all — it exists
+   specifically to stay checkable at a glance the whole time the student is browsing, so it always
+   renders in full (its own `.selected-courses-list` scrolls internally instead) rather than
+   defaulting to hidden the way a chat panel reasonably does. */
+.selected-courses-panel {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  z-index: 55;
+  width: min(300px, calc(100vw - 40px));
+  max-height: min(50vh, 420px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 16px;
+  box-shadow: var(--bloom-shadow-hover);
+  overflow: hidden;
+  animation: bloom-section-reveal 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.selected-courses-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px 11px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--bloom-ink);
+  border-bottom: 1px solid var(--bloom-card-border);
+  flex-shrink: 0;
+}
+.selected-courses-list {
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.selected-courses-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px 7px 12px;
+  border-radius: 10px;
+  background: var(--bloom-bg);
+}
+.selected-courses-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--bloom-ink);
+}
+.selected-courses-remove-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--bloom-ink-soft);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.selected-courses-remove-btn:hover { background: rgba(0, 0, 0, 0.07); color: var(--bloom-ink); }
+@media (prefers-reduced-motion: reduce) {
+  .selected-courses-panel { animation: none; }
+}
+@media (max-width: 640px) {
+  .selected-courses-panel {
+    left: 12px;
+    bottom: 12px;
+    width: min(240px, calc(100vw - 24px));
+    max-height: min(38vh, 320px);
+  }
+}
+
+/* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2 — the
+   "Auto-pick my courses" button/confirmation, styled to read as a real, prominent action distinct
+   from the ordinary "Recommended for you"/"Browse all courses" pills right below it, but using the
+   app's own standard accent (not `--bloom-ai`, the purple reserved elsewhere in this app for
+   actual AI-generated content markers — this feature is deterministic, rule-based reuse of
+   already-existing recommendation data, never an LLM call, and its own visual language shouldn't
+   imply otherwise). */
+.auto-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.auto-pick-confirm {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  color: var(--bloom-accent);
+  margin: 0;
+}
+
 /* AI-Generated Weekly Task Suggestions in the Digest View (see CLAUDE.md) — a small, non-blocking
    side panel, positioned top-left inside .roadmap-fullscreen-root (position: relative) so it never
    collides with DateOverrideControl (fixed, top-right), MapChatWidget (absolute, bottom-left), or
