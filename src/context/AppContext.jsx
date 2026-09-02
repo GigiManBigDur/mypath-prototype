@@ -156,6 +156,39 @@ const DEFAULT_STATE = {
   // decoupling this file's own `discoveryEntryStep` already established, rather than coupling
   // TranscriptScreen.jsx directly to the chat-sending mechanism.
   pendingOnboardingTranscriptResume: false,
+  // Guarantee the Transcript & GPA Trigger, Task 2 (see CLAUDE.md) — set (alongside `screen:
+  // 'transcript'`) by ProfileScreen.jsx's own "Edit Transcript & GPA" button, so TranscriptScreen.jsx
+  // (and its UC-Davis/Transfer-only variants) know they're in a FOURTH real mode — reached from
+  // Profile, always accessible any time, not just during the one-time conversation flow — and
+  // should route Continue/Skip/Back back to `screen: 'profile'` instead of `'hub'`. Cleared the
+  // moment either of those actually happens; mutually exclusive with `checkpoint`/
+  // `onboardingTranscriptPauseActive` in practice (a student reaches this mode only by explicitly
+  // clicking through from Profile, never mid-conversation or mid-checkpoint), but checked
+  // independently either way, same "each mode is its own real, independent flag" shape this file's
+  // own `activeCourseCheckpoint`/`onboardingTranscriptPauseActive` already establish.
+  transcriptOpenedFromProfile: false,
+  // Guarantee the Transcript & GPA Trigger, Task 3 (see CLAUDE.md) — the EC-handoff analog of
+  // `transcriptCompleted` above: a one-time-ever flag, but ONLY ever set once the student has
+  // genuinely reviewed real, existing `priorExperiences` during a guaranteed conversation hand-off
+  // (see `useNarrativeSession.js`'s own `showEcHandoff`) — deliberately NOT set just because
+  // `priorExperiences` happens to be empty at some earlier check, so a student who adds their FIRST
+  // real experience via Profile later still gets a genuine, guaranteed hand-off the next time this
+  // conversation is open, rather than being silently skipped forever by an earlier, empty check.
+  ecHandoffCompleted: false,
+  // The EC-handoff mirror of `onboardingTranscriptPauseActive` above — set (alongside `screen:
+  // 'profile'`) by `useNarrativeSession.js`'s own `beginEcHandoff`, so ProfileScreen.jsx knows it's
+  // reached in this special mode and should route its own Back/Done both back to
+  // `screen: 'onboardingConversation'` instead of `'hub'` (unlike TranscriptScreen's own onboarding-
+  // pause mode, Profile's edits are already committed live via `patch()` on every add/edit/remove —
+  // there's no staged, uncommitted form state to distinguish "confirmed" from "backed out," so both
+  // buttons behave identically here: leaving Profile at all, however, counts as having reviewed it).
+  onboardingEcHandoffActive: false,
+  // The EC-handoff mirror of `pendingOnboardingTranscriptResume` above — the read-once-then-clear
+  // signal that actually fires the resume turn, set by ProfileScreen.jsx's own EC-handoff-mode
+  // Back/Done handler right before navigating back to `screen: 'onboardingConversation'`.
+  // useOnboardingChat.js is the one place that notices this and fires the real, automatic "resume"
+  // conversation turn (`triggerEcResume`).
+  pendingOnboardingEcResume: false,
   // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — a real module id string
   // ('careers' | 'majors' | 'programs' | 'courseSelection' | 'opportunities' | 'projectBuilder')
   // or `null`, set by that module's own useModuleReview() hook the moment its explicit "done"

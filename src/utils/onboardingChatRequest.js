@@ -30,11 +30,19 @@ const ONBOARDING_CHAT_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/api/
 // optional flag, a real module id string (e.g. 'careers') rather than a boolean, since this one
 // fires repeatedly — once per module the student completes, via `useOnboardingChat.js`'s own
 // `triggerModuleReaction`.
-export function requestOnboardingChatReply({ history, prompt, profileSummary, finalReview = false, resumeAfterTranscript = false, moduleReaction = null }, { onResult, onError } = {}) {
+//
+// Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) —
+// `resumeAfterEcHandoff` is a FOURTH optional flag, mirroring `resumeAfterTranscript` exactly:
+// `true` only for the one automatic, no-typed-text turn `useOnboardingChat.js`'s own
+// `triggerEcResume` fires once the student has finished reviewing their existing activities &
+// experiences on Profile.
+export function requestOnboardingChatReply({
+  history, prompt, profileSummary, finalReview = false, resumeAfterTranscript = false, resumeAfterEcHandoff = false, moduleReaction = null,
+}, { onResult, onError } = {}) {
   fetch(ONBOARDING_CHAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history, prompt, profileSummary, finalReview, resumeAfterTranscript, moduleReaction }),
+    body: JSON.stringify({ history, prompt, profileSummary, finalReview, resumeAfterTranscript, resumeAfterEcHandoff, moduleReaction }),
   })
     .then((res) => {
       if (!res.ok) throw new Error(`Onboarding chat request failed: ${res.status}`);

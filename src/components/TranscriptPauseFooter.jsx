@@ -1,9 +1,10 @@
 import { GraduationCap } from 'lucide-react';
 
 // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) —
-// the small, single-action footer shown right below the conversation's own natural transition
-// line the moment the AI sets `readyForTranscriptPause: true` (see useNarrativeSession.js's own
-// `showTranscriptPause`/`beginTranscriptPause`). Reuses `.chat-task-confirm`, the exact same
+// the small, single-action footer shown once the app's own guaranteed, deterministic trigger
+// fires (see "Guarantee the Transcript & GPA Trigger" and useNarrativeSession.js's own
+// `showTranscriptPause`/`beginTranscriptPause` — a plain, code-level turn-count check, never
+// dependent on anything the AI itself decides). Reuses `.chat-task-confirm`, the exact same
 // shared footer-card class `NarrativeReviewFooter.jsx` already established, so this reads as the
 // same visual "the conversation wants a real action from you" language, not a second invented one.
 // Deliberately no "not now"/dismiss option, unlike that later review footer — this is a required,

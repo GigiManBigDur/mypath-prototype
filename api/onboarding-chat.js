@@ -107,24 +107,23 @@ function resolveAllowedOrigin(origin) {
 // MilestonePlanningPanel/Roadmap.jsx needed zero changes at all). Every one of these new fields
 // stays null/false for as long as `readyForOverview` is false, i.e. for the entire ordinary
 // back-and-forth this conversation already had before this stage existed.
+// Guarantee the Transcript & GPA Trigger (see CLAUDE.md) — `readyForTranscriptPause` (a real
+// schema field here through the earlier build of this feature) is REMOVED, not just ignored:
+// leaving a field around that the client no longer trusts, while still asking the model to reason
+// about when to set it, is exactly the "usually reliable, not genuinely deterministic" shape this
+// fix explicitly closes. The Transcript & GPA hand-off is now a HARD, CLIENT-SIDE trigger —
+// useNarrativeSession.js forces it deterministically after the student's very first real reply
+// (a plain, arithmetic turn-count check on state.onboardingChatHistory, never dependent on
+// anything the model says), for any student `hasRealTranscriptFlow` applies to. The model's own
+// judgment about WHEN to bring this up is no longer part of the mechanism at all — see the
+// (informational-only) "Transcript & GPA hand-off" section of SYSTEM_PROMPT below for what the
+// model is told about it now.
 const ONBOARDING_SCHEMA = {
   type: 'object',
   properties: {
     reply: {
       type: 'string',
       description: 'Your next line in this ongoing, natural conversation with the student — exactly what gets shown to them. Ask about ONE thing at a time; never stack multiple questions into one reply. Keep it warm, genuinely curious, and concise (a real conversational turn, not an essay).',
-    },
-    // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) —
-    // a real, EARLIER milestone than readyForOverview below, and a genuinely SEPARATE one:
-    // mirroring finalReviewComplete's own "independent milestone" shape (a plain boolean, always
-    // required, never dependent on readyForOverview's own bundle of fields), this fires once,
-    // early, to hand the student off to the real Transcript & GPA form so the REST of this
-    // conversation — activities, narrative pushback, and the strategy discussion — can be grounded
-    // in real academic standing instead of guesswork. See the "Transcript & GPA pause" section of
-    // the system prompt below for exactly when to set this and what to do once it resumes.
-    readyForTranscriptPause: {
-      type: 'boolean',
-      description: 'True ONLY ONCE, early in this conversation — right after a genuine initial exchange about the student\'s interests/passions and BEFORE going deep into their prior activities/experience. See the "Transcript & GPA pause" instructions below for the full rule, including when this must stay false (before that natural point, and for the ENTIRE rest of the conversation once it has already happened once — check profileSummary.academic for real GPA/transcript data, which only appears AFTER this has already fired and resumed). False for every other turn.',
     },
     readyForOverview: {
       type: 'boolean',
@@ -245,7 +244,7 @@ const ONBOARDING_SCHEMA = {
     },
   },
   required: [
-    'reply', 'readyForTranscriptPause', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
+    'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
     'overviewPhaseTitles', 'overviewPhaseDescriptions', 'phaseDimensions', 'overviewPhaseDayOffsets',
     'capstoneIdea', 'courseGuidanceNote', 'testingTimelineNote', 'collegeListNote',
     'essayMaterialNote', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
@@ -272,7 +271,13 @@ const FINAL_REVIEW_TRIGGER_MESSAGE = '(Automatic final review — the student ha
 // conversation just handed them off to — never anything client-supplied. The real instructions for
 // what to actually DO once this fires live in the "Transcript & GPA pause" section of SYSTEM_PROMPT
 // below, not in this string itself.
-const TRANSCRIPT_RESUME_TRIGGER_MESSAGE = '(Automatic resume — the student has just finished, or explicitly skipped, entering their real transcript and GPA. Their real academic record (or an honestly empty one, for a genuine incoming student with nothing yet) is now available in profileSummary.academic for the first time. Briefly and naturally acknowledge it, then continue the conversation into their activities/experience, per your own Transcript & GPA pause instructions.)';
+const TRANSCRIPT_RESUME_TRIGGER_MESSAGE = '(Automatic resume — the student has just finished, or explicitly skipped, entering their real transcript and GPA. Their real academic record (or an honestly empty one, for a genuine incoming student with nothing yet) is now available in profileSummary.academic for the first time. Briefly and naturally acknowledge it, then continue the conversation into their activities/experience, per your own Transcript & GPA hand-off instructions.)';
+
+// Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) — a second,
+// mirror-image automatic no-typed-text trigger, same reasoning as TRANSCRIPT_RESUME_TRIGGER_MESSAGE
+// above: fires the moment the student has finished reviewing/confirming their real, existing
+// activities & experiences on their Profile page, which the conversation just handed them off to.
+const EC_RESUME_TRIGGER_MESSAGE = "(Automatic resume — the student has just finished reviewing their existing activities & experiences on their Profile page. Their real, structured records are available in profileSummary.activities.priorExperiences. Briefly and naturally acknowledge them by name, then continue the conversation, per your own existing activities & experiences hand-off instructions.)";
 
 // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — a THIRD, mirror-image
 // automatic no-typed-text trigger, fired once the student takes an explicit "done with this
@@ -343,12 +348,14 @@ Your purpose in this conversation:
 - Find out what genuinely excites the student — hobbies, passions, things they think about outside of school — and what they've already actually done (activities, clubs, jobs, projects, volunteering, competitions). Real specifics matter far more than broad categories.
 - Be genuinely curious and specific in your follow-ups, the way a good conversationalist (not a survey) would.
 
-Transcript & GPA pause (a REQUIRED, ONE-TIME step, early in this conversation):
-- This app has a real Transcript & GPA form already built — check profileSummary.basicProfile.educationLevel and currentSchool: it's real and reachable for a High School student, a Transfer student (any current school, or none), or a student at UC Davis specifically (any level). A plain Undergraduate NOT at UC Davis has no real transcript form in this app at all — for THAT student only, skip this whole step entirely (never set readyForTranscriptPause true) and just continue the conversation normally once you've covered interests.
-- For every other student: once you've had a genuine initial exchange about what excites the student — even just one or two real exchanges about their interests/passions is enough, this does not need to be exhaustive — but BEFORE going deep into their prior activities/experience, set readyForTranscriptPause to true, exactly once. Your reply in that SAME turn should be a short, warm, natural transition line explaining that you're handing them over to enter their real transcript and GPA now, so the rest of this conversation can be grounded in their actual academic record instead of guesswork — not a cold, abrupt cutoff.
-- After this happens, the conversation will automatically continue with a system-generated turn once the student has entered (or explicitly skipped, e.g. a genuine incoming student with nothing yet) their transcript. At that point, profileSummary.academic will show their real GPA/transcript for the very first time — briefly and naturally acknowledge whatever it actually shows (a real GPA and real courses, or an honestly empty transcript) before continuing into their activities/experience, narrative pushback, and the strategy discussion below — all of which should now genuinely be informed by this real academic data, not generic.
-- Never set readyForTranscriptPause true a second time in this same conversation — once profileSummary.academic already shows real data (or is honestly empty because the student explicitly skipped), this step is permanently done; do not revisit it.
-- This is a REAL, HARD precondition for readyForOverview below, for any student it applies to (i.e. whenever profileSummary.basicProfile.educationLevel/currentSchool means this step isn't skipped per the first bullet above) — never set readyForOverview true before you have set readyForTranscriptPause true at some earlier point in this SAME conversation. If you notice the conversation has drifted toward generating an overview without this having happened yet for an eligible student, stop and trigger the pause first instead — do not skip straight to readyForOverview.
+Transcript & GPA hand-off (informational — the APP triggers this automatically, you do not decide when):
+- This app has a real Transcript & GPA form. For any student it's real and reachable for (check profileSummary.basicProfile.educationLevel/currentSchool: a High School student, a Transfer student, or a student at UC Davis — a plain Undergraduate NOT at UC Davis has no real transcript form at all), the app itself automatically pauses this conversation for a real hand-off shortly after your very first reply — a deterministic, code-level trigger, not something you propose or decide. You have no field to set for this and nothing to do to cause or avoid it.
+- Once it resumes, you will receive an automatic system-generated turn, and profileSummary.academic will show the student's real GPA/transcript for the very first time (which may honestly be empty, e.g. a genuine incoming student with nothing yet). Briefly and naturally acknowledge whatever it actually shows, then continue into their activities/experience, narrative pushback, and the strategy discussion below — all genuinely informed by this real academic data from that point on, not generic.
+- Because the app enforces this deterministically before you could ever reach readyForOverview, you never need to think about ordering here — just have a genuine, natural conversation; the real academic data will already be there by the time it matters.
+
+Existing activities & experiences hand-off (informational — also fully app-triggered, mirroring the mechanism above):
+- If the student already has real, previously-logged experiences on file (profileSummary.activities.priorExperiences is non-empty — from an earlier session, or added via their Profile page), the app automatically pauses this conversation for them to review/confirm those records early on too — again, a deterministic trigger you don't propose or control.
+- Once it resumes, treat profileSummary.activities.priorExperiences as real, authoritative structured fact — reference those specific experiences by name where relevant, rather than asking the student to describe from scratch something already on record. You can still ask about NEW things they haven't mentioned there.
 
 Narrative pushback (use this rarely, and only when it's real):
 - As the conversation continues, listen for anything specific, unusual, or genuinely non-obvious the student shares. If — and only if — a real, well-reasoned connection exists between something specific they've told you and an academic field, major, or direction they haven't mentioned, you may offer it as a genuine suggestion: explain your specific reasoning clearly, and ask if they'd be interested in exploring it, the way a thoughtful consultant would.
@@ -363,7 +370,7 @@ Strategy discussion (once — and only once — the narrative direction above ha
 - International status is REAL, KNOWN CONTEXT you should factor in naturally — never a topic to ask about or negotiate. Check profileSummary.basicProfile.isInternationalStudent (derived from the student's real citizenship, already answered at sign-up). If it's true: when discussing testing approach, naturally mention the TOEFL or IELTS alongside the SAT/ACT, since that's a genuine real requirement for most international applicants to US schools — treat it as one more real fact you're aware of, folded into that same proposal, not a separate question. When discussing college-list direction, you MAY note genuinely relevant international-student considerations where they naturally fit (e.g. schools known for strong international-student support or financial aid) — but never invent a specific unverified claim (a specific school name/statistic you aren't genuinely certain of); the Honesty rule below still applies here. If isInternationalStudent is false, or citizenship was never provided, do NOT mention TOEFL/IELTS, visas, or any other international-specific consideration at all — there is nothing here to bring up. Never ask the student about their citizenship directly or treat it as its own dimension to discuss — it's already a known fact, not a preference.
 
 Generating the overview (Stage 3 — do this only once, and only once the conversation has genuinely earned it):
-- Once you and the student have covered real interests, the Transcript & GPA pause above (if this student is eligible for it — see that section's own REAL, HARD precondition), at least one real piece of prior experience, (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, AND a genuine strategy discussion across course rigor, testing approach, college-list direction, and essay material (see "Strategy discussion" above — this is a real precondition, not optional), set readyForOverview to true and fill in ALL of: narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets, capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote, thematicKeywords, and matchedInterestTags, in that SAME response.
+- Once you and the student have covered real interests, at least one real piece of prior experience, (if you ever offered a narrative pushback suggestion above) whether they actually agreed to it, AND a genuine strategy discussion across course rigor, testing approach, college-list direction, and essay material (see "Strategy discussion" above — this is a real precondition, not optional), set readyForOverview to true and fill in ALL of: (the Transcript & GPA and existing-experiences hand-offs above are enforced automatically by the app itself before you could ever reach this point — nothing for you to check there) narrativeTitle, narrativeSummary, overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets, capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote, thematicKeywords, and matchedInterestTags, in that SAME response.
 - matchedInterestTags: pick 2-6 tags EXACTLY from the fixed list given in that field's own schema description, based on what the student genuinely revealed in this conversation — never invent a tag not on that list, and never force a match the conversation doesn't actually support.
 - Use profileSummary.basicProfile.planYearLabels for the REAL, exact remaining school years (e.g. ["Sophomore Year", "Junior Year", "Senior Year"]) — never guess or invent a different number of years than what's actually there.
 - overviewPhaseTitles/overviewPhaseDescriptions/phaseDimensions/overviewPhaseDayOffsets together are a real MULTI-YEAR STRATEGIC PLAN across every real dimension a genuine college consultant would map out — not just project ideas. One "academic-year" phase per entry in planYearLabels, PLUS one "summer" phase for each real summer BETWEEN two consecutive years in that list (not after the final year). The single most important rule: every phase across every dimension must explicitly reinforce the SAME core narrative thread — never generate these as separate, disconnected checklist categories. A phase's own title and description should read as one continuous, connected story, not a template filled in per-category.
@@ -457,16 +464,12 @@ function expectedPhaseCount(profileSummary) {
 function validateProposal(input, profileSummary) {
   if (!input || typeof input !== 'object') return null;
   const {
-    reply, readyForTranscriptPause, readyForOverview, narrativeTitle, narrativeSummary,
+    reply, readyForOverview, narrativeTitle, narrativeSummary,
     overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets,
     capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote,
     thematicKeywords, matchedInterestTags, mentionsSpecificFact, finalReviewComplete,
   } = input;
   if (typeof reply !== 'string' || !reply.trim() || reply.length > 4000) return null;
-  // Implement the Corrected Flow Order (see CLAUDE.md) — hard-rejected at the same tier as
-  // mentionsSpecificFact/finalReviewComplete below, and always carried through unchanged (never
-  // nulled) — a genuinely independent, earlier milestone from readyForOverview's own bundle.
-  if (typeof readyForTranscriptPause !== 'boolean') return null;
   if (typeof readyForOverview !== 'boolean') return null;
   if (typeof mentionsSpecificFact !== 'boolean') return null;
   // Final Alignment-Check Conversation (see CLAUDE.md) — hard-rejected at the same tier as
@@ -476,7 +479,6 @@ function validateProposal(input, profileSummary) {
 
   const notReady = {
     reply: reply.trim(),
-    readyForTranscriptPause,
     readyForOverview: false,
     narrativeTitle: null,
     narrativeSummary: null,
@@ -562,7 +564,6 @@ function validateProposal(input, profileSummary) {
 
   return {
     reply: reply.trim(),
-    readyForTranscriptPause,
     readyForOverview: true,
     narrativeTitle: narrativeTitle.trim(),
     narrativeSummary: narrativeSummary.trim(),
@@ -737,8 +738,16 @@ export default async function handler(req, res) {
   // THIRD automatic, no-typed-text trigger: a real module id string (e.g. 'careers'), never a
   // boolean, since (unlike the other two, each of which only ever fires once) this one repeats —
   // up to six times, once per module.
-  const { history, prompt, profileSummary, finalReview, resumeAfterTranscript, moduleReaction } = req.body || {};
-  if ((!finalReview && !resumeAfterTranscript && !moduleReaction && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
+  //
+  // Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) —
+  // `resumeAfterEcHandoff: true` is a FOURTH automatic, no-typed-text trigger, mirroring
+  // `resumeAfterTranscript` exactly: fires once the student has finished reviewing/confirming
+  // their existing activities & experiences on Profile, which the conversation just handed them
+  // off to.
+  const {
+    history, prompt, profileSummary, finalReview, resumeAfterTranscript, resumeAfterEcHandoff, moduleReaction,
+  } = req.body || {};
+  if ((!finalReview && !resumeAfterTranscript && !resumeAfterEcHandoff && !moduleReaction && (!prompt || typeof prompt !== 'string')) || !profileSummary || !Array.isArray(history)) {
     res.status(400).json({ error: 'Missing prompt/profileSummary/history' });
     return;
   }
@@ -746,9 +755,11 @@ export default async function handler(req, res) {
     ? FINAL_REVIEW_TRIGGER_MESSAGE
     : resumeAfterTranscript === true
       ? TRANSCRIPT_RESUME_TRIGGER_MESSAGE
-      : moduleReaction
-        ? buildModuleReactionTrigger(moduleReaction)
-        : prompt;
+      : resumeAfterEcHandoff === true
+        ? EC_RESUME_TRIGGER_MESSAGE
+        : moduleReaction
+          ? buildModuleReactionTrigger(moduleReaction)
+          : prompt;
 
   try {
     const result = await provider.call(apiKey, history, effectivePrompt, profileSummary);

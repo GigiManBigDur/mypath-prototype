@@ -12974,6 +12974,117 @@ this" click — not something they'd expect to check off real progress they neve
   `test-ucdavis-density.js`, `test-stage4.js`, and the general `test.js`) all still pass with zero
   regressions.
 
+**Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off — the Transcript & GPA pause
+that was moved into Session 1 (see "Implement the Corrected Flow Order" above) originally had the
+AI itself decide the moment to bring it up via a `readyForTranscriptPause` schema field; that
+field is now removed entirely, replaced with a genuinely deterministic, code-only trigger, and a
+second, mirror-image hand-off was added for a student's already-existing activities/experiences.
+Transcript & GPA is also now viewable/editable directly from the Profile page, any time, not just
+during the one-time conversation.**
+- **Task 1 — the trigger no longer depends on anything the AI says at all.** `api/onboarding-
+  chat.js`'s `ONBOARDING_SCHEMA` (and its `required` array) had `readyForTranscriptPause` removed
+  outright — leaving a vestigial field the client no longer trusted, while still asking the model
+  to reason about when to set it, would still have been "usually reliable, not genuinely
+  deterministic," the exact gap this task explicitly called out. `useNarrativeSession.js` now
+  computes `showTranscriptPause` as a plain, real, arithmetic fact: `userTurnCount` (a `useMemo`
+  counting `role === 'user'` entries in `state.onboardingChatHistory`) `>=
+  TRANSCRIPT_PAUSE_AFTER_USER_TURNS` (hard-coded to `1`) `&& !loading`, ANDed with
+  `hasRealTranscriptFlow(state) && !state.transcriptCompleted` — nothing here reads any AI-proposed
+  field. The moment the student's very first real reply has been sent and answered, the pause
+  becomes unconditionally true for any eligible, not-yet-completed student, every single time,
+  regardless of what the AI's own reply said or didn't say — confirmed directly (not just claimed)
+  by mocking `/api/onboarding-chat` to a fixed, generic, non-`readyForOverview` reply across two
+  structurally different conversations (a High School freshman, a UC Davis undergrad) and seeing
+  the pause fire identically both times, AND by mocking a reply that itself claims
+  `readyForOverview: true` (an intentionally adversarial case) and confirming the transcript pause
+  STILL takes priority — the overview review stays suppressed (`showReview = !!latestReadyOverview
+  && !transcriptStillNeeded`) and nothing gets auto-confirmed into `state.startedProjects` until
+  the real transcript step is actually done. `SYSTEM_PROMPT`'s own "Transcript & GPA pause"
+  section was rewritten to be purely informational — the model is told the app triggers this
+  automatically and it has "no field to set for this and nothing to do to cause or avoid it."
+- **Task 3 — a mirror-image hand-off for a student's existing activities & experiences**, guarding
+  against the same "verbal-only, never confirmed as real structured data" gap for
+  `state.priorExperiences` (whether entered in an earlier session, or added via Profile since this
+  conversation was last open). `showEcHandoff` (`useNarrativeSession.js`) is `!showTranscriptPause
+  && (state.priorExperiences || []).length > 0 && !state.ecHandoffCompleted` — deliberately no
+  "wait for a turn" condition, since this is confirming data that already exists rather than
+  discovering something fresh, so it can fire the instant the conversation mounts;
+  `!showTranscriptPause` gives the transcript hand-off strict priority whenever both could apply at
+  once (confirmed directly: seeding a student with real, non-empty `priorExperiences` AND an
+  incomplete transcript shows only the transcript footer, never both at once). `state.
+  ecHandoffCompleted` (`AppContext.jsx`, `false` by default) is a one-time-ever flag — deliberately
+  NOT set just because `priorExperiences` happens to be empty at some earlier check, so a student
+  who adds their FIRST real experience via Profile later still gets a real, guaranteed hand-off the
+  next time this conversation is open, rather than being silently skipped forever. `beginEcHandoff`
+  patches `{ onboardingEcHandoffActive: true, screen: 'profile' }`; `EcHandoffFooter.jsx` (new,
+  mirroring `TranscriptPauseFooter.jsx`'s exact shape/visual language — the same `.chat-task-
+  confirm` card, no dismiss option, a single required action) is rendered by BOTH real entry points
+  into this conversation — `OnboardingConversationScreen.jsx` (the original pre-hub screen) and
+  `ChatSessionView.jsx`'s `NarrativeChatBody` (the "Our Conversation" tab reached from the hub's
+  own chat panel) — with an identical 3-way footer priority (transcript pause > EC handoff >
+  overview review) in both places, confirmed directly rather than assumed, since these are two
+  genuinely independent render sites sharing one hook.
+- **`ProfileScreen.jsx` gained `onboardingEcHandoffActive`-aware Back/Done behavior.** Unlike
+  `TranscriptScreen.jsx`'s own onboarding-pause mode (a real, staged, uncommitted form a student
+  could genuinely "back out of" without saving), every edit on Profile is already committed live via
+  `patch()` the instant it happens — there's no meaningful "confirmed" vs. "backed out" distinction
+  to make, so both Back and Done resolve the hand-off identically via one shared `leaveProfile()`:
+  when `ecHandoffActive`, patches `{ ecHandoffCompleted: true, onboardingEcHandoffActive: false,
+  pendingOnboardingEcResume: true, screen: 'onboardingConversation' }`; otherwise, the screen's
+  original plain `screen: 'hub'` exit, unchanged. `useOnboardingChat.js` gained a `pendingOnboarding
+  EcResume`-watching guarded one-shot effect (`ecResumeFiredRef`, mirroring `transcriptResumeFiredRef`'s
+  own React-18-StrictMode-safe shape exactly) that fires `triggerEcResume()` — a silent, no-typed-
+  text automatic turn (`resumeAfterEcHandoff: true`, threaded through `onboardingChatRequest.js`)
+  substituting `EC_RESUME_TRIGGER_MESSAGE` (a fixed, server-owned string, never client-supplied) for
+  a real student message. `SYSTEM_PROMPT`'s new "Existing activities & experiences hand-off"
+  section instructs the model that once this resumes, `profileSummary.activities.priorExperiences`
+  is real, authoritative structured fact to reference by name going forward — this data was already
+  flowing into `compileStudentProfile()`'s output before this feature (Prior Experience Collection,
+  see its own section above), so no profile-compiler changes were needed here at all; only the
+  guaranteed hand-off moment and the instruction to actually treat it as ground truth are new.
+- **Task 2 — Transcript & GPA joins the existing ECs section on Profile, reusing the real,
+  already-built entry screen rather than a second, duplicated form.** `TranscriptScreen.jsx`'s
+  three real variants (the default Roslyn export, `UCDavisTranscriptScreen`, `TransferOnlyTranscript
+  Screen`) each already branched on `checkpoint`/`onboardingPause` mode; all three gained a FOURTH
+  mode, `fromProfile = !checkpoint && !onboardingPause && !!state.transcriptOpenedFromProfile`
+  (`state.transcriptOpenedFromProfile`, `AppContext.jsx`, cleared the moment either Continue/Save or
+  Back actually fires). Each variant's `advance()`/`goBack()` gained a `fromProfile` branch
+  patching `{ ..., transcriptOpenedFromProfile: false, screen: 'profile' }` instead of the plain
+  `screen: 'hub'` fallback (the Transfer-only variant's own branch correctly never writes `gpa`,
+  matching that variant's existing, unmodified "no current-college transcript exists to derive one
+  from" contract); `StepProgress` is hidden and the Continue button reads "Save & Return to
+  Profile" in this mode, the same treatment `onboardingPause` already established for its own mode.
+  `ProfileScreen.jsx`'s new `TranscriptSummarySection` computes a real, honest summary — course
+  count plus 4.0-scale/unweighted/weighted GPA for a Roslyn student (`calculateUnweightedGpa`/
+  `calculateWeightedGpa`/`calculate4ScaleGpa`, `utils/gpa.js`), course count plus GPA for a UC Davis
+  student (`calculateUCDavisGpa`, `utils/ucdavisGpa.js`), or a plain course count for a Transfer
+  student with no UC Davis affiliation (`transferHsTranscript`/`transferHsOtherCourses` combined,
+  since `gpa` is never written for that case) — all computed from the exact same real, already-
+  built derivation functions every other consumer of this data already uses, never a second,
+  possibly-drifting copy. `hasRealTranscriptFlow(state)` (the same shared eligibility check
+  `useNarrativeSession.js`'s own trigger already uses) gates whether a real "Enter"/"Edit Transcript
+  & GPA" button renders at all; a plain Undergraduate not at UC Davis (no real transcript screen in
+  this prototype at all) sees an honest "doesn't have a real transcript/GPA form for your current
+  education level yet" message instead of a fabricated button.
+- Verified with two dedicated Playwright suites (48 checks total) driving the real running dev
+  server, mocking only `/api/onboarding-chat` (this feature never touches `roadmapLayout.js`): the
+  transcript pause fires deterministically after exactly 1 real user turn for two structurally
+  different students, correctly does NOT fire for a plain Undergraduate with no real transcript
+  flow, and correctly still takes priority even when the mocked AI reply itself claims
+  `readyForOverview: true`; Profile's Transcript & GPA section renders and is genuinely editable for
+  all 3 real variants (Roslyn, UC Davis, Transfer-only — confirmed via the real UC Davis quarter
+  pills and the Transfer-only screen's own "Save & Return to Profile" button actually rendering, not
+  just a generic label), correctly shows the honest "not eligible" message for a plain Undergraduate,
+  and Back/Continue both correctly return to `screen: 'profile'` (not `'hub'`) with the real
+  `transcriptOpenedFromProfile` flag cleared afterward; and a student with real, existing
+  `priorExperiences` gets the EC hand-off footer immediately (from BOTH the original pre-hub screen
+  AND the "Our Conversation" hub-chat-panel tab), navigating to Profile shows the real existing
+  record for review, Done/Back both correctly set `ecHandoffCompleted: true` and fire exactly one
+  real automatic resume turn (a genuine assistant reply, zero fake user-role bubbles added) back in
+  the conversation, a student with zero prior experiences never sees the footer at all, and it
+  correctly never re-fires once already completed. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) all stay clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
@@ -13690,3 +13801,39 @@ download). Cover at minimum:
   two genuinely separate features that happen to both live in the hub's mascot area — confirm which
   one a request is actually about before changing either. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) should all stay clean — this fix touches only `HubScreen.jsx`'s own JSX.
+- Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off: mock `/api/onboarding-chat` and
+  drive the real dev server rather than relying on code review alone — determinism specifically
+  needs to be PROVEN, not assumed, by testing across at least two structurally different mocked
+  conversations (different reply text, different student) and confirming the transcript pause
+  fires identically after exactly 1 real user turn both times; then, as a genuinely adversarial
+  case, mock a reply that itself sets `readyForOverview: true` and confirm the transcript pause
+  STILL wins (the overview review must stay suppressed and nothing should land in `state.
+  startedProjects`) — this is the one check that actually distinguishes "deterministic" from
+  "usually reliable." Confirm a plain Undergraduate with no `currentSchool` never gets the pause at
+  all (`hasRealTranscriptFlow` correctly gates it). For Profile's Transcript & GPA section, seed
+  each of the 3 real education-level/school combinations separately (High School + Roslyn,
+  Undergraduate/Transfer + UC Davis, plain Transfer with no UC Davis) and confirm each renders its
+  own real variant when "Enter/Edit Transcript & GPA" is clicked (the UC Davis one should show real
+  quarter pills, not Roslyn's grade-level ones; the Transfer-only one's own Continue button should
+  read "Save & Return to Profile" and must never write `state.gpa`), and that Back/Continue both
+  return to `screen: 'profile'` (not `'hub'`) with `state.transcriptOpenedFromProfile` cleared
+  afterward — also seed a plain Undergraduate with no partner school and confirm the section shows
+  an honest "not eligible" message instead of a fabricated button. For the EC hand-off, seed real,
+  non-empty `state.priorExperiences` and confirm the footer appears immediately (no turn-count wait
+  needed, unlike the transcript pause) from BOTH real entry points — the original pre-hub
+  `onboardingConversation` screen AND the "Our Conversation" tab reached via the hub's own "Ask
+  MyPath AI anything" chat panel (these are two independent render sites sharing one hook, so both
+  need checking separately) — and that it's correctly suppressed whenever the transcript pause is
+  also showing at the same time. Confirm Done/Back on Profile both set `ecHandoffCompleted: true`
+  and fire exactly one real automatic resume turn back in the conversation (a genuine assistant
+  reply appended to `state.onboardingChatHistory`, with zero fake `role: 'user'` bubbles ever
+  added for this silent trigger), and that a student with zero prior experiences never sees the
+  footer, while one who already completed the hand-off once never sees it again. If seeding
+  `onboardingChatHistory: []` for one of these tests, remember `OnboardingConversationScreen.jsx`'s
+  own `freshMeeting` flag (frozen at mount as `chatHistory.length === 0`) triggers a multi-phase
+  choreographed greeting sequence that can take several real seconds before the chat card (and
+  therefore any footer) even renders — seed a non-empty `onboardingChatHistory` instead (a single
+  prior assistant turn) to skip straight to the settled 'chat' phase, both faster and more
+  realistic for a "resuming an existing conversation" test scenario. `npm run build`/`npm run
+  lint`/`npm run verify:spacing` (20/20) should all stay clean — this feature never opens
+  `roadmapLayout.js`/`Roadmap.jsx`.

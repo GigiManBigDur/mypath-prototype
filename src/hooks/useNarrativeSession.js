@@ -73,70 +73,63 @@ export function useNarrativeSession() {
     return null;
   }, [chatHistory]);
 
-  // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md) — a
-  // genuinely EARLIER, separate milestone from the overview review above (mirroring how
-  // `finalReviewComplete` is a genuinely LATER, separate one), scanned the exact same way.
-  // `hasRealTranscriptFlow(state)` is the client-side authoritative guard (defense in depth,
-  // matching this app's own "the model proposes, the client decides" posture everywhere else) — a
-  // plain Undergraduate not at UC Davis has no real transcript screen to hand off to at all, so
-  // this never shows for them even if the model mistakenly proposed it.
-  const latestTranscriptPause = useMemo(() => {
-    for (let i = chatHistory.length - 1; i >= 0; i--) {
-      const m = chatHistory[i];
-      if (m.role === 'assistant' && m.readyForTranscriptPause) return { sourceIndex: i };
-    }
-    return null;
-  }, [chatHistory]);
-
-  // Bug fix (see CLAUDE.md, "Course Selection Stuck Locked After Transcript & GPA Moved Into
-  // Session 1") — a real, confirmed gap: `readyForOverview`'s own system-prompt precondition never
-  // HARD-required the transcript pause to have already happened first, and nothing server-side can
-  // enforce that either (the sanitized `history` sent to the model on every call strips every
-  // structured field — including `readyForTranscriptPause` — down to plain role/content text, see
-  // `sanitizeHistory` in api/onboarding-chat.js, so the server has no reliable way to check "did
-  // this already happen" beyond the model's own memory of its own prior turns). Confirmed directly
-  // (a live reproduction, mocking a response that reaches `readyForOverview: true` while
-  // `readyForTranscriptPause` stays false on every turn) that this lets a real, eligible student
-  // confirm a full overview and reach the hub with `state.transcriptCompleted` still false — and
-  // since the standalone Transcript & GPA hub tile is gone (see "Implement the Corrected Flow
-  // Order" above), there was no way back in: Course Selection (and, for a partner-school student,
-  // Opportunity Finder too) stayed permanently locked, with no hand-off action anywhere to recover
-  // it, even after reopening "Our Conversation."
+  // Guarantee the Transcript & GPA Trigger (see CLAUDE.md) — this REPLACES the earlier "the model
+  // proposes readyForTranscriptPause, and (as a fallback) the client forces it once readyForOverview
+  // is reached anyway" mechanism (see the "Course Selection Stuck Locked" fix's own now-superseded
+  // history for why that fallback existed) with a genuinely deterministic, code-level trigger — no
+  // dependency on anything the model says at all. `readyForTranscriptPause` was removed from
+  // api/onboarding-chat.js's own schema entirely, not just left unused: the whole point of this fix
+  // is that the AI's conversational judgment is no longer PART of the mechanism, so leaving a
+  // vestigial field it could still (usually, not always) set correctly would be exactly the
+  // "usually reliable, not genuinely deterministic" shape this fix is meant to close for good.
   //
-  // Fixed here, client-side, matching this app's own "the model proposes, the client decides"
-  // posture everywhere else — completely independent of whether the model ever actually emitted
-  // `readyForTranscriptPause`. `transcriptStillNeeded` is the one real, deterministic fact:
-  // eligible (`hasRealTranscriptFlow`) AND genuinely not done yet — this alone is a complete,
-  // correct show/hide guard in both directions (it stays true until the transcript is genuinely
-  // finished/skipped, and if the student backs out of TranscriptScreen without finishing,
-  // `onboardingTranscriptPauseActive` is cleared but `transcriptCompleted` is still false, so this
-  // naturally re-shows with zero extra bookkeeping). The hand-off action itself is offered whenever
-  // the student still needs it AND the conversation has reached a point that calls for it — either
-  // the model explicitly proposed it (the normal, intended path) OR the model already reached
-  // `readyForOverview` without ever proposing it (the fallback this fix closes). The overview
-  // review is correspondingly suppressed in BOTH cases while the transcript is still outstanding,
-  // so a student can never confirm an overview — and reach the hub — while their real Transcript &
-  // GPA is still missing.
+  // `userTurnCount` is a plain, real, arithmetic fact — how many real messages the STUDENT has
+  // actually sent — computed fresh from `chatHistory` on every render, nothing async or model-
+  // dependent about it. `TRANSCRIPT_PAUSE_AFTER_USER_TURNS` (1) is the hard-coded trigger point:
+  // the moment the student's first real reply has been sent AND answered (gated on `!loading` so
+  // this doesn't interrupt mid-request — it waits for that first real exchange to genuinely
+  // complete, matching the original design's own "even just one or two real exchanges is enough"
+  // framing at its earliest, still-natural point), the pause becomes unconditionally true for any
+  // eligible, not-yet-completed student — guaranteed to fire identically every single time,
+  // regardless of what the AI's own reply said or didn't say. `hasRealTranscriptFlow(state)` is
+  // still the real eligibility gate (a plain Undergraduate not at UC Davis has no real transcript
+  // screen to hand off to at all, so this never fires for them, deterministically, either).
+  const TRANSCRIPT_PAUSE_AFTER_USER_TURNS = 1;
+  const userTurnCount = useMemo(() => chatHistory.filter((m) => m.role === 'user').length, [chatHistory]);
   const transcriptStillNeeded = hasRealTranscriptFlow(state) && !state.transcriptCompleted;
-  const showTranscriptPause = transcriptStillNeeded && (!!latestTranscriptPause || !!latestReadyOverview);
-  // The scan above already excludes resolved messages, so there's no separate index-comparison
-  // needed for that — `latestReadyOverview` being non-null already means "a real, unresolved
-  // review exists." `!transcriptStillNeeded` is the second, new condition: never show (or allow
-  // confirming) a review while the transcript is still genuinely outstanding.
+  const showTranscriptPause = transcriptStillNeeded && userTurnCount >= TRANSCRIPT_PAUSE_AFTER_USER_TURNS && !loading;
+  // `!transcriptStillNeeded` guards the overview review exactly as before this fix — since the
+  // deterministic trigger above now ALWAYS resolves the transcript within the conversation's very
+  // first exchange (long before readyForOverview's own, much later preconditions could ever be
+  // met), this can never actually need to suppress a real ready overview in practice anymore — kept
+  // as cheap, harmless defense in depth rather than removed outright.
   const showReview = !!latestReadyOverview && !transcriptStillNeeded;
 
   const beginTranscriptPause = () => {
     if (!hasRealTranscriptFlow(state)) return;
-    // If we're here via the fallback path above (the model reached `readyForOverview` without
-    // ever proposing the pause first), the overview it generated was built without the student's
-    // real transcript/GPA data. Mark that stale ready-message resolved the exact same way "keep
-    // refining" already does (`markReviewResolved`, below) — never confirmable once we return, so
-    // the resumed conversation (now genuinely informed by real academic data) is what produces the
-    // overview the student actually confirms, not a stale, pre-transcript guess. A no-op on the
-    // normal path, where `readyForOverview` hasn't happened yet and `latestReadyOverview` is null.
-    if (latestReadyOverview) markReviewResolved(latestReadyOverview.sourceIndex);
     patch({ onboardingTranscriptPauseActive: true, screen: 'transcript' });
   };
+
+  // Guarantee the Transcript & GPA Trigger, Task 3 — a real EC handoff mirroring the transcript
+  // pause's own deterministic shape, but a genuinely simpler trigger condition: the student already
+  // HAS real, structured prior-experience records (`state.priorExperiences`, entered via their
+  // Profile page — either in an earlier session, or added since the last time this conversation was
+  // open) — there's nothing to "wait for a natural moment" here, since this is confirming data that
+  // already exists, not discovering something fresh, so it can fire immediately at mount rather
+  // than waiting for any real exchange first. `state.ecHandoffCompleted` is a one-time-ever flag
+  // (mirroring `transcriptCompleted`'s own shape) — deliberately NOT set when `priorExperiences` is
+  // currently empty (nothing to confirm yet), so a student who adds their first real experience via
+  // Profile LATER (after an earlier, empty-at-the-time visit to this conversation) still gets a real
+  // guaranteed hand-off the next time they're here, rather than being permanently skipped just
+  // because an earlier check happened to find nothing. `!showTranscriptPause` gives the transcript
+  // hand-off strict priority whenever both could apply at once (the one real case: a resumed
+  // conversation where `transcriptCompleted` somehow never became true — e.g. the student clicked
+  // "Continue to my Hub" before ever sending a first message) — the footer can only show one action
+  // at a time, and finishing academic data first is the more foundational of the two.
+  const showEcHandoff = !showTranscriptPause
+    && (state.priorExperiences || []).length > 0
+    && !state.ecHandoffCompleted;
+  const beginEcHandoff = () => patch({ onboardingEcHandoffActive: true, screen: 'profile' });
 
   // Remove Redundant Narrative Card (see CLAUDE.md) — the one place a ready-message's own
   // `reviewResolved` flag is ever written, called by both `confirmNarrative` (below) and
@@ -291,6 +284,6 @@ export function useNarrativeSession() {
 
   return {
     chatHistory, loading, sendMessage, editMessage, latestReadyOverview, showReview, confirmNarrative, dismissReview,
-    showTranscriptPause, beginTranscriptPause,
+    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff,
   };
 }

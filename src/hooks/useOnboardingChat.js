@@ -77,14 +77,21 @@ export function useOnboardingChat() {
   // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — `moduleReaction` (a real
   // module id string, not a boolean — see requestOnboardingChatReply's own comment for why) is a
   // FOURTH option on this same shared path, alongside the existing three.
-  const sendFrom = (baseHistory, trimmed, { silent = false, finalReview = false, resumeAfterTranscript = false, moduleReaction = null } = {}) => {
+  //
+  // Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) —
+  // `resumeAfterEcHandoff` is a FIFTH option, mirroring `resumeAfterTranscript` exactly: fires the
+  // one automatic, no-typed-text turn once the student has finished reviewing their existing
+  // activities & experiences on Profile.
+  const sendFrom = (baseHistory, trimmed, {
+    silent = false, finalReview = false, resumeAfterTranscript = false, resumeAfterEcHandoff = false, moduleReaction = null,
+  } = {}) => {
     const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
     const afterUser = silent ? baseHistory : [...baseHistory, { role: 'user', content: trimmed }];
     if (!silent) patch({ onboardingChatHistory: afterUser });
     setLoading(true);
     const profileSummary = compileStudentProfile(state);
     requestOnboardingChatReply(
-      { history, prompt: trimmed, profileSummary, finalReview, resumeAfterTranscript, moduleReaction },
+      { history, prompt: trimmed, profileSummary, finalReview, resumeAfterTranscript, resumeAfterEcHandoff, moduleReaction },
       {
         onResult: (proposal) => {
           setLoading(false);
@@ -103,10 +110,6 @@ export function useOnboardingChat() {
             onboardingChatHistory: [...afterUser, {
               role: 'assistant',
               content: proposal.reply,
-              // Implement the Corrected Flow Order (see CLAUDE.md) — persisted the same "store the
-              // fact directly on the message" way every other overview field already is (see
-              // useNarrativeSession.js's own `latestTranscriptPause` scan for how this is read).
-              readyForTranscriptPause: proposal.readyForTranscriptPause,
               readyForOverview: proposal.readyForOverview,
               narrativeTitle: proposal.narrativeTitle,
               narrativeSummary: proposal.narrativeSummary,
@@ -181,6 +184,10 @@ export function useOnboardingChat() {
   // trust a stale closure" precedent this app's own Stage 2 auto-suggestion trigger already
   // established. Falls back to this hook's own `chatHistory` when the caller has nothing newer.
   const triggerModuleReaction = (moduleId, baseHistory) => sendFrom(baseHistory ?? chatHistory, null, { silent: true, moduleReaction: moduleId });
+  // Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) — the mirror-
+  // image automatic, no-typed-text turn that resumes this conversation once ProfileScreen.jsx has
+  // been left (Back or Done, both count — see that screen's own comment) while in EC-handoff mode.
+  const triggerEcResume = () => sendFrom(chatHistory, null, { silent: true, resumeAfterEcHandoff: true });
 
   // Implement the Corrected Flow Order (see CLAUDE.md) — the auto-fire effect for the resume
   // trigger above, mirroring HubScreen.jsx's own `finalReviewFiredRef`/`finalReviewTriggered`
@@ -201,6 +208,20 @@ export function useOnboardingChat() {
     triggerTranscriptResume();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.pendingOnboardingTranscriptResume]);
+
+  // Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) — the exact
+  // same guarded one-shot shape as the transcript-resume effect right above, watching
+  // `state.pendingOnboardingEcResume` instead (set by ProfileScreen.jsx's own EC-handoff-mode Back/
+  // Done handler).
+  const ecResumeFiredRef = useRef(false);
+  useEffect(() => {
+    if (ecResumeFiredRef.current) return;
+    if (!state.pendingOnboardingEcResume) return;
+    ecResumeFiredRef.current = true;
+    patch({ pendingOnboardingEcResume: false });
+    triggerEcResume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pendingOnboardingEcResume]);
 
   return { chatHistory, loading, sendMessage, editMessage, triggerFinalReview, triggerModuleReaction };
 }

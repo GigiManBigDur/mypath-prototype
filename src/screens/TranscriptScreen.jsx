@@ -67,6 +67,12 @@ export default function TranscriptScreen() {
   // exists once a real multi-year plan has already been generated, well after this pause could ever
   // fire), but written defensively as its own independent check either way.
   const onboardingPause = !checkpoint && !!state.onboardingTranscriptPauseActive;
+  // Guarantee the Transcript & GPA Trigger, Task 2 (see CLAUDE.md) — the FOURTH real mode: set by
+  // ProfileScreen.jsx's own "Edit Transcript & GPA" button, so this screen is genuinely accessible
+  // any time, not just during the one-time conversation flow. Mutually exclusive with `checkpoint`/
+  // `onboardingPause` in practice (a student reaches this only by explicitly clicking through from
+  // Profile), but checked independently either way, same pattern those two already establish.
+  const fromProfile = !checkpoint && !onboardingPause && !!state.transcriptOpenedFromProfile;
 
   // Defensive: this screen only applies to High School or a UC-Davis-selecting Undergraduate/
   // Transfer student — routing already never sends anyone else here, but if state ever ends up
@@ -215,6 +221,13 @@ export default function TranscriptScreen() {
       });
       return;
     }
+    // Guarantee the Transcript & GPA Trigger, Task 2 (see CLAUDE.md) — reached from Profile,
+    // returns to Profile, same real `transcriptCompleted`/`gpa` write every other real path
+    // already makes (still correctly unlocks Course Selection the first time this happens).
+    if (fromProfile) {
+      patch({ gpa: newGpa, transcriptCompleted: true, transcriptOpenedFromProfile: false, screen: 'profile' });
+      return;
+    }
     patch({ gpa: newGpa, transcriptCompleted: true, screen: 'hub' });
   };
 
@@ -232,6 +245,10 @@ export default function TranscriptScreen() {
       patch({ onboardingTranscriptPauseActive: false, screen: 'onboardingConversation' });
       return;
     }
+    if (fromProfile) {
+      patch({ transcriptOpenedFromProfile: false, screen: 'profile' });
+      return;
+    }
     patch({ screen: 'hub' });
   };
 
@@ -242,7 +259,7 @@ export default function TranscriptScreen() {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && !onboardingPause && <StepProgress step={3} total={8} />}
+      {!checkpoint && !onboardingPause && !fromProfile && <StepProgress step={3} total={8} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint
@@ -383,7 +400,7 @@ export default function TranscriptScreen() {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          {checkpoint ? 'Save & Continue to Part 2' : onboardingPause ? 'Continue our conversation' : 'Continue'}
+          {checkpoint ? 'Save & Continue to Part 2' : onboardingPause ? 'Continue our conversation' : fromProfile ? 'Save & Return to Profile' : 'Continue'}
         </button>
       </div>
     </div>
@@ -419,6 +436,9 @@ function UCDavisTranscriptScreen({ state, patch }) {
   // Implement the Corrected Flow Order (see CLAUDE.md) — same third mode as the Roslyn variant
   // above, same reasoning.
   const onboardingPause = !checkpoint && !!state.onboardingTranscriptPauseActive;
+  // Guarantee the Transcript & GPA Trigger, Task 2 (see CLAUDE.md) — same fourth mode as the
+  // Roslyn variant above, same reasoning.
+  const fromProfile = !checkpoint && !onboardingPause && !!state.transcriptOpenedFromProfile;
 
   const ucdavisTranscript = state.ucdavisTranscript || [];
   const gpa = useMemo(() => calculateUCDavisGpa(ucdavisTranscript), [ucdavisTranscript]);
@@ -509,6 +529,12 @@ function UCDavisTranscriptScreen({ state, patch }) {
       });
       return;
     }
+    // Guarantee the Transcript & GPA Trigger, Task 2 (see CLAUDE.md) — same fourth mode as the
+    // Roslyn variant above, same reasoning.
+    if (fromProfile) {
+      patch({ gpa: newGpa, transcriptCompleted: true, transcriptOpenedFromProfile: false, screen: 'profile' });
+      return;
+    }
     patch({ gpa: newGpa, transcriptCompleted: true, screen: 'hub' });
   };
 
@@ -521,6 +547,10 @@ function UCDavisTranscriptScreen({ state, patch }) {
       patch({ onboardingTranscriptPauseActive: false, screen: 'onboardingConversation' });
       return;
     }
+    if (fromProfile) {
+      patch({ transcriptOpenedFromProfile: false, screen: 'profile' });
+      return;
+    }
     patch({ screen: 'hub' });
   };
 
@@ -531,7 +561,7 @@ function UCDavisTranscriptScreen({ state, patch }) {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!checkpoint && !onboardingPause && <StepProgress step={3} total={8} />}
+      {!checkpoint && !onboardingPause && !fromProfile && <StepProgress step={3} total={8} />}
       <h1 className="page-title">{checkpoint ? 'Update Your Transcript' : 'UC Davis Transcript & GPA'}</h1>
       <p className="page-sub">
         {checkpoint
@@ -719,7 +749,7 @@ function UCDavisTranscriptScreen({ state, patch }) {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          {checkpoint ? 'Save & Continue to Part 2' : onboardingPause ? 'Continue our conversation' : 'Continue'}
+          {checkpoint ? 'Save & Continue to Part 2' : onboardingPause ? 'Continue our conversation' : fromProfile ? 'Save & Return to Profile' : 'Continue'}
         </button>
       </div>
     </div>
@@ -745,6 +775,10 @@ function TransferOnlyTranscriptScreen({ state, patch }) {
   // concept (Course Selection Stage 4's own per-year revisit is scoped to highschool/UC-Davis
   // students only), so `onboardingPause` is the ONLY special mode it needs to account for.
   const onboardingPause = !!state.onboardingTranscriptPauseActive;
+  // Guarantee the Transcript & GPA Trigger, Task 2 (see CLAUDE.md) — same fourth mode as the
+  // Roslyn/UC Davis variants above, same reasoning. Never writes `gpa` in ANY mode (see the
+  // `advance()` comment below), so this branch's own `fromProfile` case is identical to that.
+  const fromProfile = !onboardingPause && !!state.transcriptOpenedFromProfile;
   // Same shared 'transcript-empty'/'transcript-intro'/'transcript-revisit' dialogue keys the
   // Roslyn and UC Davis variants above already reuse for the identical reason documented on
   // UCDavisTranscriptScreen — a student who somehow encounters more than one of these three
@@ -775,12 +809,20 @@ function TransferOnlyTranscriptScreen({ state, patch }) {
       });
       return;
     }
+    if (fromProfile) {
+      patch({ transcriptCompleted: true, transcriptOpenedFromProfile: false, screen: 'profile' });
+      return;
+    }
     patch({ transcriptCompleted: true, screen: 'hub' });
   };
 
   const goBack = () => {
     if (onboardingPause) {
       patch({ onboardingTranscriptPauseActive: false, screen: 'onboardingConversation' });
+      return;
+    }
+    if (fromProfile) {
+      patch({ transcriptOpenedFromProfile: false, screen: 'profile' });
       return;
     }
     patch({ screen: 'hub' });
@@ -793,7 +835,7 @@ function TransferOnlyTranscriptScreen({ state, patch }) {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {!onboardingPause && <StepProgress step={3} total={8} />}
+      {!onboardingPause && !fromProfile && <StepProgress step={3} total={8} />}
       <h1 className="page-title">Transcript & GPA</h1>
       <p className="page-sub">
         {onboardingPause
@@ -812,7 +854,7 @@ function TransferOnlyTranscriptScreen({ state, patch }) {
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-primary" onClick={advance}>
-          {onboardingPause ? 'Continue our conversation' : 'Continue'}
+          {onboardingPause ? 'Continue our conversation' : fromProfile ? 'Save & Return to Profile' : 'Continue'}
         </button>
       </div>
     </div>

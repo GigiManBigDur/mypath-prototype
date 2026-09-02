@@ -5,6 +5,7 @@ import MascotIcon from '../components/MascotIcon';
 import ChatConversation from '../components/ChatConversation';
 import NarrativeReviewFooter from '../components/NarrativeReviewFooter';
 import TranscriptPauseFooter from '../components/TranscriptPauseFooter';
+import EcHandoffFooter from '../components/EcHandoffFooter';
 import { buildOnboardingGreeting } from '../hooks/useOnboardingChat';
 import { useNarrativeSession } from '../hooks/useNarrativeSession';
 import { useMascotSpeech } from '../hooks/useMascotSpeech';
@@ -95,7 +96,7 @@ export default function OnboardingConversationScreen() {
   // inside "Ask MyPath AI anything" (`ChatSessionView.jsx`) share one implementation.
   const {
     chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview,
-    showTranscriptPause, beginTranscriptPause,
+    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff,
   } = useNarrativeSession();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
@@ -231,6 +232,8 @@ export default function OnboardingConversationScreen() {
               placeholder="Tell me what's on your mind…"
               footer={showTranscriptPause ? (
                 <TranscriptPauseFooter onBegin={beginTranscriptPause} />
+              ) : showEcHandoff ? (
+                <EcHandoffFooter onBegin={beginEcHandoff} />
               ) : showReview ? (
                 <NarrativeReviewFooter latestReadyOverview={latestReadyOverview} onConfirm={confirmNarrative} onDismiss={dismissReview} />
               ) : null}

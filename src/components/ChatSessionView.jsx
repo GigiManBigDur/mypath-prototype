@@ -2,6 +2,7 @@ import ChatConversation from './ChatConversation';
 import ChatTaskConfirmFooter from './ChatTaskConfirmFooter';
 import NarrativeReviewFooter from './NarrativeReviewFooter';
 import TranscriptPauseFooter from './TranscriptPauseFooter';
+import EcHandoffFooter from './EcHandoffFooter';
 import { useHubChat } from '../hooks/useHubChat';
 import { useNarrativeSession } from '../hooks/useNarrativeSession';
 
@@ -35,7 +36,7 @@ export default function ChatSessionView({ sessionId, emptyHint }) {
 function NarrativeChatBody() {
   const {
     chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview,
-    showTranscriptPause, beginTranscriptPause,
+    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff,
   } = useNarrativeSession();
   // Implement the Corrected Flow Order (see CLAUDE.md) — bug fix: this footer used to only ever
   // render inside OnboardingConversationScreen.jsx's own inline JSX, not here, so a student who
@@ -43,9 +44,10 @@ function NarrativeChatBody() {
   // decision) and then reopened "Our Conversation" from the hub's own chat panel would see no way
   // to trigger it from that entry point — a real gap in "one continuous thread regardless of entry
   // point," the exact principle this whole feature is built around. Same precedence as that
-  // screen's own footer: the transcript hand-off takes priority over the narrative-overview review
-  // when both happen to be pending (never realistic in practice, since the overview can't be ready
-  // before the transcript pause has already resolved, but kept consistent either way).
+  // screen's own footer (Guarantee the Transcript & GPA Trigger, see CLAUDE.md — the EC hand-off
+  // footer needs the identical treatment, for the identical reason): the transcript hand-off takes
+  // priority over the EC hand-off, which takes priority over the narrative-overview review, when
+  // more than one happens to be pending at once.
   return (
     <ChatConversation
       messages={chatHistory}
@@ -55,6 +57,8 @@ function NarrativeChatBody() {
       placeholder="Tell me what's on your mind…"
       footer={showTranscriptPause ? (
         <TranscriptPauseFooter onBegin={beginTranscriptPause} />
+      ) : showEcHandoff ? (
+        <EcHandoffFooter onBegin={beginEcHandoff} />
       ) : showReview ? (
         <NarrativeReviewFooter latestReadyOverview={latestReadyOverview} onConfirm={confirmNarrative} onDismiss={dismissReview} />
       ) : null}
