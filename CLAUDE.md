@@ -13085,6 +13085,58 @@ during the one-time conversation.**
   correctly never re-fires once already completed. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) all stay clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`.
 
+**Reactive Conversation Layer for Tutorial Modules — undocumented here until this fix, though it
+shipped in an earlier session (git commit "Add a reactive AI conversation layer to the six
+selection-based tutorial modules"): each of Careers of Interest / Related College Majors /
+Recommended Programs / Course Selection / Opportunity Finder / Project Builder has its own
+`useModuleReview(moduleId, introKey, onConfirm)` hook (one shared implementation, instantiated six
+times) and `ModuleReviewWidget.jsx` panel. Clicking that screen's real Continue button calls
+`review.beginReview()` instead of advancing directly — this sets `state.activeModuleReview`, plays
+a short "reviewing" mascot beat (`phase: 'idle' -> 'reviewing' -> 'chat'`, `REVIEW_DURATION_MS`),
+then fires one automatic, no-typed-text turn (`triggerModuleReaction`, alongside `triggerFinalReview`/
+`triggerTranscriptResume`/`triggerEcResume` on `useOnboardingChat`'s own shared `sendFrom` path) into
+the SAME real `onboardingChatHistory` thread — never a separate one. The student can keep chatting
+freely, then explicitly resolves the review via `ModuleReviewFooter`'s two buttons: "Confirm and
+continue" (`onConfirm` — the module's own real, unchanged advance action, plus setting
+`state.moduleReviewsConfirmed[moduleId] = true`) or "Not quite right — keep refining" (just clears
+the flag; the module's own selection UI was never navigated away from).
+
+**Bug fix: Confirm/Reconsider Button Appears Before Bot Finishes Speaking — the footer could become
+visible and clickable while the bot's own current message hadn't genuinely finished, root-caused via
+direct instrumented polling against the live dev server rather than assumed, and it turned out to be
+two separate gaps, not one.** `ModuleReviewWidget.jsx`'s `footer={review.isActive && (...)}` never
+checked `review.loading` (the "Thinking" state) at all, so the footer rendered the instant `phase`
+reached `'chat'`, regardless of whether the module's automatic reaction (or a later typed turn) was
+still in flight — and there was no signal at all for whether the reply's own audio was mid-playback
+(voice here is opt-in per message via `ChatConversation`'s own Play button, per "Opt-In Voice Per
+Message in Chat"). Fixed with a `responseSettled = !review.loading && !audioPlaying` gate, where
+`audioPlaying` is fed by a new, purely optional `onPlayingChange` prop on `ChatConversation.jsx`
+(no-op for every other caller, mirroring `onInputFocus`'s own precedent) that fires whenever its
+internal `playingIndex` changes — the same "expose a signal, let the caller decide what to do with
+it" boundary this component already keeps for everything else. **A second, deeper timing bug
+surfaced while verifying the fix, not assumed away**: polling every ~120ms through the reviewing
+window showed the footer flash visible for one real, painted frame exactly at the moment `phase`
+flipped to `'chat'` — `useModuleReview.js`'s two phase-transition effects were plain `useEffect`,
+which flushes AFTER the browser has already painted the commit that triggered it, so there's a real
+gap between "phase becomes 'chat'" (one commit) and "the effect that calls `triggerModuleReaction`
+— and therefore `setLoading(true)` — actually runs" (a LATER commit). The identical class of gap
+exists one step earlier too: `isActive` can flip true while `phase` still reads its old `'idle'`
+value from the previous cycle, before the OTHER effect has run to set it to `'reviewing'`. Both
+effects were switched to `useLayoutEffect`, which flushes synchronously before paint — React keeps
+resolving any further layout-effect-triggered state updates in the same pass until stable, so the
+whole `idle -> reviewing -> chat -> loading` chain now resolves in one commit with nothing
+intermediate ever reaching the screen. `ModuleReviewWidget.jsx` additionally gates which BRANCH
+renders on `showReviewingBeat = review.isActive && review.phase !== 'chat'` (not `phase ===
+'reviewing'` alone) as a second, independent guard against the same "idle" gap — no longer strictly
+load-bearing once the layout-effect fix landed, but kept rather than trusting effect-timing alone a
+second time. Verified with a dedicated Playwright suite against two structurally different modules
+(Opportunity Finder's unconditional Continue, Discovery's selection-gated one): continuous polling
+(not a single snapshot check, which would have missed both gaps) through the reviewing+thinking
+window shows zero footer appearances until the reply has both genuinely arrived and — with voice on
+and the reply's own Play button clicked — finished playing; a mocked, real 16-bit PCM WAV via
+`/api/tts` confirms the footer hides the instant real playback starts and reappears once it
+genuinely ends. `npm run build`/`npm run lint` both stay clean.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
