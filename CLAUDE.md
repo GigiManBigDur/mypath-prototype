@@ -13137,6 +13137,93 @@ and the reply's own Play button clicked — finished playing; a mocked, real 16-
 `/api/tts` confirms the footer hides the instant real playback starts and reappears once it
 genuinely ends. `npm run build`/`npm run lint` both stay clean.
 
+**Guaranteed EC Check-In During Session 1, With Auto-Filing — extends the existing "Guarantee the
+Transcript & GPA Trigger" pattern to activities & experiences, and adds a genuinely new capability:
+the AI now files a real, structured record the instant a genuine activity comes up in conversation,
+without waiting for any hand-off at all.**
+- **Task 1 — auto-filing, live throughout the interest-gathering conversation.**
+  `api/onboarding-chat.js`'s `ONBOARDING_SCHEMA` gained a new top-level `newActivities` field,
+  present on EVERY response (not gated behind `readyForOverview` the way the overview fields are) —
+  an array of `{name, description}` pairs the model reports whenever the student's LATEST message
+  reveals a genuinely NEW real extracurricular with actual time investment (a sport, club, job,
+  regular hobby, volunteering, a competition — the task's own literal "cooking" example). The
+  prompt's new "Auto-filing activities" section instructs the model to check
+  `profileSummary.activities.priorExperiences` first and never report something already listed
+  there (by name or clear equivalent), and never report the same activity a second time later in
+  the same conversation — almost always an empty array, the common case. Deliberately validated as
+  a SOFT sanitizer (`sanitizeNewActivities`), not a hard type-check like the plain-boolean
+  `mentionsSpecificFact`/`finalReviewComplete` fields — this is a real array-of-objects the model
+  produces on every single turn (not just occasionally like the overview fields), so a malformed
+  shape degrades to `[]` rather than failing the whole otherwise-fine conversational reply, matching
+  this file's own established "never let a malformed bonus field block the ordinary conversation"
+  principle.
+  - **`useOnboardingChat.js`'s `sendFrom`** turns the server's own (already-sanitized)
+    `newActivities` into real `state.priorExperiences` entries the instant a response arrives — the
+    exact same `{ id, name, description }` shape `ProfileScreen.jsx`'s own `addExperience`/
+    `PriorExperiencesEditor.jsx` already use, via a new `mergeNewActivities(currentExperiences,
+    proposedActivities)` helper. A SECOND, client-side dedup layer (case-insensitive name match
+    against what's already on file, both real current state and anything else in this same batch)
+    never trusts the server's own "don't duplicate" instruction alone. Computed once and folded into
+    the SAME `patch()` call the chat-history write already makes (one atomic state update, not two
+    separate ones) — a genuinely new activity lands as a real record before the student could ever
+    reach the EC check-in (Task 2) or visit Profile themselves.
+- **Task 2 — the guaranteed check-in itself, now genuinely universal.** This SUPERSEDES the earlier
+  "Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off" feature's own EC mechanism,
+  which was never actually "guaranteed" the way Transcript & GPA is — it only fired for a student who
+  ALREADY had real `priorExperiences` on file (`(state.priorExperiences || []).length > 0`), so a
+  genuine first-time student with nothing filed yet (and none of Task 1's own auto-filing having
+  caught anything real either) would simply never be asked at all. `useNarrativeSession.js`'s
+  `showEcHandoff` is now a plain, deterministic, code-level trigger exactly like the transcript
+  one — `!state.ecHandoffCompleted && userTurnCount >= EC_CHECKIN_AFTER_USER_TURNS (=2) && !loading`
+  — never conditional on whether anything is already on file. `2` (one more than the transcript
+  trigger's own `1`) is deliberate: since the transcript resume itself is a silent, no-typed-text
+  turn that never increments `userTurnCount`, this guarantees at least one real interest-discussion
+  exchange happens (post-transcript-resume, for a student that flow applies to; from the very start,
+  for one it doesn't) before this check-in interrupts, matching the task's own "after the interest
+  discussion" framing. `!showTranscriptPause` still gives the transcript hand-off strict priority
+  whenever both could apply at once — verified directly, not assumed: a real High School student
+  who sends a SECOND message (crossing the EC threshold) while the transcript pause is still
+  unresolved correctly keeps seeing only the transcript footer, with the EC check-in appearing only
+  once transcript is genuinely completed.
+- **Task 3 — a real second choice, not a forced page visit.** `EcHandoffFooter.jsx` gained a real
+  second button — unlike `TranscriptPauseFooter.jsx`'s deliberately single-action design (that
+  form's own real Skip lives only on the Transcript & GPA screen itself, once the student is already
+  there), this hand-off can be resolved two genuinely different ways: "Yes, let's add something →"
+  (`beginEcHandoff`, unchanged — hands off to the real Profile page) or "No, that's everything"
+  (`declineEcHandoff`, new — resolves the check-in immediately, right in the conversation, with zero
+  navigation). Copy no longer assumes "you've already got some on file" (the old wording, wrong for
+  a genuine first-timer) — it plainly asks whether there's anything else to add.
+  `ProfileScreen.jsx`'s own `ecHandoffActive` page-sub text picks between two honest framings via
+  `experiences.length > 0` for the identical reason — a student arriving with zero entries (Task 1's
+  auto-filing may have caught something real, or genuinely nothing yet) sees "add any activities...
+  you'd like on record," not a false claim that something's already there.
+- **Task 4 — resume reads the real, complete data, either path.** `triggerEcResume` (previously
+  fired only internally, via the existing `pendingOnboardingEcResume`-watching effect built for
+  surviving a real screen navigation/remount) is now ALSO exposed directly from
+  `useOnboardingChat()`'s own return value, so `declineEcHandoff` can call it immediately with zero
+  navigation involved — that effect's own ref-guarded, navigate-away-and-back dance solves a problem
+  a same-screen decline never has. `EC_RESUME_TRIGGER_MESSAGE` was reworded to honestly cover BOTH
+  real paths at once (visited Profile, or declined in-chat) rather than assuming a Profile visit
+  always happened — `profileSummary.activities.priorExperiences` may genuinely be empty either way,
+  which the prompt now explicitly frames as a normal outcome, not an error to route around.
+- Verified with three dedicated Playwright suites (49 checks total) against the real dev server,
+  mocking `/api/onboarding-chat`: mentioning "cooking" mid-conversation auto-files a real, structured
+  entry with a genuine id, and a later repeated mention of the same activity does not create a
+  duplicate (client-side dedup, independent of the server's own instruction); a completely fresh
+  student with zero prior data still gets the guaranteed check-in exactly at the deterministic
+  2-turn threshold, offering both real choices; choosing "Yes" navigates to the real Profile page,
+  where two additional entries can be added beyond whatever was auto-filed, and returning fires a
+  real silent resume turn whose own outgoing request body carries the complete, real EC data (both
+  auto-filed and manually added) with zero fake user-role bubble added for the silent turn; choosing
+  "No, that's everything" never navigates anywhere, immediately marks the check-in permanently done,
+  and fires the identical resume mechanism with an honestly-empty EC dataset; and a real High School
+  student confirms the transcript pause keeps strict priority over the EC check-in for as long as
+  transcript remains unresolved, even after crossing the EC's own turn threshold, with the EC
+  check-in correctly appearing the moment transcript is done. The full pre-existing regression suite
+  for the immediately preceding "Confirm/Reconsider Button" fix (18 checks, sharing this same
+  `useOnboardingChat.js`) was re-run and passes unchanged. `npm run build`/`npm run lint` both stay
+  clean — this feature never opens `roadmapLayout.js`/`Roadmap.jsx`.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and

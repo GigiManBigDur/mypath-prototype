@@ -36,7 +36,7 @@ export default function ChatSessionView({ sessionId, emptyHint }) {
 function NarrativeChatBody() {
   const {
     chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview,
-    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff,
+    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff, declineEcHandoff,
   } = useNarrativeSession();
   // Implement the Corrected Flow Order (see CLAUDE.md) — bug fix: this footer used to only ever
   // render inside OnboardingConversationScreen.jsx's own inline JSX, not here, so a student who
@@ -58,7 +58,7 @@ function NarrativeChatBody() {
       footer={showTranscriptPause ? (
         <TranscriptPauseFooter onBegin={beginTranscriptPause} />
       ) : showEcHandoff ? (
-        <EcHandoffFooter onBegin={beginEcHandoff} />
+        <EcHandoffFooter onBegin={beginEcHandoff} onDecline={declineEcHandoff} />
       ) : showReview ? (
         <NarrativeReviewFooter latestReadyOverview={latestReadyOverview} onConfirm={confirmNarrative} onDismiss={dismissReview} />
       ) : null}

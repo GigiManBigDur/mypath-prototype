@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { compileStudentProfile } from '../utils/profileCompiler';
 import { requestOnboardingChatReply } from '../utils/onboardingChatRequest';
+import { makeTaskId } from '../utils/ids';
 
 // AI-First Onboarding, Stage 2 (see CLAUDE.md) — the conversation LOGIC for the student's first
 // real conversation with the AI, mirroring `useHubChat.js`'s own send/edit shape (the same
@@ -36,6 +37,27 @@ export function buildOnboardingGreeting(username, skipped) {
     return `Hey ${name}! I'm your MyPath guide, and before we build anything, I want to actually get to know you — what excites you, what you've already done, and help you figure out a direction that's genuinely yours. So — what do you find yourself genuinely excited about, in or out of school?`;
   }
   return `Now that you've seen how this all works, let's actually talk about you. What do you find yourself genuinely excited about, in or out of school?`;
+}
+
+// Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 1 — turns the server's own
+// `newActivities` proposal (already sanitized server-side, see api/onboarding-chat.js's own
+// `sanitizeNewActivities`) into real `state.priorExperiences` entries, the SAME `{ id, name,
+// description }` shape ProfileScreen.jsx's own `addExperience`/PriorExperiencesEditor.jsx already
+// use — a real, structured record, not a second, parallel data shape. Deduped case-insensitively
+// against what's ALREADY on file (both the current real state AND anything else in this same
+// batch) as one more real safety net beyond the server's own "don't report something already
+// listed" instruction — the model is asked not to duplicate, but this never trusts that alone.
+function mergeNewActivities(currentExperiences, proposedActivities) {
+  const existingNames = new Set((currentExperiences || []).map((e) => e.name.trim().toLowerCase()));
+  const fresh = [];
+  for (const a of proposedActivities || []) {
+    if (!a || typeof a.name !== 'string' || !a.name.trim()) continue;
+    const key = a.name.trim().toLowerCase();
+    if (existingNames.has(key)) continue;
+    existingNames.add(key);
+    fresh.push({ id: makeTaskId('prior-experience'), name: a.name.trim(), description: (a.description || '').trim() });
+  }
+  return fresh;
 }
 
 export function useOnboardingChat() {
@@ -99,6 +121,13 @@ export function useOnboardingChat() {
             if (!silent) patch({ onboardingChatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't come up with a reply just now — try saying that again?" }] });
             return;
           }
+          // Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 1 — computed once here,
+          // in the SAME patch() call as the chat history write below (one atomic state update, not
+          // two separate ones), so a genuinely new activity the student just mentioned lands as a
+          // real, structured record the instant this reply arrives — before the student could ever
+          // reach the EC hand-off (Task 2/3) or visit Profile themselves.
+          const newExperienceEntries = mergeNewActivities(state.priorExperiences, proposal.newActivities);
+
           // AI-First Onboarding, Stage 3 (see CLAUDE.md) — the new overview fields are persisted
           // directly on the message object, the SAME "store planReady/projectName/milestones right
           // on the message" convention BuildYourOwnView's own sendFrom already established for the
@@ -107,6 +136,9 @@ export function useOnboardingChat() {
           // like the rest of the conversation does (including a reload) — not a separate,
           // easy-to-desync piece of state.
           patch({
+            ...(newExperienceEntries.length > 0
+              ? { priorExperiences: [...(state.priorExperiences || []), ...newExperienceEntries] }
+              : {}),
             onboardingChatHistory: [...afterUser, {
               role: 'assistant',
               content: proposal.reply,
@@ -223,5 +255,13 @@ export function useOnboardingChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.pendingOnboardingEcResume]);
 
-  return { chatHistory, loading, sendMessage, editMessage, triggerFinalReview, triggerModuleReaction };
+  // Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 3 — `triggerEcResume` is now also
+  // exposed directly (not just fired internally via the `pendingOnboardingEcResume` effect above),
+  // so `useNarrativeSession.js`'s own in-conversation "No, that's everything" decline can call it
+  // immediately, with zero navigation involved — that effect's own ref-guarded, navigate-away-and-
+  // back dance exists specifically to survive a real screen remount, which a decline that never
+  // leaves this screen doesn't need at all.
+  return {
+    chatHistory, loading, sendMessage, editMessage, triggerFinalReview, triggerModuleReaction, triggerEcResume,
+  };
 }

@@ -125,6 +125,23 @@ const ONBOARDING_SCHEMA = {
       type: 'string',
       description: 'Your next line in this ongoing, natural conversation with the student — exactly what gets shown to them. Ask about ONE thing at a time; never stack multiple questions into one reply. Keep it warm, genuinely curious, and concise (a real conversational turn, not an essay).',
     },
+    // Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 1 — a top-level field present
+    // on EVERY response, not gated behind readyForOverview (unlike the overview fields below) — the
+    // app files a real, structured record the moment this comes back non-empty, so the student
+    // never has to separately re-enter something they already told the AI about in conversation.
+    newActivities: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'A short, real activity/extracurricular name (e.g. "Cooking", "Varsity Soccer", "Part-time job at a bakery") — not a full sentence.' },
+          description: { type: 'string', description: 'One brief sentence describing it, drawn from what the student actually said.' },
+        },
+        required: ['name', 'description'],
+        additionalProperties: false,
+      },
+      description: 'Any GENUINELY NEW, real extracurricular activity, sport, club, job, or regular hobby with actual time investment that the student\'s LATEST message reveals for the first time (e.g. mentioning they cook regularly, play a sport, volunteer, or have a part-time job) — one entry per distinct activity. Check profileSummary.activities.priorExperiences FIRST and never report something already listed there (by name or clear equivalent), and never report the same activity a second time later in this same conversation just because it comes up again. A passing, low-commitment mention ("I like reading sometimes") generally is NOT a structured activity — use real judgment about what genuinely counts as an extracurricular-shaped commitment, not everything the student happens to say they enjoy. Almost always an empty array (the common case) — only during the early interest-gathering conversation should this ever be non-empty; during later automatic moments (module reactions, final review) it should always be empty, since new activity mentions aren\'t expected there.',
+    },
     readyForOverview: {
       type: 'boolean',
       description: 'True ONLY once ALL of the following have genuinely happened in this conversation: (1) real interests and at least one real piece of prior experience have been established, (2) if you ever suggested reconsidering their direction, whether the student actually agreed to it or not is settled, and (3) you have had a genuine strategy discussion (see the "Strategy discussion" instructions below) — proposing something specific across course rigor, testing approach, college-list direction, and essay material, and genuinely incorporating the student\'s real response (agreement, pushback, or their own alternative) for each. Never skip straight from a settled narrative direction to the overview without that real strategy back-and-forth. False for anything less developed than that.',
@@ -244,7 +261,7 @@ const ONBOARDING_SCHEMA = {
     },
   },
   required: [
-    'reply', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
+    'reply', 'newActivities', 'readyForOverview', 'narrativeTitle', 'narrativeSummary',
     'overviewPhaseTitles', 'overviewPhaseDescriptions', 'phaseDimensions', 'overviewPhaseDayOffsets',
     'capstoneIdea', 'courseGuidanceNote', 'testingTimelineNote', 'collegeListNote',
     'essayMaterialNote', 'thematicKeywords', 'matchedInterestTags', 'mentionsSpecificFact',
@@ -275,9 +292,16 @@ const TRANSCRIPT_RESUME_TRIGGER_MESSAGE = '(Automatic resume — the student has
 
 // Guarantee the Transcript & GPA Trigger + guaranteed EC hand-off (see CLAUDE.md) — a second,
 // mirror-image automatic no-typed-text trigger, same reasoning as TRANSCRIPT_RESUME_TRIGGER_MESSAGE
-// above: fires the moment the student has finished reviewing/confirming their real, existing
-// activities & experiences on their Profile page, which the conversation just handed them off to.
-const EC_RESUME_TRIGGER_MESSAGE = "(Automatic resume — the student has just finished reviewing their existing activities & experiences on their Profile page. Their real, structured records are available in profileSummary.activities.priorExperiences. Briefly and naturally acknowledge them by name, then continue the conversation, per your own existing activities & experiences hand-off instructions.)";
+// above: fires once the student has responded to the guaranteed "any other activities?" check-in.
+//
+// Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 3 — this now covers TWO distinct
+// real paths with one shared trigger, not just the Profile-page hand-off: the student either went
+// to Profile to add/review entries, OR declined directly in the conversation because they genuinely
+// have nothing more. The wording below is deliberately honest about both — profileSummary.
+// activities.priorExperiences may be empty either way (a genuine first-time student who declined,
+// or one who visited Profile and still added nothing), and that's a completely normal outcome, not
+// an error.
+const EC_RESUME_TRIGGER_MESSAGE = "(Automatic resume — the student has just responded to whether they have any other activities or experiences to add: either they finished reviewing/adding entries on their Profile page, or they said there's nothing more right now. Their real, structured records (if any — this may honestly be empty) are available in profileSummary.activities.priorExperiences. If there's something there, briefly and naturally acknowledge it by name; if it's empty, that's a normal outcome, just move on naturally. Then continue the conversation, per your own existing activities & experiences hand-off instructions.)";
 
 // Reactive Conversation Layer for Tutorial Modules (see CLAUDE.md) — a THIRD, mirror-image
 // automatic no-typed-text trigger, fired once the student takes an explicit "done with this
@@ -353,9 +377,15 @@ Transcript & GPA hand-off (informational — the APP triggers this automatically
 - Once it resumes, you will receive an automatic system-generated turn, and profileSummary.academic will show the student's real GPA/transcript for the very first time (which may honestly be empty, e.g. a genuine incoming student with nothing yet). Briefly and naturally acknowledge whatever it actually shows, then continue into their activities/experience, narrative pushback, and the strategy discussion below — all genuinely informed by this real academic data from that point on, not generic.
 - Because the app enforces this deterministically before you could ever reach readyForOverview, you never need to think about ordering here — just have a genuine, natural conversation; the real academic data will already be there by the time it matters.
 
-Existing activities & experiences hand-off (informational — also fully app-triggered, mirroring the mechanism above):
-- If the student already has real, previously-logged experiences on file (profileSummary.activities.priorExperiences is non-empty — from an earlier session, or added via their Profile page), the app automatically pauses this conversation for them to review/confirm those records early on too — again, a deterministic trigger you don't propose or control.
-- Once it resumes, treat profileSummary.activities.priorExperiences as real, authoritative structured fact — reference those specific experiences by name where relevant, rather than asking the student to describe from scratch something already on record. You can still ask about NEW things they haven't mentioned there.
+Auto-filing activities (ongoing, throughout the interest-gathering conversation — see the newActivities field of your own response schema):
+- Whenever the student's latest message reveals a genuinely NEW real activity or extracurricular with actual time investment (a sport, club, job, regular hobby, volunteering, a competition, etc. — e.g. mentioning they cook regularly, play a sport, or have a part-time job), report it in newActivities so the app can automatically file it as a real, structured record for them — they should never have to separately re-enter something they already told you about.
+- Check profileSummary.activities.priorExperiences FIRST and never report an activity that's already listed there (by name or clear equivalent), and never report the same activity a second time later in this same conversation just because it comes up again. A passing, low-commitment mention ("I like reading sometimes") generally is NOT a structured activity — use real judgment about what genuinely counts as an extracurricular-shaped commitment, not everything the student happens to say they enjoy.
+- Leave newActivities as an empty array on every turn where nothing new genuinely qualifies (the common case — most turns won't have anything to file). When you do file something, naturally acknowledge it in your own reply text (e.g. "Cooking — that's great, sounds like a real time commitment") so it reads as part of the conversation, not a hidden background action.
+
+Existing activities & experiences hand-off (informational — also fully app-triggered, mirroring the mechanism above — GUARANTEED for every student, not just those who already have data on file):
+- Shortly after the interest discussion gets going (a deterministic, code-level trigger — never something you propose or decide), the app pauses this conversation to explicitly ask every student — even a genuine first-time student with nothing on file yet — whether they have any OTHER activities or experiences to add. The student either goes to their Profile page to add/review entries, or declines directly in the conversation if they genuinely have nothing more.
+- By the time this happens, some real entries may already be on record purely from the auto-filing above, even for a student who never visited their Profile page — that's expected and correct, not something to second-guess.
+- Once it resumes, treat profileSummary.activities.priorExperiences as real, authoritative structured fact (which may honestly be empty, and that's a completely normal outcome) — reference those specific experiences by name where relevant, rather than asking the student to describe from scratch something already on record. You can still ask about NEW things they haven't mentioned there.
 
 Narrative pushback (use this rarely, and only when it's real):
 - As the conversation continues, listen for anything specific, unusual, or genuinely non-obvious the student shares. If — and only if — a real, well-reasoned connection exists between something specific they've told you and an academic field, major, or direction they haven't mentioned, you may offer it as a genuine suggestion: explain your specific reasoning clearly, and ask if they'd be interested in exploring it, the way a thoughtful consultant would.
@@ -461,10 +491,29 @@ function expectedPhaseCount(profileSummary) {
   return Number.isInteger(n) && n > 0 ? 2 * n - 1 : null;
 }
 
+// Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 1 — deliberately a SOFT sanitizer,
+// not a hard type-check like mentionsSpecificFact/finalReviewComplete above (both plain booleans, so
+// there's essentially no way for a compliant model to get them wrong). newActivities is a real
+// array-of-objects the model produces on EVERY turn, not just occasionally like the overview
+// fields — a malformed shape here should never fail the whole, otherwise-fine conversational reply,
+// matching this file's own established "never let a malformed bonus field block the ordinary
+// conversation" principle. Anything that doesn't cleanly resolve to a real {name, description} pair
+// is silently dropped rather than rejecting the request.
+function sanitizeNewActivities(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((a) => a && typeof a.name === 'string' && a.name.trim())
+    .map((a) => ({
+      name: a.name.trim().slice(0, 120),
+      description: typeof a.description === 'string' ? a.description.trim().slice(0, 400) : '',
+    }))
+    .slice(0, 5);
+}
+
 function validateProposal(input, profileSummary) {
   if (!input || typeof input !== 'object') return null;
   const {
-    reply, readyForOverview, narrativeTitle, narrativeSummary,
+    reply, newActivities, readyForOverview, narrativeTitle, narrativeSummary,
     overviewPhaseTitles, overviewPhaseDescriptions, phaseDimensions, overviewPhaseDayOffsets,
     capstoneIdea, courseGuidanceNote, testingTimelineNote, collegeListNote, essayMaterialNote,
     thematicKeywords, matchedInterestTags, mentionsSpecificFact, finalReviewComplete,
@@ -476,9 +525,11 @@ function validateProposal(input, profileSummary) {
   // mentionsSpecificFact, and always carried through unchanged below (never nulled) — its truth
   // doesn't depend on readyForOverview at all; these are two genuinely independent milestones.
   if (typeof finalReviewComplete !== 'boolean') return null;
+  const cleanNewActivities = sanitizeNewActivities(newActivities);
 
   const notReady = {
     reply: reply.trim(),
+    newActivities: cleanNewActivities,
     readyForOverview: false,
     narrativeTitle: null,
     narrativeSummary: null,
@@ -564,6 +615,7 @@ function validateProposal(input, profileSummary) {
 
   return {
     reply: reply.trim(),
+    newActivities: cleanNewActivities,
     readyForOverview: true,
     narrativeTitle: narrativeTitle.trim(),
     narrativeSummary: narrativeSummary.trim(),

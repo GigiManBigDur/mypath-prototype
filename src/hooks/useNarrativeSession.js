@@ -15,7 +15,7 @@ import { hasRealTranscriptFlow } from '../utils/transcriptEligibility';
 // implementation, rather than two independently-maintained copies.
 export function useNarrativeSession() {
   const { state, patch } = useApp();
-  const { chatHistory, loading, sendMessage, editMessage } = useOnboardingChat();
+  const { chatHistory, loading, sendMessage, editMessage, triggerEcResume } = useOnboardingChat();
 
   // AI-First Onboarding, Stage 3 (see CLAUDE.md) — Task 4's own "reject and keep refining" review,
   // built on the EXACT same precedent BuildYourOwnView's own `latestReadyPlan`/`dismissedReadyIndex`
@@ -110,26 +110,45 @@ export function useNarrativeSession() {
     patch({ onboardingTranscriptPauseActive: true, screen: 'transcript' });
   };
 
-  // Guarantee the Transcript & GPA Trigger, Task 3 — a real EC handoff mirroring the transcript
-  // pause's own deterministic shape, but a genuinely simpler trigger condition: the student already
-  // HAS real, structured prior-experience records (`state.priorExperiences`, entered via their
-  // Profile page — either in an earlier session, or added since the last time this conversation was
-  // open) — there's nothing to "wait for a natural moment" here, since this is confirming data that
-  // already exists, not discovering something fresh, so it can fire immediately at mount rather
-  // than waiting for any real exchange first. `state.ecHandoffCompleted` is a one-time-ever flag
-  // (mirroring `transcriptCompleted`'s own shape) — deliberately NOT set when `priorExperiences` is
-  // currently empty (nothing to confirm yet), so a student who adds their first real experience via
-  // Profile LATER (after an earlier, empty-at-the-time visit to this conversation) still gets a real
-  // guaranteed hand-off the next time they're here, rather than being permanently skipped just
-  // because an earlier check happened to find nothing. `!showTranscriptPause` gives the transcript
-  // hand-off strict priority whenever both could apply at once (the one real case: a resumed
-  // conversation where `transcriptCompleted` somehow never became true — e.g. the student clicked
-  // "Continue to my Hub" before ever sending a first message) — the footer can only show one action
-  // at a time, and finishing academic data first is the more foundational of the two.
+  // Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 2 — supersedes the earlier design
+  // this comment used to describe (the check only fired for a student who ALREADY had real
+  // `priorExperiences` on file). That was never actually "guaranteed" in the sense Transcript & GPA
+  // is — a genuine first-time student with nothing on file yet, and none of Task 1's auto-filing
+  // having found anything real to file either, would simply never be asked at all. The check-in is
+  // now a plain, deterministic, code-level trigger exactly like the transcript one: a real
+  // arithmetic fact about how many turns the student has actually sent
+  // (`EC_CHECKIN_AFTER_USER_TURNS`), never conditional on whether anything is already on file.
+  // `2` (one more than the transcript trigger's own `1`) is deliberately a LITTLE later — since the
+  // transcript resume itself is a silent, no-typed-text turn that never increments `userTurnCount`,
+  // this guarantees at least one real interest-discussion exchange happens (post-transcript-resume,
+  // for a student that flow applies to; from the very start, for one it doesn't) before this
+  // check-in interrupts, matching Task 2's own "after the interest discussion" framing. A student
+  // with `hasRealTranscriptFlow(state)` false never has a transcript pause to wait on at all, so for
+  // them this simply becomes "after their second real reply," which is equally a genuine, if short,
+  // real exchange first. `state.ecHandoffCompleted` is the same one-time-ever flag as before —
+  // firing at a fixed turn count (rather than "immediately, since data already exists") is what
+  // makes this genuinely comparable to the transcript trigger's own guarantee. `!showTranscriptPause`
+  // still gives the transcript hand-off strict priority whenever both could apply at once — the
+  // footer can only show one action at a time, and finishing academic data first is the more
+  // foundational of the two.
+  const EC_CHECKIN_AFTER_USER_TURNS = 2;
   const showEcHandoff = !showTranscriptPause
-    && (state.priorExperiences || []).length > 0
-    && !state.ecHandoffCompleted;
+    && !state.ecHandoffCompleted
+    && userTurnCount >= EC_CHECKIN_AFTER_USER_TURNS
+    && !loading;
   const beginEcHandoff = () => patch({ onboardingEcHandoffActive: true, screen: 'profile' });
+  // Task 3's own second real choice — decline directly in the conversation, no forced page visit,
+  // for a student who genuinely has nothing more to add (which may be everyone, or nobody, in any
+  // given conversation — Task 1's auto-filing may have already filed everything real there was to
+  // catch). Never navigates anywhere: `ecHandoffCompleted` is set (the same permanent, one-time
+  // flag `beginEcHandoff`'s own Profile-page path eventually sets too, via ProfileScreen.jsx's own
+  // `leaveProfile`), and `triggerEcResume()` — now exposed directly from `useOnboardingChat()` for
+  // exactly this — fires the identical resume turn that path fires, immediately, with no need for
+  // the navigate-away-and-back `pendingOnboardingEcResume` dance that mechanism exists for.
+  const declineEcHandoff = () => {
+    patch({ ecHandoffCompleted: true });
+    triggerEcResume();
+  };
 
   // Remove Redundant Narrative Card (see CLAUDE.md) — the one place a ready-message's own
   // `reviewResolved` flag is ever written, called by both `confirmNarrative` (below) and
@@ -284,6 +303,6 @@ export function useNarrativeSession() {
 
   return {
     chatHistory, loading, sendMessage, editMessage, latestReadyOverview, showReview, confirmNarrative, dismissReview,
-    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff,
+    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff, declineEcHandoff,
   };
 }

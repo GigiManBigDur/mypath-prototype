@@ -96,7 +96,7 @@ export default function OnboardingConversationScreen() {
   // inside "Ask MyPath AI anything" (`ChatSessionView.jsx`) share one implementation.
   const {
     chatHistory, loading, sendMessage, editMessage, showReview, latestReadyOverview, confirmNarrative, dismissReview,
-    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff,
+    showTranscriptPause, beginTranscriptPause, showEcHandoff, beginEcHandoff, declineEcHandoff,
   } = useNarrativeSession();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
@@ -233,7 +233,7 @@ export default function OnboardingConversationScreen() {
               footer={showTranscriptPause ? (
                 <TranscriptPauseFooter onBegin={beginTranscriptPause} />
               ) : showEcHandoff ? (
-                <EcHandoffFooter onBegin={beginEcHandoff} />
+                <EcHandoffFooter onBegin={beginEcHandoff} onDecline={declineEcHandoff} />
               ) : showReview ? (
                 <NarrativeReviewFooter latestReadyOverview={latestReadyOverview} onConfirm={confirmNarrative} onDismiss={dismissReview} />
               ) : null}

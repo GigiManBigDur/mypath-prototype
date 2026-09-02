@@ -139,7 +139,15 @@ export default function ProfileScreen() {
       <h1 className="page-title">Your Profile</h1>
       <p className="page-sub">
         {ecHandoffActive
-          ? "You've got real activities & experiences on file — take a look, add or update anything, then click Done to pick up right where we left off in our conversation."
+          // Guaranteed EC Check-In With Auto-Filing (see CLAUDE.md), Task 3 — this hand-off now
+          // fires for EVERY student, including a genuine first-timer with nothing filed yet (Task
+          // 1's auto-filing may already have caught something real from the conversation itself, or
+          // there may honestly be nothing yet) — the old copy assumed "you've already got real
+          // activities on file," which read oddly for that empty case. `experiences.length` picks
+          // between the two honest framings rather than guessing.
+          ? (experiences.length > 0
+            ? "Take a look at what's here, add or update anything else, then click Done to pick up right where we left off in our conversation."
+            : "Add any activities or experiences you'd like on record — clubs, jobs, hobbies, competitions, volunteering — then click Done to pick up right where we left off in our conversation.")
           : "The start of your broader profile — more will live here over time. For now, this is where your real transcript/GPA and past experiences & activities live. MyPath's AI features (Stage 2 suggestions, the chat assistant, Build Your Own) use these for richer context; your Careers of Interest, Related Majors, and Recommended Programs are unaffected by anything here."}
       </p>
 
