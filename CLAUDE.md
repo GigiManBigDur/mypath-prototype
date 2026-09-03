@@ -13311,6 +13311,102 @@ Davis Course Selection screens.**
   empty transcript against real catalog prerequisites) are correctly skipped when picking a
   selectable course to test with. `npm run build`/`npm run lint` both stay clean.
 
+**Fix Auto-Pick with Real Constraints + List Enhancements — the original Auto-Pick (immediately
+above) unioned every relevant recommendation with no cap, no ordering, and no
+prerequisite/already-completed filtering; this replaces it with a properly constrained pick, plus
+a confirmed "Clear all" and click-to-view-description on the selection panel.**
+- **Task 1 — real constraints, in real priority order, both catalogs.** `ROSLYN_COURSE_LOAD_CAP`
+  (`{9: 8, 10: 8, 11: 7, 12: 6}`, `CourseSelectionScreen.jsx`) is the same real course-load-per-grade
+  policy data this screen's own Task 1 policy card already cites — reused as a hard ceiling, not
+  restated as a second, independent number. `computeAutoPickedCourseIds` was rewritten around one
+  small shared gate, `isAutoPickCandidate(course, transcript, currentSelectedIds)` — excludes
+  anything already selected, anything already on the real transcript (Task 1.4), and anything the
+  EXISTING, unmodified `checkPrerequisite` (`utils/prerequisites.js`) reports as `checked: true,
+  satisfied: false` (Task 1.3) — reusing that function's own deliberately conservative "don't guess"
+  contract exactly as it already works everywhere else in this app, not a stricter reimplementation.
+  The picker itself is two ordered tiers, stopping the moment the real remaining cap room
+  (`cap - currentSelectedIds.length`) is used up: **Tier 1 (required)** walks
+  `SUBJECT_CREDIT_REQUIREMENTS` in its own declared order, and for each real, still-unmet
+  graduation-credit gap (via the exact same `creditsEarnedFor` the policy card's own progress bars
+  already compute), picks the FIRST real, eligible catalog course in that department — genuinely
+  the catalog's own natural order, so a department whose first-listed course happens to have a
+  real, PARSEABLE prerequisite (Math's own `math-ap-calculus-ab`, which requires "Precalculus or
+  Precalculus Honors" — a real course-name match) correctly falls through to the next eligible one
+  (`math-algebra-1`), while a department whose first-listed course has an unparseable prerequisite
+  text (e.g. "recommended grade of 90+ in three Honors sciences," no real course name referenced)
+  correctly stays eligible per `checkPrerequisite`'s own existing rule — confirmed directly against
+  the real catalog data before writing any test assertions, not assumed. **Tier 2 (electives)** only
+  runs if Tier 1 didn't use the whole cap, walking a combined `electiveSourceOrder` — every selected
+  major's own `getProgramTypeCourses` result FIRST, then the interest-based `recommendedCourses` —
+  so a scarce remaining slot goes to a program-specific pick before a general interest-based one,
+  satisfying Task 1.5's "best-fitting electives" literally through source ORDER, not a fabricated
+  scoring system. UC Davis's own `handleAutoPick` only gets the two constraints it has real data
+  for — `UCDAVIS_QUARTER_COURSE_CAP` (5, documented inline as an honest approximation of a real
+  quarter's typical load, not a cited policy number the way Roslyn's own per-grade cap is) and
+  already-completed exclusion against `state.ucdavisTranscript` — since Stage 2's own catalog fetch
+  never captured UC Davis prerequisite text or graduation-credit data to build a real required tier
+  from; forcing one would mean inventing data this app doesn't actually have, the same "don't guess"
+  posture the rest of this file already holds. Both variants' confirmation message now honestly
+  names the real cap when it was reached (`capNote`), so a shorter-than-expected list reads as
+  "the real load is full," not a failure.
+- **A real, confirmed test-writing mistake was caught and corrected before any test was trusted**:
+  an early draft assumed every AP-level course would be excluded by the new prerequisite check and
+  asserted "no Science AP course was picked" — a direct verification script (simulating the exact
+  algorithm against the real catalog) showed `science-ap-biology` is genuinely, correctly eligible
+  (its own prerequisite text has no parseable course-name reference), and only Math has a real,
+  decisive prerequisite-vs-fallback pair to test against. Every test assertion below reflects the
+  actual, verified ground truth, not an assumed one.
+- **Task 2 — `SelectedCoursesPanel.jsx` gained an optional `onClearAll` prop** (undefined hides the
+  button entirely, a safe default for any caller that doesn't need it) — a header "Clear all"
+  button, gated by the exact same `window.confirm(...)` pattern this codebase already uses for its
+  other genuine destructive-action moments (the hub's own Reset button, Roadmap.jsx's required-task
+  removal), with the literal required wording ("Are you sure you want to remove all selected
+  courses?"). Only calls the real `onClearAll` handler on confirm; declining leaves the list and the
+  panel completely untouched. Both variants' `clearAllCourses` are checkpoint-aware, writing `[]`
+  to whichever real field (`selectedCourseIds`/`selectedUCDavisCourseIds`, or the checkpoint's own
+  nested `courseCheckpoints[stageName]`/`ucdavisQuarterCheckpoints[stageName][quarter]` slot) the
+  existing `toggleCourse` logic already targets — the same single source of truth, never a second
+  concept.
+- **Task 3 — `SelectedCoursesPanel.jsx` gained an optional `onOpenDetail` prop** making each row
+  itself clickable (keyboard-accessible too, `Enter`/`Space`), wired to whichever real detail-modal
+  state the caller already owns (`setSelectedCourseDetail` — the exact same state the main catalog
+  grid's own course cards already open their detail modal through), so a course clicked from the
+  list shows the identical full description, not a second, separate detail view. The remove
+  button's own `onClick` stops propagation so removing a course from the list never also opens its
+  modal. **A real, confirmed z-index bug was caught proactively, before shipping**: the shared
+  `.overlay`/`.modal` course-detail modal (z-index 20) was LOWER than both `.selected-courses-panel`
+  (55) and `.module-review-toggle`/`.module-review-panel` (60) — both of which were introduced
+  after the modal's own z-index was originally set — so opening a course's detail from the panel
+  would have rendered the modal BEHIND it. Fixed by raising `.overlay` to z-index 100 (documented
+  inline with the reasoning: a modal should always render on top of any floating panel), re-checked
+  against the one deliberate exception already above it (`.sound-settings-popover` at 500).
+- Verified with three dedicated Playwright suites (32 checks) plus the two pre-existing Task
+  2/3 regression suites (34 checks, both re-run unmodified and still passing — the new capped
+  algorithm produces a smaller, differently-ordered list than before, but neither pre-existing
+  suite's own assertions depended on the exact old uncapped count, so both hold as-is). The new
+  Roslyn suite confirms: an empty-transcript 9th-grader's auto-pick produces exactly the 7 real,
+  verified required-subject picks (one per real gap, under the 8-course cap), with Math specifically
+  landing on the prerequisite-clear `math-algebra-1` and NOT the real, parseable-prerequisite-gated
+  `math-ap-calculus-ab`; a 12th-grader's real 6-course cap correctly cuts off the LAST subject in
+  priority order (PE/Health) rather than an earlier one, proving the requirement walk is genuinely
+  ordered, not just capped; 5 real manual selections correctly survive untouched and only the real
+  2 remaining slots get filled (cap respects existing selections); a real completed transcript entry
+  for Algebra 1 is never re-recommended, with the Math gap correctly re-filled by a different, real,
+  eligible course; a scarce 1-remaining-elective-slot scenario (7 required-tier picks already using
+  most of an 8-course cap) correctly goes to the program-specific list's own next item (AP
+  Chemistry, from a selected pre-med major) rather than the general interest-based pool; Clear All
+  shows the real confirmation dialog with the exact required wording, declining leaves the list
+  genuinely untouched, and confirming actually empties it (the panel disappearing along with it);
+  and clicking a course row opens the real detail modal for the correct course with a real,
+  substantive description, confirmed to render on top of the panel via a direct z-index comparison,
+  with its own action button genuinely clickable through to the real handler (not intercepted by
+  the panel underneath). A dedicated UC Davis suite (7 checks) confirms the simpler two-constraint
+  version: a real cap of 5 is respected against 7 real recommended candidates for a selected major,
+  drawn from the real recommended-course order; an already-completed real course is correctly
+  skipped in favor of the next real eligible one, with the cap still respected; and the cap
+  correctly accounts for room already used by prior selections. `npm run build`/`npm run lint`
+  both stay clean.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
@@ -14063,3 +14159,38 @@ download). Cover at minimum:
   realistic for a "resuming an existing conversation" test scenario. `npm run build`/`npm run
   lint`/`npm run verify:spacing` (20/20) should all stay clean — this feature never opens
   `roadmapLayout.js`/`Roadmap.jsx`.
+- Fix Auto-Pick with Real Constraints + List Enhancements: before writing any test assertion about
+  which real course a prerequisite check should exclude, VERIFY it against the real catalog data
+  first — don't assume every AP-level course is blocked (most real prerequisite text in this
+  catalog is unparseable, e.g. "recommended grade of 90+...," which `checkPrerequisite`'s own
+  existing "don't guess" rule correctly treats as non-blocking) — a small Node script reimplementing
+  the exact algorithm against `src/data/courses.js` (plain Node's ESM resolver can't follow this
+  codebase's own extension-less relative imports the way Vite can, so either use Vite's
+  `ssrLoadModule` or reimplement the small pure functions inline for a quick check) is the fastest
+  way to get real ground truth before trusting an assertion. Seed an empty transcript + 9th grade
+  (cap 8) and confirm Auto-Pick produces exactly the 7 real required-subject picks, with Math
+  specifically landing on `math-algebra-1` (not `math-ap-calculus-ab`, which has a real, PARSEABLE
+  "Precalculus or Precalculus Honors" prerequisite — this is the one clean, deterministic
+  prerequisite-block test case in the whole catalog); seed 12th grade (cap 6) and confirm the LAST
+  subject in `SUBJECT_CREDIT_REQUIREMENTS`' own declared order (PE/Health) is the one correctly cut
+  off, not an earlier one (proves real priority ordering, not just a count); seed 5 manual
+  selections and confirm only the real remaining room gets auto-filled, with the manual picks
+  surviving untouched; seed a transcript with a required-subject course already completed and
+  confirm it's never re-recommended, with the gap correctly re-filled by a different real course;
+  seed a scenario where required-tier picks nearly exhaust the cap (leaving exactly one elective
+  slot) alongside a selected major AND an interest tag, and confirm that one slot goes to the
+  program-specific list's own next real item, not the interest-based list. For UC Davis, remember
+  it has no real prerequisite/graduation-credit data at all (Stage 2's own catalog fetch never
+  captured it) — only test the two constraints it genuinely has (a hard cap, already-completed
+  exclusion) against a real major's own recommended-course list, not a fabricated required tier. For
+  Clear All, use `page.once('dialog', (dialog) => dialog.dismiss())` then `.accept()` on a second
+  click to test decline-then-confirm as two real, independent interactions — confirm the list is
+  completely untouched after a decline and only clears after a real confirm. For click-to-detail,
+  confirm the z-index fix directly via `getComputedStyle(...).zIndex` comparison between `.overlay`
+  and `.selected-courses-panel` (never assume a purely visual stacking order from a screenshot
+  alone), and confirm the modal's own action button is genuinely clickable through to its real
+  handler (not silently intercepted by the panel underneath) rather than just checking the modal
+  renders. Re-run the two pre-existing Task 2/3 regression suites unmodified after any algorithm
+  change here — their own assertions were written loosely enough (a range, not an exact count) to
+  survive the cap being introduced, but that should be reconfirmed, not assumed, if the cap values
+  themselves ever change again. `npm run build`/`npm run lint` should stay clean.

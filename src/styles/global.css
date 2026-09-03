@@ -3427,8 +3427,9 @@ button.card.passed:hover {
 .selected-courses-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 13px 16px 11px;
+  padding: 13px 12px 11px 16px;
   font-family: 'IBM Plex Sans', sans-serif;
   font-weight: 600;
   font-size: 13px;
@@ -3436,6 +3437,27 @@ button.card.passed:hover {
   border-bottom: 1px solid var(--bloom-card-border);
   flex-shrink: 0;
 }
+/* Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2 — the header's
+   own count text is now its own flex item (`flex: 1`) so the icon+count stay left-aligned while
+   this button sits at the opposite end, matching `.selected-courses-header`'s new space-between. */
+.selected-courses-header span { flex: 1; }
+.selected-courses-clear-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--bloom-ink-soft);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.selected-courses-clear-btn:hover { background: rgba(166, 73, 31, 0.1); color: var(--bloom-orange); }
 .selected-courses-list {
   overflow-y: auto;
   padding: 8px 10px;
@@ -3452,6 +3474,10 @@ button.card.passed:hover {
   border-radius: 10px;
   background: var(--bloom-bg);
 }
+/* Task 3 — a clickable row (onOpenDetail supplied) gets a real hover/pointer affordance so it
+   reads as "click for more," the same way every course card in the main catalog grid already does. */
+.selected-courses-row-clickable { cursor: pointer; transition: background 120ms ease; }
+.selected-courses-row-clickable:hover { background: var(--bloom-card-border); }
 .selected-courses-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3801,7 +3827,16 @@ button.card.passed:hover {
   dominant-baseline: middle;
 }
 
-.overlay { position:fixed; inset:0; background: rgba(30,61,50,0.35); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20; }
+/* Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 3 — raised from 20
+   to 100. Clicking a course inside `SelectedCoursesPanel.jsx` (z-index 55) now opens this exact
+   same shared modal to show its description — a modal should always render on top of any other
+   floating panel, and 20 was lower than both that panel and `.module-review-toggle`/
+   `.module-review-panel` (z-index 60), which also renders on this same screen. Confirmed no other
+   floating control in this app relies on `.overlay` staying below it — the one deliberate
+   exception, `.sound-settings-popover`'s own z-index 500, is a persistent header control meant to
+   stay reachable over literally everything, including an open modal, so 100 stays comfortably
+   under it. */
+.overlay { position:fixed; inset:0; background: rgba(30,61,50,0.35); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
 .modal { background: var(--card); max-width:420px; width:100%; border-radius:6px; padding:26px; position:relative; border:1px solid var(--paper-line); max-height: 85vh; overflow-y: auto; }
 .modal-close { position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer; color: var(--ink-soft); }
 .modal-eyebrow { display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }

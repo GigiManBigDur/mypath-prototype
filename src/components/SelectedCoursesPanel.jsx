@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { ShoppingBag, X } from 'lucide-react';
+import { ShoppingBag, Trash2, X } from 'lucide-react';
 
 // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 1 — a real,
 // persistent "shopping list" panel, shared by BOTH the Roslyn and UC Davis Course Selection
@@ -34,29 +34,67 @@ import { ShoppingBag, X } from 'lucide-react';
 // finishes — any non-`none` transform on an ancestor makes it a containing block for `position:
 // fixed` descendants, which would otherwise anchor this panel to that wrapper's own box instead of
 // the real viewport.
-export default function SelectedCoursesPanel({ courses, onRemove, getLabel }) {
+//
+// Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md) —
+// - Task 2: `onClearAll` (optional — undefined hides the button entirely, a safe default for any
+//   future caller that doesn't need this) is only ever invoked AFTER a real `window.confirm(...)`,
+//   the exact same lightweight synchronous confirmation pattern this codebase already uses for its
+//   other genuine "are you sure" moments (the hub's own Reset button, Roadmap.jsx's required-task
+//   removal) — no accidental full clears, and no need for a bespoke two-step UI just for this one
+//   action.
+// - Task 3: `onOpenDetail` (optional, same "undefined = no-op" default) makes each row itself
+//   clickable, reusing whatever real detail-modal state the caller already owns
+//   (`setSelectedCourseDetail`, the SAME state this screen's own main catalog grid already opens
+//   its detail modal through) — this component has no opinion on how that modal renders, only that
+//   clicking a row hands the real course object up to whichever function the caller supplies. The
+//   remove button stops propagation so removing a course never also opens its modal.
+export default function SelectedCoursesPanel({ courses, onRemove, onClearAll, onOpenDetail, getLabel }) {
   if (!courses || courses.length === 0) return null;
   const label = getLabel || ((course) => course.name);
+
+  const handleClearAll = () => {
+    if (window.confirm('Are you sure you want to remove all selected courses?')) {
+      onClearAll();
+    }
+  };
+
   return createPortal(
     <div className="selected-courses-panel">
       <div className="selected-courses-header">
         <ShoppingBag size={15} />
         <span>Your Courses ({courses.length})</span>
+        {onClearAll && (
+          <button type="button" className="selected-courses-clear-btn" onClick={handleClearAll}>
+            <Trash2 size={12} /> Clear all
+          </button>
+        )}
       </div>
       <div className="selected-courses-list">
-        {courses.map((course) => (
-          <div className="selected-courses-row" key={course.id}>
-            <span className="selected-courses-name" title={label(course)}>{label(course)}</span>
-            <button
-              type="button"
-              className="selected-courses-remove-btn"
-              onClick={() => onRemove(course.id)}
-              aria-label={`Remove ${label(course)}`}
+        {courses.map((course) => {
+          const clickable = !!onOpenDetail;
+          return (
+            <div
+              className={`selected-courses-row${clickable ? ' selected-courses-row-clickable' : ''}`}
+              key={course.id}
+              role={clickable ? 'button' : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onClick={clickable ? () => onOpenDetail(course) : undefined}
+              onKeyDown={clickable ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenDetail(course); }
+              } : undefined}
             >
-              <X size={13} />
-            </button>
-          </div>
-        ))}
+              <span className="selected-courses-name" title={label(course)}>{label(course)}</span>
+              <button
+                type="button"
+                className="selected-courses-remove-btn"
+                onClick={(e) => { e.stopPropagation(); onRemove(course.id); }}
+                aria-label={`Remove ${label(course)}`}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>,
     document.body,

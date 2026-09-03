@@ -66,6 +66,25 @@ const ATTRIBUTE_OPTIONS = [
 ];
 const ATTRIBUTE_LABELS = { ap: 'AP', research_honors: 'RSH', honors: 'Honors', standard: 'Standard' };
 
+// Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 1.1 — the exact
+// same real numbers this screen's own "Course Load Per Grade" policy card already displays below
+// (`POLICY_SECTIONS`), just as a machine-readable lookup rather than a second, hand-typed copy of
+// the same fact drifting out of sync. Keyed by `state.schoolYear` (9-12) — the real grade the
+// courses being selected are FOR at Stage 0 (see `getStage0TargetLabel`'s own header comment for
+// why that's `state.schoolYear` directly, not schoolYear+1).
+const ROSLYN_COURSE_LOAD_CAP = { 9: 8, 10: 8, 11: 7, 12: 6 };
+
+// Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 1.1 — UC Davis's
+// own real course selection has no Roslyn-style published "classes per grade" policy text anywhere
+// in this app's own researched data (ucdavisRequirements.js's GE sections state real UNIT ranges
+// for degree REQUIREMENTS, not a per-quarter course-count policy) — so unlike
+// ROSLYN_COURSE_LOAD_CAP above, this isn't a citation of an already-displayed number, it's a
+// reasonable approximation of a normal UC Davis quarter load (full-time status starts at 12 units;
+// most UC Davis courses run 3-5 units, so a typical ~12-16 unit quarter load is commonly 4-5
+// courses) — the "equivalent real cap" the task asks for, honestly documented as an approximation
+// rather than a specific verified policy figure the way Roslyn's own number is.
+const UCDAVIS_QUARTER_COURSE_CAP = 5;
+
 // Task 1's real Roslyn policy data, as a fixed list of visual summary cards rather than a wall of
 // text. Every figure here comes directly from the build spec, not derived/guessed from the course
 // catalog itself.
@@ -166,42 +185,85 @@ function creditsEarnedFor(departments, transcript) {
   }, 0);
 }
 
-// Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2 — reuses
-// three real, already-existing pieces of data/logic rather than inventing a new selection
-// algorithm: (1) the merged interest-based recommended list — byte-identical to what "Recommended
-// for you" already computes and shows; (2) the program-specific recommended list per selected
-// major — byte-identical to what the "Program-Specific Course Recommendations" section already
-// shows; and (3), for the student's actual SCHOOL's own real graduation requirements, the exact
-// same `creditsEarnedFor`/`SUBJECT_CREDIT_REQUIREMENTS` pair the policy card's own credit-progress
-// bars already compute above — filling in one real course per subject the transcript shows is
-// still genuinely below its real credit minimum (never a second, invented metric, and never
-// touching a subject that already has real coverage from (1)/(2)). Deduped via a Map keyed by
-// course id, so the same course recommended by more than one source only ever counts once.
+// Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 1 — a course is
+// only ever a real auto-pick CANDIDATE if all three hold: it isn't already in the running
+// selection (Task 1.5's own "fill remaining slots," not re-offer what's already there), it isn't
+// already on the real transcript (Task 1.4 — don't recommend something already completed,
+// regardless of the grade earned), and its real prerequisite (if any) is genuinely satisfied by
+// that same transcript (Task 1.3) — reusing `checkPrerequisite` exactly as Course Selection Stage
+// 4's own checkpoint mode already does, not a second, parallel prerequisite concept. A course whose
+// prerequisite text couldn't be parsed into a real reference (`checked: false`) is treated as
+// "don't block," the same honest "don't guess" contract `checkPrerequisite` already documents.
+function isAutoPickCandidate(course, transcript, currentSelectedIds) {
+  if (currentSelectedIds.includes(course.id)) return false;
+  if ((transcript || []).some((entry) => entry.courseId === course.id)) return false;
+  const result = checkPrerequisite(course, transcript);
+  return !(result.checked && !result.satisfied);
+}
+
+// Task 1.1/1.2/1.5 — replaces the old "union everything relevant, no cap" version. Real
+// constraints, in the exact priority order the task specifies:
+//   1. A HARD CAP on the total course count, matching this student's own real course load for
+//      their actual grade (ROSLYN_COURSE_LOAD_CAP above) — computed as room STILL REMAINING after
+//      whatever's already selected, so a student who already has a full (or overfull) manual list
+//      correctly gets zero new auto-picks, never a silent overload.
+//   2. REQUIRED graduation-requirement courses fill available slots FIRST — the exact same
+//      `creditsEarnedFor`/`SUBJECT_CREDIT_REQUIREMENTS` pair the policy card's own credit-progress
+//      bars already compute, now genuinely gated by isAutoPickCandidate (prerequisite +
+//      not-already-completed) rather than a bare department match.
+//   3. Only once (2) is placed does anything ELECTIVE get a chance at whatever room is left —
+//      program-specific recommendations first (a more specific signal — tied to the student's own
+//      selected MAJOR — than a general interest tag), then interest-based ones, in that order,
+//      stopping the moment the cap is reached. This is "the best-fitting electives," not "every
+//      matching option," per Task 1.5's own explicit distinction.
 //
-// "Verified school-specific requirements" (schoolRequirements.js) is deliberately NOT a course
-// SOURCE here — those entries are real, independently-verified TEXT (e.g. "3 credits of Chemistry
-// or Physics"), with no structured course-id mapping behind them; mechanically guessing which
-// catalog course "counts" from free text would be exactly the kind of invented selection logic
-// this task explicitly says to avoid. That layer is still genuinely surfaced, honestly — see
-// `handleAutoPick`'s own confirmation message below, which names the real requirement so the
-// student reviews it themselves, rather than silently ignoring it.
-function computeAutoPickedCourseIds({ recommendedCourses, selectedProgramTypes, transcript }) {
+// "Verified school-specific requirements" (schoolRequirements.js) is still deliberately NOT a
+// course SOURCE — see the header comment on this function's own prior version, unchanged reasoning:
+// those entries are real, independently-verified free TEXT with no structured course-id mapping,
+// so mechanically guessing a match would be exactly the invented selection logic Task 1 (both the
+// original task and this fix) says to avoid. Still genuinely surfaced, honestly, in
+// `handleAutoPick`'s own confirmation message.
+function computeAutoPickedCourseIds({
+  recommendedCourses, selectedProgramTypes, transcript, currentSelectedIds, schoolYear,
+}) {
+  const cap = ROSLYN_COURSE_LOAD_CAP[schoolYear] ?? ROSLYN_COURSE_LOAD_CAP[DEFAULT_SCHOOL_YEAR.highschool];
+  const remainingSlots = Math.max(0, cap - currentSelectedIds.length);
   const picked = new Map();
-  for (const c of recommendedCourses) picked.set(c.id, c);
-  for (const type of selectedProgramTypes) {
-    for (const c of getProgramTypeCourses(type, getCourseById)) picked.set(c.id, c);
-  }
+  if (remainingSlots === 0) return [];
+
+  // Tier 1 — required (real, still-unmet graduation credit gaps).
   for (const req of SUBJECT_CREDIT_REQUIREMENTS) {
+    if (picked.size >= remainingSlots) break;
     const earned = creditsEarnedFor(req.departments, transcript || []);
     if (earned >= req.required) continue;
     const alreadyCovered = [...picked.values()].some((c) => req.departments.includes(c.department));
     if (alreadyCovered) continue;
-    // The first standard-credit course in the real catalog for this department — a plain,
-    // deterministic pick (COURSES' own natural order), not a "best" one; the student can freely
-    // swap it for any other real course in that same department afterward (Task 3).
-    const candidate = COURSES.find((c) => req.departments.includes(c.department) && c.credit != null);
+    // The first REAL, eligible (credit-bearing, not-completed, prerequisite-clear) course in this
+    // department, in the catalog's own natural order — a plain, deterministic pick, not a "best"
+    // one; the student can freely swap it for any other real course in that department afterward
+    // (Task 3 of the original feature).
+    const candidate = COURSES.find((c) => req.departments.includes(c.department)
+      && c.credit != null
+      && isAutoPickCandidate(c, transcript, currentSelectedIds));
     if (candidate) picked.set(candidate.id, candidate);
   }
+
+  // Tier 2 — electives, only for whatever room Tier 1 didn't use. Program-specific (major-tied)
+  // before interest-based (broader), stopping the instant the cap is reached — "best-fitting," not
+  // "every matching option."
+  if (picked.size < remainingSlots) {
+    const electiveSourceOrder = [
+      ...selectedProgramTypes.flatMap((type) => getProgramTypeCourses(type, getCourseById)),
+      ...recommendedCourses,
+    ];
+    for (const c of electiveSourceOrder) {
+      if (picked.size >= remainingSlots) break;
+      if (picked.has(c.id)) continue;
+      if (!isAutoPickCandidate(c, transcript, currentSelectedIds)) continue;
+      picked.set(c.id, c);
+    }
+  }
+
   return [...picked.keys()];
 }
 
@@ -408,22 +470,26 @@ export default function CourseSelectionScreen() {
     patch({ selectedCourseIds: newIds });
   };
 
-  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 — a
-  // deliberate MERGE (union with `currentSelectedIds`), never a replace: a student who's already
-  // built part of their list by hand should never have a manual pick silently discarded just for
-  // clicking this. Writes to the exact same `state.selectedCourseIds` field every manual
-  // `toggleCourse` call already writes to — this is what makes Task 4 (the reactive AI check-in)
-  // fall out for free with zero further wiring: `profileCompiler.js`'s own `currentCourses` (what
-  // the reactive conversation's own module-reaction actually reads) is already derived straight
-  // from this same field, with no separate concept of "was this course auto-picked or manual."
-  // Never offered in checkpoint mode (see the button's own render guard below) — a checkpoint's own
-  // real prerequisite-locking (`ineligibleReasonFor`) is a genuinely separate concern this task
-  // doesn't touch, so this stays scoped to the plain onboarding selection only.
+  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3, and Fix
+  // Auto-Pick with Real Constraints (Task 1, see CLAUDE.md) — a deliberate MERGE (union with
+  // `currentSelectedIds`), never a replace: a student who's already built part of their list by
+  // hand should never have a manual pick silently discarded just for clicking this. Writes to the
+  // exact same `state.selectedCourseIds` field every manual `toggleCourse` call already writes to
+  // — this is what makes the reactive AI check-in fall out for free with zero further wiring:
+  // `profileCompiler.js`'s own `currentCourses` (what the reactive conversation's own module-
+  // reaction actually reads) is already derived straight from this same field, with no separate
+  // concept of "was this course auto-picked or manual." Never offered in checkpoint mode (see the
+  // button's own render guard below) — a checkpoint's own real prerequisite-locking
+  // (`ineligibleReasonFor`) is a genuinely separate concern this task doesn't touch, so this stays
+  // scoped to the plain onboarding selection only.
   const handleAutoPick = () => {
+    const cap = ROSLYN_COURSE_LOAD_CAP[state.schoolYear] ?? ROSLYN_COURSE_LOAD_CAP[DEFAULT_SCHOOL_YEAR.highschool];
     const newIds = computeAutoPickedCourseIds({
       recommendedCourses,
       selectedProgramTypes,
       transcript: state.transcript,
+      currentSelectedIds,
+      schoolYear: state.schoolYear,
     });
     const merged = [...new Set([...currentSelectedIds, ...newIds])];
     const addedCount = merged.length - currentSelectedIds.length;
@@ -438,9 +504,34 @@ export default function CourseSelectionScreen() {
     const reqNote = verifiedReq
       ? ` ${verifiedReq.key.split('::')[0]} also has its own verified requirement for ${verifiedReq.key.split('::')[1]} — worth a look under School-Specific Requirements below.`
       : '';
+    // Task 1.1 — honestly names the real cap being respected, not just the count added, so a
+    // student can see WHY the list stopped where it did (a real course-load ceiling, not an
+    // arbitrary one) rather than wondering if something was silently missed.
+    const capNote = merged.length >= cap
+      ? ` Your list is now at the real ${cap}-course load for your grade — remove something first if you want room for anything else.`
+      : '';
     setAutoPickMessage(addedCount > 0
-      ? `Added ${addedCount} course${addedCount === 1 ? '' : 's'} based on your interests, selected majors, and Roslyn's own graduation requirements.${reqNote}`
-      : `Your current selections already cover everything this can suggest right now.${reqNote}`);
+      ? `Added ${addedCount} course${addedCount === 1 ? '' : 's'} — required courses first, then your best-fitting interests/majors, within your real ${cap}-course load, and skipping anything already completed or missing a prerequisite.${capNote}${reqNote}`
+      : `Your current selections already cover everything this can suggest right now (or you're already at your real ${cap}-course load).${reqNote}`);
+  };
+
+  // Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2 — the actual
+  // clearing action, wired to `SelectedCoursesPanel`'s own `onClearAll`, which is what gates this
+  // behind a real `window.confirm(...)` first (the exact same lightweight synchronous confirmation
+  // pattern this codebase already uses for its other real "are you sure" moments — the hub's own
+  // Reset button, Roadmap.jsx's required-task removal) — this function itself is only ever called
+  // once that's already been confirmed. Checkpoint-aware, same branch shape as `toggleCourse`.
+  const clearAllCourses = () => {
+    if (checkpoint) {
+      patch({
+        courseCheckpoints: {
+          ...state.courseCheckpoints,
+          [checkpoint.stageName]: { ...state.courseCheckpoints[checkpoint.stageName], selectedCourseIds: [] },
+        },
+      });
+      return;
+    }
+    patch({ selectedCourseIds: [] });
   };
 
   // Real prerequisite check against the (just-refreshed, if this is a checkpoint) transcript —
@@ -906,9 +997,19 @@ export default function CourseSelectionScreen() {
           at the very bottom of the page, well below the policy/recommendation/program/school
           sections above — a student had to scroll all the way past everything to check it) with a
           real, always-visible fixed panel. Rendered in BOTH onboarding and checkpoint mode (the
-          panel itself is agnostic to which — `toggleCourse` already branches internally), unlike
-          the Auto-Pick button above, which is onboarding-only. */}
-      <SelectedCoursesPanel courses={selectedCourses} onRemove={toggleCourse} />
+          panel itself is agnostic to which — `toggleCourse`/`clearAllCourses` already branch
+          internally), unlike the Auto-Pick button above, which is onboarding-only.
+          Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2/3 —
+          `onClearAll`/`onOpenDetail` wire the panel's own new "Clear all" confirmation and
+          click-to-view-description straight into the exact same real actions/state this screen's
+          main grid already uses — `clearAllCourses` and the SAME `setSelectedCourseDetail` that
+          opens the identical detail modal below for a card clicked in the main grid. */}
+      <SelectedCoursesPanel
+        courses={selectedCourses}
+        onRemove={toggleCourse}
+        onClearAll={clearAllCourses}
+        onOpenDetail={setSelectedCourseDetail}
+      />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
         <button
@@ -1142,27 +1243,59 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
     patch({ selectedUCDavisCourseIds: newIds });
   };
 
-  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3 — UC
-  // Davis has no program-specific/school-specific course-id mapping the way Roslyn's own
-  // programRecommendations.js/schoolRequirements.js do (see the Roslyn variant's own
-  // computeAutoPickedCourseIds comment), so this genuinely simpler auto-pick reuses the ONE real
-  // structured source that exists here: the exact same major/interest-based `recommendedCourses`
-  // list "Recommended for you" already computes and shows — nothing invented. Same deliberate
-  // MERGE (never replace) as the Roslyn variant, writing to the identical
-  // `state.selectedUCDavisCourseIds` field every manual `toggleCourse` call already uses — which is
-  // what makes Task 4 (the reactive AI check-in) apply with zero further wiring, same reasoning.
-  // Never offered in checkpoint mode, matching the Roslyn variant's own scope decision.
+  // Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 2/3, and Fix
+  // Auto-Pick with Real Constraints (Task 1, see CLAUDE.md) — UC Davis has no program-specific/
+  // school-specific course-id mapping the way Roslyn's own programRecommendations.js/
+  // schoolRequirements.js do, AND no prerequisite text was ever captured for its own catalog
+  // (Stage 2's own fetch never captured it — see UCDavisCourseCard's own comment), so there's no
+  // real "required tier"/prerequisite check to apply here the way the Roslyn variant does — this
+  // genuinely simpler auto-pick applies only the two constraints that DO have real data behind
+  // them: a hard cap at UCDAVIS_QUARTER_COURSE_CAP (Task 1.1's own "equivalent real cap"), and
+  // excluding anything already on the real UC Davis transcript (Task 1.4). Reuses the ONE real
+  // structured recommendation source that exists here — the exact same major/interest-based
+  // `recommendedCourses` list "Recommended for you" already computes — nothing invented. Same
+  // deliberate MERGE (never replace) as the Roslyn variant, writing to the identical
+  // `state.selectedUCDavisCourseIds` field every manual `toggleCourse` call already uses.
   const handleAutoPick = () => {
-    const newIds = recommendedCourses.map((c) => c.id);
+    const remainingSlots = Math.max(0, UCDAVIS_QUARTER_COURSE_CAP - currentSelectedIds.length);
+    const transcript = state.ucdavisTranscript || [];
+    const newIds = [];
+    for (const c of recommendedCourses) {
+      if (newIds.length >= remainingSlots) break;
+      if (currentSelectedIds.includes(c.id)) continue;
+      if (transcript.some((entry) => entry.courseId === c.id)) continue;
+      newIds.push(c.id);
+    }
     const merged = [...new Set([...currentSelectedIds, ...newIds])];
     const addedCount = merged.length - currentSelectedIds.length;
     patch({ selectedUCDavisCourseIds: merged });
     const collegeNote = selectedColleges.length > 0
       ? ` Your selected college(s) also have their own real requirements — see above.`
       : '';
+    const capNote = merged.length >= UCDAVIS_QUARTER_COURSE_CAP
+      ? ` Your list is now at a typical ${UCDAVIS_QUARTER_COURSE_CAP}-course quarter load — remove something first if you want room for anything else.`
+      : '';
     setAutoPickMessage(addedCount > 0
-      ? `Added ${addedCount} course${addedCount === 1 ? '' : 's'} based on your selected majors${thematicUCDavisCourses.length > 0 ? ' and the direction from your first conversation' : ''}.${collegeNote}`
-      : `Your current selections already cover everything this can suggest right now.${collegeNote}`);
+      ? `Added ${addedCount} course${addedCount === 1 ? '' : 's'} based on your selected majors${thematicUCDavisCourses.length > 0 ? ' and the direction from your first conversation' : ''}, within a typical ${UCDAVIS_QUARTER_COURSE_CAP}-course quarter load, skipping anything already on your transcript.${capNote}${collegeNote}`
+      : `Your current selections already cover everything this can suggest right now (or you're already at a typical ${UCDAVIS_QUARTER_COURSE_CAP}-course quarter load).${collegeNote}`);
+  };
+
+  // Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2 — same real,
+  // window.confirm-gated clearing action as the Roslyn variant (see `SelectedCoursesPanel`'s own
+  // `onClearAll`), checkpoint-aware the same way `toggleCourse` above already is.
+  const clearAllCourses = () => {
+    if (checkpoint) {
+      const { stageName, quarter } = checkpoint;
+      const stageRecord = state.ucdavisQuarterCheckpoints[stageName] || {};
+      patch({
+        ucdavisQuarterCheckpoints: {
+          ...state.ucdavisQuarterCheckpoints,
+          [stageName]: { ...stageRecord, [quarter]: { ...stageRecord[quarter], selectedCourseIds: [] } },
+        },
+      });
+      return;
+    }
+    patch({ selectedUCDavisCourseIds: [] });
   };
 
   const toggleInFilter = (arr, setArr, val) => {
@@ -1429,10 +1562,15 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
           same real, always-visible fixed panel as the Roslyn variant, replacing the old inline chip
           strip. `getLabel` shows the real `${code} — ${name}` here — a small, genuine improvement
           over the bare course code the old chip showed (confirmed via the removed JSX above), not
-          a functional change. */}
+          a functional change. Fix Auto-Pick with Real Constraints + List Enhancements (see
+          CLAUDE.md), Task 2/3 — same real "Clear all" confirmation and click-to-view-description
+          wiring as the Roslyn variant, into this screen's own `clearAllCourses`/
+          `setSelectedCourseDetail`. */}
       <SelectedCoursesPanel
         courses={selectedCourses}
         onRemove={toggleCourse}
+        onClearAll={clearAllCourses}
+        onOpenDetail={setSelectedCourseDetail}
         getLabel={(course) => `${course.code} — ${course.name}`}
       />
 
