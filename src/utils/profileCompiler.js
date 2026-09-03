@@ -122,7 +122,17 @@ function resolveProjects(state, roadmap) {
     // correctly returns `null` for it. Reporting the REAL category label alongside an honest
     // "Build Your Own" framing instead of the raw synthetic id string — this profile is what a
     // LATER AI request reads back, so accurate category context still matters here.
-    const resolved = project.aiSuggested ? null : findProjectType(project.categoryId, project.projectTypeId);
+    // Unify All Project Types Under the Conversational System (see CLAUDE.md) — a curated project
+    // type developed through the AI conversation still carries its own REAL `categoryId`/
+    // `projectTypeId` (unlike blank Build Your Own's synthetic sentinels, which `findProjectType`
+    // correctly returns `null` for), so the real lookup is now attempted FIRST regardless of
+    // `project.aiSuggested` — a real, confirmed fix: the old `project.aiSuggested ? null : ...`
+    // gate would have reported every AI-developed project (even one seeded from a real, named
+    // curated type like "Coding and Web Development Business") as a generic "AI-generated idea,"
+    // losing real, specific context this profile is meant to carry. `resolved` stays `null` for
+    // both blank Build Your Own and the Narrative Overview project (neither has a real category/
+    // projectType to find), so their own existing fallback framing below is completely unaffected.
+    const resolved = findProjectType(project.categoryId, project.projectTypeId);
     // Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md) — a project started
     // from the new top-level conversation carries the synthetic `BUILD_YOUR_OWN_CATEGORY_ID`
     // (no real category was ever picked), so `findCategory` correctly returns `null` for it —
@@ -164,8 +174,8 @@ function resolveProjects(state, roadmap) {
 
     return {
       id: project.id,
-      category: project.aiSuggested ? categoryLabel : (resolved?.category?.label || project.categoryId),
-      projectType: project.aiSuggested ? 'AI-generated idea' : (resolved?.projectType?.name || project.projectTypeId),
+      category: resolved ? resolved.category.label : (project.aiSuggested ? categoryLabel : project.categoryId),
+      projectType: resolved ? resolved.projectType.name : (project.aiSuggested ? 'AI-generated idea' : project.projectTypeId),
       projectName: project.projectName,
       status: project.status,
       totalSteps: flatSteps.length,

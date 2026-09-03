@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft, ArrowRight, Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette,
   Clock, ListOrdered, Wrench, CheckCircle2, Sparkles, Heart, Circle, Lock,
@@ -48,6 +48,66 @@ const BUILD_YOUR_OWN_PRESETS = [
   'Help me find a unique project idea combining my interests',
   'Suggest a project based on my own profile',
 ];
+
+// Unify All Project Types Under the Conversational System (see CLAUDE.md), Task 3 — the SAME
+// blank-page-reducing motivation `BUILD_YOUR_OWN_PRESETS` already serves, just scoped to the real
+// picked project type instead of generic, since there's a real starting point to react to here.
+function buildSeededPresets(projectTypeName) {
+  return [
+    `Help me adapt "${projectTypeName}" to something I'm genuinely interested in`,
+    'What would make my own version of this stand out?',
+    "I like this direction — let's talk through how to make it specifically mine",
+  ];
+}
+
+// Task 2 — a real, scripted opening message (client-side, no API call — the same "a static,
+// always-the-same first-run line doesn't need a real request" precedent
+// useOnboardingChat.js's own buildOnboardingGreeting() already established) referencing the real
+// curated content already written for the picked project type, seeded exactly once, the very
+// first time this specific conversation is opened. Framed explicitly as a starting point, never a
+// final answer, per the task's own literal example wording ("You picked X — let's figure out what
+// your specific version of this actually looks like").
+function buildSeededProjectGreeting(seedContext) {
+  const {
+    projectTypeName, overview, timeCommitment, example, resources,
+  } = seedContext;
+  const resourceList = (resources || []).join(', ');
+  return `You picked "${projectTypeName}" — let's figure out what your specific version of this actually looks like.\n\nAs a starting point: ${overview} It typically takes about ${timeCommitment}. One example of this kind of project (from a past student, illustrative only): "${example}" And tools like ${resourceList} tend to come in handy.\n\nBut that's just a starting point, not a final answer. Tell me a bit about your own situation — what actually interests you here, what you have access to, what would make this feel like yours — and we'll shape it into something that's really your own.`;
+}
+
+// Shared by every real "AI-developed project" creation path — the blank-slate Build Your Own
+// conversation AND every curated, conversation-seeded project type alike. Task 1 removes the old
+// "pick a start date and begin immediately" flat-steps creation entirely for NEW projects; every
+// one now goes through this one real shape (Two-Phase Generation's own `overviewMilestones`),
+// regardless of which conversation produced the plan or whether it started from a real curated
+// type or a blank slate. A pre-existing, already-started project created under the OLD flat-steps
+// shape (from before this feature shipped) is completely untouched by this — nothing here ever
+// migrates/rewrites it, and every other piece of this app that reads a started project
+// (Roadmap.jsx, roadmapGenerator.js, ProjectTypeView's own timeline rendering below) already
+// branches correctly on `overviewMilestones` presence, so both shapes keep working side by side.
+function createOverviewProject({
+  categoryId, projectTypeId, plan, startDate,
+}) {
+  const dueDates = computeMilestoneDueDates(startDate, plan.milestones, plan.milestoneDayOffsets);
+  return {
+    id: makeTaskId('project'),
+    categoryId,
+    projectTypeId,
+    projectName: plan.projectName,
+    status: 'active',
+    aiSuggested: true,
+    startDate,
+    overviewMilestones: plan.milestones.map((title, i) => ({
+      id: makeTaskId('milestone'),
+      title,
+      desc: `Part of your ${plan.projectName} project, developed through a conversation with MyPath AI. ${HONESTY_NOTE}`,
+      dueDate: dueDates[i],
+      targetDate: null,
+      subSteps: [],
+      chatHistory: [],
+    })),
+  };
+}
 
 const CATEGORY_ICONS = {
   Rocket, HeartHandshake, Microscope, Cpu, BookOpen, Palette, Sparkles,
@@ -99,22 +159,28 @@ export default function ProjectBuilderScreen() {
   // Local, unpersisted browse state — refreshing mid-browse just lands back on the category
   // grid, which is an acceptable reset for a "browse and explore" screen (unlike survey answers
   // or selections elsewhere, nothing here is lost if you re-pick your path).
-  const [view, setView] = useState('categories'); // 'categories' | 'category' | 'projectType' | 'buildYourOwn'
+  const [view, setView] = useState('categories'); // 'categories' | 'category' | 'projectType' | 'projectBrainstorm' | 'buildYourOwn'
   const [categoryId, setCategoryId] = useState(null);
   const [projectTypeId, setProjectTypeId] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [startDate, setStartDate] = useState('');
-  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6 —
-  // `buildYourOwnPlan` is the plan (`{ projectName, milestones }`) the student explicitly chose to
-  // start from by clicking "Start This Project" inside the conversation — NOT just the latest
-  // plan the AI happens to have proposed (the conversation can keep evolving the plan turn to
-  // turn; this freezes the exact one the student committed to). `startedBuildYourOwnProject` is
-  // the just-created project once a start date is confirmed, tracked directly here (NOT derived
-  // by looking up `state.startedProjects` via `projectTypeId`) because every "Build Your Own"
-  // project shares the SAME synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` — unlike a real curated
-  // projectType, that id can't uniquely identify "this one specific project," so the just-created
-  // project object is kept directly instead.
-  const [buildYourOwnPlan, setBuildYourOwnPlan] = useState(null);
+  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6, generalized
+  // by "Unify All Project Types Under the Conversational System" (see CLAUDE.md) to serve BOTH the
+  // blank-slate Build Your Own conversation AND every curated, conversation-seeded project type —
+  // only one conversation's plan is ever "in flight" being started at a time within one screen
+  // visit, so one shared slot is fine (matching the original single-slot precedent). `chosenPlan`
+  // (`{ projectName, milestones }`) is the plan the student explicitly chose to start from by
+  // clicking "Start This Project" inside a conversation — NOT just the latest plan the AI happens
+  // to have proposed (the conversation can keep evolving the plan turn to turn; this freezes the
+  // exact one the student committed to). `startedBuildYourOwnProject` is still Build-Your-Own-
+  // specific: the just-created project once a start date is confirmed, tracked directly here (NOT
+  // derived by looking up `state.startedProjects` via `projectTypeId`) because every "Build Your
+  // Own" project shares the SAME synthetic `BUILD_YOUR_OWN_PROJECT_TYPE_ID` — unlike a real
+  // curated projectType, that id can't uniquely identify "this one specific project." A curated,
+  // conversation-seeded project needs no such workaround — its own real, unique `projectType.id`
+  // already lets `startedProject` (below) derive correctly the instant `state.startedProjects`
+  // gains the new entry.
+  const [chosenPlan, setChosenPlan] = useState(null);
   const [startedBuildYourOwnProject, setStartedBuildYourOwnProject] = useState(null);
 
   const roadmap = useMemo(() => generateRoadmap(state), [state]);
@@ -147,11 +213,24 @@ export default function ProjectBuilderScreen() {
   const moduleReview = useModuleReview('projectBuilder', 'projectBuilder-intro', () => {});
 
   const openCategory = (id) => { setCategoryId(id); setProjectTypeId(null); setView('category'); };
-  const openProjectType = (id) => { setProjectTypeId(id); setShowStartPicker(false); setStartDate(''); setView('projectType'); };
+  // Unify All Project Types Under the Conversational System (see CLAUDE.md), Task 1 — clicking a
+  // NOT-yet-started project type now opens the real conversation (`'projectBrainstorm'`) instead
+  // of the old static overview-then-immediate-start page; a project type that ALREADY has a real
+  // started project (this session or a prior one — checked via its own real, unique id, which is
+  // exactly what still lets this dedup correctly) still routes to the existing `'projectType'`
+  // view, completely unchanged, showing that real project's own started-state banner/timeline.
+  const openProjectType = (id) => {
+    setProjectTypeId(id);
+    setShowStartPicker(false);
+    setStartDate('');
+    setChosenPlan(null);
+    const alreadyStarted = (state.startedProjects || []).some((p) => p.projectTypeId === id);
+    setView(alreadyStarted ? 'projectType' : 'projectBrainstorm');
+  };
   // Consolidate "Build Your Own" to One Top-Level Entry (see CLAUDE.md), Task 2 — reachable
   // directly from the top-level category grid now, with no category to remember/reset.
   const openBuildYourOwn = () => {
-    setBuildYourOwnPlan(null);
+    setChosenPlan(null);
     setStartedBuildYourOwnProject(null);
     setShowStartPicker(false);
     setStartDate('');
@@ -159,12 +238,21 @@ export default function ProjectBuilderScreen() {
   };
   const goBack = () => {
     if (view === 'projectType') { setShowStartPicker(false); setView('category'); return; }
+    if (view === 'projectBrainstorm') {
+      // Same "one level at a time" granularity as Build Your Own's own Back below: if a plan is
+      // locked in (chosen mid-conversation) but not yet actually started, Back returns to the
+      // live conversation instead of leaving it entirely.
+      if (chosenPlan && !startedProject) { setChosenPlan(null); setShowStartPicker(false); return; }
+      setShowStartPicker(false);
+      setView('category');
+      return;
+    }
     if (view === 'buildYourOwn') {
       // If the student clicked "Start This Project" (a plan is locked in) but hasn't actually
       // confirmed a start date yet, Back returns to the live conversation instead of leaving it
       // entirely — the same "one level at a time" granularity a curated project type's own Back
       // (project type -> category, not project type -> categories) already has.
-      if (buildYourOwnPlan && !startedBuildYourOwnProject) { setBuildYourOwnPlan(null); setShowStartPicker(false); return; }
+      if (chosenPlan && !startedBuildYourOwnProject) { setChosenPlan(null); setShowStartPicker(false); return; }
       setShowStartPicker(false);
       setView('categories');
       return;
@@ -188,52 +276,31 @@ export default function ProjectBuilderScreen() {
   };
   const conflict = findNearbyConflict(startDate);
 
-  // Two-Phase Generation (see CLAUDE.md) — starting a Build Your Own project now creates ALL of
-  // its small set of overview PHASES up front (Task 1's own `buildYourOwnPlan.milestones`, now a
-  // short 4-7-item overview list, not a granular plan) as `overviewMilestones`, each with empty
-  // `subSteps`/`chatHistory` — only the FIRST phase is reachable/unlockable at this point (real
-  // locking is computed fresh from `completedNodes` every time the roadmap regenerates, see
-  // roadmapGenerator.js's `buildOverviewMilestoneChains`, not stored here). `startDate` (the
-  // picked Project Start Date) becomes `project.startDate`, milestone 0's own real anchor date —
-  // every later phase's own date is likewise computed fresh, never stored. This REPLACES the old
-  // `guideSteps`/flat `steps` shape entirely for Build Your Own projects (a curated, non-Build-
-  // Your-Own project type still uses that original shape completely unchanged, via the `steps`
-  // param below this branch).
+  // Two-Phase Generation (see CLAUDE.md) — starting a project now creates ALL of its small set of
+  // overview PHASES up front (Task 1's own `chosenPlan.milestones`, a short 4-7-item overview
+  // list, not a granular plan) as `overviewMilestones`, each with empty `subSteps`/`chatHistory` —
+  // only the FIRST phase is reachable/unlockable at this point (real locking is computed fresh
+  // from `completedNodes` every time the roadmap regenerates, see roadmapGenerator.js's
+  // `buildOverviewMilestoneChains`, not stored here). `startDate` (the picked Project Start Date)
+  // becomes `project.startDate`, milestone 0's own real anchor date — every later phase's own date
+  // is likewise computed fresh, never stored.
   //
-  // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Task 6's own
-  // original "flows into the EXACT SAME mechanism" precedent still holds in spirit — this still
-  // writes to the same `state.startedProjects` array and Roadmap.jsx still reuses the same ring/
-  // branch rendering (see buildOverviewMilestoneChains's own header comment) — it's the internal
-  // shape of a Build Your Own project's own steps that's restructured here, not which state field
-  // or which rendering system it flows into.
+  // Unify All Project Types Under the Conversational System (see CLAUDE.md), Task 1 — this
+  // REPLACES the old `guideSteps`/flat `steps` immediate-start shape entirely for EVERY NEW
+  // project, curated or blank-slate alike (see `createOverviewProject`'s own header comment for
+  // why a pre-existing, already-started project under the old shape is unaffected). Task 4 — "same
+  // 'Start This Project' outcome... already used everywhere else" holds literally: both branches
+  // below call the exact same shared `createOverviewProject` helper, differing only in which real
+  // (or synthetic, for blank Build Your Own) `categoryId`/`projectTypeId` gets attached.
   const confirmStart = () => {
-    if (!startDate) return;
+    if (!startDate || !chosenPlan) return;
     if (view === 'buildYourOwn') {
-      if (!buildYourOwnPlan) return;
-      // Generalize the Overview/lock system to Every Multi-Step Chain (see CLAUDE.md), Task 4 —
-      // every overview milestone now gets its own real, explicit `dueDate` computed from the AI's
-      // own proposed `milestoneDayOffsets` (see computeMilestoneDueDates's own comment), not just
-      // an implicit sequence position — `buildOverviewMilestoneChains` prefers this directly over
-      // its own pre-existing cursor-based estimate.
-      const dueDates = computeMilestoneDueDates(startDate, buildYourOwnPlan.milestones, buildYourOwnPlan.milestoneDayOffsets);
-      const newProject = {
-        id: makeTaskId('project'),
+      const newProject = createOverviewProject({
         categoryId: BUILD_YOUR_OWN_CATEGORY_ID,
         projectTypeId: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
-        projectName: buildYourOwnPlan.projectName,
-        status: 'active',
-        aiSuggested: true,
+        plan: chosenPlan,
         startDate,
-        overviewMilestones: buildYourOwnPlan.milestones.map((title, i) => ({
-          id: makeTaskId('milestone'),
-          title,
-          desc: `Part of your ${buildYourOwnPlan.projectName} project, developed through a conversation with MyPath AI. ${HONESTY_NOTE}`,
-          dueDate: dueDates[i],
-          targetDate: null,
-          subSteps: [],
-          chatHistory: [],
-        })),
-      };
+      });
       patch({ startedProjects: [...(state.startedProjects || []), newProject] });
       setStartedBuildYourOwnProject(newProject);
       setShowStartPicker(false);
@@ -241,20 +308,23 @@ export default function ProjectBuilderScreen() {
       moduleReview.beginReview();
       return;
     }
-    if (!category || !projectType) return;
-    const newProject = {
-      id: makeTaskId('project'),
-      categoryId: category.id,
-      projectTypeId: projectType.id,
-      projectName: projectType.name,
-      status: 'active',
-      guideStepsUsed: 1,
-      steps: [{ id: makeTaskId('project-step'), title: projectType.steps[0], date: startDate, desc: projectType.overview }],
-    };
-    patch({ startedProjects: [...(state.startedProjects || []), newProject] });
-    setShowStartPicker(false);
-    setStartDate('');
-    moduleReview.beginReview();
+    if (view === 'projectBrainstorm') {
+      if (!category || !projectType) return;
+      const newProject = createOverviewProject({
+        categoryId: category.id,
+        projectTypeId: projectType.id,
+        plan: chosenPlan,
+        startDate,
+      });
+      patch({ startedProjects: [...(state.startedProjects || []), newProject] });
+      // No extra local tracking needed here, unlike Build Your Own above — a real curated
+      // `projectType.id` is genuinely unique, so `startedProject` (derived above from
+      // `state.startedProjects`) already correctly picks up this new project the instant `patch()`
+      // commits, with zero disambiguation workaround required.
+      setShowStartPicker(false);
+      setStartDate('');
+      moduleReview.beginReview();
+    }
   };
 
   // Dashboard/Guide feature, Stage 5 (see CLAUDE.md) — the intro line is a one-time, ever line
@@ -316,12 +386,48 @@ export default function ProjectBuilderScreen() {
         />
       )}
 
-      {view === 'buildYourOwn' && (
-        <BuildYourOwnView
+      {/* Unify All Project Types Under the Conversational System (see CLAUDE.md), Task 1/2 — a
+          NOT-yet-started curated project type opens this real conversation instead of the old
+          static overview page, seeded with its own real curated content (Task 2). `chatKey` is the
+          real, unique `projectType.id`, so this conversation's own thread never mixes with any
+          other project type's, or with blank Build Your Own's own thread. */}
+      {view === 'projectBrainstorm' && category && projectType && (
+        <ProjectConversationView
           state={state}
           patch={patch}
-          plan={buildYourOwnPlan}
-          onChoosePlan={setBuildYourOwnPlan}
+          chatKey={projectType.id}
+          seedContext={{
+            projectTypeName: projectType.name,
+            overview: projectType.overview,
+            timeCommitment: projectType.timeCommitment,
+            example: category.example,
+            resources: projectType.resources,
+          }}
+          category={category}
+          plan={chosenPlan}
+          onChoosePlan={setChosenPlan}
+          startedProject={startedProject}
+          completedNodes={state.completedNodes}
+          showStartPicker={showStartPicker}
+          startDate={startDate}
+          conflict={conflict}
+          onStartClick={() => setShowStartPicker(true)}
+          onCancelStart={() => { setShowStartPicker(false); setStartDate(''); }}
+          onChangeStartDate={setStartDate}
+          onConfirmStart={confirmStart}
+          onGoToPlan={() => patch({ screen: 'plan' })}
+        />
+      )}
+
+      {view === 'buildYourOwn' && (
+        <ProjectConversationView
+          state={state}
+          patch={patch}
+          chatKey={BUILD_YOUR_OWN_PROJECT_TYPE_ID}
+          seedContext={null}
+          category={null}
+          plan={chosenPlan}
+          onChoosePlan={setChosenPlan}
           startedProject={startedProject}
           completedNodes={state.completedNodes}
           showStartPicker={showStartPicker}
@@ -641,13 +747,45 @@ function ProjectTypeView({
 // built from that plan's own AI-generated milestones — the same "same existing mechanism,
 // unchanged" requirement this feature has always held, satisfied literally rather than
 // reimplementing a parallel date-picker/conflict-check/start-button flow.
-function BuildYourOwnView({
-  state, patch, plan, onChoosePlan, startedProject, completedNodes,
+//
+// Unify All Project Types Under the Conversational System (see CLAUDE.md) — renamed from
+// `BuildYourOwnView`/generalized to serve EVERY project type, not just the top-level blank-slate
+// one — Task 3's own "reuse the exact same underlying conversational logic, not a separate/lesser
+// implementation" is satisfied by this being the literal SAME component/mechanism for both, never
+// a second copy. `chatKey` (the real, unique conversation identifier — either
+// `BUILD_YOUR_OWN_PROJECT_TYPE_ID` for the blank-slate case, or a real curated `projectType.id`)
+// is what keeps each project type's own conversation genuinely separate in
+// `state.projectBrainstormChats`. `seedContext` (`null` for blank Build Your Own) is the real
+// curated content a curated project type seeds its conversation with (Task 2) — both the client's
+// own scripted opening message AND the real request sent to the AI read it, so the model's own
+// first reply and everything after it can genuinely build on this real starting point rather than
+// ignoring it. `category` is the REAL category object for a curated conversation (used for the
+// header chip and, once a plan is chosen, the resulting preview's own category context) or `null`
+// for blank Build Your Own (which falls back to `BUILD_YOUR_OWN_PSEUDO_CATEGORY`, unchanged).
+function ProjectConversationView({
+  state, patch, chatKey, seedContext, category, plan, onChoosePlan, startedProject, completedNodes,
   showStartPicker, startDate, conflict, onStartClick, onCancelStart, onChangeStartDate,
   onConfirmStart, onGoToPlan,
 }) {
-  const chatHistory = state.buildYourOwnChatHistory || [];
+  const chatHistory = (state.projectBrainstormChats || {})[chatKey] || [];
   const [loading, setLoading] = useState(false);
+
+  // Task 2 — a real, scripted opening message referencing the picked project type's own real
+  // curated content, seeded exactly once, the very first time THIS specific conversation
+  // (identified by `chatKey`) is opened — see `buildSeededProjectGreeting`'s own header comment.
+  // Blank Build Your Own (`seedContext` null) has nothing specific to reference yet, so it
+  // correctly gets no scripted opener, exactly as before this feature.
+  useEffect(() => {
+    if (seedContext && chatHistory.length === 0) {
+      patch({
+        projectBrainstormChats: {
+          ...state.projectBrainstormChats,
+          [chatKey]: [{ role: 'assistant', content: buildSeededProjectGreeting(seedContext) }],
+        },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatKey]);
 
   // Add Explicit "Not Satisfied, Keep Refining" Option (see CLAUDE.md) — a dismiss for the
   // "Start This Project" footer that hides it WITHOUT touching any persisted data (the chat
@@ -692,7 +830,10 @@ function BuildYourOwnView({
   const sendFrom = (baseHistory, trimmed) => {
     const history = baseHistory.map((m) => ({ role: m.role, content: m.content }));
     const afterUser = [...baseHistory, { role: 'user', content: trimmed }];
-    patch({ buildYourOwnChatHistory: afterUser });
+    const writeChat = (nextHistory) => patch({
+      projectBrainstormChats: { ...state.projectBrainstormChats, [chatKey]: nextHistory },
+    });
+    writeChat(afterUser);
     setLoading(true);
     // Task 2 — the full Stage 1 profile (not the bounded Stage-2-only variant), same reasoning
     // this feature has always used: student-initiated and infrequent, so Stage 2's own
@@ -701,28 +842,28 @@ function BuildYourOwnView({
     // something more specific/personal than a tag list alone to ground ideas in.
     const profileSummary = compileStudentProfile(state);
     requestBuildYourOwnChatReply(
-      { history, prompt: trimmed, profileSummary },
+      {
+        history, prompt: trimmed, profileSummary, seedContext,
+      },
       {
         onResult: (proposal) => {
           setLoading(false);
           if (!proposal || typeof proposal.reply !== 'string' || !proposal.reply.trim()) {
-            patch({ buildYourOwnChatHistory: [...afterUser, { role: 'assistant', content: "Sorry, I couldn't think of anything just now — try again." }] });
+            writeChat([...afterUser, { role: 'assistant', content: "Sorry, I couldn't think of anything just now — try again." }]);
             return;
           }
-          patch({
-            buildYourOwnChatHistory: [...afterUser, {
-              role: 'assistant',
-              content: proposal.reply,
-              planReady: proposal.planReady,
-              projectName: proposal.projectName,
-              milestones: proposal.milestones,
-              milestoneDayOffsets: proposal.milestoneDayOffsets,
-            }],
-          });
+          writeChat([...afterUser, {
+            role: 'assistant',
+            content: proposal.reply,
+            planReady: proposal.planReady,
+            projectName: proposal.projectName,
+            milestones: proposal.milestones,
+            milestoneDayOffsets: proposal.milestoneDayOffsets,
+          }]);
         },
         onError: () => {
           setLoading(false);
-          patch({ buildYourOwnChatHistory: [...afterUser, { role: 'assistant', content: 'Sorry, something went wrong — try again in a moment.' }] });
+          writeChat([...afterUser, { role: 'assistant', content: 'Sorry, something went wrong — try again in a moment.' }]);
         },
       },
     );
@@ -734,10 +875,12 @@ function BuildYourOwnView({
   // reuses ProjectTypeView exactly like every other project type/the old single-idea flow did —
   // `resources: []` since there's no curated tool list for a freeform conversational idea, and
   // `steps: plan.milestones` shows the FULL developed arc as the "Step-by-Step Guide" preview,
-  // same as a curated project type's own full guide shows before starting.
+  // same as a curated project type's own full guide shows before starting. Uses the REAL `category`
+  // when this conversation was seeded from one, so the resulting preview shows real category
+  // context instead of the synthetic Build-Your-Own pseudo-category.
   if (plan) {
     const aiProjectType = {
-      id: BUILD_YOUR_OWN_PROJECT_TYPE_ID,
+      id: chatKey,
       name: plan.projectName,
       overview: 'Developed through a real conversation with MyPath AI, grounded in your own profile.',
       timeCommitment: 'Up to you — shaped by your own conversation.',
@@ -746,7 +889,7 @@ function BuildYourOwnView({
     };
     return (
       <ProjectTypeView
-        category={BUILD_YOUR_OWN_PSEUDO_CATEGORY}
+        category={category || BUILD_YOUR_OWN_PSEUDO_CATEGORY}
         projectType={aiProjectType}
         startedProject={startedProject}
         completedNodes={completedNodes}
@@ -762,16 +905,22 @@ function BuildYourOwnView({
     );
   }
 
+  const ChipIcon = category ? CATEGORY_ICONS[category.icon] : Sparkles;
+  const chipAccent = category ? getCategoryColor(category.id) : 'var(--bloom-ai)';
+  const presets = seedContext ? buildSeededPresets(seedContext.projectTypeName) : BUILD_YOUR_OWN_PRESETS;
+
   return (
     <>
-      <div className="pb-category-chip" style={{ '--pb-accent': 'var(--bloom-ai)' }}>
-        <Sparkles size={14} /> Build Your Own
+      <div className="pb-category-chip" style={{ '--pb-accent': chipAccent }}>
+        <ChipIcon size={14} /> {category ? category.label : 'Build Your Own'}
       </div>
-      <h1 className="page-title">Let&rsquo;s build something together</h1>
+      <h1 className="page-title">
+        {seedContext ? `Let’s shape your ${seedContext.projectTypeName}` : 'Let’s build something together'}
+      </h1>
       <p className="page-sub">
-        A real back-and-forth with MyPath AI to develop a genuinely original project idea based on
-        your own profile — not a single generic suggestion. Keep talking until it feels like a
-        real plan, then start it whenever you're ready.
+        {seedContext
+          ? "A real back-and-forth with MyPath AI, starting from this project type's own real overview — tailored specifically to you. Keep talking until it feels like your own plan, then start it whenever you're ready."
+          : "A real back-and-forth with MyPath AI to develop a genuinely original project idea based on your own profile — not a single generic suggestion. Keep talking until it feels like a real plan, then start it whenever you're ready."}
       </p>
 
       <div className="chat-header" style={{ marginBottom: 16 }}>
@@ -782,12 +931,16 @@ function BuildYourOwnView({
         </div>
       </div>
 
-      {/* Task 3 — starter prompts spanning different project types (there's no category to scope
-          them to anymore, see Task 2), shown only before the very first message so they don't
-          clutter an already-ongoing conversation. */}
-      {chatHistory.length === 0 && (
+      {/* Task 3 — starter prompts, either generic (blank Build Your Own, no category to scope
+          them to) or scoped to the real picked project type (a curated, seeded conversation),
+          shown only before the very first message so they don't clutter an already-ongoing
+          conversation. Blank Build Your Own's own scripted opener is `null`, so its own presets
+          show alongside an empty history exactly as before; a seeded conversation's scripted
+          greeting already occupies history slot 0 by the time this ever renders, so its presets
+          are shown alongside that ONE real message, not a genuinely empty list. */}
+      {(seedContext ? chatHistory.length <= 1 : chatHistory.length === 0) && (
         <div className="creative-preset-list">
-          {BUILD_YOUR_OWN_PRESETS.map((preset) => (
+          {presets.map((preset) => (
             <button
               key={preset}
               type="button"

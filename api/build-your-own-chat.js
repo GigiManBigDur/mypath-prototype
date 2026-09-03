@@ -162,6 +162,42 @@ Rules you must follow:
 - Call the respond_to_brainstorm tool exactly once with your response, and nothing else.`;
 }
 
+// Unify All Project Types Under the Conversational System (see CLAUDE.md) — a THIRD mode for the
+// SAME shared overview conversation, alongside the original blank-slate `OVERVIEW_SYSTEM_PROMPT`
+// and the phase-detail `buildMilestoneDetailPrompt` above. Every pre-existing curated project type
+// (Coding and Web Development Business, and every other type across all 6 categories) now opens
+// this SAME conversation system instead of a static guide — `seedContext` is what tells the model
+// which real, already-written curated content to treat as a STARTING POINT (never re-asked-for,
+// never presented as a final answer) rather than starting from a genuinely blank slate. Reuses the
+// exact same CHAT_SCHEMA/tool/validateProposal/applyGuardrails pipeline as the other two modes —
+// only the system prompt (and which context gets sent) differs, so this needed zero new endpoint
+// and zero new client-facing contract, matching the same "reusing the existing chat system"
+// precedent buildMilestoneDetailPrompt already established for its own mode.
+function buildSeededOverviewPrompt(seedContext) {
+  const {
+    projectTypeName, overview, timeCommitment, example, resources,
+  } = seedContext;
+  return `You are a genuinely creative, collaborative brainstorming partner helping a student develop a real, hands-on personal project idea, through real back-and-forth conversation — this is an ongoing, multi-turn conversation, not a single response. Use the FULL conversation history for real context, not just the latest message in isolation.
+
+Context you already have, don't re-ask for it — the student picked a real, curated starting point called "${projectTypeName}":
+- General overview: ${overview}
+- Typical time commitment: ${timeCommitment}
+- An illustrative example of this kind of project (from a different student, not a real submission): ${example}
+- Commonly recommended tools/resources: ${(resources || []).join('; ') || 'none listed'}
+This curated content is ONLY A STARTING POINT, never a final answer — your real job is to help the student develop THEIR OWN specific, personalized version of it through real conversation, which is completely fine to end up looking quite different from this generic starting point once it's actually tailored to them. Open by briefly acknowledging what they picked and referencing 1-2 of these details naturally, then immediately start asking about their own real situation (what actually interests them about this, what resources/access they genuinely have, what would make it feel like theirs) — don't just restate the curated content back at them.
+
+Rules you must follow:
+- Act like a thoughtful consultant: ask genuine follow-up questions to understand what actually interests the student about this direction, and build on their answers rather than jumping straight to a final idea (for example: "Are you interested in that?" then developing the idea further based on their answer). Keep the conversation going across multiple turns.
+- Ground ideas in the student's own real profile (their interests, passion text if provided, courses, activities) AND the curated starting point above — blend both rather than relying on only one.
+- DON'T DEFAULT TO ASSUMING INDEPENDENT IS MORE IMPRESSIVE: when the idea could plausibly be built either as a fully independent, unaffiliated project OR as an official chapter/campus affiliate of an established, well-structured external program (e.g. Hult Prize, DECA, Model UN, and similar), weigh BOTH paths fairly and explicitly raise the question with the student — do not steer them toward "independent" as if it were automatically the stronger or more impressive option. For a genuinely well-established, competitive, structured program, official affiliation is FREQUENTLY THE STRONGER choice, not the weaker one. Reason about this case by case, based on what the student is actually describing — never apply a blanket bias toward either path.
+- PROACTIVELY SUGGEST CONCRETE DIFFERENTIATORS: don't just wait to be asked. Actively pitch specific ideas that would make the project more distinctive and evidenced — for example, a particular type of partnership (a relevant course, department, or organization) that would create a real, checkable outcome, as a candidate OVERVIEW PHASE, not a granular step. Bring these up yourself as part of the natural conversation, not only in response to a direct question about it.
+- The goal is a COMPLETE project CONCEPT, specifically tailored to this student — not a restatement of the curated starting point, and not just a one-line idea: a real sense of how it would start, what it would actually involve as it progresses through a few concrete phases, and how it would conclude.
+- Only once that's genuinely been developed together, set planReady to true, and in that SAME response set projectName (a short, specific name — this can and often should differ from "${projectTypeName}" once it's been personalized), milestones, and milestoneDayOffsets — here, "milestones" means a SMALL SET OF HIGH-LEVEL OVERVIEW PHASES, NOT granular steps: typically 4-7 broad phases capturing the real arc — do NOT break any single phase down into its own granular sub-actions here; that level of detail is deliberately deferred to a LATER, separate, narrower conversation once the student actually reaches that specific phase. ALSO set milestoneDayOffsets: one integer per phase (the first should be 0, or close to it), giving a realistic number of days after the project's own start date each phase would likely BEGIN — space these out honestly based on how much real work each earlier phase actually involves, rather than spacing every phase evenly. Don't set planReady prematurely — a single idea with no real arc yet is not ready.
+- Even after planReady is true, keep talking naturally if the student wants to keep refining — you can update projectName/milestones again on a later turn if the plan changes.
+- CRITICAL HONESTY RULE: never present a specific real external organization, contact, program, statistic, or fact about the outside world as confirmed/verified unless you are genuinely certain — if unsure, say so plainly. This applies equally to anything you proactively suggest under the "concrete differentiators" rule above, not just to things the student asks about directly. Set mentionsSpecificEntity to true ONLY when you introduce a genuinely NEW specific claim not already confirmed by the student's own profile data or by the curated starting-point content above (both count as already-confirmed context, not a new claim) — referencing either of those (even by real name), or giving purely generic advice, is NOT a new claim and should be false.
+- Call the respond_to_brainstorm tool exactly once with your response, and nothing else.`;
+}
+
 function sanitizeHistory(history) {
   if (!Array.isArray(history)) return [];
   return history
@@ -234,11 +270,20 @@ function applyGuardrails(proposal) {
   };
 }
 
-// `milestoneContext` (null for the original overview conversation) selects which system prompt
-// applies — see buildMilestoneDetailPrompt's own comment for why this is the one thing that
-// differs between the two modes, everything else (schema/tool/validation/guardrails) is shared.
-async function callAnthropic(apiKey, history, prompt, profileSummary, milestoneContext) {
-  const systemPrompt = milestoneContext ? buildMilestoneDetailPrompt(milestoneContext) : OVERVIEW_SYSTEM_PROMPT;
+// `milestoneContext`/`seedContext` (both null for the original blank-slate overview conversation)
+// select which system prompt applies — `milestoneContext` (an already-agreed overview's own one
+// phase, being detailed further) takes priority if somehow both were present, since it's the more
+// specific mode; see buildMilestoneDetailPrompt's/buildSeededOverviewPrompt's own comments for why
+// this is the one thing that differs between all three modes, everything else (schema/tool/
+// validation/guardrails) is shared.
+function resolveSystemPrompt(milestoneContext, seedContext) {
+  if (milestoneContext) return buildMilestoneDetailPrompt(milestoneContext);
+  if (seedContext) return buildSeededOverviewPrompt(seedContext);
+  return OVERVIEW_SYSTEM_PROMPT;
+}
+
+async function callAnthropic(apiKey, history, prompt, profileSummary, milestoneContext, seedContext) {
+  const systemPrompt = resolveSystemPrompt(milestoneContext, seedContext);
   const messages = [
     ...sanitizeHistory(history),
     { role: 'user', content: JSON.stringify({ profileSummary, message: prompt }) },
@@ -279,8 +324,8 @@ async function callAnthropic(apiKey, history, prompt, profileSummary, milestoneC
   return { proposal: toolUse?.input, stopReason: data.stop_reason };
 }
 
-async function callOpenAI(apiKey, history, prompt, profileSummary, milestoneContext) {
-  const systemPrompt = milestoneContext ? buildMilestoneDetailPrompt(milestoneContext) : OVERVIEW_SYSTEM_PROMPT;
+async function callOpenAI(apiKey, history, prompt, profileSummary, milestoneContext, seedContext) {
+  const systemPrompt = resolveSystemPrompt(milestoneContext, seedContext);
   const input = [
     ...sanitizeHistory(history),
     { role: 'user', content: JSON.stringify({ profileSummary, message: prompt }) },
@@ -365,12 +410,15 @@ export default async function handler(req, res) {
   }
 
   // `milestoneContext` (Two-Phase Generation, Task 3) is optional — present only when the client
-  // is running a scoped, one-phase detail conversation instead of the original overview one. Not
-  // validated beyond "object or absent" — buildMilestoneDetailPrompt already degrades gracefully
-  // (empty-string interpolation) if a field inside it happens to be missing, and this endpoint has
-  // no other consumer to protect against a malformed shape beyond this app's own client.
+  // is running a scoped, one-phase detail conversation instead of the original overview one.
+  // `seedContext` (Unify All Project Types Under the Conversational System, see CLAUDE.md) is
+  // likewise optional — present only when the client is running the overview conversation seeded
+  // from a curated project type's own real content, instead of a genuinely blank slate. Neither is
+  // validated beyond "object or absent" — both prompt builders already degrade gracefully (empty-
+  // string interpolation) if a field inside them happens to be missing, and this endpoint has no
+  // other consumer to protect against a malformed shape beyond this app's own client.
   const {
-    history, prompt, profileSummary, milestoneContext,
+    history, prompt, profileSummary, milestoneContext, seedContext,
   } = req.body || {};
   if (!prompt || typeof prompt !== 'string' || !profileSummary || !Array.isArray(history)) {
     res.status(400).json({ error: 'Missing prompt/profileSummary/history' });
@@ -380,9 +428,13 @@ export default async function handler(req, res) {
     res.status(400).json({ error: 'milestoneContext must be an object when provided' });
     return;
   }
+  if (seedContext != null && typeof seedContext !== 'object') {
+    res.status(400).json({ error: 'seedContext must be an object when provided' });
+    return;
+  }
 
   try {
-    const result = await provider.call(apiKey, history, prompt, profileSummary, milestoneContext || null);
+    const result = await provider.call(apiKey, history, prompt, profileSummary, milestoneContext || null, seedContext || null);
     if (result.error) {
       res.status(result.error.status).json(result.error.body);
       return;

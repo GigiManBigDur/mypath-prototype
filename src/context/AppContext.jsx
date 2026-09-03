@@ -541,17 +541,25 @@ const DEFAULT_STATE = {
   // precedents above — the student isn't blocked from anything in the meantime either way.
   finalReviewTriggered: false,
   // Passion Field + Enhanced Conversational "Build Your Own" (see CLAUDE.md), Tasks 4/5 — the
-  // real, ongoing project-brainstorming conversation behind Project Builder's single top-level
-  // "Build Your Own" entry. Same shape/persistence contract as `chatHistory` above (`[{ role,
-  // content, ...extra fields the caller cares about }]`, persisted, cleared only by Reset) but a
-  // deliberately SEPARATE field — this is a genuinely different conversation topic (developing one
-  // project idea) from the hub's own general-assistant thread, and mixing the two into one thread
-  // would be both confusing to read back and semantically wrong (different system prompts/
-  // endpoints, different per-message fields — `planReady`/`projectName`/`milestones` here instead
-  // of `intent`/`taskTitle`). The "reuse, don't rebuild" requirement is satisfied by sharing the
-  // same underlying chat UI/mascot-speech mechanism (`ChatConversation.jsx`,
-  // `useMascotSpeech`), not by forcing two unrelated conversations into one array.
+  // real, ongoing project-brainstorming conversation originally behind Project Builder's single
+  // top-level "Build Your Own" entry. LEGACY as of "Unify All Project Types Under the
+  // Conversational System" (below) — never read or written by new code, the same "don't actively
+  // prune legacy fields" convention `chatHistory` above already follows; a real existing user's own
+  // prior content is instead folded into `projectBrainstormChats` (below) by
+  // `migrateProjectBrainstormChats()` once, at load time, rather than stranded.
   buildYourOwnChatHistory: [],
+  // Unify All Project Types Under the Conversational System (see CLAUDE.md) — every project type
+  // in Project Builder (not just the top-level "Build Your Own") now goes through the same real,
+  // ongoing brainstorming conversation, each with its OWN separate thread rather than one shared
+  // global history — a student exploring "Coding and Web Development Business" and, separately,
+  // "Robotics Project" needs two genuinely independent conversations, not one mixed together. A
+  // plain object keyed by a stable conversation identifier: `'build-your-own'` (matching
+  // `BUILD_YOUR_OWN_PROJECT_TYPE_ID`'s own value in ProjectBuilderScreen.jsx) for the original
+  // blank-slate case, or a REAL curated `projectType.id` (e.g. `'coding-web-dev-business'`) for a
+  // seeded one — each value the exact same per-message shape `buildYourOwnChatHistory` always used
+  // (`[{ role, content, ...extra fields the caller cares about }]`). Persisted the same way
+  // (survives reload, cleared only by Reset).
+  projectBrainstormChats: {},
   accountCreatedAt: null, // Hub redesign, radial-layout pass (see CLAUDE.md) — set once, by
   // SignUpScreen's own submit handler, to a plain 'YYYY-MM-DD' string the first time a student
   // ever completes sign-up (never overwritten afterward, so a defensive re-submit can't reset
@@ -576,10 +584,26 @@ function migrateChatSessions(merged) {
   return merged;
 }
 
+// Unify All Project Types Under the Conversational System (see CLAUDE.md) — the same real
+// "fold a real existing user's own prior content into the new shape, don't strand it" migration
+// `migrateChatSessions` above already established, applied to the analogous
+// `buildYourOwnChatHistory` -> `projectBrainstormChats` generalization. Only ever fires when
+// `projectBrainstormChats` is still empty — a user who has already been migrated (or who never had
+// anything to migrate) is a pure no-op. `'build-your-own'` is a literal, not an import, matching
+// this migration's own throwaway, one-off nature (the same convention `migrateChatSessions`'s own
+// `'general'`/`'General Chat'` literals already use) — it must stay byte-for-byte identical to
+// `BUILD_YOUR_OWN_PROJECT_TYPE_ID`'s real value in ProjectBuilderScreen.jsx.
+function migrateProjectBrainstormChats(merged) {
+  if (Object.keys(merged.projectBrainstormChats || {}).length === 0 && merged.buildYourOwnChatHistory?.length > 0) {
+    return { ...merged, projectBrainstormChats: { 'build-your-own': merged.buildYourOwnChatHistory } };
+  }
+  return merged;
+}
+
 function loadInitialState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return migrateChatSessions({ ...DEFAULT_STATE, ...JSON.parse(raw) });
+    if (raw) return migrateChatSessions(migrateProjectBrainstormChats({ ...DEFAULT_STATE, ...JSON.parse(raw) }));
   } catch {
     // ignore corrupt storage
   }

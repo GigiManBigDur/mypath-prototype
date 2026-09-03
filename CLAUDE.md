@@ -10864,6 +10864,134 @@ as one piece.
   complete.** Only the entire Transfer script remains placeholder-only — a possible future batch,
   not part of this pass.
 
+**Unify All Project Types Under the Conversational System — every curated project type in Project
+Builder (not just the top-level "Build Your Own" entry) now opens the same real, multi-turn AI
+brainstorming conversation Build Your Own already established, seeded with that type's own real
+curated content as a starting point rather than a final answer.** Before this, only "Build Your
+Own" went through a genuine conversation; every one of the other ~18 curated project types (across
+all 6 real categories) skipped straight from its static overview page to picking a start date and
+beginning immediately, with a fixed guide-step list revealed one at a time as each step was
+completed — a real, previously-undocumented gap this feature closes, not a redesign of something
+that already worked.
+- **Task 1 — every NOT-yet-started project type now opens a real conversation instead of the old
+  static overview page.** `openProjectType(id)` checks whether `state.startedProjects` already has
+  a real entry with this exact `projectTypeId` (the same reachability-preserving check the rest of
+  this codebase already relies on elsewhere) — if so, it routes to the pre-existing `'projectType'`
+  view completely unchanged (a started project's own timeline/milestones render exactly as they
+  always have, regardless of which shape created them); if not, it routes to a brand-new
+  `'projectBrainstorm'` view instead of the old immediate "pick a start date and begin" flow. The
+  old flat `guideSteps`/`steps` immediate-start shape is gone for every NEW project (curated or
+  blank-slate alike) — a project that was already started under that OLD shape before this feature
+  shipped is left completely untouched (nothing here migrates or rewrites it), and `Roadmap.jsx`/
+  `roadmapGenerator.js`/`ProjectTypeView`'s own timeline rendering already branch correctly on
+  `overviewMilestones` presence, so both shapes keep working side by side with zero further
+  changes needed.
+- **Task 2 — a real, scripted opening message referencing the picked type's own curated content,
+  never a generic blank-slate opener.** `buildSeededProjectGreeting(seedContext)` (client-side, no
+  API call — the same "a static, always-the-same first-run line doesn't need a real request"
+  precedent `useOnboardingChat.js`'s own `buildOnboardingGreeting()` already established) quotes
+  the real `overview`/`timeCommitment`/`example`/`resources` already written for that project type
+  in `data/projects.js`, seeded exactly once — a `useEffect` gated on `chatHistory.length === 0`
+  for that specific conversation — the very first time it's opened. Explicitly framed as a
+  starting point, never a final answer ("But that's just a starting point, not a final answer.
+  Tell me a bit about your own situation..."), matching the task's own literal wording. The
+  identical framing carries into the server's own system prompt for this mode (see below), so the
+  scripted opener and the AI's own first real reply agree on the same posture.
+- **`state.projectBrainstormChats`** (`AppContext.jsx`) replaces `state.buildYourOwnChatHistory` as
+  the real backing store — a plain object keyed by a stable conversation identifier
+  (`BUILD_YOUR_OWN_PROJECT_TYPE_ID`'s own literal value, `'build-your-own'`, for the original
+  blank-slate case; a real, unique `projectType.id` — e.g. `'robotics-project'` — for a seeded
+  one), each value the exact same per-message array shape `buildYourOwnChatHistory` always used.
+  This is what gives every project type its own genuinely isolated thread — a student exploring
+  "Robotics Project" and, separately, "Mobile App Development" gets two independent conversations,
+  never mixed into one. `buildYourOwnChatHistory` itself is left in place as dead, unread/unwritten
+  legacy state (the same "don't actively prune legacy fields" convention this file already
+  documents for other superseded fields) — `migrateProjectBrainstormChats()` folds any real
+  existing user's own prior content into `projectBrainstormChats['build-your-own']` once, at load
+  time, the same real "don't strand a real user's data" precedent `migrateChatSessions` already
+  established for the Multi-Session Chat feature — a no-op once already migrated or if there was
+  never anything to migrate.
+- **Task 3 — the shared conversation component was renamed and generalized, not duplicated.**
+  `BuildYourOwnView` became `ProjectConversationView({ chatKey, seedContext, category, plan,
+  ... })` — the literal same component/mechanism serves both the blank-slate case (`seedContext:
+  null`, `category: null`, falling back to `BUILD_YOUR_OWN_PSEUDO_CATEGORY` exactly as before) and
+  every curated, seeded one (`seedContext` carrying the real overview/timeCommitment/example/
+  resources, `category` the real category object). Starter presets are likewise either the
+  original generic `BUILD_YOUR_OWN_PRESETS` or, for a seeded conversation, `buildSeededPresets
+  (projectTypeName)` — 3 presets scoped to the real picked type ("Help me adapt 'Robotics Project'
+  to something I'm genuinely interested in," etc.) rather than a second, unrelated preset list,
+  reusing the same "reduce the blank-page problem" motivation the original presets already served.
+  The chip/title/subtitle above the conversation read the real category's own icon/color/label
+  (via the existing `getCategoryColor`/`CATEGORY_ICONS`) instead of the fixed `--bloom-ai` "Build
+  Your Own" chip whenever a real category is present.
+- **Task 4 — the "Start This Project" outcome is the literal same mechanism regardless of which
+  conversation produced the plan.** A new shared `createOverviewProject({ categoryId,
+  projectTypeId, plan, startDate })` helper (used by both branches of `confirmStart`) builds the
+  exact same Two-Phase-Generation `overviewMilestones` shape (real per-phase `dueDate`s from
+  `computeMilestoneDueDates`, empty `subSteps`/`chatHistory` per phase, only phase 0 unlockable —
+  see the "Generalize the Overview/Lock System" and Two-Phase Generation sections above, both
+  completely unmodified by this feature) whether the plan came from the blank Build Your Own
+  conversation (`categoryId: BUILD_YOUR_OWN_CATEGORY_ID`) or a real curated, seeded one
+  (`categoryId`/`projectTypeId` the real category/project-type ids) — one project creation path,
+  not two. `state.chosenPlan` (renamed from the Build-Your-Own-specific `buildYourOwnPlan`) is now
+  the shared "plan the student explicitly committed to by clicking Start This Project" slot for
+  either kind of conversation; `startedBuildYourOwnProject`'s own real, still-necessary workaround
+  (tracking the just-created project directly, since every blank-slate project shares one synthetic
+  `projectTypeId` that can't uniquely identify "this one project") stays Build-Your-Own-specific —
+  a curated, seeded project's own real, unique `projectType.id` already lets the existing
+  `startedProject` derivation (from `state.startedProjects`) pick it up correctly with zero
+  workaround needed.
+- **`api/build-your-own-chat.js` gained a THIRD system-prompt mode, reusing the exact same
+  `CHAT_SCHEMA`/tool/`validateProposal`/`applyGuardrails` pipeline as the other two — no new
+  endpoint, no new client-facing contract.** `buildSeededOverviewPrompt(seedContext)` sits
+  alongside the original blank-slate `OVERVIEW_SYSTEM_PROMPT` and the phase-detail
+  `buildMilestoneDetailPrompt` (Two-Phase Generation's own mode); `resolveSystemPrompt
+  (milestoneContext, seedContext)` picks between all three (milestone-detail mode wins if somehow
+  both were present, since it's the more specific one — the two are mutually exclusive by
+  construction from the client anyway). The seeded prompt tells the model the real curated
+  overview/timeCommitment/example/resources up front (so it never re-asks for what's already
+  known), frames that content explicitly as a starting point the final idea is free to diverge from
+  once genuinely personalized, and carries forward every existing guardrail from the blank-slate
+  prompt unchanged: the "don't default to assuming independent is more impressive" official-
+  affiliation fairness rule, "proactively suggest concrete differentiators," and the honesty rule —
+  extended so that referencing the CURATED SEED CONTENT itself (not just the student's own profile
+  data) also counts as already-confirmed context, never a new claim requiring the
+  `mentionsSpecificEntity` guardrail. `requestBuildYourOwnChatReply` (`buildYourOwnChatRequest.js`)
+  gained a matching optional `seedContext` parameter, threaded straight through in the request
+  body; the server's own validation is the same lightweight "object or absent" posture
+  `milestoneContext` already has (both prompt builders already degrade gracefully via plain
+  string interpolation if a field inside is missing, and this endpoint has no consumer beyond this
+  app's own client to protect against a malformed shape).
+- **A real, confirmed bug in `profileCompiler.js`'s `resolveProjects` was found and fixed while
+  wiring this up.** The pre-existing `resolved = project.aiSuggested ? null :
+  findProjectType(...)` gate assumed EVERY `aiSuggested` project was synthetic (true before this
+  feature, when the only AI-developed projects were blank Build Your Own and the Narrative
+  Overview) — but a curated, conversation-seeded project (this feature's own new case) still
+  carries its own real `categoryId`/`projectTypeId`, and the old gate would have reported it as a
+  generic "AI-generated idea" instead of its real category/type name, losing exactly the kind of
+  specific context this profile exists to carry forward to later AI requests. Fixed by attempting
+  the real `findProjectType` lookup FIRST regardless of `aiSuggested` — `resolved` still correctly
+  comes back `null` for the two genuinely synthetic cases (blank Build Your Own, the Narrative
+  Overview project), which fall through to their existing fallback framing completely unchanged.
+- Verified directly against the real running app (no dedicated Playwright suite was written for
+  this feature at the time it was built, a real gap against this codebase's own established
+  per-feature testing convention — flagged here rather than silently left undocumented): clicking a
+  not-yet-started project type (Robotics Project, under STEM) opens the real conversation view with
+  the correct title ("Let's shape your Robotics Project") and a real scripted greeting quoting the
+  actual curated overview/time-commitment text, with zero page errors; opening a second, different
+  project type (Mobile App Development) produces a genuinely separate, isolated thread
+  (`projectBrainstormChats` gains both `'robotics-project'` and `'mobile-app-development'` keys,
+  each with its own independent single-message history) while the first thread's own content stays
+  untouched; Back from the conversation correctly returns to the category grid; and a project type
+  that already has a real started project (seeded directly with a real `overviewMilestones` entry)
+  still routes to the original `'projectType'` view showing its real milestone titles, confirming
+  the backward-compatibility branch works. `npm run build`/`npm run lint` both stay clean. The
+  actual AI conversation turn itself (sending a message and getting a real seeded-mode reply) could
+  not be verified live at commit time, since `api/build-your-own-chat.js`'s own new seed-mode
+  system prompt only exists in this local commit — the live Vercel deployment still runs the prior
+  two-mode version until this is explicitly deployed, per this file's own standing "deploys are
+  opt-in only" policy.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

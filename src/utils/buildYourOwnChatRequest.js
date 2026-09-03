@@ -17,13 +17,21 @@ const BUILD_YOUR_OWN_CHAT_ENDPOINT = 'https://mypath-prototype-seven.vercel.app/
 // granular steps, instead of the original whole-project overview conversation. This is why there's
 // no new endpoint/client function for Task 3's "reusing the existing chat system" — just a
 // different context passed to the one that already exists.
+//
+// Unify All Project Types Under the Conversational System (see CLAUDE.md) — `seedContext`
+// (optional, also `null` by default) is a second, analogous piece: when present, the SAME endpoint
+// switches to the overview conversation seeded with a curated project type's real content, instead
+// of a genuinely blank slate. Both are mutually exclusive by construction (a caller only ever
+// passes one, or neither for blank Build Your Own).
 export function requestBuildYourOwnChatReply({
-  history, prompt, profileSummary, milestoneContext = null,
+  history, prompt, profileSummary, milestoneContext = null, seedContext = null,
 }, { onResult, onError } = {}) {
   fetch(BUILD_YOUR_OWN_CHAT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history, prompt, profileSummary, milestoneContext }),
+    body: JSON.stringify({
+      history, prompt, profileSummary, milestoneContext, seedContext,
+    }),
   })
     .then((res) => {
       if (!res.ok) throw new Error(`Build Your Own chat request failed: ${res.status}`);
