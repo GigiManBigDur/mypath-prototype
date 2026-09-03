@@ -13407,6 +13407,138 @@ a confirmed "Clear all" and click-to-view-description on the selection panel.**
   correctly accounts for room already used by prior selections. `npm run build`/`npm run lint`
   both stay clean.
 
+**Bring Selection List, Auto-Pick, Delete-All, and Descriptions to Opportunity Finder — the same
+four real features Course Selection just got, adapted for a genuinely different domain rather than
+copied directly: Opportunity Finder has no "course load cap"/"graduation requirement" concept, so
+Task 2's own constraints were reconsidered from scratch around what "spike" alignment and real
+deadline/date data actually support for opportunities.**
+- **`SelectedCoursesPanel.jsx` was generalized into `SelectedItemsPanel.jsx`, shared by BOTH Course
+  Selection variants and this screen** — the same "extract once, reuse everywhere" precedent this
+  codebase already established for `ChatConversation.jsx`/`TrackVisuals.jsx`, rather than a second,
+  near-identical component. Its own props were made genuinely domain-neutral: `courses` → `items`,
+  plus new `itemLabel` (only ever used in the header's "Your {itemLabel} (N)" text — Course
+  Selection's two call sites now explicitly pass `itemLabel="Courses"`, unchanged in appearance)
+  and `confirmMessage` (each caller supplies its own exact "are you sure" wording for Task 3's
+  confirmation, rather than a hardcoded course-specific string). Every CSS class was renamed to
+  match (`.selected-courses-*` → `.selected-items-*`, `global.css`) — this codebase's own
+  documented history already treats "a class name that no longer literally describes what it's
+  styling" as a real, confirmed source of confusion (see the mute/voice-settings toggle button
+  naming-collision fixes elsewhere in this file), so a genuinely shared component gets a genuinely
+  neutral name rather than staying named after its first caller. `thematicCourseMatch.js` was
+  renamed to `thematicMatch.js` for the identical reason once it gained a second, opportunity-
+  specific export (below) — both renames touched every real call site (2 Course Selection screens,
+  `AppContext.jsx`'s own comment reference) and needed zero behavior changes there beyond the
+  import path/prop names.
+- **Task 1 — the exact same always-visible, `position: fixed`, bottom-left panel** (Course
+  Selection's own established pattern, see that feature's section above for the full landmine/
+  portal rationale) — `selectedOpportunities` resolves via `findOpportunity(id, OPPORTUNITY_TRACKS,
+  level)`, widened to EVERY real track (not `getOpportunityTracks(state.interestTags)`, the
+  student's own narrower interest-derived set) so a selection made from Browse or My School —
+  genuinely outside the student's own interest tags — still resolves correctly in the panel instead
+  of silently vanishing, the exact same "widen to every track" fix this codebase's own
+  `roadmapGenerator.js`/My-School-opportunity-selection bugs already document needing twice before
+  (see their own sections above).
+- **Task 2 — real, opportunity-appropriate constraints, deliberately NOT a copy of Course
+  Selection's own per-grade course-load cap (which has no honest analog here at all).**
+  `OPPORTUNITY_AUTO_PICK_CAP = 3` (`OpportunityFinderScreen.jsx`) is a direct, deliberate
+  translation of this app's own real "spike" research — the Admissions Overview Presentation's own
+  Extracurriculars & the Spike module states plainly that "selective schools favor real depth in
+  one or two areas over a long, shallow list" (`admissionsPresentation.js`) — into a real
+  opportunity count: 3 allows slightly more than a literal 1-2, since a single genuine "spike" area
+  often naturally includes more than one real activity (e.g. a competition club plus a related
+  summer program, both part of the same focused direction), while still reading as unmistakably
+  small and focused rather than "everything remotely related."
+  - **Priority order (Task 2.2) is two real tiers, not a fabricated scoring system.** Tier 1 —
+    real, AI-confirmed narrative-theme alignment (`state.narrativeThemes`, populated only once a
+    narrative overview has actually been confirmed) — is the single most direct "established
+    direction" signal this app has, matched via a new `getThematicOpportunityMatches(themes,
+    opportunities)` (`thematicMatch.js`, a direct sibling of `getThematicCourseMatches` applying
+    the identical case-insensitive substring technique to an opportunity's own `name`/`type`/
+    `description` instead of a course's `name`/`department`). Searched across the FULL cross-track
+    pool (`getOpportunityPool(OPPORTUNITY_TRACKS, level)` — the same pool "Browse all
+    opportunities" already shows with no filter applied), never narrowed to the interest-tag-
+    derived Recommended pool, since a real narrative theme can honestly surface something the
+    original Survey tags never captured — confirmed directly with real data: a "Robotics"
+    narrative theme correctly surfaces the real STEM-track `rhs-robotics-club` even when the
+    student's own interest tags are entirely Business-scoped, filling the FIRST cap slot before
+    Tier 2 is ever consulted. **Tier 2 only runs for whatever cap room Tier 1 didn't use** — the
+    existing "Recommended for you" pool this screen already computes, whatever that resolves to
+    for this student (normally the real interest-tag/track-based pool; for a student whose only
+    tags map to no real built track at all, the same small, already-curated generic fallback list
+    "Recommended for you" itself already falls back to in that one case — reusing whatever
+    "Recommended for you" resolves to, rather than a second, independently-scoped pool, is what
+    satisfies "not grab everything remotely related" either way, since neither pool is ever the
+    FULL, uncapped catalog).
+  - **Task 2.3 (real deadlines) reuses the exact same `anchorDate`/`today` comparison this
+    screen's own card grid already performs for its "Deadline passed" badge** — no second date
+    check invented. Verified directly against 2 of this app's own real, deliberately past-dated
+    opportunities (`4h-programs`, `offsetDays: -10`; confirmed via a full-catalog scan, not
+    assumed) — neither is ever auto-picked, regardless of how well it would otherwise match.
+  - **Task 2.4 (obvious date conflicts, "where that's determinable from real data") is
+    deliberately narrow, not an invented scheduling system**: opportunities have no time-of-day/
+    duration field the way a Daily Schedule block does, so the one genuinely determinable conflict
+    signal is two selected opportunities' own real anchored deadlines landing on the EXACT same
+    calendar day — `isOpportunityAutoPickCandidate`'s own shared gate function (reused by both
+    tiers) skips a candidate whenever an already-picked opportunity shares its exact real date. A
+    full-catalog scan before writing any test confirmed this app's own real opportunity dates are
+    already deliberately well-spread enough that ZERO such collisions naturally exist within any
+    single track's real recommended pool — a real, positive signal about this app's own data
+    discipline, not a gap in the feature; verifying this rule therefore needed a synthetic
+    collision (see Testing changes below), not fabricated production data.
+  - **Both functions were named-exported** (`computeAutoPickedOpportunityIds`,
+    `isOpportunityAutoPickCandidate`, `OPPORTUNITY_AUTO_PICK_CAP`) — the default export stays a
+    plain React component either way, so this is purely additive — specifically so the date-
+    conflict rule (and every other real constraint) could be verified directly against the ACTUAL,
+    shipped function via a Node-level test using Vite's own `ssrLoadModule` (the same technique
+    `scripts/verify-spacing.mjs` already established for `roadmapLayout.js`), not a
+    reimplementation that could silently drift from the real code.
+- **Task 3 — the identical real, `window.confirm`-gated "Clear all" action** `SelectedItemsPanel`
+  already established for Course Selection, via its own new `confirmMessage` prop
+  ("Are you sure you want to remove all selected opportunities?"). Opportunity Finder has no
+  checkpoint/revisit mechanism the way Course Selection's own per-year Stage 4 does, so
+  `clearAllOpportunities` is a plain, unconditional `patch({ selectedOpportunityIds: [] })` — no
+  branch needed.
+- **Task 4 — a small detail modal reusing the EXACT fields this screen's own main browsing card
+  already shows.** Unlike Course Selection's own cards (which truncate a course's description and
+  need a genuinely separate expanded view), Opportunity Finder's cards never truncate their
+  description at all — the card body already IS the real, full detail display, so this modal is
+  simply that same content (name, type, description, deadline/start, how-to-apply, website, the
+  school-verified badge, the track-colored eyebrow) made reachable from the panel's own compact
+  row, not a second, differently-shaped detail layout. Rendered via `createPortal(...,
+  document.body)`, the same requirement every modal on a `.screen-transition`-wrapped screen in
+  this app already documents needing. No action button (unlike Course Selection's own modal) —
+  the panel's own dedicated remove button already covers that, and Task 4 only asks for
+  description display.
+- Verified with a dedicated Node-level test (23 checks, loading the real `OpportunityFinderScreen.jsx`
+  through Vite's own `ssrLoadModule`) confirming the algorithm itself against real catalog data:
+  the real cap (3) is respected against a real 4-candidate Business pool, in the pool's own natural
+  order; the real deliberately-past-dated `4h-programs` is never picked; a real narrative theme
+  ("Robotics") correctly wins the first slot over the interest-tag pool even though the matching
+  club belongs to a completely different track; an empty `narrativeThemes` correctly falls through
+  to Tier 2 alone; the cap correctly respects room already used by prior selections (both partially
+  and fully); and the date-conflict rule, verified via a synthetic same-date collision (per the
+  "no real collision exists to exercise this" note above), correctly skips the second of two
+  same-date candidates while still picking a third, genuinely non-conflicting one. Two dedicated
+  Playwright suites (33 + 12 checks) against the real dev server then confirm: a manual selection
+  appears in a real, genuinely-fixed panel and is removable directly from it; Auto-Pick produces a
+  small (3-item), honestly-worded, depth-framed result rather than the full real pool; the real
+  past-dated opportunity is confirmed absent from the auto-picked result while the main grid's own
+  "Deadline passed" badge is independently confirmed too; Clear All shows the exact real
+  confirmation wording, declining leaves the list untouched, confirming empties it; clicking a
+  panel row opens the real detail modal (confirmed rendering above the panel via a direct z-index
+  comparison) without disturbing the underlying selection; the reactive check-in still fires
+  correctly for a list built via Auto-Pick plus a manual edit on top; a Browse-mode selection
+  genuinely outside the student's own interest tags (the STEM robotics club, picked while only
+  "Business" is a real interest tag) still resolves correctly in both the panel and its own detail
+  modal; a My School selection resolves correctly too; and the generic-fallback pool (a "Law" tag,
+  no real built track at all) works end to end — the main grid renders, a selection resolves in the
+  panel, and Auto-Pick correctly draws from and respects the cap against that same small, curated
+  fallback list "Recommended for you" itself already uses, with zero crashes. The full pre-existing
+  Course Selection regression suite (25 + 21 + 13 + 7 = 66 checks, from the two features
+  immediately above) was re-run after the `SelectedItemsPanel`/`thematicMatch.js` renames and
+  passes in full with only the expected, mechanical `.selected-courses-*` → `.selected-items-*`
+  selector updates — no behavior changed. `npm run build`/`npm run lint` both stay clean.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
@@ -14187,10 +14319,45 @@ download). Cover at minimum:
   click to test decline-then-confirm as two real, independent interactions — confirm the list is
   completely untouched after a decline and only clears after a real confirm. For click-to-detail,
   confirm the z-index fix directly via `getComputedStyle(...).zIndex` comparison between `.overlay`
-  and `.selected-courses-panel` (never assume a purely visual stacking order from a screenshot
-  alone), and confirm the modal's own action button is genuinely clickable through to its real
+  and `.selected-items-panel` (renamed from `.selected-courses-panel` once this component was
+  generalized for Opportunity Finder too — see "Bring Selection List, Auto-Pick, Delete-All, and
+  Descriptions to Opportunity Finder" below; never assume a purely visual stacking order from a
+  screenshot alone), and confirm the modal's own action button is genuinely clickable through to its real
   handler (not silently intercepted by the panel underneath) rather than just checking the modal
   renders. Re-run the two pre-existing Task 2/3 regression suites unmodified after any algorithm
   change here — their own assertions were written loosely enough (a range, not an exact count) to
   survive the cap being introduced, but that should be reconfirmed, not assumed, if the cap values
   themselves ever change again. `npm run build`/`npm run lint` should stay clean.
+- Bring Selection List, Auto-Pick, Delete-All, and Descriptions to Opportunity Finder: before
+  writing any auto-pick assertion, verify what a real, given interest-tag scenario actually
+  produces — a full-catalog scan (a Node script loaded via `ssrLoadModule`, same approach as
+  below) confirmed zero naturally-occurring same-day date collisions anywhere in this app's real
+  opportunity data, which is WHY the date-conflict rule (Task 2.4) needs a synthetic collision to
+  exercise at all — don't assume real data will happen to demonstrate it. For the algorithm itself,
+  write a dedicated Node-level test loading the real `OpportunityFinderScreen.jsx` through Vite's
+  own `ssrLoadModule` (plain Node's ESM resolver can't follow this codebase's own extension-less
+  relative imports) and call its named-exported `computeAutoPickedOpportunityIds`/
+  `isOpportunityAutoPickCandidate`/`OPPORTUNITY_AUTO_PICK_CAP` directly — seed the real "Business"
+  track (4 real recommended opportunities: deca/fbla/boa-leaders/rhs-stock-market-club) and confirm
+  the real cap (3) drops the pool's own last entry; seed "Gardening"/outdoors and confirm the real,
+  deliberately past-dated `4h-programs` is never picked while the 2 real remaining valid entries
+  are; seed a real narrative theme ("Robotics," which matches the real STEM `rhs-robotics-club`)
+  alongside Business-only interest tags and confirm the robotics club wins the FIRST slot despite
+  being genuinely outside the interest-tag pool, with Tier 2 filling the rest; and confirm a
+  synthetic 2-opportunity same-date pair correctly yields only one pick while a third,
+  non-conflicting synthetic opportunity is still picked normally. For the real running UI
+  (Playwright), confirm the panel is genuinely `position: fixed` (same viewport position before/
+  after scrolling), confirm Auto-Pick's own confirmation message uses depth-over-breadth framing
+  (not "everything relevant"), confirm Clear All's exact dialog wording and that declining
+  vs. confirming produce genuinely different outcomes, confirm a panel row's click opens the real
+  detail modal ABOVE the panel (`getComputedStyle(...).zIndex` comparison between `.overlay` and
+  `.selected-items-panel`, not just a visual screenshot), and specifically test a selection made
+  from BROWSE or MY SCHOOL (genuinely outside the student's own interest tags) to confirm it still
+  resolves correctly in the panel — this is the same "widen to every track" bug class this
+  codebase has already hit and fixed more than once elsewhere (see `roadmapGenerator.js`'s own
+  career-pool/My-School-opportunity fixes above), so it's worth testing directly here too, not
+  just trusting the fix by inspection. If `SelectedItemsPanel.jsx`/`thematicMatch.js` are ever
+  touched again, re-run the FULL existing Course Selection regression suite too (both prior
+  features' own test files) — a shared component/file serving two very different screens means a
+  change meant for one can silently affect the other. `npm run build`/`npm run lint` should stay
+  clean.

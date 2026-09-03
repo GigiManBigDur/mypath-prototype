@@ -8,6 +8,16 @@
 // available" posture this app already holds elsewhere (the chain-attachment suggestion's own
 // "student picks the date, not the AI," the honesty guardrails throughout every AI feature).
 //
+// Renamed from `thematicCourseMatch.js` once Opportunity Finder's own Auto-Pick (see "Bring
+// Selection List, Auto-Pick, Delete-All, and Descriptions to Opportunity Finder," CLAUDE.md) needed
+// the identical technique applied to a completely different content type
+// (`getThematicOpportunityMatches`, below) — this file now holds both real-data-matching functions
+// side by side rather than duplicating the shared technique into a second file, matching this
+// codebase's own "extract once, reuse everywhere" precedent (and the same reasoning
+// `SelectedItemsPanel.jsx`'s own rename from `SelectedCoursesPanel.jsx` already documents: a
+// genuinely shared file/component gets a genuinely neutral name, not one inherited from its first
+// caller).
+//
 // Matches a theme keyword as a case-insensitive substring against a course's own real `name` OR
 // `department` field. Checking both (rather than just one) is what makes this work correctly
 // against BOTH real catalogs despite their genuinely different granularity: Roslyn's departments
@@ -29,5 +39,30 @@ export function getThematicCourseMatches(themes, courses) {
   return courses.filter((c) => lowerThemes.some((theme) => (
     (c.name && c.name.toLowerCase().includes(theme))
     || (c.department && c.department.toLowerCase().includes(theme))
+  )));
+}
+
+// Bring Selection List, Auto-Pick, Delete-All, and Descriptions to Opportunity Finder (see
+// CLAUDE.md), Task 2 — the identical technique applied to `opportunities.js`'s own data shape
+// instead of a course catalog: matches a real, AI-confirmed narrative theme keyword
+// (`state.narrativeThemes`) as a case-insensitive substring against an opportunity's own `name`,
+// `type`, or `description` (an opportunity has no `department` field the way a course does, so
+// `type` — e.g. "Business Competition," "Volunteer Program" — is the closest real analog, checked
+// alongside `name`/`description` for the same reason `getThematicCourseMatches` checks two fields:
+// different real content reads more naturally from different fields). This is the DEEPEST, most
+// direct "narrative alignment" signal Opportunity Finder's own Auto-Pick reaches for FIRST, before
+// ever falling back to the broader interest-tag/track-based "Recommended for you" pool — a theme
+// with no honest match anywhere in a given opportunity pool correctly returns nothing, the same
+// "don't force a fit" posture `getThematicCourseMatches` already established, never fabricated.
+export function getThematicOpportunityMatches(themes, opportunities) {
+  if (!Array.isArray(themes) || themes.length === 0 || !Array.isArray(opportunities)) return [];
+  const lowerThemes = themes
+    .filter((t) => typeof t === 'string' && t.trim())
+    .map((t) => t.trim().toLowerCase());
+  if (lowerThemes.length === 0) return [];
+  return opportunities.filter((o) => lowerThemes.some((theme) => (
+    (o.name && o.name.toLowerCase().includes(theme))
+    || (o.type && o.type.toLowerCase().includes(theme))
+    || (o.description && o.description.toLowerCase().includes(theme))
   )));
 }

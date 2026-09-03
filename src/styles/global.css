@@ -3402,13 +3402,19 @@ button.card.passed:hover {
 }
 
 /* Course Selection: Visible Selection List + Auto-Pick Button (see CLAUDE.md), Task 1 — a real,
-   always-visible "shopping list" panel (SelectedCoursesPanel.jsx), fixed bottom-LEFT — the opposite
-   corner from `.module-review-toggle`/`.module-review-panel` right above (both render together on
-   this exact screen). Unlike that panel, this one has no collapsed/hidden state at all — it exists
-   specifically to stay checkable at a glance the whole time the student is browsing, so it always
-   renders in full (its own `.selected-courses-list` scrolls internally instead) rather than
-   defaulting to hidden the way a chat panel reasonably does. */
-.selected-courses-panel {
+   always-visible "shopping list" panel, fixed bottom-LEFT — the opposite corner from
+   `.module-review-toggle`/`.module-review-panel` right above (both render together on every screen
+   this panel appears on). Unlike that panel, this one has no collapsed/hidden state at all — it
+   exists specifically to stay checkable at a glance the whole time the student is browsing, so it
+   always renders in full (its own `.selected-items-list` scrolls internally instead) rather than
+   defaulting to hidden the way a chat panel reasonably does.
+   Renamed from `.selected-courses-*` to `.selected-items-*` when `SelectedCoursesPanel.jsx` was
+   generalized into the domain-neutral `SelectedItemsPanel.jsx` (see that file's own header comment)
+   for Opportunity Finder to reuse — this codebase's own documented history already treats "a class
+   name that no longer literally describes what it's styling" as a real source of confusion, so a
+   genuinely shared component gets genuinely neutral class names, not a name inherited from its
+   first caller. */
+.selected-items-panel {
   position: fixed;
   left: 20px;
   bottom: 20px;
@@ -3424,7 +3430,7 @@ button.card.passed:hover {
   overflow: hidden;
   animation: bloom-section-reveal 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.selected-courses-header {
+.selected-items-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3439,9 +3445,9 @@ button.card.passed:hover {
 }
 /* Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2 — the header's
    own count text is now its own flex item (`flex: 1`) so the icon+count stay left-aligned while
-   this button sits at the opposite end, matching `.selected-courses-header`'s new space-between. */
-.selected-courses-header span { flex: 1; }
-.selected-courses-clear-btn {
+   this button sits at the opposite end, matching `.selected-items-header`'s new space-between. */
+.selected-items-header span { flex: 1; }
+.selected-items-clear-btn {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -3457,15 +3463,15 @@ button.card.passed:hover {
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
-.selected-courses-clear-btn:hover { background: rgba(166, 73, 31, 0.1); color: var(--bloom-orange); }
-.selected-courses-list {
+.selected-items-clear-btn:hover { background: rgba(166, 73, 31, 0.1); color: var(--bloom-orange); }
+.selected-items-list {
   overflow-y: auto;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.selected-courses-row {
+.selected-items-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3475,10 +3481,10 @@ button.card.passed:hover {
   background: var(--bloom-bg);
 }
 /* Task 3 — a clickable row (onOpenDetail supplied) gets a real hover/pointer affordance so it
-   reads as "click for more," the same way every course card in the main catalog grid already does. */
-.selected-courses-row-clickable { cursor: pointer; transition: background 120ms ease; }
-.selected-courses-row-clickable:hover { background: var(--bloom-card-border); }
-.selected-courses-name {
+   reads as "click for more," the same way every card in the main browsing grid already does. */
+.selected-items-row-clickable { cursor: pointer; transition: background 120ms ease; }
+.selected-items-row-clickable:hover { background: var(--bloom-card-border); }
+.selected-items-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3486,7 +3492,7 @@ button.card.passed:hover {
   font-size: 12.5px;
   color: var(--bloom-ink);
 }
-.selected-courses-remove-btn {
+.selected-items-remove-btn {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -3500,12 +3506,12 @@ button.card.passed:hover {
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
-.selected-courses-remove-btn:hover { background: rgba(0, 0, 0, 0.07); color: var(--bloom-ink); }
+.selected-items-remove-btn:hover { background: rgba(0, 0, 0, 0.07); color: var(--bloom-ink); }
 @media (prefers-reduced-motion: reduce) {
-  .selected-courses-panel { animation: none; }
+  .selected-items-panel { animation: none; }
 }
 @media (max-width: 640px) {
-  .selected-courses-panel {
+  .selected-items-panel {
     left: 12px;
     bottom: 12px;
     width: min(240px, calc(100vw - 24px));
@@ -3828,14 +3834,14 @@ button.card.passed:hover {
 }
 
 /* Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 3 — raised from 20
-   to 100. Clicking a course inside `SelectedCoursesPanel.jsx` (z-index 55) now opens this exact
-   same shared modal to show its description — a modal should always render on top of any other
-   floating panel, and 20 was lower than both that panel and `.module-review-toggle`/
-   `.module-review-panel` (z-index 60), which also renders on this same screen. Confirmed no other
-   floating control in this app relies on `.overlay` staying below it — the one deliberate
-   exception, `.sound-settings-popover`'s own z-index 500, is a persistent header control meant to
-   stay reachable over literally everything, including an open modal, so 100 stays comfortably
-   under it. */
+   to 100. Clicking an item inside `SelectedItemsPanel.jsx` (z-index 55, shared by Course Selection
+   and Opportunity Finder — see that component's own header comment) now opens this exact same
+   shared modal to show its description — a modal should always render on top of any other floating
+   panel, and 20 was lower than both that panel and `.module-review-toggle`/`.module-review-panel`
+   (z-index 60), which also renders on these same screens. Confirmed no other floating control in
+   this app relies on `.overlay` staying below it — the one deliberate exception,
+   `.sound-settings-popover`'s own z-index 500, is a persistent header control meant to stay
+   reachable over literally everything, including an open modal, so 100 stays comfortably under it. */
 .overlay { position:fixed; inset:0; background: rgba(30,61,50,0.35); display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; }
 .modal { background: var(--card); max-width:420px; width:100%; border-radius:6px; padding:26px; position:relative; border:1px solid var(--paper-line); max-height: 85vh; overflow-y: auto; }
 .modal-close { position:absolute; top:14px; right:14px; background:none; border:none; cursor:pointer; color: var(--ink-soft); }

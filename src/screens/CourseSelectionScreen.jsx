@@ -12,7 +12,7 @@ import {
   getProgramTypeCourses,
 } from '../data/programRecommendations';
 import { getSchoolRequirement } from '../data/schoolRequirements';
-import SelectedCoursesPanel from '../components/SelectedCoursesPanel';
+import SelectedItemsPanel from '../components/SelectedItemsPanel';
 import { checkPrerequisite } from '../utils/prerequisites';
 import { STAGE_PLAN, TRUNK_STAGES, DEFAULT_SCHOOL_YEAR, getStage0TargetLabel } from '../data/trunkSteps';
 import {
@@ -28,7 +28,7 @@ import { GENERAL_EDUCATION_REQUIREMENTS, getSelectedUCDavisColleges } from '../d
 import { getRecommendedUCDavisCourses } from '../data/ucdavisCourseRecommendations';
 import { QUARTER_LABELS, getNextQuarter } from '../data/ucdavisQuarters';
 import { getEffectiveToday } from '../utils/dates';
-import { getThematicCourseMatches } from '../utils/thematicCourseMatch';
+import { getThematicCourseMatches } from '../utils/thematicMatch';
 import StepProgress from '../components/StepProgress';
 import { useModalExit } from '../hooks/useModalExit';
 import MascotWidget from '../components/MascotWidget';
@@ -419,7 +419,7 @@ export default function CourseSelectionScreen() {
   // AI-First Onboarding, Stage 3 (see CLAUDE.md), Task 3 — real courses matched against the
   // confirmed narrative overview's own thematic keywords (state.narrativeThemes, empty until an
   // overview is actually confirmed), cross-referenced against the REAL catalog rather than trusted
-  // from the AI directly (see thematicCourseMatch.js's own header comment for why). Merged
+  // from the AI directly (see thematicMatch.js's own header comment for why). Merged
   // additively into the SAME existing interest-based "Recommended for you" list below — not a
   // second, parallel section — via getRecommendedCourses's own new optional third argument.
   const thematicCourses = useMemo(
@@ -516,7 +516,7 @@ export default function CourseSelectionScreen() {
   };
 
   // Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2 — the actual
-  // clearing action, wired to `SelectedCoursesPanel`'s own `onClearAll`, which is what gates this
+  // clearing action, wired to `SelectedItemsPanel`'s own `onClearAll`, which is what gates this
   // behind a real `window.confirm(...)` first (the exact same lightweight synchronous confirmation
   // pattern this codebase already uses for its other real "are you sure" moments — the hub's own
   // Reset button, Roadmap.jsx's required-task removal) — this function itself is only ever called
@@ -1004,11 +1004,13 @@ export default function CourseSelectionScreen() {
           click-to-view-description straight into the exact same real actions/state this screen's
           main grid already uses — `clearAllCourses` and the SAME `setSelectedCourseDetail` that
           opens the identical detail modal below for a card clicked in the main grid. */}
-      <SelectedCoursesPanel
-        courses={selectedCourses}
+      <SelectedItemsPanel
+        items={selectedCourses}
         onRemove={toggleCourse}
         onClearAll={clearAllCourses}
         onOpenDetail={setSelectedCourseDetail}
+        itemLabel="Courses"
+        confirmMessage="Are you sure you want to remove all selected courses?"
       />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>
@@ -1281,7 +1283,7 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
   };
 
   // Fix Auto-Pick with Real Constraints + List Enhancements (see CLAUDE.md), Task 2 — same real,
-  // window.confirm-gated clearing action as the Roslyn variant (see `SelectedCoursesPanel`'s own
+  // window.confirm-gated clearing action as the Roslyn variant (see `SelectedItemsPanel`'s own
   // `onClearAll`), checkpoint-aware the same way `toggleCourse` above already is.
   const clearAllCourses = () => {
     if (checkpoint) {
@@ -1566,12 +1568,14 @@ function UCDavisCourseSelectionScreen({ state, patch }) {
           CLAUDE.md), Task 2/3 — same real "Clear all" confirmation and click-to-view-description
           wiring as the Roslyn variant, into this screen's own `clearAllCourses`/
           `setSelectedCourseDetail`. */}
-      <SelectedCoursesPanel
-        courses={selectedCourses}
+      <SelectedItemsPanel
+        items={selectedCourses}
         onRemove={toggleCourse}
         onClearAll={clearAllCourses}
         onOpenDetail={setSelectedCourseDetail}
         getLabel={(course) => `${course.code} — ${course.name}`}
+        itemLabel="Courses"
+        confirmMessage="Are you sure you want to remove all selected courses?"
       />
 
       <div className="btn-row" style={{ justifyContent: 'flex-end' }}>

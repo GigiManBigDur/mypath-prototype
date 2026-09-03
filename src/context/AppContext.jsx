@@ -495,7 +495,7 @@ const DEFAULT_STATE = {
   // (Task 4). Plain, flat fields (not nested under one object) matching this app's own general
   // preference for directly-named state — `narrativeSummary` (Task 2) is what a future Stage 5 will
   // use as Discovery's own starting point; `narrativeThemes` (Task 3) is what feeds the EXISTING
-  // Course Selection recommendation logic as additional context (see thematicCourseMatch.js). Both
+  // Course Selection recommendation logic as additional context (see thematicMatch.js). Both
   // `null`/`[]` until a real overview has actually been confirmed — the "don't guess" convention
   // every other not-yet-answered field in this app already follows. The generated PHASES themselves
   // live as a real `state.startedProjects` entry (see NARRATIVE_OVERVIEW_CATEGORY_ID, data/
