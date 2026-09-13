@@ -197,6 +197,27 @@ body {
 }
 .app-shell.app-shell-hub .app-header { padding: 22px 32px 0; margin-bottom: 0; }
 
+/* Bug fix, found via real macOS trackpad overscroll (see CLAUDE.md) — the hub's own shell is
+   full-bleed (`width:100%; min-height:100vh`), which is why this rule was originally judged
+   unnecessary when the hub redesign first shipped: unlike a centered/padded screen, there's no
+   normal GUTTER around the shell for the page's own stale `<body>` background to show through.
+   That reasoning missed a real, separate case: scrolling PAST the very bottom of the page (macOS's
+   own elastic "rubber-band" overscroll) reveals whatever `<body>` itself is painted with, for a
+   moment, regardless of how completely the shell covers the actual scrollable content — and
+   `<body>`'s own default background is still the OLD parchment texture (`--paper` +
+   `repeating-radial-gradient`) set at the very top of this file, since nothing had ever told it
+   otherwise for this one screen. Confirmed directly: a real screenshot at the exact overscroll
+   moment showed that old beige/dotted texture, not the hub's own light grey. Fixed the same way
+   `body:has(.app-shell-bloom)`/`body:has(.app-shell-plan)` right below already handle the
+   identical class of problem for their own screens. */
+body:has(.app-shell-hub) {
+  /* Literal hex, not `var(--hub-bg)` — that custom property is declared ON
+     `.app-shell.app-shell-hub` itself (a DESCENDANT of body), so body, as an ancestor, can never
+     actually see it; this mirrors the exact value `.app-shell.app-shell-hub` sets for itself. */
+  background: #F5F5F7;
+  background-image: none;
+}
+
 /* Palette repaint, Welcome/Sign-Up (see CLAUDE.md) — the first two screens moved onto the shared
    `--bloom-*` tokens above. Scoped to `.app-shell-bloom` (App.jsx, added whenever screenKey is
    'welcome' or 'signup') so nothing here leaks onto any other, still-parchment-themed screen —
