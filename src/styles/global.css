@@ -146,29 +146,54 @@ body {
 
 /* Hub redesign (see CLAUDE.md) — the hub gets its own full-bleed shell, mirroring
    `.app-shell-plan`'s own precedent immediately above, plus a fresh, self-contained color
-   palette (light neutral background, white cards, a small closed set of vivid tile-accent
-   colors) matching the reference design's own look. Deliberately scoped to `.app-shell-hub`
-   (added by App.jsx only when `state.screen === 'hub'`) so NONE of the layout overrides below can
-   leak onto any other screen. **The color values themselves are no longer hub-exclusive** — this
-   palette has since started spreading screen-by-screen (Welcome/Sign-Up were first, see that
-   section below); `--hub-*` here now just ALIASES the shared `--bloom-*` tokens at :root (rather
-   than redefining the same hex values a second time), so this block's own extensive `--hub-*`
-   CSS didn't need to change at all when that promotion happened. */
+   palette. Deliberately scoped to `.app-shell-hub` (added by App.jsx only when
+   `state.screen === 'hub'`) so NONE of the layout/color overrides below can leak onto any other
+   screen. **The color values themselves are no longer hub-exclusive in general** — the earlier
+   "bloom" palette spread screen-by-screen (Welcome/Sign-Up etc., see the section below) via
+   `--hub-*` aliasing the shared `--bloom-*` :root tokens.
+   Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) — `--hub-*`
+   now holds its OWN dedicated Apple-style palette instead of aliasing `--bloom-*`, matching the
+   attached design's own light/glassy off-white look (soft neutral background, crisp white cards,
+   near-black ink, a deep green accent) — a deliberate one-screen fork, not a second promotion:
+   every OTHER `--bloom-*`-repainted screen keeps its existing lighter/more-colorful look
+   untouched, since this reskin is explicitly scoped to the hub alone (the task's own "keep the
+   existing radial layout, only restyle" instruction extends to not touching any other screen's
+   palette either). `--hub-tile-*` are a small, separate closed set of vivid accent hues lifted
+   directly from the attached design's own tile-color data (not reused from `--bloom-*`, for the
+   same "this screen forks its own palette" reason) — HubScreen.jsx's `TILE_ACCENTS`/`PARTICLES`
+   read these instead of the bloom accent set now. The soft dual radial-glow `background-image`
+   (white glow top-center, faint green glow lower) is layered ON TOP of the flat `--hub-bg` color
+   (not baked into the variable itself, which stays flat since it's also read as a plain
+   background-color by several smaller elements elsewhere in this file) — matching the attached
+   design's own airy, glowing backdrop rather than a flat single tone. */
 .app-shell.app-shell-hub {
-  --hub-bg: var(--bloom-bg);
-  --hub-card: var(--bloom-card);
-  --hub-card-border: var(--bloom-card-border);
-  --hub-ink: var(--bloom-ink);
-  --hub-ink-soft: var(--bloom-ink-soft);
-  --hub-shadow: var(--bloom-shadow);
-  --hub-shadow-hover: var(--bloom-shadow-hover);
-  --hub-accent: var(--bloom-accent);
+  --hub-bg: #F5F5F7;
+  --hub-card: #FFFFFF;
+  --hub-card-border: rgba(0, 0, 0, 0.08);
+  --hub-ink: #1D1D1F;
+  --hub-ink-soft: #6E6E73;
+  --hub-shadow: 0 8px 24px rgba(16, 24, 20, 0.08);
+  --hub-shadow-hover: 0 22px 46px rgba(16, 24, 20, 0.16);
+  --hub-accent: #1D7A4F;
+  --hub-accent-bright: #34C17B;
+  --hub-accent-2: #0071E3;
+  --hub-tile-purple: #7C5CFF;
+  --hub-tile-blue: #0071E3;
+  --hub-tile-gold: #F0B429;
+  --hub-tile-teal: #12B5A0;
+  --hub-tile-orange: #FF8A3D;
+  --hub-tile-pink: #FF5F8F;
+  --hub-tile-green: #34C17B;
   max-width: none;
   width: 100%;
   margin: 0;
   padding: 0;
   min-height: 100vh;
   background: var(--hub-bg);
+  background-image:
+    radial-gradient(ellipse 1100px 560px at 50% 0%, rgba(255, 255, 255, 0.95), transparent 62%),
+    radial-gradient(ellipse 900px 620px at 50% 92%, rgba(29, 122, 79, 0.07), transparent 70%);
+  background-attachment: fixed;
 }
 .app-shell.app-shell-hub .app-header { padding: 22px 32px 0; margin-bottom: 0; }
 
@@ -1037,11 +1062,26 @@ button.card.passed:hover {
    rendering that one here) so there's exactly one top bar, not two stacked. The real mute/voice-
    settings controls that `.app-header` normally carries move into this bar's own right-hand
    cluster instead of disappearing — see HubScreen.jsx. */
+/* Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) — the top bar
+   itself becomes a rounded, translucent "glass" pill (blurred backdrop, thin hairline border,
+   soft shadow) rather than a plain flex row with no background of its own, matching the attached
+   design's own sticky glass header. Not made `position: sticky` — `.hub-screen` already carries
+   real horizontal padding the reference's own full-bleed edge-to-edge header doesn't have, and
+   forcing genuine edge-to-edge here would mean restructuring that padding model for a purely
+   cosmetic gain; a floating glass bar reads just as "Apple," with far less risk to the existing,
+   untouched layout underneath it. */
 .hub-topbar {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 22px 0 18px;
+  margin: 18px 0 14px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 24px rgba(16, 24, 20, 0.06);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 .hub-topbar-logo {
   display: flex;
@@ -1050,6 +1090,7 @@ button.card.passed:hover {
   font-family: 'Fraunces', serif;
   font-weight: 600;
   font-size: 19px;
+  letter-spacing: -0.01em;
   color: var(--hub-ink);
   flex-shrink: 0;
 }
@@ -1060,14 +1101,16 @@ button.card.passed:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--hub-card);
-  border: 1px solid var(--hub-card-border);
-  border-radius: 12px;
-  padding: 9px 14px;
+  background: rgba(0, 0, 0, 0.045);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 9px 16px;
   color: var(--hub-ink-soft);
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 13.5px;
+  transition: background 0.2s ease;
 }
+.hub-topbar-search:focus-within { background: rgba(0, 0, 0, 0.07); }
 .hub-topbar-search input {
   border: none;
   outline: none;
@@ -1108,13 +1151,14 @@ button.card.passed:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--hub-card);
-  border: 1px solid var(--hub-card-border);
+  background: rgba(0, 0, 0, 0.045);
+  border: 1px solid transparent;
   color: var(--hub-ink-soft);
   cursor: pointer;
   position: relative;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
+.hub-icon-btn:hover { transform: scale(1.06); }
 .hub-icon-btn:hover { color: var(--hub-ink); border-color: var(--hub-accent); }
 .hub-avatar {
   width: 38px;
@@ -1123,9 +1167,10 @@ button.card.passed:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--hub-accent);
+  background: linear-gradient(135deg, var(--hub-accent-bright), var(--hub-accent));
   color: #fff;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(29, 122, 79, 0.35);
 }
 
 /* The reference's own header text (left) + "Your Progress" card (right), side by side. Wraps to
@@ -1139,17 +1184,34 @@ button.card.passed:hover {
   margin-bottom: 8px;
 }
 .hub-header-row { text-align: left; }
+/* Adapt Claude Design's Output (see CLAUDE.md) — restyled as a small uppercase, letter-spaced
+   "eyebrow" (matching the attached design's own "Welcome back, Says" kicker line), reusing this
+   app's own already-established `.eyebrow` idiom (IBM Plex Mono, uppercase, wide tracking) rather
+   than inventing a new label convention — just hub-accent colored and a touch smaller. */
 .hub-welcome-line {
-  margin: 0 0 4px;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 15px;
-  color: var(--hub-ink-soft);
+  margin: 0 0 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hub-accent);
 }
 .hub-header-row .hub-title {
   font-family: 'Fraunces', serif;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--hub-ink);
   margin: 0 0 6px;
+}
+/* The attached design's own gradient-clipped headline treatment (green fading into blue) — applied
+   to just the second clause of the title (see HubScreen.jsx), not the whole sentence, matching the
+   reference's own "plain lead-in, gradient payoff" split. */
+.hub-title-gradient {
+  background: linear-gradient(92deg, var(--hub-accent) 10%, var(--hub-accent-2) 110%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .hub-header-row .page-sub { color: var(--hub-ink-soft); }
 
@@ -1159,9 +1221,9 @@ button.card.passed:hover {
    painted `accent` for `pct`% of its circumference and `--hub-card-border` for the rest, with a
    smaller solid circle centered on top to punch out the donut hole the percentage text sits in. */
 .hub-progress-card {
-  background: var(--hub-card);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--hub-card-border);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--hub-shadow);
   padding: 18px 22px;
   display: flex;
@@ -1169,6 +1231,8 @@ button.card.passed:hover {
   gap: 18px;
   text-align: left;
   min-width: 300px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 .hub-progress-card-title {
   display: flex;
@@ -1254,8 +1318,28 @@ button.card.passed:hover {
   transition: transform 550ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .hub-mascot-figure.chat-grown { transform: scale(1.4); }
+/* Adapt Claude Design's Output (see CLAUDE.md) — a soft, continuously expanding "aura" ring behind
+   the mascot, matching the attached design's own pulse ring. A pseudo-element rather than new
+   markup (nothing here is measured/clicked, so it doesn't need a real DOM node); `z-index: -1`
+   is what puts it BEHIND the real `<MascotIcon>` SVG child despite `::after` normally painting
+   after a positioned element's other content. */
+.hub-mascot-figure::after {
+  content: '';
+  position: absolute;
+  inset: -22px;
+  border-radius: 50%;
+  border: 2px solid rgba(29, 122, 79, 0.35);
+  z-index: -1;
+  pointer-events: none;
+  animation: hub-mascot-pulse-ring 3.2s ease-out infinite;
+}
+@keyframes hub-mascot-pulse-ring {
+  0% { transform: scale(0.85); opacity: 0.5; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .hub-mascot-figure { transition: none; }
+  .hub-mascot-figure::after { animation: none; opacity: 0; }
 }
 
 /* Hub redesign (see CLAUDE.md) — a self-contained set of fresh colors for the new robot-with-a-
@@ -1268,19 +1352,26 @@ button.card.passed:hover {
    note applies to page backgrounds/cards/text, not this small shared illustration). */
 .mascot-svg { overflow: visible; }
 .mascot-shadow { fill: var(--ink); opacity: 0.12; }
-.mascot-body { fill: #F8F6EF; stroke: #E3DFD2; stroke-width: 2; }
-.mascot-ear { fill: #23261F; }
-.mascot-face { fill: #1B1E19; }
+/* Apple-style hub redesign (see MascotIcon.jsx's own header comment) — every fill/stroke below is
+   a plain, solid FALLBACK color, only ever visible if the inline gradient `style` (set per-element
+   in JSX, using ids namespaced to that mount) somehow isn't applied; the real, richer look is the
+   gradient. `filter: drop-shadow(...)` adds a soft glow that composes safely alongside the
+   existing `transform`/`opacity` animations on these same elements (a different CSS property,
+   never in conflict). */
+.mascot-body { fill: #F8F6EF; stroke: #E3DFD2; stroke-width: 2; filter: drop-shadow(0 10px 14px rgba(20, 32, 24, 0.16)); }
+.mascot-ear { fill: #1B1F1A; }
+.mascot-face { fill: #121915; }
 .mascot-eye {
   fill: none;
-  stroke: #CFF3D6;
+  stroke: #5CE6A5;
   stroke-width: 4.5;
   stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(65, 217, 140, 0.65));
   animation: mascot-blink 4.5s ease-in-out infinite;
   transform-origin: center;
   transform-box: fill-box;
 }
-.mascot-chest-light { fill: var(--teal); animation: mascot-chest-pulse 2.4s ease-in-out infinite; }
+.mascot-chest-light { fill: #34C17B; filter: drop-shadow(0 0 4px rgba(65, 217, 140, 0.7)); animation: mascot-chest-pulse 2.4s ease-in-out infinite; }
 .mascot-leaf-shape { fill: #3FAE58; }
 
 .mascot-bob { animation: mascot-bob 3.2s ease-in-out infinite; transform-origin: 80px 142px; }
@@ -1431,12 +1522,14 @@ button.card.passed:hover {
 .mascot-greeting {
   position: relative;
   display: inline-block;
-  background: var(--hub-card);
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--hub-card-border);
-  border-radius: 18px;
+  border-radius: 20px;
   padding: 16px 22px;
   max-width: 340px;
   box-shadow: var(--hub-shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .mascot-greeting p {
   margin: 0;
@@ -1712,6 +1805,84 @@ button.card.passed:hover {
    ..."`) — deliberately a clean break, not an override-on-top, so there's no risk of the shared
    `.card`/`.card-title`/`.card-desc` rules every OTHER screen's content grids still use ever
    needing to account for hub-specific values, and vice versa. */
+/* Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) — the attached
+   design's own decorative orbit rings/conic-gradient halo/dot-grid texture, recreated as a purely
+   background visual layer (HubScreen.jsx renders 4 fixed, `aria-hidden`, `pointer-events: none`
+   elements right at the top of `.hub-radial-wrap`, before the real particles/mascot/tiles). This
+   does NOT touch tile positioning at all — every ring/glow is centered on the exact same point
+   `.hub-mascot-area` already uses (`left: 50%; top: 40%`) and sits at z-index 0, strictly behind
+   the particles (z-index 1), tile slots (z-index 4), and mascot (z-index 5), so it reads as
+   texture under the existing, unmoved composition rather than a new layout element competing
+   with it. */
+.hub-orbit-decor { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hub-orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.hub-orbit-ring-outer {
+  width: min(96%, 980px);
+  height: min(96%, 980px);
+  border: 1px dashed rgba(0, 0, 0, 0.08);
+  animation: hub-orbit-spin 70s linear infinite;
+}
+.hub-orbit-ring-inner {
+  width: min(64%, 640px);
+  height: min(64%, 640px);
+  border: 1px solid rgba(29, 122, 79, 0.22);
+  animation: hub-orbit-spin-reverse 46s linear infinite;
+}
+@keyframes hub-orbit-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes hub-orbit-spin-reverse { to { transform: translate(-50%, -50%) rotate(-360deg); } }
+.hub-orbit-glow {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: min(120%, 1160px);
+  height: min(120%, 1160px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(52, 193, 123, 0) 0deg,
+    rgba(29, 122, 79, 0.16) 60deg,
+    rgba(0, 113, 227, 0.12) 150deg,
+    rgba(52, 193, 123, 0) 220deg,
+    rgba(18, 181, 160, 0.12) 300deg,
+    rgba(52, 193, 123, 0) 360deg
+  );
+  filter: blur(48px);
+  -webkit-mask-image: radial-gradient(circle, transparent 30%, #000 48%, #000 70%, transparent 86%);
+  mask-image: radial-gradient(circle, transparent 30%, #000 48%, #000 70%, transparent 86%);
+  opacity: 0.55;
+  animation: hub-orbit-spin 90s linear infinite;
+}
+.hub-orbit-dotgrid {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: min(96%, 900px);
+  height: min(96%, 900px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.10) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(circle, #000 32%, transparent 74%);
+  mask-image: radial-gradient(circle, #000 32%, transparent 74%);
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-orbit-ring-outer, .hub-orbit-ring-inner, .hub-orbit-glow { animation: none; }
+}
+@media (max-width: 980px) {
+  /* The narrow-viewport fallback turns the ring into a plain grid (see that section further down)
+     — the orbit texture only reads as intentional around a real radial composition, so it's
+     hidden the same way the particles already are at this width. */
+  .hub-orbit-decor { display: none; }
+}
+
 .hub-radial-wrap {
   position: relative;
   width: 100%;
@@ -1754,15 +1925,36 @@ button.card.passed:hover {
      unlocked tile just carries a little empty padding at the bottom), so the radial composition's
      real rendered geometry is now identical on the very first hub visit as on every later one. */
   min-height: 194px;
-  background: var(--hub-card);
+  /* Adapt Claude Design's Output (see CLAUDE.md) — a translucent, blurred "glass" card (was a
+     flat opaque white) matching the attached design's own tile treatment, plus a slightly
+     larger radius (18px -> 22px). `overflow: hidden` is what clips the new `::before` accent
+     wash (below) to these rounded corners. */
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--hub-card-border);
-  border-radius: 18px;
+  border-radius: 22px;
   padding: 18px;
   box-shadow: var(--hub-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  overflow: hidden;
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease;
 }
 .hub-tile:hover:not(:disabled) { transform: translateY(-4px); box-shadow: var(--hub-shadow-hover); }
 .hub-tile:active:not(:disabled) { transform: translateY(-1px) scale(0.985); }
+/* A faint diagonal wash of the tile's own accent color (the attached design's own per-card
+   gradient tint), reading behind the real icon/title/desc content since a `::before` paints
+   before an element's real DOM children in the same stacking context. Locked tiles never show
+   this (their icon-box already falls back to a neutral grey, see below), since `--tile-accent-bg`
+   still resolves to a real color for them — `.hub-tile.locked::before` turns it off explicitly. */
+.hub-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(150deg, var(--tile-accent-bg, var(--hub-accent)), transparent 60%);
+  opacity: 0.08;
+  pointer-events: none;
+}
+.hub-tile.locked::before { opacity: 0; }
 
 /* Desktop-only: each tile is pinned to a hand-tuned {x%, y%} slot around the mascot (left/top set
    inline per tile, HubScreen.jsx's `RADIAL_POSITIONS`), scattered left/right of a center column
@@ -1793,6 +1985,11 @@ button.card.passed:hover {
    small fixed set of VIVID colors (Task 2) — the same "data holds the value, CSS just reads a
    custom property" convention `ProjectBuilderScreen.jsx`'s own `--pb-accent` cycling already
    established in this codebase, not a new pattern invented for this redesign. */
+/* Adapt Claude Design's Output (see CLAUDE.md) — the icon badge and the new "OPEN"/lock status
+   pill (HubScreen.jsx) now sit in one flex header row, icon left / status right, matching the
+   attached design's own tile layout — a purely additive wrapper around the SAME icon-box element,
+   so nothing about which icon renders (theme icon vs. Lock, on unlock/lock) changed at all. */
+.hub-tile-top-row { display: flex; align-items: flex-start; justify-content: space-between; width: 100%; margin-bottom: 10px; }
 .hub-tile-icon-box {
   width: 46px;
   height: 46px;
@@ -1800,12 +1997,29 @@ button.card.passed:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 10px;
   background: var(--tile-accent-bg, var(--hub-accent));
   color: var(--tile-accent-fg, #fff);
+  box-shadow: 0 8px 18px rgba(16, 24, 20, 0.16);
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .hub-tile:hover:not(:disabled) .hub-tile-icon-box { transform: scale(1.08) rotate(-4deg); }
+/* The attached design's own small "OPEN" pill, shown only on a real, currently-unlocked tile
+   (HubScreen.jsx) — purely decorative, additive to the existing lock-icon-swap mechanism, never a
+   replacement for it. */
+.hub-tile-status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(29, 122, 79, 0.12);
+  color: var(--hub-accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
 
 .hub-tile-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 15.5px; font-weight: 700; color: var(--hub-ink); margin: 0 0 4px; }
 .hub-tile-desc { font-family: 'IBM Plex Sans', sans-serif; font-size: 12.5px; color: var(--hub-ink-soft); line-height: 1.4; margin: 0; }
@@ -1862,7 +2076,7 @@ button.card.passed:hover {
    locked tiles — they stay muted/grey until unlocked, per this stage's own spec. */
 .hub-tile.locked { opacity: 0.55; cursor: not-allowed; }
 .hub-tile.locked:hover { transform: none; box-shadow: var(--hub-shadow); }
-.hub-tile.locked .hub-tile-icon-box { background: #EDEDE8; color: var(--hub-ink-soft); }
+.hub-tile.locked .hub-tile-icon-box { background: rgba(0, 0, 0, 0.05); color: rgba(0, 0, 0, 0.35); box-shadow: none; }
 .hub-tile-lock-icon { color: var(--hub-ink-soft); }
 
 /* Dashboard/Guide hub, Stage 4 — the pulsing/glowing highlight on the mascot's current guided
@@ -2000,15 +2214,17 @@ button.card.passed:hover {
 @media (max-width: 900px) { .hub-bottom-row { grid-template-columns: 1fr; } }
 
 .hub-quote-card {
-  background: var(--hub-card);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--hub-card-border);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--hub-shadow);
   padding: 20px 22px;
   text-align: left;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 .hub-quote-mark { color: var(--hub-accent); font-family: 'Fraunces', serif; font-size: 26px; line-height: 1; margin: 0 0 4px; }
 .hub-quote-text { font-family: 'Fraunces', serif; font-size: 15px; color: var(--hub-ink); margin: 0 0 8px; line-height: 1.4; }
@@ -2094,11 +2310,13 @@ button.card.passed:hover {
   display: flex;
   flex-direction: column;
   z-index: 6;
-  background: var(--hub-card);
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--hub-card-border);
-  border-radius: 20px;
+  border-radius: 22px;
   box-shadow: var(--hub-shadow);
   padding: 20px 22px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   /* Enhance AI Chat Page Visuals, Task 1 — clips the `::before` shimmer bar below to this card's
      own rounded corners (the same "overflow: hidden on the card itself" precedent
      `.pb-category-card`'s own top accent bar already established), instead of a plain rectangle
@@ -2471,12 +2689,14 @@ button.card.passed:hover {
 .chat-send-btn:disabled { opacity: 0.5; cursor: default; }
 
 .hub-quick-actions {
-  background: var(--hub-card);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--hub-card-border);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--hub-shadow);
   padding: 14px 18px;
   text-align: left;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 .hub-quick-actions-title {
   display: flex;

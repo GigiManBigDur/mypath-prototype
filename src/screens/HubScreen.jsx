@@ -392,23 +392,24 @@ function countPlanTasks(roadmap, completedNodes) {
 // Hub redesign (see CLAUDE.md) — a small fixed VIVID palette cycled per tile via inline
 // `--tile-accent-bg`/`--tile-accent-fg` custom properties, the same "data/JSX picks the value,
 // CSS just reads a custom property" convention ProjectBuilderScreen.jsx's own `--pb-accent`
-// cycling already established — not a new pattern invented for this redesign. Task 2's own named
-// color list (purple, yellow, teal, orange, pink, blue, green), each paired with whichever icon
-// color (white, or dark ink for the lighter yellow) actually reads clearly on top of it. Locked
+// cycling already established — not a new pattern invented for this redesign. Locked
 // tiles never read this palette at all (global.css's own `.hub-tile.locked .hub-tile-icon-box`
 // override wins) — they stay muted/grey regardless of a tile's own accent index.
 //
-// Palette repaint (see CLAUDE.md) — these reference the shared `--bloom-*` tokens (global.css's
-// own `:root` block) rather than repeating the same hex values a second time here, now that a
-// second screen (Sign-Up's own avatar picker) reuses the identical 6 of these 7 colors.
+// Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) — these now
+// reference the hub's own dedicated `--hub-tile-*` tokens (global.css, `.app-shell.app-shell-hub`)
+// instead of the shared `--bloom-*` set every other repainted screen still reads — the attached
+// design's own tile-accent hues (a slightly different, more Apple-esque purple/blue/gold/teal/
+// orange/pink/green than the bloom palette's own), scoped so this reskin never changes what
+// Sign-Up's avatar picker or any other bloom screen looks like.
 const TILE_ACCENTS = [
-  { bg: 'var(--bloom-purple)', fg: '#ffffff' },
-  { bg: 'var(--bloom-yellow)', fg: '#20241C' },
-  { bg: 'var(--bloom-teal)', fg: '#ffffff' },
-  { bg: 'var(--bloom-orange)', fg: '#ffffff' },
-  { bg: 'var(--bloom-pink)', fg: '#ffffff' },
-  { bg: 'var(--bloom-blue)', fg: '#ffffff' },
-  { bg: 'var(--bloom-green)', fg: '#ffffff' },
+  { bg: 'var(--hub-tile-purple)', fg: '#ffffff' },
+  { bg: 'var(--hub-tile-gold)', fg: '#20241C' },
+  { bg: 'var(--hub-tile-teal)', fg: '#ffffff' },
+  { bg: 'var(--hub-tile-orange)', fg: '#ffffff' },
+  { bg: 'var(--hub-tile-pink)', fg: '#ffffff' },
+  { bg: 'var(--hub-tile-blue)', fg: '#ffffff' },
+  { bg: 'var(--hub-tile-green)', fg: '#ffffff' },
 ];
 
 // Radial-layout pass, Task 1 (see CLAUDE.md) — hand-tuned percentage slots (of `.hub-radial-wrap`'s
@@ -486,19 +487,23 @@ const RADIAL_POSITIONS = [
 // fixed positions/colors/sizes (reusing TILE_ACCENTS's own vivid palette for cohesion), no data
 // behind any of it. Deliberately kept out of the center column the mascot/dialogue occupy, same
 // as the tile slots above.
+// Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) — colors moved
+// to the same `--hub-tile-*` custom properties TILE_ACCENTS now reads, so a particle's own color
+// stays a real reference into the hub's one accent palette rather than a second, independently
+// hardcoded copy of the old bloom hex values.
 const PARTICLES = [
-  { x: 34, y: 12, size: 7, color: '#8B5CF6' },
-  { x: 66, y: 10, size: 6, color: '#F0B429' },
-  { x: 16, y: 34, size: 8, color: '#14B8A6' },
-  { x: 84, y: 32, size: 6, color: '#F0923B' },
-  { x: 30, y: 46, size: 5, color: '#EC6FA0' },
-  { x: 70, y: 44, size: 7, color: '#3B82F6' },
-  { x: 20, y: 62, size: 6, color: '#22C55E' },
-  { x: 80, y: 60, size: 8, color: '#8B5CF6' },
-  { x: 38, y: 80, size: 5, color: '#F0B429' },
-  { x: 62, y: 82, size: 6, color: '#14B8A6' },
-  { x: 46, y: 18, size: 5, color: '#F0923B' },
-  { x: 54, y: 96, size: 6, color: '#EC6FA0' },
+  { x: 34, y: 12, size: 7, color: 'var(--hub-tile-purple)' },
+  { x: 66, y: 10, size: 6, color: 'var(--hub-tile-gold)' },
+  { x: 16, y: 34, size: 8, color: 'var(--hub-tile-teal)' },
+  { x: 84, y: 32, size: 6, color: 'var(--hub-tile-orange)' },
+  { x: 30, y: 46, size: 5, color: 'var(--hub-tile-pink)' },
+  { x: 70, y: 44, size: 7, color: 'var(--hub-tile-blue)' },
+  { x: 20, y: 62, size: 6, color: 'var(--hub-tile-green)' },
+  { x: 80, y: 60, size: 8, color: 'var(--hub-tile-purple)' },
+  { x: 38, y: 80, size: 5, color: 'var(--hub-tile-gold)' },
+  { x: 62, y: 82, size: 6, color: 'var(--hub-tile-teal)' },
+  { x: 46, y: 18, size: 5, color: 'var(--hub-tile-orange)' },
+  { x: 54, y: 96, size: 6, color: 'var(--hub-tile-pink)' },
 ];
 
 // Task 3's own decorative quote card, shown purely as visual flavor — same "this app never
@@ -821,7 +826,11 @@ export default function HubScreen() {
       <div className="hub-top-section">
         <div className="hub-header-row">
           {greetingName && <p className="hub-welcome-line">Welcome back, {greetingName}! 👋</p>}
-          <h1 className="page-title hub-title">What would you like to accomplish today?</h1>
+          {/* Adapt Claude Design's Output (see CLAUDE.md) — the headline's second clause gets the
+              attached design's own gradient-text treatment (a plain <span>, no logic involved);
+              the first clause stays plain ink, matching the reference's own "lead-in, then
+              gradient payoff" split. */}
+          <h1 className="page-title hub-title">What would you like <span className="hub-title-gradient">to accomplish today?</span></h1>
           <p className="page-sub">All the tools you need for your academic journey, in one place.</p>
         </div>
 
@@ -847,6 +856,18 @@ export default function HubScreen() {
       </div>
 
       <div className={`hub-radial-wrap${chatPhase !== 'hidden' ? ' chat-mode' : ''}`}>
+        {/* Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) —
+            purely decorative orbit rings/conic-gradient halo/dot-grid texture recreating the
+            attached design's own background, centered on the exact same point `.hub-mascot-area`
+            already uses. Sits at z-index 0, strictly behind the particles/tiles/mascot below —
+            this never moves or resizes anything, it's a background layer under the unchanged
+            composition. */}
+        <div className="hub-orbit-decor" aria-hidden="true">
+          <span className="hub-orbit-ring hub-orbit-ring-outer" />
+          <span className="hub-orbit-ring hub-orbit-ring-inner" />
+          <span className="hub-orbit-glow" />
+          <span className="hub-orbit-dotgrid" />
+        </div>
         {/* Enhance AI Chat Page Visuals (see CLAUDE.md), Task 1 — these decorative particles used
             to be hidden entirely outside the normal hub view (`chatPhase === 'hidden' &&`); they
             now render in every phase, giving the chat page the same "gentle floating dots" ambient
@@ -997,10 +1018,17 @@ export default function HubScreen() {
                   animationDelay: `${i * (isExiting ? 30 : 40)}ms`,
                 }}
               >
-                <div className="hub-tile-icon-box">
-                  {unlocked
-                    ? <tile.Icon size={22} />
-                    : <Lock className="hub-tile-lock-icon" size={20} />}
+                {/* Adapt Claude Design's Output (see CLAUDE.md) — a purely decorative "OPEN"
+                    status pill (attached design's own vocabulary) alongside the icon badge, on
+                    a real unlocked tile only. Additive only: the existing lock/unlock icon-swap
+                    inside `.hub-tile-icon-box` is completely untouched. */}
+                <div className="hub-tile-top-row">
+                  <div className="hub-tile-icon-box">
+                    {unlocked
+                      ? <tile.Icon size={22} />
+                      : <Lock className="hub-tile-lock-icon" size={20} />}
+                  </div>
+                  {unlocked && <span className="hub-tile-status">OPEN</span>}
                 </div>
                 <div className="hub-tile-title">{tile.title}</div>
                 <p className="hub-tile-desc">{tile.desc}</p>

@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 // Hub redesign (see CLAUDE.md) — a friendly rounded robot-with-a-leaf-sprout character,
 // replacing the original Compass-motif illustration to match the reference image's own character
 // design. Pure inline SVG + CSS keyframes still, matching this codebase's standing preference for
@@ -83,6 +85,23 @@
 // animate, exactly like those three already do, rather than a second illustration.
 const MAX_LEAN_DEG = 10;
 
+// Apple-style hub redesign (see CLAUDE.md) — recolors the character with richer gradient/glow
+// fills (a dimensional cream body, a deep glossy face, a two-tone glowing leaf, a glowing mint
+// chest light) to match the attached Claude Design reference's own mascot look, WITHOUT touching
+// any geometry, group structure, class names, or animation logic above — every `<path>`/`<rect>`/
+// `<circle>` keeps its exact `d`/position/class, so every existing CSS animation and the JS-driven
+// pointing/lean math keep targeting the same elements they always did. Gradients need real SVG
+// `<defs>` (a flat CSS `fill: <color>` can't express a multi-stop gradient), added as one small,
+// purely-static, non-animated block right after `<svg>` opens — each gradient id is namespaced
+// with `useId()` so two simultaneous MascotIcon instances on the page (e.g. the hub's own large
+// mascot alongside a small one inside its own chat panel) never collide on the same `<defs>` id.
+// Applied via inline `style={{ fill: ... }}`/`stroke` (which wins over the plain CSS class
+// declaration below it, the same way any inline style always beats a non-`!important` class rule)
+// rather than editing the CSS `fill` value directly, since the id itself is different per mount —
+// the CSS classes below still carry a plain, solid fallback color for good measure. This recolor
+// is intentionally GLOBAL, not hub-scoped, matching this file's own established precedent that a
+// mascot appearance change applies everywhere the shared illustration renders, not just the hub.
+
 // Improve the AI "Thinking" Indicator (see CLAUDE.md) — a FOURTH distinct animation state,
 // consistent with idle/speaking/pointing above: `thinking` reuses the exact same body/eye/chest-
 // light elements those already animate (a slow, contemplative tilt-bob instead of idle's gentle
@@ -98,6 +117,17 @@ const MAX_LEAN_DEG = 10;
 export default function MascotIcon({
   size = 140, speaking = false, pointing = false, pointAngle = null, thinking = false, reviewing = false,
 }) {
+  // Namespaces every gradient id below to this one mount, so two MascotIcon instances rendered at
+  // once (e.g. the hub's own large mascot plus a small one inside its own chat panel) never share
+  // (and silently fight over) the same `<defs>` id.
+  const uid = useId();
+  const bodyGradId = `${uid}-body`;
+  const faceGradId = `${uid}-face`;
+  const eyeGradId = `${uid}-eye`;
+  const chestGradId = `${uid}-chest`;
+  const leaf1GradId = `${uid}-leaf1`;
+  const leaf2GradId = `${uid}-leaf2`;
+
   // A real pointing pose needs a real, measured angle — with none (still measuring, e.g. the very
   // first frame after mount), the character simply stays in its centered idle pose rather than
   // guessing a direction, same "don't fake it" posture the old PointerArrow already held.
@@ -120,6 +150,40 @@ export default function MascotIcon({
 
   return (
     <svg className="mascot-svg" viewBox="0 0 160 160" width={size} height={size} aria-hidden="true">
+      {/* Apple-style hub redesign (see this file's own header comment) — purely static gradient
+          defs, nothing here animates or is ever read by JS; every id is namespaced to this mount
+          via `useId()` so simultaneous MascotIcon instances never collide. */}
+      <defs>
+        <radialGradient id={bodyGradId} cx="34%" cy="22%" r="85%">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="34%" stopColor="#F8F6EF" />
+          <stop offset="72%" stopColor="#E7E2D1" />
+          <stop offset="100%" stopColor="#D2CCB9" />
+        </radialGradient>
+        <radialGradient id={faceGradId} cx="50%" cy="8%" r="95%">
+          <stop offset="0%" stopColor="#2A342F" />
+          <stop offset="55%" stopColor="#161F1B" />
+          <stop offset="100%" stopColor="#0A0F0C" />
+        </radialGradient>
+        <linearGradient id={eyeGradId} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#F0FFF7" />
+          <stop offset="45%" stopColor="#5CE6A5" />
+          <stop offset="100%" stopColor="#1D9C63" />
+        </linearGradient>
+        <radialGradient id={chestGradId} cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#EAFFF3" />
+          <stop offset="55%" stopColor="#41D98C" />
+          <stop offset="100%" stopColor="#1D7A4F" />
+        </radialGradient>
+        <linearGradient id={leaf1GradId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#5CE6A5" />
+          <stop offset="100%" stopColor="#1D7A4F" />
+        </linearGradient>
+        <linearGradient id={leaf2GradId} x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#41D98C" />
+          <stop offset="100%" stopColor="#166B45" />
+        </linearGradient>
+      </defs>
       {/* Fixed, not part of the bob group — a still shadow under a bobbing body is what actually
           sells the "lifting" illusion; a shadow that moves in lockstep with the body wouldn't. */}
       <ellipse className="mascot-shadow" cx="80" cy="149" rx="36" ry="7" />
@@ -128,13 +192,13 @@ export default function MascotIcon({
         style={hasAngle ? { transform: `rotate(${leanDeg}deg)` } : undefined}
       >
         <g className={`mascot-bob${speaking ? ' mascot-speaking' : ''}${thinking ? ' mascot-thinking' : ''}${reviewing ? ' mascot-reviewing' : ''}`}>
-          <rect className="mascot-body" x="35" y="30" width="90" height="112" rx="45" />
+          <rect className="mascot-body" x="35" y="30" width="90" height="112" rx="45" style={{ fill: `url(#${bodyGradId})` }} />
           <circle className="mascot-ear" cx="38" cy="74" r="7" />
           <circle className="mascot-ear" cx="122" cy="74" r="7" />
-          <rect className="mascot-face" x="52" y="56" width="56" height="42" rx="21" />
-          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}${reviewing ? ' mascot-eye-reviewing' : ''}`} d="M 64 79 Q 69 71 74 79" />
-          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}${reviewing ? ' mascot-eye-reviewing' : ''}`} d="M 86 79 Q 91 71 96 79" />
-          <circle className={`mascot-chest-light${speaking ? ' mascot-chest-light-talking' : ''}${thinking ? ' mascot-chest-light-thinking' : ''}`} cx="80" cy="119" r="6" />
+          <rect className="mascot-face" x="52" y="56" width="56" height="42" rx="21" style={{ fill: `url(#${faceGradId})` }} />
+          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}${reviewing ? ' mascot-eye-reviewing' : ''}`} d="M 64 79 Q 69 71 74 79" style={{ stroke: `url(#${eyeGradId})` }} />
+          <path className={`mascot-eye${speaking ? ' mascot-eye-talking' : ''}${thinking ? ' mascot-eye-thinking' : ''}${reviewing ? ' mascot-eye-reviewing' : ''}`} d="M 86 79 Q 91 71 96 79" style={{ stroke: `url(#${eyeGradId})` }} />
+          <circle className={`mascot-chest-light${speaking ? ' mascot-chest-light-talking' : ''}${thinking ? ' mascot-chest-light-thinking' : ''}`} cx="80" cy="119" r="6" style={{ fill: `url(#${chestGradId})` }} />
           {/* Leaf sprout — sways independently via its own inner <g>, same "outer <g> carries the
               positioning translate, inner <g> carries only the CSS-animated transform" split this
               codebase's own WelcomeScreen/Roadmap.jsx transforms already document — a CSS transform
@@ -143,8 +207,8 @@ export default function MascotIcon({
               sway animation applied. */}
           <g transform="translate(80 26)">
             <g className="mascot-leaf">
-              <path className="mascot-leaf-shape" d="M 0 6 Q -14 -6 -9 -19 Q 5 -13 0 6 Z" />
-              <path className="mascot-leaf-shape" d="M 0 6 Q 14 -6 9 -19 Q -5 -13 0 6 Z" />
+              <path className="mascot-leaf-shape" d="M 0 6 Q -14 -6 -9 -19 Q 5 -13 0 6 Z" style={{ fill: `url(#${leaf1GradId})` }} />
+              <path className="mascot-leaf-shape" d="M 0 6 Q 14 -6 9 -19 Q -5 -13 0 6 Z" style={{ fill: `url(#${leaf2GradId})` }} />
             </g>
           </g>
         </g>
@@ -152,13 +216,14 @@ export default function MascotIcon({
         {/* Arm + wand — always drawn on the character's right side; mirrored to the left (inline
             style, see above) whenever the real target angle puts it on that half. Resting: arm
             tucked down at the body's side, wand retracted (scaled to nothing) so it reads as
-            put-away, not just invisible. */}
+            put-away, not just invisible. Reuses the SAME body gradient as the torso (same
+            material), not a separate arm color. */}
         <g className="mascot-arm-mirror" style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
           <g
             className={`mascot-arm${hasAngle ? ' mascot-arm-raised' : ''}`}
             style={hasAngle ? { transform: `rotate(${armRotateDeg}deg)` } : undefined}
           >
-            <rect className="mascot-arm-limb" x="111" y="68" width="16" height="34" rx="8" />
+            <rect className="mascot-arm-limb" x="111" y="68" width="16" height="34" rx="8" style={{ fill: `url(#${bodyGradId})` }} />
             <g className="mascot-wand">
               <rect className="mascot-wand-stick" x="115.5" y="100" width="7" height="42" rx="3.5" />
               <circle className="mascot-wand-tip" cx="119" cy="142" r="6" />

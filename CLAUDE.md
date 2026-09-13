@@ -2450,6 +2450,110 @@ styling from the first pass are still the foundation.
   cleanly via the radial-to-grid fallback with no overlap or clipping; Survey and Academic Plan
   Map 1 screenshots confirm zero palette leakage outside the hub, unchanged from before this pass.
 
+**Adapt Claude Design's Output Into the Existing Radial Hub Layout — a pure re-skin of the hub's
+own established radial layout (mascot centered, tiles in the existing hand-tuned orbit/ring
+arrangement) against an actual Claude Design export (`.dc.html` canvas artboards, "MyPath Hub" +
+"MyPath Menu"), attached as a reference for its own visual language only — the export's own
+literal spatial arrangement (an exact-angle single ring, computed from `data.length`) was
+deliberately NOT adopted, since the task's own explicit instruction was to keep this app's real,
+already-shipped `RADIAL_POSITIONS`/mascot-centering structure exactly as-is and only change how it
+looks. The export's own two reference screenshots turned out to actually BE screenshots of this
+app's own live, already-shipped hub (confirmed directly — the real tile titles, the real
+`'hub-guided-revisit'` line text, and the real "A goal without a plan is just a wish" quote all
+appear verbatim), i.e. the "before" state Claude Design was asked to restyle; the two `.dc.html`
+files are its own "after" concepts. Scope, per the task's own wording, is colors/mascot look/card
+treatment/typography/decorative texture only — zero changes to `RADIAL_POSITIONS`, tile unlock
+logic, click handlers, the guided-sequence/pointing state machine, or the mascot's speaking/voice
+wiring; every edit below is either a CSS repaint or a small, purely additive/decorative JSX
+element.
+- **`--hub-*` forks its own dedicated Apple-style palette instead of aliasing `--bloom-*`.**
+  `.app-shell.app-shell-hub` (`global.css`) previously just aliased the shared bloom tokens every
+  other repainted screen also reads (`--hub-bg: var(--bloom-bg)`, etc.) — this pass replaces that
+  aliasing with real, hub-exclusive values matching the attached design's own light/glassy look
+  (`--hub-bg: #F5F5F7`, `--hub-card: #FFFFFF`, `--hub-ink: #1D1D1F`/`--hub-ink-soft: #6E6E73`,
+  `--hub-accent: #1D7A4F` plus a brighter `--hub-accent-bright`/a blue `--hub-accent-2` for the
+  headline gradient below), a deliberate ONE-SCREEN fork, not a second promotion the way Welcome/
+  Sign-Up's own bloom adoption was — every other `--bloom-*`-repainted screen (Survey, Discovery,
+  Course Selection, Opportunity Finder, Project Builder, Program Summary, Map 1/Map 2) keeps its
+  existing, unchanged look, confirmed directly via screenshot/computed-style checks, not just
+  assumed from the scoping. A soft dual radial-glow `background-image` (white glow top-center,
+  faint green glow low) layers on top of the flat `--hub-bg` color rather than replacing the
+  variable's own value with a gradient — `--hub-bg` is also read as a plain background-COLOR by
+  several smaller elements elsewhere in this same stylesheet (chat bubbles, hover states), so
+  repurposing it into a full gradient would have looked wrong on those tiny boxes. A new
+  `--hub-tile-*` set (7 colors: purple/blue/gold/teal/orange/pink/green, lifted from the attached
+  design's own tile-accent data rather than reused from `--bloom-*`) replaces what `TILE_ACCENTS`/
+  `PARTICLES` (`HubScreen.jsx`) used to cycle through — same reasoning: a genuinely different,
+  slightly more Apple-esque hue set than the bloom accent palette, scoped so it can never touch
+  what those same 7 bloom colors look like on any other screen that reads them.
+- **The mascot's own illustration gets a real gradient/glow enrichment — geometry, class names,
+  and every animation/pointing hook are byte-for-byte unchanged.** `MascotIcon.jsx` gained one
+  small, purely-static `<defs>` block (6 SVG gradients: a dimensional cream-to-tan body, a deep
+  glossy near-black face, a two-tone glowing mint eye stroke, a glowing chest-light bulb, and two
+  slightly different green leaf gradients), each id namespaced via `useId()` so two simultaneous
+  MascotIcon instances on the page (the hub's own large mascot plus a small one inside its own
+  chat panel) never collide on the same gradient id. Applied via inline `style={{ fill: ... }}`/
+  `stroke` on the exact same `<rect>`/`<path>`/`<circle>` elements that already existed (which
+  wins over the CSS class's own now-fallback-only solid color, the same way any inline style beats
+  a non-`!important` class rule) — nothing about which element gets which class, which group
+  nests inside which, or how the lean/arm-raise/wand-extend math computes its rotation changed at
+  all. This recolor is intentionally GLOBAL, not hub-scoped, matching this file's own established
+  precedent (see the original Hub redesign's own mascot-character section) that a mascot
+  appearance change applies everywhere the one shared illustration renders, not just the hub.
+- **New, purely decorative layers, all additive, none of them move an existing element**:
+  `.hub-orbit-decor` (`HubScreen.jsx`, 4 fixed `aria-hidden`/`pointer-events:none` spans — two
+  counter-rotating dashed/solid orbit rings, a blurred conic-gradient halo, a masked dot-grid
+  texture) recreates the attached design's own background texture, centered on the exact same
+  point `.hub-mascot-area` already uses (`left:50%; top:40%`), at z-index 0 — strictly behind the
+  existing particles (z-index 1)/tiles (z-index 4)/mascot (z-index 5), and hidden at the existing
+  narrow-viewport grid-fallback breakpoint the same way particles already are. A soft, continuously
+  expanding pulse-ring aura behind the mascot (`.hub-mascot-figure::after`, a pseudo-element with
+  `z-index:-1` so it paints behind the real `<MascotIcon>` SVG child despite `::after` normally
+  painting after an element's other content) echoes the design's own aura. The headline's second
+  clause gets the design's own gradient-text treatment (`.hub-title-gradient`, a plain `<span>`
+  wrapping just "to accomplish today?"); `.hub-welcome-line` ("Welcome back, ...") became a small
+  uppercase, letter-spaced eyebrow reusing this app's own already-established `.eyebrow` idiom
+  (IBM Plex Mono, wide tracking) rather than inventing a new label convention. Every major card
+  (`.hub-tile`, `.hub-topbar`, `.hub-progress-card`, `.hub-quote-card`, `.hub-quick-actions`,
+  `.hub-chat-panel`, `.mascot-greeting`) picked up a translucent background + `backdrop-filter:
+  blur(...)` "glass" treatment and a slightly larger radius (18px → 20-22px), and `.hub-tile` gained
+  a faint diagonal accent-color wash (`::before`, reading `--tile-accent-bg` at 8% opacity, clipped
+  to the card's own rounded corners via a new `overflow:hidden`) — the exact same per-tile accent
+  the icon badge already uses, not a new color concept. The top bar became a rounded, blurred glass
+  pill (not full-bleed/sticky — `.hub-screen` already carries real horizontal padding the
+  reference's own edge-to-edge header doesn't have, and forcing genuine edge-to-edge would mean
+  restructuring that padding model for a purely cosmetic gain, so a floating glass bar was the
+  lower-risk choice that still reads as "Apple").
+- **One small, purely decorative structural addition: a real "OPEN" status pill on every currently-
+  unlocked tile**, matching the attached design's own tile vocabulary (its own `data` array tags
+  every non-locked entry `open: true`, rendered as this exact pill). `HubScreen.jsx`'s tile JSX
+  gained one new wrapper, `.hub-tile-top-row` (icon-box left, the new pill right, in a flex row) —
+  additive only: the pre-existing lock/unlock icon-swap inside `.hub-tile-icon-box` (theme icon vs.
+  `Lock`, on `unlocked`) is completely untouched, this is a second, independent signal layered
+  alongside it, never a replacement.
+- Verified with a real, running dev-server Playwright check (not just a code read): every one of
+  the 10 real `RADIAL_POSITIONS` slot coordinates renders byte-identical to the pre-redesign
+  values; locked tiles still carry a real `disabled` attribute and clicking one genuinely does
+  nothing (`state.screen` stays `'hub'`); clicking a real unlocked tile ("Careers of Interest")
+  still navigates correctly (`state.screen` becomes `'discovery'`); the guided-sequence dialogue
+  bubble still shows the correct real line for the current step, and the mascot's own `.mascot-arm`/
+  `.mascot-pose` both resolve to real, non-identity `matrix(...)` transforms while pointing —
+  confirming the measured-angle pointing pipeline is unaffected by the new decorative layers
+  sitting behind it; the "OPEN" pill count exactly matches the real unlocked-tile count in every
+  scenario tried; all 6 mascot gradient ids render and are genuinely referenced by the relevant
+  elements' own computed `fill`/`stroke` (`url(#...)`, confirmed via `getComputedStyle`, not just
+  the DOM attribute); the existing Sound Settings popover (an unrelated header control) still
+  opens correctly; and the narrow-viewport CSS-grid fallback still activates at the same breakpoint
+  with the new orbit-decor layer correctly hidden. `npm run build`/`npm run lint` both stay clean.
+  **A real, PRE-EXISTING bug was found while narrow-viewport testing, confirmed via `git stash` to
+  already exist on the unmodified `main` branch and therefore NOT caused by this pass**: at a
+  390px viewport, the hub's own document `scrollWidth` (511px) exceeds its `clientWidth` (390px) —
+  a genuine, if modest, horizontal overflow this task did not introduce and did not attempt to fix
+  (out of scope for a pure visual reskin) — flagged here rather than silently left undocumented,
+  since this file's own historical "Hub redesign" entry once claimed the identical breakpoint
+  "collapses cleanly... with no overlap or clipping," which no longer holds and should be looked
+  at separately.
+
 **Restructure: opportunity chains have no separate anchor node — the chain's own first step is
 promoted directly onto the spine, mirroring `buildProjectChain`'s existing shape exactly.**
 Supersedes an earlier, narrower patch (the "Start" button fix, `startedOpportunityIds`) rather
