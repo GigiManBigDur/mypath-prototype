@@ -4545,126 +4545,172 @@ button.card.passed:hover {
   padding: 4px 10px; border-radius:999px; background: rgba(216,77,91,0.12); color: var(--rust);
 }
 
-/* Welcome screen — the app's entry hero. Reuses every existing token (palette/fonts/background
-   texture already come from :root and body); the only new thing here is the animated trail. */
+/* Replace Welcome Page With New Apple-Style Design (see CLAUDE.md) — the old winding-trail hero
+   is gone; this is the attached design's own "Turn 4 — Desktop app welcome screen" content
+   (its fake app-window chrome dropped, its warm orange accent recolored to the app's own existing
+   `--bloom-accent` green per the user's own explicit choice — see WelcomeScreen.jsx's own header
+   comment for the full rationale). Reuses `.app-shell-bloom`'s existing body-level background
+   (global.css's own `body:has(.app-shell-bloom)` rule, unchanged) rather than a new one — Welcome
+   and Sign-Up already share that flat, light palette, and this hero's own ambient glow (below)
+   layers on top of it exactly the way the design's own radial-gradient background accent does. */
 .welcome-screen {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 32px 0 24px;
+  padding: 32px 20px 24px;
   min-height: calc(100vh - 180px);
   justify-content: center;
+  overflow: hidden;
 }
 
-.welcome-trail-wrap {
-  width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
+/* The design's own soft ambient radial glow behind the mark/headline (Turn 4's own background
+   accent), recolored from its original orange to the app's green. A plain static gradient in the
+   source design (no animation applied to it there either, even in the more elaborate Turn 3
+   variant) — kept that way here rather than adding motion the design itself never gave it. */
+.welcome-glow {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: min(1100px, 140vw);
+  height: min(1100px, 140vw);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(47, 143, 91, 0.14), rgba(47, 143, 91, 0.04) 55%, rgba(47, 143, 91, 0) 78%);
+  pointer-events: none;
+  z-index: 0;
 }
-.welcome-trail-svg {
-  width: 100%;
-  height: auto;
+
+.welcome-hero {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 640px;
+}
+
+.welcome-mark-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: welcome-float 9s ease-in-out infinite;
+}
+.welcome-mark {
+  width: clamp(96px, 16vw, 150px);
+  height: clamp(96px, 16vw, 150px);
   overflow: visible;
+  filter: drop-shadow(0 22px 26px rgba(20, 32, 24, 0.2));
+}
+.welcome-mark-eyes {
+  transform-origin: 24px 25px;
+  animation: welcome-blink 5.5s ease-in-out 1.2s infinite;
+}
+/* A still shadow beneath the (bobbing) mark — matches this codebase's own established mascot
+   precedent (MascotIcon.jsx's own `.mascot-shadow`): a shadow that stayed still while the body
+   above it moves is what actually sells the "lifting" illusion. */
+.welcome-mark-shadow {
+  width: 70%;
+  height: 11px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(20, 32, 24, 0.18), rgba(20, 32, 24, 0));
 }
 
-.welcome-trail-path {
-  fill: none;
-  stroke: var(--bloom-accent);
-  stroke-width: 4;
-  stroke-linecap: round;
-  opacity: 0.85;
-  stroke-dasharray: var(--path-length, 1000);
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 1.8s cubic-bezier(0.65, 0, 0.35, 1);
-}
-/* Starting state for the draw-in animation only — WelcomeScreen.jsx adds this class for exactly
-   one frame (before flipping to the base class above) so the browser actually paints the fully
-   undrawn trail before transitioning it away; without that the offset change and the class that
-   makes it visible would land in the same paint and the animation just wouldn't play. */
-.welcome-trail-path.enter {
-  stroke-dashoffset: var(--path-length, 1000);
-  transition: none;
-}
-
-.welcome-marker {
-  opacity: 1;
-  transform: translate(var(--mx), var(--my)) scale(1);
-  transition: opacity 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-/* Starting (hidden) state — WelcomeScreen.jsx removes this class per-marker on its own staggered
-   timer (see `revealed` state), which is what actually triggers the transition above; this class
-   alone never animates anything, same "enter" pattern as .welcome-trail-path. */
-.welcome-marker.enter {
-  opacity: 0;
-  transform: translate(var(--mx), var(--my)) scale(0.3);
-}
-.welcome-marker-ring {
-  fill: var(--bloom-card);
-  stroke: var(--bloom-card-border);
-  stroke-width: 2;
-  stroke-dasharray: 3 3;
-}
-.welcome-marker-label {
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  fill: var(--bloom-ink-soft);
-}
-
-.welcome-here-pulse {
-  fill: none;
-  stroke: var(--bloom-accent);
-  stroke-width: 3;
-  opacity: 0.55;
-  animation: welcome-pulse 2.4s ease-out infinite;
-}
-@keyframes welcome-pulse {
-  0% { r: 18; opacity: 0.55; }
-  100% { r: 32; opacity: 0; }
-}
-
-.welcome-hero-content {
-  margin-top: 8px;
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.7s ease, transform 0.7s ease;
-}
-.welcome-hero-content.enter {
-  opacity: 0;
-  transform: translateY(16px);
-}
 .welcome-title {
+  margin: clamp(28px, 5vw, 46px) 0 0;
   font-family: 'Fraunces', serif;
   font-weight: 600;
-  font-size: clamp(36px, 7vw, 52px);
-  margin: 0 0 10px;
+  font-size: clamp(34px, 6.5vw, 68px);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
   color: var(--bloom-ink);
+  text-wrap: balance;
+  animation: welcome-blur-in 1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
 }
+.welcome-title-accent { color: var(--bloom-accent); }
+
 .welcome-tagline {
-  font-size: 15.5px;
+  margin: clamp(18px, 3vw, 28px) 0 0;
+  max-width: 46ch;
+  font-size: clamp(15.5px, 2.1vw, 19px);
   line-height: 1.55;
   color: var(--bloom-ink-soft);
-  max-width: 44ch;
-  margin: 0 auto 26px;
+  text-wrap: pretty;
+  animation: welcome-rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.28s both;
 }
+
 .welcome-cta {
-  font-size: 15px;
-  padding: 14px 30px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  margin-top: clamp(30px, 5vw, 48px);
+  padding: 16px 42px;
+  border-radius: 999px;
+  font-size: 16px;
+  transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.25s ease, opacity 0.15s ease;
+  animation: welcome-rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.42s both;
 }
 .welcome-cta:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 12px 24px -12px rgba(30, 61, 50, 0.45);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 16px 32px -14px rgba(47, 143, 91, 0.55);
 }
+.welcome-cta:active:not(:disabled) { transform: translateY(0) scale(0.98); }
 .welcome-cta:focus-visible {
   outline: 3px solid var(--bloom-accent);
   outline-offset: 3px;
 }
 
+.welcome-caption {
+  margin: 18px 0 0;
+  font-size: 14.5px;
+  color: var(--bloom-ink-soft);
+  animation: welcome-rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.54s both;
+}
+
+@keyframes welcome-blur-in {
+  from { opacity: 0; filter: blur(10px); transform: translateY(14px); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+@keyframes welcome-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes welcome-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+@keyframes welcome-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.12); }
+}
+/* Bug fix, caught while replacing the old trail hero: `welcome-pulse` is a genuinely SHARED
+   keyframe, not exclusive to this screen's own old marker (which is what originally introduced
+   it) — `.year-overview-pulse` (Map 1's current-year marker) and `.today-pulse` (Map 2's own "You
+   are here" marker, Roadmap.jsx) both still reference it BY THIS EXACT NAME. Removing it entirely
+   when the old `.welcome-here-pulse` element that first defined it went away broke both of those,
+   confirmed directly via a full-codebase grep for the name before this fix — kept here, under its
+   original name, purely so those two other files' own `animation: welcome-pulse ...` declarations
+   don't need to change at all. */
+@keyframes welcome-pulse {
+  0% { r: 18; opacity: 0.55; }
+  100% { r: 32; opacity: 0; }
+}
+
+/* Task 2's own explicit "respect prefers-reduced-motion" requirement — every entrance/floaty/
+   blink animation above simply turns off, landing directly on its final, fully-visible/settled
+   state (nothing here needs staged JS timers or measured geometry the way the old trail did, so a
+   plain CSS opt-out is sufficient on its own). */
 @media (prefers-reduced-motion: reduce) {
-  .welcome-trail-path, .welcome-marker, .welcome-hero-content { transition: none; }
-  .welcome-here-pulse { animation: none; opacity: 0; }
+  .welcome-mark-wrap, .welcome-mark-eyes, .welcome-title, .welcome-tagline, .welcome-cta, .welcome-caption {
+    animation: none;
+  }
+  .welcome-cta { transition: none; }
+}
+
+/* Narrow viewport — the mark/headline/tagline already scale fluidly via `clamp()` above; the one
+   thing that still needs a hard override is the CTA's own fixed horizontal padding, which would
+   otherwise make the pill wider than a real phone screen at very narrow widths. */
+@media (max-width: 420px) {
+  .welcome-cta { padding: 15px 34px; width: 100%; max-width: 280px; justify-content: center; }
 }
 
 /* Year Overview (Map 1) — the same winding-trail visual language as the Welcome screen's hero,

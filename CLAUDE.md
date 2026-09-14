@@ -2554,6 +2554,92 @@ element.
   "collapses cleanly... with no overlap or clipping," which no longer holds and should be looked
   at separately.
 
+**Bug fix, found via real macOS trackpad overscroll: the old parchment texture was still visible
+on the hub past the very bottom of the page.** The hub's own shell (`.app-shell.app-shell-hub`) is
+full-bleed (`width:100%; min-height:100vh`), which is why a body-level background override was
+originally judged unnecessary when the hub reskin above first shipped — unlike a centered/padded
+screen, there's no normal gutter for a stale `<body>` background to show through. That reasoning
+missed a real, separate case: scrolling PAST the very bottom of the page (macOS's own elastic
+"rubber-band" overscroll) reveals whatever `<body>` itself is painted with, for a moment,
+regardless of how completely the shell covers the real scrollable content — and `<body>`'s own
+default background was still the OLD parchment texture (`--paper` + `repeating-radial-gradient`,
+set at the very top of this file), since nothing had ever told it otherwise for this one screen.
+Confirmed directly via a real screenshot at the exact overscroll moment. Fixed with a new
+`body:has(.app-shell-hub)` rule (a literal hex matching `--hub-bg`, not `var(--hub-bg)` itself —
+that custom property is declared ON `.app-shell.app-shell-hub`, a DESCENDANT of body, so body, as
+an ancestor, can never actually read it), the same pattern `body:has(.app-shell-bloom)`/
+`body:has(.app-shell-plan)` already established for the identical class of problem on their own
+screens. Verified: `document.body`'s own computed background-color is now the hub's own color, and
+Survey (a bloom screen, unrelated) is confirmed still unaffected.
+
+**Replace Welcome Page With New Apple-Style Design — the old winding-trail/ghost-milestone hero is
+gone, replaced with a live Claude Design import (`MyPath Welcome.dc.html`, pulled directly from the
+`claude.ai/design` project via the DesignSync tool once the user ran `/design-login`, since that
+canvas hadn't been included in the original zip export).** The imported file turned out to be a
+multi-turn design-EXPLORATION canvas (`design_doc_mode: canvas`, a scrollable history of 7 turns —
+logo/mark studies in Turns 5-7, three completely different full-page hero concepts in Turns 1-3,
+and one, Turn 4, explicitly titled "Desktop app welcome screen"), not a single bootable page the
+way the earlier Hub/Menu exports were. Turn 4 was confirmed as the real target because its own
+embedded copy matched, verbatim, text the user had already quoted before this import ever
+happened ("Welcome to MyPath" / "One honest conversation, and your plan for college and career
+starts drawing itself — step by step, in the order you need it." / "Get Started" / "Free for
+students. Takes about a minute.") — not guessed from the layout alone.
+- **Two real, open design decisions were confirmed with the user directly rather than assumed,
+  since guessing wrong on either meant redoing real CSS/SVG work**: (1) which mark to use — Turn
+  4's own dome/visor icon, one of Turn 7's 3 unresolved "de-Redditing" alternatives (that turn
+  explicitly flags the PRIOR mark, Turn 6's own canonical pick, as reading too much like Reddit's
+  logo, and proposes 3 replacements with no winner ever chosen), or reusing the app's own existing
+  MascotIcon character — the user picked Turn 4's own mark; (2) whether to adopt Turn 4's own new
+  accent color (a warm orange/terracotta, `#C9501F`/`#E4622E`, found nowhere else in this
+  already-mostly-repainted app) or keep the app's existing green (`--bloom-accent`, already on
+  Sign-Up, Survey, the just-redone Hub) — the user picked keeping green.
+- **Turn 4's own hero was wrapped in a fake "Mac / PC / iPad app window" frame** (traffic-light
+  dots, a floating window shadow rendered on a background canvas) purely as a Claude Design mockup
+  device to show how it'd look running as a native desktop app — deliberately NOT reproduced here,
+  since this already runs inside a real browser window with its own real chrome; only the window's
+  actual interior content (the ambient glow, the mark, the headline/subline/CTA/caption) became the
+  real page.
+- **The mark itself (`WelcomeScreen.jsx`, a small inline `<svg>`, not a reuse of the shared
+  `MascotIcon` component — a deliberate choice per the user's own "Turn 4's own mark" pick, a
+  genuinely distinct asset from the app's existing mascot character) is Turn 4's own path data,
+  recolored rather than copied verbatim**: the cream/white dome silhouette stays as-is (already
+  close to `MascotIcon.jsx`'s own established body tone, `#F8F6EF`), but the dark inset face
+  recolors from the design's own warm brown-black (`#241A14`) to the same near-black-green
+  (`#161F1B`-family) `MascotIcon.jsx`'s own face gradient already established, and the eyes recolor
+  from the design's own orange (`#E4622E`) to the same bright mint (`#5CE6A5`) `MascotIcon.jsx`'s
+  own eye-glow already uses — a deliberate bridge between this NEW, one-off mark and the app's
+  EXISTING mascot's own already-established palette, rather than picking a third, arbitrary dark
+  tone just for this one icon.
+- **The raw mockup's own fixed pixel sizing (an 88px headline, a 150px mark, measured against a
+  fixed 1512px desktop artboard) doesn't exist in the real, resizable browser this app actually
+  runs in** — every size was rebuilt with real `clamp()`-based fluid scaling (headline
+  `clamp(34px, 6.5vw, 68px)`, mark `clamp(96px, 16vw, 150px)`, etc.), genuinely new work needed to
+  satisfy full responsiveness (Task 2), not something the static export ever had to handle itself.
+  `prefers-reduced-motion` is handled entirely in CSS (one `@media` block turning off every
+  entrance/floaty/blink animation, landing directly on the final, fully-visible/settled state) —
+  unlike the old trail, none of this needs JS-measured SVG geometry or staged reveal timers, so a
+  plain CSS opt-out is enough on its own, matching this codebase's own simpler entrance-polish
+  convention elsewhere (the hub's own tile pop-in, etc.) rather than reproducing the old screen's
+  own more elaborate orchestration for a hero that no longer needs it.
+- **A real, confirmed regression was caught and fixed while removing the old trail/marker CSS
+  block**: `welcome-pulse` (the old hero marker's own pulse-ring keyframe) turned out to be a
+  genuinely SHARED keyframe, not exclusive to this screen — `.year-overview-pulse` (Map 1's own
+  current-year marker) and `.today-pulse` (Map 2's own "You are here" marker, `Roadmap.jsx`) both
+  still reference it BY THIS EXACT NAME (confirmed directly via a full-codebase grep before
+  trusting the removal was safe). Deleting it outright when the old `.welcome-here-pulse` element
+  that first introduced it went away would have silently broken both of those pulse rings. Fixed
+  by keeping the keyframe itself (under its original name, so neither of those two other files'
+  own `animation: welcome-pulse ...` declarations needed to change at all) even though nothing on
+  the new Welcome screen uses it anymore.
+- Verified with a dedicated Playwright suite against the real running dev server: the real subline/
+  CTA/caption text renders exactly as quoted; clicking "Get Started" (both by mouse and by
+  Tab-focusing it then pressing Enter, confirming real keyboard accessibility) correctly navigates
+  to `screen: 'signup'`; a `reducedMotion: 'reduce'` browser context renders the hero fully visible
+  with zero active animations; 375px and 320px viewports both show zero horizontal overflow; and a
+  direct regression check confirms Map 1's `.year-overview-pulse` and Map 2's `.today-pulse` both
+  still resolve `animationName: welcome-pulse` and animate correctly after the keyframe was
+  restored. `npm run build`/`npm run lint` both stay clean.
+
 **Restructure: opportunity chains have no separate anchor node — the chain's own first step is
 promoted directly onto the spine, mirroring `buildProjectChain`'s existing shape exactly.**
 Supersedes an earlier, narrower patch (the "Start" button fix, `startedOpportunityIds`) rather
