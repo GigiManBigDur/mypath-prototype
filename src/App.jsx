@@ -18,6 +18,7 @@ import AcademicPlanScreen from './screens/AcademicPlanScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import MyNarrativeScreen from './screens/MyNarrativeScreen';
 import AdminScreen from './screens/AdminScreen';
+import AdminDashboardScreen from './screens/AdminDashboardScreen';
 
 const SCREENS = {
   welcome: WelcomeScreen,
@@ -53,7 +54,12 @@ const SCREENS = {
   // testing screen, reached ONLY via Survey's own small "Testing as admin?" link (no hub tile,
   // nothing else navigates here) — the same "mandatory-or-optional, not otherwise reachable"
   // shape several other pre-hub screens already have.
+  //
+  // Restructure Admin Panel: Org Selection + Per-Org Dashboard (see CLAUDE.md) — `admin` is now
+  // the organization-selection "login" screen only (Task 1); `adminDashboard`, reached by picking
+  // an org there, is the real org-scoped dashboard (Task 2) that used to be this one flat form.
   admin: AdminScreen,
+  adminDashboard: AdminDashboardScreen,
 };
 
 // Screens that get the shared fade+slide page transition (Task 2 of the animation/polish pass).
@@ -62,7 +68,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'hub', 'survey', 'admissionsPresentation', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile', 'myNarrative', 'admin',
+  'signup', 'hub', 'survey', 'admissionsPresentation', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile', 'myNarrative', 'admin', 'adminDashboard',
 ]);
 
 function AppShell() {
@@ -110,7 +116,7 @@ function AppShell() {
     || screenKey === 'transcript' || screenKey === 'courseSelection'
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
     || screenKey === 'programSummary' || screenKey === 'profile' || screenKey === 'myNarrative'
-    || screenKey === 'admin' || isMap1;
+    || screenKey === 'admin' || screenKey === 'adminDashboard' || isMap1;
 
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>

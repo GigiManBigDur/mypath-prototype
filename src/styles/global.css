@@ -2124,8 +2124,9 @@ button.card.passed:hover {
 }
 .admin-toggle-link:hover { opacity: 1; color: var(--bloom-admin); }
 
-/* AdminScreen.jsx's own milestone-schedule rows — name + date + remove, reusing the shared
-   `.task-form-field`-style input look rather than inventing new field chrome. */
+/* AdminDashboardScreen.jsx's own milestone-schedule rows (and, reusing the identical grid/input
+   look, its "add a resource" row too) — name/title + date/description + remove, reusing the
+   shared `.task-form-field`-style input look rather than inventing new field chrome. */
 .admin-milestone-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -2143,6 +2144,134 @@ button.card.passed:hover {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 13px;
 }
+
+/* Restructure Admin Panel: Org Selection + Per-Org Dashboard (see CLAUDE.md), Task 1 — the
+   organization-selection "login" screen's own card grid. Reuses the `--track-accent` custom
+   property + `color-mix` icon-box treatment `.track-icon-box` (CareersStep/MajorsStep) already
+   established, and the hover-lift `.hub-tile`/`.card` already establish elsewhere, so a brand-new
+   card type still reads as familiar rather than inventing a third hover language. Exclusive to
+   this one screen, so styled directly rather than scoped under `.app-shell-bloom` (same "exclusive
+   class, style directly" precedent `.admin-toggle-link`/`.admin-milestone-row` above already set). */
+.admin-org-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.admin-org-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  cursor: pointer;
+  box-shadow: var(--bloom-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.admin-org-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--bloom-shadow-hover);
+  border-color: var(--track-accent, var(--bloom-accent));
+}
+.admin-org-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  background: color-mix(in srgb, var(--track-accent, var(--bloom-accent)) 16%, var(--bloom-card));
+  color: var(--track-accent, var(--bloom-accent));
+}
+.admin-org-card-name {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--bloom-ink);
+  margin-bottom: 4px;
+}
+.admin-org-card-kind {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--track-accent, var(--bloom-accent));
+  margin-bottom: 10px;
+}
+.admin-org-card-desc { font-size: 13.5px; line-height: 1.55; color: var(--bloom-ink-soft); margin: 0 0 16px; }
+.admin-org-card-enter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--track-accent, var(--bloom-accent));
+  margin-top: auto;
+}
+
+/* Task 2 — the org-scoped dashboard's own branding header (organization icon + name + kind/
+   school), so the screen reads as a real, dedicated dashboard rather than the old bare testing
+   form. `<h1 class="page-title">` renders inside it, inheriting the exact same title styling every
+   other screen already uses, so the org's own name still reads as the page's real title. */
+.admin-dash-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 18px 0 4px;
+}
+.admin-dash-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--track-accent, var(--bloom-accent)) 16%, var(--bloom-card));
+  color: var(--track-accent, var(--bloom-accent));
+}
+.admin-dash-header-kind {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--track-accent, var(--bloom-accent));
+  margin-top: 4px;
+}
+
+/* Task 1 — "Current events/opportunities," scoped per org. Same card/border/shadow language
+   `.prior-exp-card` already established, plus a colored left-edge accent bar (the same "data/JSX
+   picks the value, CSS just reads a custom property" convention `--tile-accent`/`--track-accent`/
+   `--pb-accent` already use elsewhere) so a dense list of events still reads as organized by
+   subject area at a glance, matching the rest of this app's own established visual language for
+   track-colored content. */
+.admin-dash-event-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.admin-dash-event-card {
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-left: 4px solid var(--track-accent, var(--bloom-accent));
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.admin-dash-event-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.admin-dash-event-name { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; color: var(--bloom-ink); }
+.admin-dash-event-type { font-size: 12px; font-style: italic; color: var(--bloom-ink-soft); margin-top: 2px; }
+.admin-dash-milestone-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.admin-dash-milestone-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--bloom-ink-soft);
+  padding: 3px 0;
+  border-top: 1px dashed var(--bloom-card-border);
+}
+.admin-dash-milestone-list li:first-child { border-top: none; }
+.admin-dash-milestone-list li strong { color: var(--bloom-ink); font-weight: 600; }
 
 .hub-debug-row { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .profile-debug-modal { max-width: 720px; width: 92vw; }

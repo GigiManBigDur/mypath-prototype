@@ -392,15 +392,34 @@ const DEFAULT_STATE = {
   // Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — a dev-only
   // testing convenience, reached via a small "Testing as admin?" link on the Survey. `[{ id, name,
   // type, description, track /* one of OPPORTUNITY_TRACKS keys, or null for "General" */,
-  // howToApply, milestones: [{ id, label, date: 'YYYY-MM-DD' }] }]` — real, admin-entered calendar
-  // dates (never the static catalog's template `{month, day}`/`{offsetDays}` system), so a real
-  // mock competition's own schedule stays fixed regardless of when the app is opened. Selecting one
-  // in Opportunity Finder reuses the exact same `selectedOpportunityIds` array real opportunities
-  // already use — roadmapGenerator.js's own `buildAdminOpportunityItems` resolves a selected admin
-  // id against this array instead of the static catalog, but flows through the identical chain/
-  // lock/rendering machinery otherwise (see that file's own header comment on the builder).
+  // howToApply, milestones: [{ id, label, date: 'YYYY-MM-DD' }], orgId }]` — real, admin-entered
+  // calendar dates (never the static catalog's template `{month, day}`/`{offsetDays}` system), so a
+  // real mock competition's own schedule stays fixed regardless of when the app is opened. Selecting
+  // one in Opportunity Finder reuses the exact same `selectedOpportunityIds` array real
+  // opportunities already use — roadmapGenerator.js's own `buildAdminOpportunityItems` resolves a
+  // selected admin id against this array instead of the static catalog, but flows through the
+  // identical chain/lock/rendering machinery otherwise (see that file's own header comment on the
+  // builder). `orgId` (Restructure Admin Panel, see CLAUDE.md) is a purely additive field, added
+  // once org-scoped entry replaced the old flat form — neither `buildAdminOpportunityItems` nor
+  // OpportunityFinderScreen.jsx's own `mapAdminOpportunity` reads it at all, so every already-
+  // working piece of the pipeline is untouched; it exists solely so AdminDashboardScreen.jsx can
+  // filter "this org's own current events" out of the flat array without a second, per-org-keyed
+  // data structure to keep in sync.
   adminOpportunities: [],
-  // Populated (or regenerated) by AdminScreen.jsx's own "Connect Google Classroom" button —
+  // Restructure Admin Panel: Org Selection + Per-Org Dashboard (see CLAUDE.md), Task 1/2 — which
+  // organization (an id from data/adminOrgs.js) the admin "logged in" as. Set by AdminScreen.jsx's
+  // own org-selection click, read by AdminDashboardScreen.jsx to scope everything it shows/writes.
+  // `null` means no org selected — AdminDashboardScreen bounces back to the selector if reached
+  // that way (e.g. state restored mid-session, or `adminOrgId` referencing an org that no longer
+  // exists in the roster).
+  adminOrgId: null,
+  // Task 2 — "Resources members can use," scoped per org: `{ [orgId]: [{ id, title, description,
+  // link }] }`. Deliberately simple/flat (no roadmap wiring, no relation to the real per-opportunity
+  // `stepResources` this app already has elsewhere) — this is member-facing reference material (a
+  // national website, a rubric, a roster template), not a task, so it never needs to become a
+  // roadmap node the way an opportunity's own milestones do.
+  adminOrgResources: {},
+  // Populated (or regenerated) by AdminDashboardScreen.jsx's own "Connect Google Classroom" button —
   // `[{ id, title, date: 'YYYY-MM-DD', desc }]`, computed fresh from classroomDemoData.js's fixed
   // template at click time. Always rendered with a persistent "(Demo Preview)" marker baked
   // directly into the task's own title (see roadmapGenerator.js's buildClassroomDemoItems) — never

@@ -11182,6 +11182,91 @@ that already worked.
   two-mode version until this is explicitly deployed, per this file's own standing "deploys are
   opt-in only" policy.
 
+**Restructure Admin Panel: Org Selection + Per-Org Dashboard — the old single flat "Admin Testing
+Panel" form is now a real two-step flow: pick an organization, land on a dedicated dashboard
+scoped to it. Same dev-only, not-part-of-the-real-student-experience framing the original screen
+already had (Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup, see its own section
+above) — this restructures the *entry experience* only, per its own explicit scope; the underlying
+data pipeline that section documents (opportunity → Opportunity Finder → AI suggestion/roadmap
+chain → "Admin-entered" badge) is completely untouched.**
+- **`src/data/adminOrgs.js`** (new) exports `ADMIN_ORGS` — plain data, no logic, the same
+  "structured so a new entry is just one more array item" convention `data/schools.js`'s own
+  `SCHOOLS`/`COLLEGE_SCHOOLS` already establish. Seeded with one real example, **"Roslyn DECA"**
+  (`kind: 'School Club · Competitive Business & Marketing'`, `school: 'Roslyn High School'`,
+  `track: 'business'`). `track` is a plain default — it pre-fills the dashboard's own "add an
+  opportunity" form so every new entry doesn't start from a blank track picker, never a hard
+  constraint the form can't override per-opportunity. `getAdminOrg(id)` is the one lookup both
+  screens below use — adding a second/third organization later needs zero changes to either screen.
+- **`AdminScreen.jsx` is now ONLY the org-selection "login" step** (Task 1) — no password required
+  yet, an explicit, honest stand-in for real per-org accounts rather than a real auth flow.
+  Clicking an org card just `patch({ adminOrgId: org.id, screen: 'adminDashboard' })`. Still
+  reached the exact same way as before (Survey's own small "Testing as admin?" link, no hub tile,
+  nothing else navigates here) — that entry point needed zero changes, since `screen: 'admin'`
+  already meant "the admin flow's own first screen" before and after this restructure. A quiet
+  "Skip — continue to Hub" link (reusing `.admin-toggle-link`, the same low-visibility-testing-
+  convenience styling `.hub-reset-btn` already established) preserves the old always-available
+  escape hatch the flat form's own "Continue to Hub" button used to provide at any point.
+- **`AdminDashboardScreen.jsx`** (new) is the org-scoped dashboard (Task 2) — reached only by
+  picking an org, with a defensive bounce back to `admin` (the same "defensive bounce to a
+  consistent return point" pattern TranscriptScreen/DiscoveryScreen's own screens already use) if
+  ever reached with no real `adminOrgId` (e.g. state restored mid-session, or an org id that no
+  longer exists in the roster). Four sections, matching the task's own explicit shape:
+  1. **Current events & opportunities** — `state.adminOpportunities.filter(o => o.orgId ===
+     org.id)`, rendered as real cards (`--track-accent`-colored left border, reusing the same
+     "data/JSX picks the value, CSS just reads a custom property" convention `--tile-accent`/
+     `--track-accent`/`--pb-accent` already establish elsewhere) with each real milestone shown as
+     its own dated row, sorted — a genuine dashboard view of this org's own real schedule, not a
+     comma-joined sentence.
+  2. **Resources** — Task 2's own explicit "reusing whatever structure fits best... simple linked/
+     described resources for now" instruction taken literally: `state.adminOrgResources[org.id]`
+     (`[{ id, title, description, link }]`) reuses `PriorExperiencesEditor`'s own established
+     `.prior-exp-list`/`.prior-exp-card` visual language wholesale rather than a second, near-
+     identical card component. Deliberately NOT wired into the roadmap pipeline at all — this is
+     member-facing reference material (a national website, a rubric, a roster template), not a
+     task, so it never needs to become a spine node the way an opportunity's own milestones do.
+  3. **Add new, scoped to this org** — the exact same form/state logic the old flat screen already
+     had (name/type/description/track/how-to-apply/milestones, `makeTaskId('admin-opportunity')`),
+     moved into this screen with ONE real addition: every submitted entry now also carries
+     `orgId: org.id`. This is the one new field on an `adminOpportunities` entry, and it's purely
+     additive — `roadmapGenerator.js`'s `buildAdminOpportunityItems` and
+     `OpportunityFinderScreen.jsx`'s `mapAdminOpportunity` only ever read `id`/`name`/`type`/
+     `description`/`track`/`howToApply`/`milestones` off an entry (confirmed directly, not
+     assumed, before writing this), so neither one was touched and neither one even looks at
+     `orgId` — Task 3's own hard requirement ("this task changes the entry experience, not the
+     underlying data flow") is satisfied structurally, not just by care taken while editing.
+  4. **Connect Google Classroom (Demo Preview)** — Task 4's own explicit "content and strict
+     labeling stay exactly as already built" — the identical `connectClassroom`/`disconnectClassroom`
+     logic and copy, moved here unmodified (chosen over a separate demo entry point, since Task 4
+     explicitly allows either and keeping it on the one real admin destination screen is the
+     lower-complexity option — no new screen, no new registration needed).
+  A "Switch organization" back button (top) and "Continue to Hub" (bottom) round out the same
+  always-reachable navigation the old flat screen already had.
+- **`AppContext.jsx` gained two new `DEFAULT_STATE` fields**: `adminOrgId` (`null` by default) and
+  `adminOrgResources` (`{}` by default, keyed by org id) — both automatically covered by `reset()`'s
+  existing wholesale clear-to-`DEFAULT_STATE`, no special-casing needed. `adminOpportunities`'s own
+  header comment was extended to document the new, purely-additive `orgId` field; nothing about
+  its own shape/consumers changed.
+- **`App.jsx`** registers the new `adminDashboard` screen key in all three of the same places
+  `admin` already lives (`SCREENS`, `TRANSITION_SCREENS`, `isBloomScreen`) — the identical "bloom"
+  palette / fade-slide entrance every other pre-hub screen already gets, zero new visual system
+  invented for either admin screen.
+- Verified with a dedicated Playwright suite (27 checks) driving the real running dev server: the
+  org-selection screen shows a real "Admin Portal" heading and exactly the one seeded "Roslyn
+  DECA" card; selecting it navigates to `adminDashboard` with `state.adminOrgId` set and a real
+  header showing the org's own name/school; a resource added through the dashboard lands under
+  `adminOrgResources['roslyn-deca']`; a new opportunity added through the dashboard's own form
+  carries `orgId: 'roslyn-deca'`, the org's own default `track`, and appears immediately in that
+  same dashboard's "Current events" list; seeding real program/interest state and reaching the
+  real Opportunity Finder confirms the new opportunity renders there with the exact real
+  "Admin-entered — Unverified" badge, unchanged; reaching the real Academic Plan (Map 2) confirms a
+  real, dated node exists for the opportunity's first milestone (found by its own real
+  `data-node-id`) and clicking it opens a real modal naming the milestone; and the Google Classroom
+  demo preview still produces exactly 6 real demo assignments carrying the exact original
+  disclaimer text, with a real roadmap node showing the unchanged "(Demo Preview)" title suffix.
+  Zero page errors across the whole run. `npm run build`/`npm run lint`/`npm run verify:spacing`
+  (20/20) all stay clean — this restructure never opens `roadmapLayout.js`/`roadmapGenerator.js`'s
+  own `buildAdminOpportunityItems`, or `OpportunityFinderScreen.jsx`'s own `mapAdminOpportunity`.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,
