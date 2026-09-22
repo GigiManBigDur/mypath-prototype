@@ -125,6 +125,17 @@ export function generateRoadmap(state, yearWindow = null) {
     state.aiChainInsertions || {}, state.completedNodes || {},
   );
 
+  // Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — admin-entered
+  // opportunities reuse the exact same `state.selectedOpportunityIds` selection field real
+  // opportunities do, so a student selecting one in Opportunity Finder is indistinguishable from
+  // the app's own perspective from selecting a real one — only the builder that resolves the
+  // selected id differs (real ids resolve via findOpportunity/the static catalog; admin ids
+  // resolve here, against state.adminOpportunities).
+  const adminOpportunityItems = buildAdminOpportunityItems(
+    state.adminOpportunities || [], state.selectedOpportunityIds, dateOverrides, removed, state.completedNodes || {},
+  );
+  const classroomDemoItems = buildClassroomDemoItems(state.classroomDemoAssignments || [], dateOverrides, removed);
+
   const customItems = buildCustomItems(state.customTasks || [], dateOverrides, removed);
   const projectItems = buildProjectItems(state.startedProjects || [], dateOverrides, removed, state.completedNodes || {});
   const aiSuggestedItems = buildAiSuggestedItems(state.aiSuggestedTasks || [], dateOverrides, removed);
@@ -175,7 +186,8 @@ export function generateRoadmap(state, yearWindow = null) {
   const internationalItems = buildInternationalStudentItems(state, stageNames, planStartDate, dateOverrides, removed);
 
   const spineItems = [
-    ...coreItems, ...opportunityItems, ...customItems, ...projectItems, ...courseItems,
+    ...coreItems, ...opportunityItems, ...adminOpportunityItems, ...customItems, ...classroomDemoItems,
+    ...projectItems, ...courseItems,
     ...applicationItems, ...(personalStatementItem ? [personalStatementItem] : []), ...apExamItems,
     ...internationalItems, ...aiSuggestedItems, ...dailyScheduleItems,
   ];
@@ -348,6 +360,37 @@ function buildCustomItems(customTasks, dateOverrides, removed) {
         desc: task.desc || 'A task you added yourself.',
         resources: [],
         steps: null,
+      };
+    });
+}
+
+// Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 3 — a
+// "Connect Google Classroom" demo assignment IS the real task on the plan, mirroring
+// buildCustomItems/buildAiSuggestedItems exactly (single-step, `category: 'custom'` — the same
+// "you (or, here, the app on your behalf) added this" visual language every other user/system-
+// created task already uses). The one real addition is `isDemo: true` plus a literal
+// "(Demo Preview)" suffix baked directly into the rendered TITLE itself, not just an icon badge —
+// matching this file's own established "(Est.)" title-suffix precedent (course-request/college-
+// deadline tasks) for making an honesty marker part of the literal displayed text, never something
+// a tester could scroll past without noticing.
+function buildClassroomDemoItems(classroomDemoAssignments, dateOverrides, removed) {
+  return (classroomDemoAssignments || [])
+    .filter((task) => !removed[task.id])
+    .map((task) => {
+      const templateDate = parseDateInputValue(task.date);
+      const realDate = dateOverrides[task.id] ? parseDateInputValue(dateOverrides[task.id]) : templateDate;
+      return {
+        id: task.id,
+        title: `${task.title} (Demo Preview)`,
+        category: 'custom',
+        required: false,
+        coreType: 'custom',
+        date: realDate,
+        due: formatDate(realDate),
+        desc: task.desc || 'A mock assignment from the Google Classroom demo — not real data.',
+        resources: [],
+        steps: null,
+        isDemo: true,
       };
     });
 }
@@ -1355,6 +1398,71 @@ function buildOpportunityItems(
         if (escalationItem) items.push(escalationItem);
       }
     }
+  });
+  return items;
+}
+
+// Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 2 — an
+// admin-entered mock opportunity mirrors buildFirstYearChain's own OUTPUT CONTRACT closely (same
+// fields, same anchor+branchSteps promotion, same `applyOverviewLocking` call so it's locked
+// step-by-step exactly like every other chain in this app), but skips buildStepsChain's own
+// window-interpolation entirely: an admin's own milestones (registration date, first round,
+// regional, finals, ...) are already real, explicit calendar dates the admin typed in directly —
+// not the static catalog's template `{month, day}`/`{offsetDays}` system, which is relative to
+// "today" and would silently drift a fixed real event date the longer the app sits unopened (the
+// same distinction this file already draws for collegeDeadlines.js's real deadline math and Daily
+// Schedule's own literal block dates). `sourceType: 'admin'` is threaded onto every step (anchor
+// included), mirroring the `aiSuggested` flag's own threading exactly, so Roadmap.jsx can render
+// its own persistent "admin-entered" badge the same way it already does for an AI-origin step —
+// without needing a whole new `category` (which would mean touching every category-keyed switch
+// in that file: configFor, the ring-style cascade, the modal eyebrow).
+function buildAdminOpportunityItems(adminOpportunities, selectedOpportunityIds, dateOverrides, removed, completedNodes) {
+  const items = [];
+  adminOpportunities.forEach((opp) => {
+    if (!selectedOpportunityIds.includes(opp.id)) return;
+
+    let steps = (opp.milestones || [])
+      .map((m, i) => {
+        const id = `${opp.id}-milestone-${i}`;
+        const templateDate = parseDateInputValue(m.date);
+        const realDate = dateOverrides[id] ? parseDateInputValue(dateOverrides[id]) : templateDate;
+        return {
+          id,
+          title: m.label,
+          date: realDate,
+          due: formatDate(realDate),
+          desc: `${m.label} — a real milestone for ${opp.name}.`,
+          resources: [],
+        };
+      })
+      .filter((step) => !removed[step.id]);
+    if (steps.length === 0) return;
+
+    steps.sort((a, b) => a.date.getTime() - b.date.getTime());
+    steps = steps.map((step, i) => ({ ...step, isLast: i === steps.length - 1 }));
+    steps = applyOverviewLocking(steps, (s) => !!completedNodes[s.id]);
+
+    const track = opp.track || null;
+    const [anchor, ...branchSteps] = steps.map((step) => ({ ...step, track, sourceType: 'admin' }));
+
+    items.push({
+      id: anchor.id,
+      title: titleWithOpportunityContext(anchor.title, opp.name),
+      category: 'opportunity',
+      required: false,
+      coreType: 'opportunity',
+      date: anchor.date,
+      due: anchor.due,
+      desc: opp.description ? `${opp.description} ${anchor.desc}` : anchor.desc,
+      resources: anchor.resources,
+      track,
+      totalSteps: steps.length,
+      locked: anchor.locked,
+      lockedReason: anchor.lockedReason,
+      steps: branchSteps.length ? branchSteps : null,
+      sourceOpportunityId: opp.id,
+      sourceType: 'admin',
+    });
   });
   return items;
 }

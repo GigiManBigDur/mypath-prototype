@@ -17,6 +17,7 @@ import ProjectBuilderScreen from './screens/ProjectBuilderScreen';
 import AcademicPlanScreen from './screens/AcademicPlanScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import MyNarrativeScreen from './screens/MyNarrativeScreen';
+import AdminScreen from './screens/AdminScreen';
 
 const SCREENS = {
   welcome: WelcomeScreen,
@@ -48,6 +49,11 @@ const SCREENS = {
   // AI-First Onboarding, Stage 4 (see CLAUDE.md) — its own standalone hub tile destination too,
   // similar in role to `programSummary` ("Your School List") — not part of the 8-step sequence.
   myNarrative: MyNarrativeScreen,
+  // Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — a dev-only
+  // testing screen, reached ONLY via Survey's own small "Testing as admin?" link (no hub tile,
+  // nothing else navigates here) — the same "mandatory-or-optional, not otherwise reachable"
+  // shape several other pre-hub screens already have.
+  admin: AdminScreen,
 };
 
 // Screens that get the shared fade+slide page transition (Task 2 of the animation/polish pass).
@@ -56,7 +62,7 @@ const SCREENS = {
 // Plan screen originally was, but Map 1 (the Year Overview) now opts back in via the
 // `needsTransition` check below, since it's a normal lightweight screen, not the full-bleed one.
 const TRANSITION_SCREENS = new Set([
-  'signup', 'hub', 'survey', 'admissionsPresentation', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile', 'myNarrative',
+  'signup', 'hub', 'survey', 'admissionsPresentation', 'onboardingConversation', 'discovery', 'transcript', 'courseSelection', 'programSummary', 'opportunities', 'projectBuilder', 'profile', 'myNarrative', 'admin',
 ]);
 
 function AppShell() {
@@ -103,7 +109,8 @@ function AppShell() {
     || screenKey === 'survey' || screenKey === 'admissionsPresentation' || screenKey === 'onboardingConversation' || screenKey === 'discovery'
     || screenKey === 'transcript' || screenKey === 'courseSelection'
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
-    || screenKey === 'programSummary' || screenKey === 'profile' || screenKey === 'myNarrative' || isMap1;
+    || screenKey === 'programSummary' || screenKey === 'profile' || screenKey === 'myNarrative'
+    || screenKey === 'admin' || isMap1;
 
   return (
     <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>

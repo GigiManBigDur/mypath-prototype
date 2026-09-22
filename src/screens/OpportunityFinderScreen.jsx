@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, BadgeCheck, ShoppingBag, X } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, ClipboardList, ShoppingBag, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getOpportunityTracks, OPPORTUNITY_TRACKS, TRACK_LABELS } from '../data/interests';
 import { getOpportunityPool, getSchoolOpportunities, findOpportunity } from '../data/opportunities';
-import { anchorDate, formatDate, getEffectiveToday } from '../utils/dates';
+import { anchorDate, formatDate, getEffectiveToday, parseDateInputValue } from '../utils/dates';
 import { getThematicOpportunityMatches } from '../utils/thematicMatch';
 import StepProgress from '../components/StepProgress';
 import MascotWidget from '../components/MascotWidget';
@@ -38,6 +38,28 @@ export const OPPORTUNITY_AUTO_PICK_CAP = 3;
 // has); it's deliberately narrower than perfect scheduling awareness, since inventing a stricter
 // rule with no real data behind it would be exactly the kind of guess this app's own "don't guess"
 // posture forbids elsewhere.
+// Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 2 — an
+// admin-entered opportunity flows into the exact same Browse/Recommended pools real opportunities
+// use, reshaped to the same card-rendering fields (`name`/`type`/`description`/`howToApply`/
+// `_track`) this screen already reads — `source: 'admin'` is the one new flag, read below to swap
+// the deadline computation to `parseDateInputValue` directly (admin milestones are already real,
+// literal calendar dates, never the static catalog's "today"-relative template system) and to
+// render the honest "Admin-entered — Unverified" badge, never `schoolVerified`.
+function mapAdminOpportunity(opp) {
+  const finalDate = opp.milestones?.length ? opp.milestones[opp.milestones.length - 1].date : null;
+  return {
+    id: opp.id,
+    name: opp.name,
+    type: opp.type,
+    description: opp.description,
+    howToApply: opp.howToApply,
+    schoolVerified: false,
+    _track: opp.track || null,
+    source: 'admin',
+    finalDate,
+  };
+}
+
 export function isOpportunityAutoPickCandidate(opp, today, currentSelectedIds, picked) {
   if (currentSelectedIds.includes(opp.id) || picked.has(opp.id)) return false;
   const deadline = anchorDate(opp.date, today);
@@ -150,9 +172,22 @@ export default function OpportunityFinderScreen() {
     browseTrackFilter.length ? browseTrackFilter : OPPORTUNITY_TRACKS,
     state.educationLevel,
   );
-  const opportunities = viewMode === 'recommended' ? recommendedOpportunities
+
+  // Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 2 —
+  // merged into Browse (always) and Recommended (only when its own track matches the student's
+  // interest-derived tracks) — deliberately NOT merged into `recommendedOpportunities`/
+  // `allOpportunities` themselves, which feed Auto-Pick's own date-conflict logic (assumes the
+  // static catalog's template `date` shape); admin cards stay a display-only addition to whatever
+  // the final rendered list is.
+  const adminOpportunityCards = (state.adminOpportunities || []).map(mapAdminOpportunity).filter((o) => o.finalDate);
+  const browseAdminCards = browseTrackFilter.length
+    ? adminOpportunityCards.filter((o) => browseTrackFilter.includes(o._track))
+    : adminOpportunityCards;
+  const recommendedAdminCards = adminOpportunityCards.filter((o) => o._track && opportunityTracks.includes(o._track));
+
+  const opportunities = viewMode === 'recommended' ? [...recommendedOpportunities, ...recommendedAdminCards]
     : viewMode === 'mySchool' ? mySchoolOpportunities
-      : browseOpportunities;
+      : [...browseOpportunities, ...browseAdminCards];
 
   const toggleOpportunity = (id) => {
     const has = state.selectedOpportunityIds.includes(id);
@@ -177,7 +212,8 @@ export default function OpportunityFinderScreen() {
   // the same widening this exact function's own header comment documents fixing for
   // roadmapGenerator.js once before.
   const selectedOpportunities = state.selectedOpportunityIds
-    .map((id) => findOpportunity(id, OPPORTUNITY_TRACKS, state.educationLevel))
+    .map((id) => findOpportunity(id, OPPORTUNITY_TRACKS, state.educationLevel)
+      || adminOpportunityCards.find((o) => o.id === id))
     .filter(Boolean);
 
   const handleAutoPick = () => {
@@ -218,7 +254,9 @@ export default function OpportunityFinderScreen() {
   const lastDetailRef = useRef(null);
   if (selectedOpportunityDetail) lastDetailRef.current = selectedOpportunityDetail;
   const modalOpp = selectedOpportunityDetail || lastDetailRef.current;
-  const modalDeadline = modalOpp ? anchorDate(modalOpp.date, today) : null;
+  const modalDeadline = modalOpp
+    ? (modalOpp.source === 'admin' ? parseDateInputValue(modalOpp.finalDate) : anchorDate(modalOpp.date, today))
+    : null;
   const modalPassed = modalDeadline ? modalDeadline < today : false;
 
   // AI-First Onboarding, Stage 1 (see CLAUDE.md) — the one-time "have you already done anything
@@ -329,7 +367,7 @@ export default function OpportunityFinderScreen() {
       <div className="grid grid-2">
         {opportunities.map((opp) => {
           const selected = state.selectedOpportunityIds.includes(opp.id);
-          const deadline = anchorDate(opp.date, today);
+          const deadline = opp.source === 'admin' ? parseDateInputValue(opp.finalDate) : anchorDate(opp.date, today);
           const passed = deadline < today;
           // Task 1's own "color-code opportunity cards by interest/type, using the
           // established color mapping" — `_track` (opportunities.js, tagged at merge/collect
@@ -351,6 +389,15 @@ export default function OpportunityFinderScreen() {
               {opp.schoolVerified && (
                 <div className="school-verified-badge">
                   <BadgeCheck size={12} /> Verified — {opp.schoolName}
+                </div>
+              )}
+              {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) —
+                  the honest counterpart to the real "Verified" badge above: a distinct icon/color
+                  so this content is never confused with Roslyn/UC Davis's two real, verified
+                  school integrations. */}
+              {opp.source === 'admin' && (
+                <div className="admin-entered-badge">
+                  <ClipboardList size={12} /> Admin-entered — Unverified
                 </div>
               )}
               {track && <TrackIcon track={track} />}
@@ -421,6 +468,11 @@ export default function OpportunityFinderScreen() {
             {modalOpp.schoolVerified && (
               <div className="school-verified-badge" style={{ marginBottom: 10 }}>
                 <BadgeCheck size={12} /> Verified — {modalOpp.schoolName}
+              </div>
+            )}
+            {modalOpp.source === 'admin' && (
+              <div className="admin-entered-badge" style={{ marginBottom: 10 }}>
+                <ClipboardList size={12} /> Admin-entered — Unverified
               </div>
             )}
             <div className="modal-eyebrow" style={{ color: modalOpp._track ? getTrackColor(modalOpp._track) : 'var(--bloom-accent)' }}>

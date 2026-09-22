@@ -4,7 +4,7 @@ import {
   Maximize2, Trash2, Plus, Pencil, Rocket, ArrowLeft, RotateCcw, ChevronDown, Move, BookOpen,
   GraduationCap, Lock, Bell, Sparkles, Map as MapIcon, Layers, Send, FileText, HelpCircle,
   ClipboardCheck, Archive, Eye, CreditCard, Languages, FileCheck, Receipt, Plane, CalendarClock, Clock,
-  Footprints, Sparkle,
+  Footprints, Sparkle, ClipboardList, MonitorPlay,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { findProjectType } from '../data/projects';
@@ -1173,6 +1173,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                           {s.aiSuggested && (
                             <Sparkles className="ai-suggestion-badge" x="5" y="-17" size={9} color="var(--bloom-ai)" />
                           )}
+                          {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see
+                              CLAUDE.md) — a persistent badge (same treatment/positioning precedent
+                              as the ai-suggestion badge above) marking every step of an admin-
+                              entered chain as admin-sourced, so it's honestly distinguishable from
+                              the two real, verified school integrations at a glance. */}
+                          {s.sourceType === 'admin' && (
+                            <ClipboardList className="admin-source-badge" x="5" y="-17" size={9} color="var(--bloom-admin)" />
+                          )}
                         </>
                       )}
                     </g>
@@ -1245,6 +1253,15 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                           {done
                             ? <CheckCircle2 className="node-icon-pop" x="-8" y="-8" size={16} color="#fff" />
                             : <cfg.Icon className="node-icon-pop" x="-7" y="-7" size={14} color={cfg.color} />}
+                          {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see
+                              CLAUDE.md), Task 3 — persistent regardless of `done`, same "never
+                              stops reading as a demo once complete" posture the AI-suggestion
+                              badge already established — the "(Demo Preview)" title suffix
+                              (roadmapGenerator.js) is the primary marker; this badge reinforces it
+                              visually on the ring itself. */}
+                          {n.isDemo && (
+                            <MonitorPlay className="admin-source-badge" x="6" y="-20" size={11} color="var(--bloom-admin)" />
+                          )}
                         </>
                       ) : n.category === 'ai-suggested' ? (
                         <>
@@ -1275,6 +1292,14 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                               not a branchStep) still gets the same persistent sparkle badge. */}
                           {n.aiSuggested && (
                             <Sparkles className="ai-suggestion-badge" x="6" y="-20" size={11} color="var(--bloom-ai)" />
+                          )}
+                          {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see
+                              CLAUDE.md) — the rare edge case where an admin-entered chain's own
+                              earliest milestone (by real, sorted date) happens to be the promoted
+                              spine anchor gets the same persistent badge every later branch step
+                              already does (see the branch-step ring block above). */}
+                          {n.sourceType === 'admin' && (
+                            <ClipboardList className="admin-source-badge" x="6" y="-20" size={11} color="var(--bloom-admin)" />
                           )}
                         </>
                       )}
@@ -1584,6 +1609,11 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
                 spine, so the legend needs a real 4th entry, matching this app's own standing
                 practice of keeping the legend in sync with every real ring style. */}
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-ai)', border: '2px dotted var(--bloom-ai)' }} /> AI Suggestion — sparkle badge</span>
+            {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — a
+                real, distinct marker now exists on the spine too, so the legend gets a real entry
+                for it, matching this app's own standing practice of keeping the legend in sync
+                with every real ring/badge style. */}
+            <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-admin)' }} /> Admin-entered — unverified, for testing</span>
             <span className="legend-item"><span className="dot" style={{ background: 'var(--bloom-yellow)' }} /> You are here</span>
           </div>
           )}
@@ -1607,6 +1637,18 @@ export default function Roadmap({ roadmap, fullRoadmap, onBack, onReset }) {
             </div>
             <h2 className="modal-title">{modalNode.title}</h2>
             <div className="modal-due">Due {formatDateWithYear(modalNode.date)}</div>
+
+            {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md),
+                Task 3 — a real, prominent disclaimer, reusing the exact `.caveat-banner` visual
+                language this app already uses for every other honest-disclaimer moment (course-
+                request estimates, the transfer-timeline caveat) rather than inventing new styling.
+                The title's own "(Demo Preview)" suffix is the primary marker; this is the second,
+                unmissable layer. */}
+            {modalNode.isDemo && (
+              <div className="caveat-banner">
+                This is a Demo Preview from the Google Classroom mockup — not real assignment data.
+              </div>
+            )}
 
             {/* Fix: Daily Schedule Tasks Missing from Roadmap and This Week (see CLAUDE.md) — a
                 task promoted from an unlinked Daily Schedule block carries its own real

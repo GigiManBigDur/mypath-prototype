@@ -389,6 +389,23 @@ const DEFAULT_STATE = {
   // the student reviews and accepts/rejects as a connected whole, not a set of independent
   // suggestions each decided on its own.
   pendingDailySchedule: null,
+  // Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — a dev-only
+  // testing convenience, reached via a small "Testing as admin?" link on the Survey. `[{ id, name,
+  // type, description, track /* one of OPPORTUNITY_TRACKS keys, or null for "General" */,
+  // howToApply, milestones: [{ id, label, date: 'YYYY-MM-DD' }] }]` — real, admin-entered calendar
+  // dates (never the static catalog's template `{month, day}`/`{offsetDays}` system), so a real
+  // mock competition's own schedule stays fixed regardless of when the app is opened. Selecting one
+  // in Opportunity Finder reuses the exact same `selectedOpportunityIds` array real opportunities
+  // already use — roadmapGenerator.js's own `buildAdminOpportunityItems` resolves a selected admin
+  // id against this array instead of the static catalog, but flows through the identical chain/
+  // lock/rendering machinery otherwise (see that file's own header comment on the builder).
+  adminOpportunities: [],
+  // Populated (or regenerated) by AdminScreen.jsx's own "Connect Google Classroom" button —
+  // `[{ id, title, date: 'YYYY-MM-DD', desc }]`, computed fresh from classroomDemoData.js's fixed
+  // template at click time. Always rendered with a persistent "(Demo Preview)" marker baked
+  // directly into the task's own title (see roadmapGenerator.js's buildClassroomDemoItems) — never
+  // presentable in a way that could be mistaken for real Google Classroom data.
+  classroomDemoAssignments: [],
   customTasks: [], // [{ id, title, date: 'YYYY-MM-DD', desc }] — tasks the user created themselves
   startedProjects: [], // [{ id, categoryId, projectTypeId, projectName, status: 'active' | 'completed',
   // guideStepsUsed, steps: [{ id, title, date: 'YYYY-MM-DD', desc }] }] — a Project Builder

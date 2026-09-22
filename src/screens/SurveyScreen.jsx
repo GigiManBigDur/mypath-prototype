@@ -367,6 +367,20 @@ export default function SurveyScreen() {
           Continue
         </button>
       </div>
+
+      {/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 1 —
+          a small, secondary escape hatch for demoing the admin-facing pieces of this prototype
+          (a mock partner opportunity, the Google Classroom mockup) without building real
+          multi-tenant infrastructure. Deliberately NOT gated on `canContinue` — an admin can jump
+          straight in with these fields still blank — and deliberately skips the real onboarding
+          flow (Admissions Presentation / the AI conversation) entirely, since that's not what
+          admin testing is for. Styled small/dim (`.admin-toggle-link`), the same "styled smaller/
+          dimmer than even .btn-ghost's already-quiet default, set apart from the real actions"
+          precedent the hub's own `.hub-reset-btn` already established for a low-visibility testing
+          convenience — never competing with the real Continue button above it. */}
+      <button type="button" className="admin-toggle-link" onClick={() => patch({ screen: 'admin' })}>
+        Testing as admin?
+      </button>
     </div>
   );
 }

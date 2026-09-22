@@ -49,6 +49,14 @@
      Optional/Custom, so a dedicated new color is warranted here (unlike Project's own neutral-
      fallback choice, which didn't have that same explicit requirement). */
   --bloom-ai: #D946EF;
+  /* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — a second,
+     dedicated "testing/demo" accent, distinct from every one of the 7 track colors, --bloom-ai
+     (already reserved for AI-origin content), and the semantic accent/yellow/orange tokens — a
+     neutral slate rather than a vivid hue, matching the honest "this is unverified/mock, not real
+     verified data" framing rather than trying to look like an exciting feature. Shared by both
+     admin-entered opportunities and the Google Classroom demo mockup — the two are told apart by
+     their own distinct icon + literal title-suffix text, not by color alone. */
+  --bloom-admin: #64748B;
 }
 
 * { box-sizing: border-box; }
@@ -264,12 +272,14 @@ body:has(.app-shell-plan) {
   border-color: var(--bloom-card-border);
 }
 .app-shell.app-shell-bloom .task-form-field input,
+.app-shell.app-shell-bloom .task-form-field select,
 .app-shell.app-shell-bloom .task-form-field textarea {
   background: var(--bloom-card);
   border-color: var(--bloom-card-border);
   color: var(--bloom-ink);
 }
 .app-shell.app-shell-bloom .task-form-field input:focus,
+.app-shell.app-shell-bloom .task-form-field select:focus,
 .app-shell.app-shell-bloom .task-form-field textarea:focus { outline-color: var(--bloom-accent); }
 .app-shell.app-shell-bloom .btn-primary { background: var(--bloom-accent); }
 .app-shell.app-shell-bloom .btn-ghost { color: var(--bloom-ink-soft); }
@@ -388,6 +398,28 @@ button.card.passed:hover {
   color: var(--teal);
   margin-bottom: 8px;
 }
+/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — the honest
+   counterpart to `.school-verified-badge` right above: a distinct icon/color so admin-entered
+   content is never confused with Roslyn/UC Davis's two real, verified school integrations. A
+   self-contained pill (not relying on `.app-shell-bloom` ancestor scoping) so it renders
+   identically both on the card grid (which IS inside that scope) and in the detail modal, which
+   is portaled to `document.body` and therefore outside it. */
+.admin-entered-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--bloom-admin);
+  background: rgba(100, 116, 139, 0.12);
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  margin-bottom: 8px;
+}
+
 .card-title {
   font-family: 'Fraunces', serif;
   font-size: 18px;
@@ -2073,6 +2105,45 @@ button.card.passed:hover {
 }
 .hub-reset-btn:hover, .hub-debug-profile-btn:hover { opacity: 1; color: var(--rust); }
 
+/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 1 — the
+   same "styled smaller/dimmer than even .btn-ghost's already-quiet default, set apart from the
+   real actions" precedent `.hub-reset-btn` above already established for a low-visibility testing
+   convenience, just centered under Survey's own Continue row instead of the hub's tile grid. */
+.admin-toggle-link {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--bloom-ink-soft);
+  opacity: 0.5;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.admin-toggle-link:hover { opacity: 1; color: var(--bloom-admin); }
+
+/* AdminScreen.jsx's own milestone-schedule rows — name + date + remove, reusing the shared
+   `.task-form-field`-style input look rather than inventing new field chrome. */
+.admin-milestone-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.admin-milestone-row input[type="text"],
+.admin-milestone-row input[type="date"] {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-card);
+  color: var(--bloom-ink);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+}
+
 .hub-debug-row { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .profile-debug-modal { max-width: 720px; width: 92vw; }
 .profile-debug-json {
@@ -2754,13 +2825,14 @@ button.card.passed:hover {
 .task-form-field .label { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color: var(--gold); }
 .task-form-field input[type="text"],
 .task-form-field input[type="date"],
+.task-form-field select,
 .task-form-field textarea {
   font-family:'IBM Plex Sans'; font-size:14px; color: var(--ink);
   border:1px solid var(--paper-line); border-radius:4px; padding:10px 12px; background: var(--paper);
   width: 100%;
 }
 .task-form-field textarea { resize: vertical; min-height: 70px; font-family: inherit; }
-.task-form-field input:focus, .task-form-field textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+.task-form-field input:focus, .task-form-field select:focus, .task-form-field textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
 .task-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top: 4px; }
 
 /* Academic Plan layout restructure — full-bleed canvas. .roadmap-fullscreen-root is the single
@@ -5664,6 +5736,15 @@ button.card.passed:hover {
 }
 .roadmap-fullscreen-root .checkpoint-actions .complete-btn:disabled svg { opacity: 0.7; }
 .roadmap-fullscreen-root .eyebrow { color: var(--bloom-yellow); }
+/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md), Task 3 — the
+   first real use of `.caveat-banner` inside Roadmap.jsx's own modal, so it needed its own scoped
+   override here for the first time (same reasoning as every other shared class above). */
+.roadmap-fullscreen-root .caveat-banner {
+  background: var(--bloom-card);
+  border-color: var(--bloom-card-border);
+  border-left-color: var(--bloom-admin);
+  color: var(--bloom-ink-soft);
+}
 /* The panel's own Back/Start over/Add Task buttons — same values the
    `.app-shell-bloom` button overrides already use elsewhere, just scoped to
    this wrapper since Map 2 can't carry that class. */
@@ -5716,6 +5797,12 @@ button.card.passed:hover {
    while incomplete. Purely decorative, `pointer-events: none` so it never interferes with the
    node's own real click target underneath it. */
 .ai-suggestion-badge { pointer-events: none; }
+
+/* Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup (see CLAUDE.md) — the same
+   persistent, `pointer-events: none` treatment as `.ai-suggestion-badge` above, reused directly
+   for both the admin-entered-opportunity badge and the Google Classroom demo badge (told apart by
+   their own distinct icon/color, not a separate CSS rule each). */
+.admin-source-badge { pointer-events: none; }
 
 /* Date-cluster feature (see CLAUDE.md) — the small count badge overlaid at the top-right of a
    cluster marker's own ring (Task 2's own "count badge" requirement). A plain filled circle +

@@ -13857,6 +13857,145 @@ deadline/date data actually support for opportunities.**
   passes in full with only the expected, mechanical `.selected-courses-*` → `.selected-items-*`
   selector updates — no behavior changed. `npm run build`/`npm run lint` both stay clean.
 
+**Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup — three related, dev-only testing
+pieces demonstrating MyPath's full vision (a partner-school integration, a Classroom sync) without
+building real multi-tenant infrastructure. This request predates a huge amount of the app's own
+subsequent growth (the AI-first onboarding flow, the "bloom" palette repaint, the universal
+Overview/lock system, the persistent-badge honesty vocabulary) — this feature re-grounds the
+original 3-task request in the CURRENT architecture, reusing those existing conventions directly
+rather than inventing new ones.**
+- **Task 1 — a small, secondary admin toggle on Survey.** `SurveyScreen.jsx` gained one plain
+  button ("Testing as admin?") below the real Continue row, styled small/dim via a new
+  `.admin-toggle-link` class — the exact same "styled smaller/dimmer than even `.btn-ghost`'s
+  already-quiet default, set apart from the real actions" precedent the hub's own `.hub-reset-btn`
+  already established for a low-visibility testing convenience, not a new visual language.
+  Deliberately NOT gated on `canContinue` (an admin can jump in with the Survey's own fields still
+  blank) and deliberately skips the real onboarding flow (Admissions Presentation, the AI
+  conversation) entirely — `patch({ screen: 'admin' })` direct, matching every other pre-hub
+  screen's own plain navigation pattern.
+- **`src/screens/AdminScreen.jsx`** (new) is the one screen both remaining tasks live on —
+  registered in `App.jsx`'s `SCREENS`/`TRANSITION_SCREENS`/`isBloomScreen` the same 3-point way
+  every other screen already is, reachable ONLY via Survey's own link (no hub tile, nothing else
+  navigates here), the same "mandatory-or-optional, not otherwise reachable" shape several pre-hub
+  screens already have. Its own form/list markup reuses the exact established field-block idiom
+  (`.field-block`/`.field-label`/`.field-hint`/`.task-form-field`/`.optional-badge`/
+  `.prior-exp-list`/`.prior-exp-card`/`.remove-btn`) `PriorExperiencesEditor.jsx`/`ProfileScreen.jsx`
+  already established, rather than a bespoke form language.
+- **Task 2 — the mock partner opportunity form flows through the EXACT SAME systems real Roslyn/UC
+  Davis opportunities do, with one real, deliberate difference in how its dates are computed.**
+  `state.adminOpportunities` (`AppContext.jsx`, `[]` default) holds `{ id, name, type, description,
+  track, howToApply, milestones: [{ id, label, date: 'YYYY-MM-DD' }] }` entries — the admin's own
+  event schedule (registration date, first round, regional, finals, ...) is a real, dynamic list of
+  named, individually-dated milestones the admin types in directly via `AdmissionScreen`'s dynamic
+  milestone rows (add/remove, each a plain label + `<input type="date">`). **These are real,
+  literal calendar dates, never the static catalog's template `{month, day}`/`{offsetDays}` system**
+  (which is relative to "today" and would silently drift a fixed real event date the longer the app
+  sits unopened) — the same distinction this codebase already draws elsewhere for
+  `collegeDeadlines.js`'s real deadline math and Daily Schedule's own literal block dates.
+  - **No new selection field** — selecting an admin opportunity in Opportunity Finder reuses the
+    exact same `state.selectedOpportunityIds` array real opportunities already use. `OpportunityFinderScreen.jsx`
+    gained `mapAdminOpportunity(opp)` (reshapes an admin entry into the same card-rendering fields —
+    `name`/`type`/`description`/`howToApply`/`_track` — real opportunities already carry, plus
+    `source: 'admin'` and a computed `finalDate`, the last milestone's own real date) and merges the
+    result into `browseOpportunities` (always, respecting the active track filter) and
+    `recommendedOpportunities` (only when its own track is among the student's resolved interest
+    tracks) — deliberately NOT merged into the two source arrays Auto-Pick's own date-conflict logic
+    reads (`recommendedOpportunities`/`allOpportunities` themselves), which assume the static
+    catalog's own template `date` shape; admin cards stay a display-only addition to whichever final
+    list actually renders. The card grid's own deadline computation now branches per-item
+    (`opp.source === 'admin' ? parseDateInputValue(opp.finalDate) : anchorDate(opp.date, today)`),
+    same branch in the compact detail modal. `selectedOpportunities` (feeding `SelectedItemsPanel`)
+    now falls back to a direct `adminOpportunityCards.find(...)` lookup whenever `findOpportunity`
+    (the static-catalog-only resolver) comes up empty.
+  - **`roadmapGenerator.js`'s new `buildAdminOpportunityItems(adminOpportunities,
+    selectedOpportunityIds, dateOverrides, removed, completedNodes)`** mirrors `buildFirstYearChain`'s
+    own OUTPUT CONTRACT closely (same fields, same anchor+branchSteps promotion via
+    `titleWithOpportunityContext`, same `applyOverviewLocking` call so an admin chain is locked
+    step-by-step exactly like every other chain in the app — see "Generalize the Overview/Lock
+    System to Every Multi-Step Chain") but SKIPS `buildStepsChain`'s own window-interpolation
+    entirely, since an admin's own milestones are already real, explicit dates with nothing to
+    interpolate — each step's date comes straight from `parseDateInputValue(m.date)` (or the
+    existing `dateOverrides` map, same override precedence every other chain step already honors),
+    sorted, `isLast` recomputed, then locked. `sourceType: 'admin'` is threaded onto every step
+    (anchor included) — mirroring the `aiSuggested` flag's own threading exactly — rather than a
+    whole new `category`, which would have meant touching every category-keyed switch in
+    `Roadmap.jsx` (`configFor`, the ring-style cascade, the modal eyebrow) for a feature that's
+    fundamentally still "an opportunity chain," just admin-sourced. Called from `generateRoadmap()`
+    alongside the existing `buildOpportunityItems(...)` call, appended into `spineItems`.
+  - **The visual marker (Roadmap.jsx, global.css)**: a new `--bloom-admin` token (`#64748B`, a
+    neutral slate — deliberately not a vivid hue, distinct from every one of the 7 track colors,
+    `--bloom-ai`, and the semantic accent/yellow/orange tokens, matching the honest "unverified/
+    demo, not an exciting feature" framing) backs a small, PERSISTENT badge (`ClipboardList` icon,
+    `.admin-source-badge`, `pointer-events: none`, same "never disappears once done" treatment
+    `.ai-suggestion-badge` already established) rendered on both the branch-step ring block
+    (`s.sourceType === 'admin'`) and the top-level spine-node ring block (`n.sourceType ===
+    'admin'`, in the same final `else` branch a plain opportunity anchor already falls into). A new
+    `.admin-entered-badge` (OpportunityFinderScreen's own card/modal, a self-contained pill — NOT
+    scoped under `.app-shell-bloom`, since the compact detail modal is portaled to `document.body`
+    and therefore outside that ancestor scope, unlike the in-page card grid) is the honest
+    counterpart to `.school-verified-badge`, never claiming `schoolVerified` status. A new Legend
+    entry ("Admin-entered — unverified, for testing", `--bloom-admin` dot) keeps the legend in sync
+    with the real ring/badge styles it documents, matching this app's own standing practice.
+- **Task 3 — "Connect Google Classroom" is a UI mockup only, per this app's own hard "no real
+  external integration without real data" honesty standard already established for every other
+  fabricated-content precedent in this app (the hub's own "Ask MyPath AI anything" placeholder
+  before it became real, Project Builder's own non-interactive Community Examples).**
+  `src/data/classroomDemoData.js` (new) exports `CLASSROOM_DEMO_TEMPLATE` — 6 real-sounding
+  `{ id, course, title, type, offsetDays }` entries, plain data, no logic. `AdminScreen.jsx`'s own
+  "Connect Google Classroom" button resolves each `offsetDays` into a real date
+  (`realAddDays(getEffectiveToday(state.dateOverride), offsetDays)`) at CLICK time — never a stored
+  fixed date, so it always reads as a freshly-synced set of upcoming assignments — and writes
+  `state.classroomDemoAssignments` (`[{ id, title, date, desc }]`); "Disconnect / clear demo data"
+  empties the array.
+  - **`roadmapGenerator.js`'s new `buildClassroomDemoItems(classroomDemoAssignments,
+    dateOverrides, removed)`** mirrors `buildCustomItems`/`buildAiSuggestedItems` almost exactly
+    (single-step, `category: 'custom'`, the same "you (or, here, the app on your behalf) added
+    this" dotted-ring visual language every other user/system-created task already uses) — the one
+    real addition is `isDemo: true` plus a literal `" (Demo Preview)"` suffix baked directly into
+    the rendered TITLE itself, not just an icon badge, matching this file's own established
+    "(Est.)" title-suffix precedent (course-request/college-deadline tasks) for making an honesty
+    marker part of the literal displayed text — never something a tester could scroll past without
+    noticing. Called alongside `buildCustomItems` in `generateRoadmap()`, appended into
+    `spineItems`.
+  - **Reuses the identical `--bloom-admin`/`MonitorPlay`/`.admin-source-badge` treatment** the
+    admin-opportunity marker already established (added to the top-level spine-node ring block's
+    `n.category === 'custom'` branch, keyed on `n.isDemo`), plus, per Task 3's own explicit "hard
+    requirement, not a minor detail," a THIRD, unmissable layer: the detail modal now shows a real
+    `.caveat-banner` ("This is a Demo Preview from the Google Classroom mockup — not real
+    assignment data.") whenever `modalNode.isDemo` is true — reusing the exact `.caveat-banner`
+    visual language this app already uses for every other honest-disclaimer moment (course-request
+    estimates, the transfer-timeline caveat) rather than inventing new styling. This was the FIRST
+    real use of `.caveat-banner` inside Roadmap.jsx's own modal — it's never `.app-shell-bloom`-
+    scoped (Map 2 is the separate `.app-shell-plan` full-bleed system), so it needed its own
+    `.roadmap-fullscreen-root .caveat-banner` override, the exact same scoping precedent every
+    other shared class in that file's own repaint pass already established.
+- **A small, genuinely new piece of shared chrome fell out of this pass**: `<select>` had no
+  styling anywhere in this codebase before AdminScreen's own Track dropdown (the first `<select>`
+  element this app has ever rendered) — `.task-form-field select`/`.app-shell.app-shell-bloom
+  .task-form-field select` were added alongside the pre-existing `input`/`textarea` rules in both
+  the base and bloom-scoped blocks, so any future form reusing this same field-block idiom gets a
+  consistent dropdown for free.
+- Verified with 4 dedicated Playwright suites (26 checks total) against the real dev server: a
+  real click-through (Welcome → Sign Up → Survey with fields still blank → "Testing as admin?" →
+  fill a real 4-milestone schedule → submit → confirm it's listed with the correct milestone
+  summary → "Connect Google Classroom" → confirm a real assignment count → "Continue to Hub")
+  confirms the whole admin flow end to end with zero page errors, and that both new state arrays
+  persist correctly (1 opportunity, 6 demo assignments); a seeded-state check confirms the admin
+  opportunity appears in Opportunity Finder's Browse tab with the real Admin-entered badge (never
+  a school-verified one) and resolves correctly in `SelectedItemsPanel` once selected; a seeded
+  roadmap check confirms the real anchor+3-branch-step chain renders with the admin badge on the
+  anchor, the anchor's own modal shows the plain generic "Mark complete" button (Overview 1 is
+  always unlocked), the Legend shows the new entry, and a classroom-demo node renders with its own
+  "(Demo Preview)" title suffix, its own badge, and the real caveat-banner disclaimer in its modal;
+  a follow-up check confirms the card's own displayed deadline is the real, un-interpolated Finals
+  date (not a template-shifted one) and that completing the anchor correctly unlocks exactly the
+  SECOND milestone (via the shared `applyOverviewLocking`) while the third stays locked; and a
+  final check confirms "Disconnect / clear demo data" both empties the state array and makes the
+  classroom-demo node genuinely disappear from the roadmap on the next render. `npm run build`/
+  `npm run lint` both stay clean; `npm run verify:spacing` stayed 20/20 throughout — this feature
+  never opens `roadmapLayout.js` at all, only reuses `roadmapGenerator.js`'s already-existing,
+  unmodified `applyOverviewLocking`/anchor-promotion machinery.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
@@ -14679,3 +14818,24 @@ download). Cover at minimum:
   features' own test files) — a shared component/file serving two very different screens means a
   change meant for one can silently affect the other. `npm run build`/`npm run lint` should stay
   clean.
+- Admin Toggle, Opportunity Admin Page, Labeled Classroom Mockup: seed state directly rather than
+  clicking through the full flow when testing the roadmap-rendering side of this — `screen: 'plan',
+  planYearIndex: 0` plus a real `state.adminOpportunities`/`selectedOpportunityIds`/
+  `classroomDemoAssignments` seed reaches Map 2 directly regardless of hub tile-lock state (direct
+  screen navigation bypasses hub-tile locking entirely, which only governs clicking FROM the hub).
+  Locate a specific admin/demo node via its real, stable `data-node-id` (`${opp.id}-milestone-${i}`
+  for an admin opportunity's steps, the demo assignment's own `id` for a classroom-demo node) —
+  same `data-node-id`/`data-node-title` attributes every other Map 2 node already carries (see "Map
+  2 Restructure" above), not visible label text (Map 2 has none anymore). To confirm the
+  `applyOverviewLocking` sequence works for an admin chain, check whether a locked step's own
+  `.node-badge` innerHTML contains a `lucide-lock` icon class before/after completing the step
+  before it — `.complete-btn` only appears in an unlocked node's own modal. To confirm a real
+  (not interpolated) admin milestone date renders on the Opportunity Finder card, compare the
+  card's own displayed text against the real Finals milestone date directly (not the anchor's/
+  first milestone's date) — this is the literal proof `buildAdminOpportunityItems` never runs the
+  static catalog's `buildStepsChain` window-interpolation on admin data. A fresh `localStorage`
+  never gets a real write until the FIRST `patch()` call (`AppContext.jsx`'s own documented
+  mount-skip-redundant-write behavior) — trigger one (e.g. click "Get Started") before reading
+  `DEFAULT_STATE`'s own fields back out of `localStorage` in a test, or the check will read `null`
+  and look like a missing-field bug that isn't real. `npm run build`/`npm run lint` should stay
+  clean; `npm run verify:spacing` should stay 20/20 (this feature never opens `roadmapLayout.js`).
