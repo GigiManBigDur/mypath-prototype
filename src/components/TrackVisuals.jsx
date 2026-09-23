@@ -30,6 +30,31 @@ export function getTrackColor(track) {
   return TRACK_COLOR_TOKENS[(index < 0 ? 0 : index) % TRACK_COLOR_TOKENS.length];
 }
 
+// Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md), Task 2 — the
+// SAME 7 tokens above, re-exposed as a standalone {key, var} roster for a picker UI, rather than a
+// track. The admin console's own "Organization Profile & Branding" brand-color swatches read this
+// directly instead of the attached Claude Design's own independently-invented 6-hue oklch()
+// palette — literal reuse of the exact colors already established everywhere else in this app
+// (interest tracks throughout Survey/Discovery/Course Selection/Opportunity Finder, the hub's own
+// tile icons) is the most direct way to satisfy "clearly related... not a disconnected,
+// independently-invented palette," stronger even than merely "related." `getBloomAccentColor`
+// falls back to the app's own universal `--bloom-accent` (never one of the 7) for an unset/unknown
+// key, matching this file's own `getTrackColor` fallback-to-a-real-default posture.
+export const BLOOM_ACCENT_SWATCHES = [
+  { key: 'purple', var: '--bloom-purple' },
+  { key: 'yellow', var: '--bloom-yellow' },
+  { key: 'teal', var: '--bloom-teal' },
+  { key: 'orange', var: '--bloom-orange' },
+  { key: 'pink', var: '--bloom-pink' },
+  { key: 'blue', var: '--bloom-blue' },
+  { key: 'green', var: '--bloom-green' },
+];
+
+export function getBloomAccentColor(key) {
+  const found = BLOOM_ACCENT_SWATCHES.find((s) => s.key === key);
+  return found ? `var(${found.var})` : 'var(--bloom-accent)';
+}
+
 function getTrackIconComponent(track) {
   return TRACK_ICON_MAP[TRACK_ICON_NAMES[track]] || Briefcase;
 }

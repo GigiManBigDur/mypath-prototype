@@ -11267,6 +11267,178 @@ chain → "Admin-entered" badge) is completely untouched.**
   (20/20) all stay clean — this restructure never opens `roadmapLayout.js`/`roadmapGenerator.js`'s
   own `buildAdminOpportunityItems`, or `OpportunityFinderScreen.jsx`'s own `mapAdminOpportunity`.
 
+**Implement New Admin Dashboard, Align Colors With the Menu Screen — a full visual/structural
+rebuild of the admin console on top of an imported Claude Design export
+(`MyPath Admin Dashboard Redesign.zip`, a `.dc.html` canvas), reworking `AdminScreen.jsx`
+(org "login") and `AdminDashboardScreen.jsx` (the org-scoped dashboard) from the earlier
+single-page restructure above into a real left-sidebar console with an organization switcher and
+4 real sections, plus a full-page 4-step event editor with a live student-card preview and a real
+milestone-timeline visualization. Task 2's own explicit color-cohesion instruction is satisfied
+literally, not just "similarly": every accent in this whole console reads one of the exact same
+7 `--bloom-*` tokens the Menu/Hub's own tile icons and every interest-track badge throughout this
+app already draw from (`TrackVisuals.jsx`'s `BLOOM_ACCENT_SWATCHES`/`getBloomAccentColor`) —
+never the attached design's own independently-invented 6-hue `oklch()` picker. Task 3's own hard
+requirement (org selection, the events/opportunities data pipeline, the "Admin-entered" badge, and
+the Google Classroom demo preview all keep working exactly as already built) holds structurally:
+every new/changed field on an `adminOpportunities` entry (`location`/`status`/`visibility`) is
+purely additive, confirmed directly (not assumed) that neither `roadmapGenerator.js`'s
+`buildAdminOpportunityItems` nor `OpportunityFinderScreen.jsx`'s `mapAdminOpportunity` was touched
+or reads any of them — both still only ever look at the same 7 real fields
+(`id`/`name`/`type`/`description`/`track`/`howToApply`/`milestones`) they always have.
+- **`src/data/adminOrgs.js` grew from 1 seeded org to 3** — Roslyn DECA (unchanged, business
+  track), plus Roslyn Robotics (stem) and Long Island Math Circuit (stem, `parent: 'Independent'`
+  rather than a specific school) — mirroring the attached design's own mock roster, real enough to
+  make the new sidebar's own organization switcher genuinely demonstrable rather than a one-item
+  dead end. Each org gained `parent`/`kind`/`tagline`/`brandColorKey` (a starting pick from the 7
+  bloom swatches, deliberately assigned distinct per org — purple/orange/teal — rather than
+  derived from `track`, which would collide two of the three on the identical color).
+- **`src/utils/adminOrgProfile.js`** (new) is the one shared resolution layer for the 3 fields the
+  new "Organization Profile & Branding" section makes admin-editable at runtime (`name`/`tagline`/
+  `brandColorKey`): `resolveOrgProfile(org, state)` overlays `state.adminOrgProfiles[org.id]` — a
+  live-edit map — on top of `adminOrgs.js`'s own static defaults, the exact same "template default
+  + a live override map keyed by id" shape `state.nodeDateOverrides` already establishes elsewhere
+  in this app for a user-edited value overriding a template-computed one. `getOrgInitials(name)`
+  derives a 2-letter monogram live from whatever the CURRENT (possibly renamed) name is, rather
+  than storing it as a separate field that could go stale after a rename. `getStatusPillColors`
+  reads the same green/yellow bloom tokens this app's other status-flavored pills (Reach/Match/
+  Safety, "Verified"/"Admin-entered") already use, rather than a third color language.
+- **Both admin screens get their own full-bleed shell** (`.app-shell-admin-console`, `App.jsx`'s
+  new `isAdminConsole` check), mirroring `.app-shell-hub`'s own precedent — a real edge-to-edge
+  split-panel login and a real sidebar console need the full viewport, not the centered/padded/
+  max-width box every other screen uses. Kept ALONGSIDE `.app-shell-bloom` (unlike the hub, which
+  forked its own separate `--hub-*` palette) — Task 2's whole point is reading the SAME `--bloom-*`
+  tokens the rest of the app already does, so anything here that happens to reuse a shared class
+  (`.task-form-field`, `.label`, `.field-label`, `.field-hint`, `.page-title`, `.page-sub`,
+  `.optional-badge`, `.remove-btn`, ...) still picks up the existing bloom override for free —
+  confirmed directly this is genuinely how these components are built, not a second, near-
+  identical set of admin-only form-field classes (a real mistake caught and fixed mid-build: an
+  early pass invented `.admin-field-label`/`.admin-form-field`/`.admin-page-title` duplicates of
+  these exact shared classes before being renamed back onto the real ones). The generic
+  `.app-header` (brand + sound popover) is suppressed for both admin screens the same way it
+  already is for the hub — each screen's own chrome (the login's branding panel, the dashboard's
+  sidebar footer) carries the real `SoundSettingsPopover` mute control instead, so it doesn't stack
+  a second header on top of the sidebar.
+- **`AdminScreen.jsx` (org "login")** — a real split-panel layout: a dark branding panel on the
+  left (reading `--bloom-ink` directly as a large BACKGROUND — the one deliberately dark surface
+  in this whole redesign, chosen specifically because it's already this app's own real ink/text
+  token everywhere else, not a foreign gray lifted from the attached design) and a real org list on
+  the right, each row showing a colored monogram (`--org-accent`, the org's own resolved
+  `brandColorKey`), name, parent/kind, and an arrow — no fictional "Owner/Admin/Editor" role pill
+  (the design's own mock had one; this app has no real per-user permission system to back one
+  honestly, so it's omitted rather than invented). "No password required yet... a stand-in for
+  real per-org accounts, not a real login" carries over as honest copy, replacing the design's own
+  fabricated "Signed in as priya.raman@..." line, which would have looked like a real, specific
+  person's PII rather than clearly-fictional demo copy.
+- **`AdminDashboardScreen.jsx` (the console shell)** now owns real local state for which section is
+  showing (`'overview' | 'events' | 'resources' | 'profile'`), the org switcher's open/closed
+  state, and whether the event editor/resource drawer overlay is open — routing to 4 small, focused
+  section components rather than one long page. A **"Team" section existed in the attached design
+  but is deliberately NOT built** — this app has "no backend, no database, no auth" as a hard
+  constraint (see this file's own header), and a real per-user invite/role system would be
+  genuinely fictional on top of that in a way the other 4 sections (each backed by real, actually-
+  stored `state`) are not; Task 1's own explicit section list never named it either. The org
+  switcher (a dark dropdown anchored inside the sidebar via plain `position: absolute` — no portal
+  needed, since `position: absolute` already respects a transformed ancestor as its containing
+  block by spec, unlike `position: fixed`, which is the actual landmine this app's other modals
+  document) lists all 3 real orgs with a checkmark on whichever is current, switching resets the
+  local `section` back to Overview. The sidebar's own switcher name/parent text is a real, small,
+  confirmed-and-fixed bug from this build: both were plain `<span>`s with no `display: block`,
+  which rendered "Roslyn DECARoslyn High School" running together on one line in the first
+  screenshot taken — fixed by making both display as blocks, re-verified via a fresh screenshot.
+- **`AdminOverviewSection.jsx`** — a greeting, 3 real stat cards, a real "Coming up" list (every
+  upcoming milestone across this org's own events, sorted, clickable — reusing `DigestList.jsx`'s
+  own exported `relativeLabel` helper for "Today"/"Tomorrow"/"In N days" wording rather than a
+  second copy), a "Needs attention" panel (real drafts + real published-but-undescribed events), a
+  "How students see you" branding teaser linking to the Organization section, and the unchanged
+  Google Classroom demo preview (Task 4 — relocated here, since Task 1 named no dedicated nav item
+  for it and "wherever makes sense... e.g. accessible from the org dashboard" explicitly allows
+  this). **Deliberately does NOT fabricate a "member signups" stat the way the attached design's
+  own mockup does** — that number would require real, cross-student, backend-aggregated data this
+  app's single-user, no-backend architecture simply doesn't have. The 3rd stat, "Selected on your
+  plan," is the honest substitute: since this prototype's "admin" and "student" share the exact
+  same local browser `state`, it's a genuine, accurate count of how many of THIS org's own
+  opportunities are currently in `state.selectedOpportunityIds`, not an invented number standing in
+  for data nobody actually tracked.
+- **`AdminEventsSection.jsx`** — a real filtered table (All/Published/Drafts, with real counts) of
+  this org's own `adminOpportunities`, each row showing the event's own real next milestone + date,
+  a status pill, and — replacing the design's own fabricated "Signups" column with the same honest
+  substitute described above — an "On your plan" checkmark. `status` (Draft/Published) is purely
+  organizational here: filtering by it never touches whether an event is selectable in Opportunity
+  Finder, which stays completely unaffected regardless of status, matching Task 3's own explicit
+  "not the underlying data or logic." A real, direct "Remove" action per row reuses the existing
+  shared `.remove-btn` class.
+- **`AdminResourcesSection.jsx`** — grown from the earlier flat resource list into a real kind-
+  filterable card grid (Guide/Link/Video/File, matching the attached design's own categorization)
+  with a real "linked to [event]" line per card. `resource.eventId` (set only via the new Add
+  Resource drawer's own "Link to event" dropdown) is the SINGLE source of truth for this linkage —
+  a real, deliberate design decision made during this build: the attached design's own mock data
+  actually carries TWO independent linkage fields (a resource's own `event` string, AND a separate
+  event-side `attached` array of resource ids) that could silently drift out of sync with each
+  other, the same "two independent copies of the same fact" class of bug this codebase's own
+  `getStage0TargetLabel`/`isSurveyComplete` extractions already had to fix once before elsewhere —
+  so the event editor's own Details step deliberately does NOT include an "attach resources"
+  step at all (Task 1 never explicitly named it as a wizard must-have), keeping exactly one real,
+  never-driftable place this fact lives.
+- **`AdminOrgProfileSection.jsx` ("Organization Profile & Branding")** — real, admin-editable
+  display name + tagline (persisted via `state.adminOrgProfiles`, live-previewed immediately), a
+  logo placeholder honestly labeled "Logo upload isn't available in this prototype yet — your badge
+  uses these initials" rather than a fake, non-functional "Upload" button that looks real and isn't
+  (this app has no real file storage to back one), and the brand-color swatch picker (Task 2's own
+  most direct instance of "read the app's real palette instead of the design's own invented one")
+  — 7 real bloom-token swatches, the current one ringed. The right column is a real, live "Student
+  view" preview card (monogram, name, parent/kind, tagline, real event/resource counts) that
+  updates immediately as any field on the left changes.
+- **`AdminEventEditor.jsx` (the full-page "add new event" editor, Task 1's own most explicit
+  must-have)** — a real 4-step wizard (Basics → Milestones → Details → Review) portaled to
+  `document.body` (this screen, like every other `.screen-transition`-wrapped screen in this app,
+  makes an ancestor a containing block for `position: fixed` descendants — see
+  `SelectedItemsPanel.jsx`'s own header comment for the landmine this works around), with a left
+  step rail, the current step's form in the center, and a live "student view" preview on the right
+  that updates on every keystroke. **The draft's own field NAMES intentionally match the real,
+  already-working pipeline exactly** (`name`/`type`/`description`/`track`/`howToApply`/
+  `milestones`, plus the purely additive `location`/`visibility`) — never a differently-named
+  `title` field translated at save time, which would risk a silent mismatch against the two real
+  pipeline functions Task 3 protects. Basics also carries the one real pipeline field the attached
+  design's own wizard never had a slot for at all (`howToApply`) as a natural extension of that
+  same step, plus this app's own "Interest track" picker (pre-filled from the org's own default
+  track). Title is required to save as EITHER a draft or a published event, matching the design's
+  own real validation (`if (!title) { jump to step 0; block the save; }`). Publishing/updating
+  writes the real `status` and returns to the dashboard's own Events section.
+- **`AdminMilestoneTimeline.jsx`** (new, shared by the editor's own Milestones step) — Task 1's
+  explicitly-named "timeline visualization for event milestones," built as a genuinely real,
+  computed visualization, not an eyeballed one: every dot's horizontal position comes from real
+  day-gaps between milestone dates (`realDaysBetween`), matching this app's own established
+  "compute positions from real data, don't fake them" discipline (`WelcomeScreen`'s trail markers,
+  `Roadmap.jsx`'s own node placement) — never the attached design's own hand-tuned `first ? -8px :
+  last ? -112px : -60px` per-position label-offset heuristic. Labels alternate between a row above
+  and below the dot line by index parity instead, which is robust regardless of how many
+  milestones exist or how close together their real dates land, and a dashed "today" marker
+  appears when the real current date falls within the milestone range. Verified directly via
+  screenshot with 4 real dated milestones spanning 151 real days — the dots' relative spacing and
+  the "Spans 151 days · Oct 6 → Mar 6" footer text both genuinely reflect the real date math, and
+  the live preview panel's own milestone list correctly bolds/fills whichever one is the real next
+  upcoming date.
+- **`AdminResourceDrawer.jsx`** (new) — a slide-in panel from the right (kind picker, title, a URL
+  field — or, for "File," an honest plain-text filename note standing in for a real upload, since
+  this prototype has no real file storage to actually upload to — and an optional "link to event"
+  dropdown scoped to this org's own real events), portaled the same way the editor is.
+- Verified with a 26-check Playwright suite driving the real running dev server end to end (zero
+  page errors): the org-selection screen lists exactly the 3 real seeded orgs; selecting one lands
+  on the dashboard with the real sidebar nav (confirmed to show exactly the 4 real sections and NO
+  "Team" item) and a working org switcher (switching genuinely updates `state.adminOrgId`); picking
+  a brand-color swatch writes to `state.adminOrgProfiles`; adding a new event through the complete
+  real 4-step wizard (Basics → Milestones → Details → Review → Publish) produces a real
+  `adminOpportunities` entry with the correct `orgId`/`status`/2 real dated milestones/the org's own
+  default `track`/the real `howToApply` text, correctly appears in the dashboard's own Events list,
+  and — the direct proof of Task 3 — still renders in the real Opportunity Finder with the exact
+  "Admin-entered" badge, still generates a real dated roadmap node (found by its own stable
+  `data-node-id`) whose modal correctly names the real milestone/opportunity; and the Google
+  Classroom demo preview still produces exactly 6 real demo assignments with the exact original
+  disclaimer text and the unchanged "(Demo Preview)" title suffix on its own real roadmap node. A
+  narrow (700px) viewport check confirms zero horizontal overflow. `npm run build`/`npm run lint`/
+  `npm run verify:spacing` (20/20) all stay clean — this rebuild never opens `roadmapLayout.js` or
+  either of the two real pipeline functions Task 3 protects.
+
 ## Design tokens
 
 `src/styles/global.css` holds all fonts/colors as CSS custom properties (`--paper`, `--ink`,

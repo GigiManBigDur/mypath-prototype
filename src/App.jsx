@@ -117,13 +117,27 @@ function AppShell() {
     || screenKey === 'opportunities' || screenKey === 'projectBuilder'
     || screenKey === 'programSummary' || screenKey === 'profile' || screenKey === 'myNarrative'
     || screenKey === 'admin' || screenKey === 'adminDashboard' || isMap1;
+  // Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md) — both admin
+  // screens get their own full-bleed shell now (`.app-shell-admin-console`), mirroring
+  // `.app-shell-hub`'s own precedent: a real edge-to-edge split-panel login and a real sidebar
+  // console need the full viewport, not the centered/padded/max-width box every other screen uses.
+  // Kept ALONGSIDE `.app-shell-bloom` (unlike the hub, which forked its own separate `--hub-*`
+  // palette) — Task 2's whole point is reading the SAME `--bloom-*` tokens the rest of the app
+  // already does, so anything here that happens to reuse a shared class (`.field-hint`, `.btn-
+  // ghost`, ...) still picks up the existing bloom override for free. `.polish`'s own generic
+  // card/button press-feedback is skipped here (like hub/plan) since this console builds its own
+  // bespoke nav/row/card interactions rather than reusing the shared `.card`/`.btn` hover language.
+  const isAdminConsole = screenKey === 'admin' || screenKey === 'adminDashboard';
 
   return (
-    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>
+    <div className={`app-shell${isPlanDetail ? ' app-shell-plan' : isHub ? ' app-shell-hub' : isAdminConsole ? ' app-shell-admin-console' : ' polish'}${isBloomScreen ? ' app-shell-bloom' : ''}`}>
       {/* Radial-layout pass (see CLAUDE.md) — the hub renders its own dedicated top bar (logo,
           search, notifications, avatar, PLUS the same real mute control this generic header
-          carries) instead of this one, so the two don't stack. Every other screen is unaffected. */}
-      {!isHub && state.screen !== 'welcome' && (
+          carries) instead of this one, so the two don't stack. Every other screen is unaffected.
+          Implement New Admin Dashboard (see CLAUDE.md) — the admin console does the same: its own
+          chrome (the login screen's own branding panel, the dashboard's own sidebar footer) carries
+          the real mute control instead, so it doesn't stack a second header on top of the sidebar. */}
+      {!isHub && !isAdminConsole && state.screen !== 'welcome' && (
         <div className="app-header">
           <div className="brand">
             <Compass />

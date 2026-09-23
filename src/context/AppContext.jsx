@@ -405,6 +405,17 @@ const DEFAULT_STATE = {
   // working piece of the pipeline is untouched; it exists solely so AdminDashboardScreen.jsx can
   // filter "this org's own current events" out of the flat array without a second, per-org-keyed
   // data structure to keep in sync.
+  //
+  // Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md) — 4 more
+  // fields, all equally purely additive/optional, all equally unread by the two pipeline functions
+  // above: `location` (plain text), `status: 'Draft' | 'Published'` (defaults to 'Published' when
+  // absent — the admin console's own organizational field, e.g. its "Needs attention" panel and
+  // status filter; deliberately does NOT gate Opportunity Finder visibility at all, per Task 3's
+  // own "not the underlying data or logic" — every admin opportunity, draft or published, is
+  // exactly as selectable in Opportunity Finder as it always has been), `visibility` (plain
+  // descriptive text, not an enforced access-control rule — this app has no real auth/accounts to
+  // enforce one with), and `resourceIds: string[]` (ids into `adminOrgResources[orgId]` below,
+  // purely for the admin dashboard's own "N resources attached" display).
   adminOpportunities: [],
   // Restructure Admin Panel: Org Selection + Per-Org Dashboard (see CLAUDE.md), Task 1/2 — which
   // organization (an id from data/adminOrgs.js) the admin "logged in" as. Set by AdminScreen.jsx's
@@ -414,11 +425,26 @@ const DEFAULT_STATE = {
   // exists in the roster).
   adminOrgId: null,
   // Task 2 — "Resources members can use," scoped per org: `{ [orgId]: [{ id, title, description,
-  // link }] }`. Deliberately simple/flat (no roadmap wiring, no relation to the real per-opportunity
-  // `stepResources` this app already has elsewhere) — this is member-facing reference material (a
-  // national website, a rubric, a roster template), not a task, so it never needs to become a
-  // roadmap node the way an opportunity's own milestones do.
+  // link, kind }] }`. Deliberately simple/flat (no roadmap wiring, no relation to the real
+  // per-opportunity `stepResources` this app already has elsewhere) — this is member-facing
+  // reference material (a national website, a rubric, a roster template), not a task, so it never
+  // needs to become a roadmap node the way an opportunity's own milestones do. `kind` (Implement
+  // New Admin Dashboard, see CLAUDE.md) is one of 'Guide' | 'Link' | 'Video' | 'File', matching the
+  // attached design's own resource categorization — defaults to 'Guide' when absent, for any
+  // resource added before this field existed.
   adminOrgResources: {},
+  // Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md), Task 1/2 — a
+  // live-edit OVERLAY on top of `data/adminOrgs.js`'s own static `ADMIN_ORGS` defaults: `{ [orgId]:
+  // { name?, tagline?, brandColorKey? } }`. The new "Organization Profile & Branding" section
+  // writes here (see `utils/adminOrgProfile.js`'s `resolveOrgProfile`, the one place this overlay
+  // is merged back over the static default) — the exact same "template default + a live override
+  // map keyed by id" shape `state.nodeDateOverrides` already established for a user-edited value
+  // overriding a template-computed one. `brandColorKey` is one of the 7 keys in TrackVisuals.jsx's
+  // `BLOOM_ACCENT_SWATCHES` — the org's own picked accent, read throughout the admin console (the
+  // sidebar/switcher, the event editor, the live student-card preview) in place of the attached
+  // design's own independently-invented per-org oklch() hue, per Task 2's own explicit "align with
+  // the Menu/Hub screen's established colors" instruction.
+  adminOrgProfiles: {},
   // Populated (or regenerated) by AdminDashboardScreen.jsx's own "Connect Google Classroom" button —
   // `[{ id, title, date: 'YYYY-MM-DD', desc }]`, computed fresh from classroomDemoData.js's fixed
   // template at click time. Always rendered with a persistent "(Demo Preview)" marker baked

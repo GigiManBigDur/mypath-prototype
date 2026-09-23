@@ -226,6 +226,31 @@ body:has(.app-shell-hub) {
   background-image: none;
 }
 
+/* Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md) — the admin
+   console's own full-bleed shell, the same "no max-width/padding, fill the viewport" treatment
+   `.app-shell-plan`/`.app-shell-hub` already establish. Unlike those two, this one deliberately
+   does NOT fork its own color palette — it reads the shared `--bloom-*` tokens directly (Task 2's
+   whole point), so no new custom properties are declared here at all. */
+.app-shell.app-shell-admin-console {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+/* `.screen-transition` is a plain, unsized block div (App.jsx) — needs an explicit height so its
+   own child (the real admin screen's own root, which fills via `height:100%` too) can resolve a
+   percentage height back up through the chain to the shell's real `100vh` above. Map 2
+   (`.app-shell-plan`) never combines with `.screen-transition` at all, so this exact combination
+   had no prior precedent to follow. */
+.app-shell.app-shell-admin-console > .screen-transition { height: 100%; }
+body:has(.app-shell-admin-console) {
+  background: var(--bloom-bg);
+  background-image: none;
+  color: var(--bloom-ink);
+}
+
 /* Palette repaint, Welcome/Sign-Up (see CLAUDE.md) — the first two screens moved onto the shared
    `--bloom-*` tokens above. Scoped to `.app-shell-bloom` (App.jsx, added whenever screenKey is
    'welcome' or 'signup') so nothing here leaks onto any other, still-parchment-themed screen —
@@ -2124,154 +2149,779 @@ button.card.passed:hover {
 }
 .admin-toggle-link:hover { opacity: 1; color: var(--bloom-admin); }
 
-/* AdminDashboardScreen.jsx's own milestone-schedule rows (and, reusing the identical grid/input
-   look, its "add a resource" row too) — name/title + date/description + remove, reusing the
-   shared `.task-form-field`-style input look rather than inventing new field chrome. */
-.admin-milestone-row {
+/* Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md), Task 1/2 — the
+   org-selection "login" screen's new split-panel layout, replacing the earlier single-column
+   panel/card-grid this section used to hold (the org-picker restructure's own first pass). Exclusive
+   to this one screen, so styled directly rather than scoped under `.app-shell-bloom` (same
+   "exclusive class, style directly" precedent `.admin-toggle-link` above already set) — but every
+   color value still reads a real `--bloom-*` token, per Task 2. The old flat `.admin-milestone-row`
+   form-row class (from the prior restructure's own single-page dashboard) is gone along with it —
+   the new console's own milestone editor uses `.admin-milestone-editor-row` instead (below). */
+.admin-login-shell {
+  height: 100%;
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
-.admin-milestone-row input[type="text"],
-.admin-milestone-row input[type="date"] {
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--bloom-card-border);
-  background: var(--bloom-card);
-  color: var(--bloom-ink);
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 13px;
+@media (max-width: 860px) {
+  .admin-login-shell { grid-template-columns: 1fr; height: auto; min-height: 100%; }
 }
-
-/* Restructure Admin Panel: Org Selection + Per-Org Dashboard (see CLAUDE.md), Task 1 — the
-   organization-selection "login" screen's own card grid. Reuses the `--track-accent` custom
-   property + `color-mix` icon-box treatment `.track-icon-box` (CareersStep/MajorsStep) already
-   established, and the hover-lift `.hub-tile`/`.card` already establish elsewhere, so a brand-new
-   card type still reads as familiar rather than inventing a third hover language. Exclusive to
-   this one screen, so styled directly rather than scoped under `.app-shell-bloom` (same "exclusive
-   class, style directly" precedent `.admin-toggle-link`/`.admin-milestone-row` above already set). */
-.admin-org-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-}
-.admin-org-card {
+/* The one deliberately dark surface in this whole redesign — reads `--bloom-ink` (the app's own
+   real ink/text token, already load-bearing everywhere else in this app) as a large BACKGROUND
+   instead of inventing a foreign gray, so the panel still reads as genuinely "this app's own dark
+   tone," just inverted, rather than a disconnected color lifted from the attached design. */
+.admin-login-brand {
+  background: var(--bloom-ink);
+  color: var(--bloom-bg);
+  padding: 48px 56px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  background: var(--bloom-card);
-  border: 1px solid var(--bloom-card-border);
-  border-radius: 14px;
-  padding: 20px 22px;
-  cursor: pointer;
-  box-shadow: var(--bloom-shadow);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  justify-content: space-between;
+  gap: 40px;
 }
-.admin-org-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--bloom-shadow-hover);
-  border-color: var(--track-accent, var(--bloom-accent));
+.admin-login-brand-top { display: flex; align-items: center; gap: 10px; }
+.admin-login-brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 18px;
 }
-.admin-org-card-icon {
-  display: inline-flex;
+.admin-login-brand-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--bloom-bg) 30%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--bloom-bg) 65%, transparent);
+}
+.admin-login-brand-copy { max-width: 460px; }
+.admin-login-headline {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.admin-login-sub {
+  margin-top: 18px;
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--bloom-bg) 65%, transparent);
+}
+.admin-login-brand-foot {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--bloom-bg) 45%, transparent);
+}
+.admin-login-panel {
+  display: flex;
   align-items: center;
   justify-content: center;
+  padding: 48px 32px;
+  overflow-y: auto;
+}
+.admin-login-panel-inner { width: 100%; max-width: 440px; }
+.admin-login-eyebrow { font-size: 13px; line-height: 1.5; color: var(--bloom-ink-soft); margin: 0 0 8px; }
+.admin-login-title {
+  font-family: 'Fraunces', serif;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 26px;
+  color: var(--bloom-ink);
+}
+.admin-org-list { display: flex; flex-direction: column; gap: 10px; }
+/* Each org's own real `brandColorKey` (one of TrackVisuals.jsx's 7 bloom accent tokens) sets
+   `--org-accent` inline — the same "data/JSX picks the value, CSS just reads a custom property"
+   convention this app's own `--tile-accent`/`--track-accent`/`--pb-accent` already establish. */
+.admin-org-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--bloom-card);
+  border: 1px solid var(--bloom-card-border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.admin-org-row:hover {
+  border-color: var(--org-accent, var(--bloom-accent));
+  box-shadow: var(--bloom-shadow-hover);
+  transform: translateY(-2px);
+}
+.admin-org-row-icon {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  background: color-mix(in srgb, var(--track-accent, var(--bloom-accent)) 16%, var(--bloom-card));
-  color: var(--track-accent, var(--bloom-accent));
-}
-.admin-org-card-name {
-  font-family: 'Fraunces', serif;
-  font-size: 19px;
+  border-radius: 10px;
+  background: var(--org-accent, var(--bloom-accent));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 600;
-  color: var(--bloom-ink);
-  margin-bottom: 4px;
+  font-size: 14px;
+  flex-shrink: 0;
 }
-.admin-org-card-kind {
+.admin-org-row-body { min-width: 0; }
+.admin-org-row-name { font-family: 'Fraunces', serif; font-weight: 600; font-size: 15px; color: var(--bloom-ink); }
+.admin-org-row-meta { font-size: 13px; color: var(--bloom-ink-soft); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-org-row-arrow { color: var(--org-accent, var(--bloom-accent)); flex-shrink: 0; }
+.admin-login-shell .admin-toggle-link { margin: 24px auto 0; }
+
+/* Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md), Task 1 — the
+   org-scoped CONSOLE shell (sidebar + main), replacing the earlier single-column dashboard's own
+   layout entirely. Task 2 — the sidebar is the one other deliberately dark surface in this app
+   (alongside the login screen's own branding panel), again reading `--bloom-ink` directly rather
+   than a foreign gray, so both "dark" moments in this console share the exact same real color. */
+.admin-console {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+.admin-sidebar {
+  background: var(--bloom-ink);
+  color: var(--bloom-bg);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  position: relative;
+  overflow-y: auto;
+}
+.admin-switcher-wrap { position: relative; }
+.admin-switcher-btn {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--bloom-bg);
+  transition: background 0.15s ease;
+}
+.admin-switcher-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.admin-switcher-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--org-accent, var(--bloom-accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.admin-switcher-body { min-width: 0; }
+.admin-switcher-name { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-switcher-parent { display: block; font-size: 12px; color: color-mix(in srgb, var(--bloom-bg) 60%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-switcher-caret { color: color-mix(in srgb, var(--bloom-bg) 60%, transparent); flex-shrink: 0; }
+.admin-switcher-menu {
+  position: absolute;
+  top: 68px;
+  left: 12px;
+  right: 12px;
+  background: var(--bloom-card);
+  color: var(--bloom-ink);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  padding: 6px;
+  z-index: 20;
+}
+.admin-switcher-menu-label {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--track-accent, var(--bloom-accent));
-  margin-bottom: 10px;
+  letter-spacing: 0.06em;
+  color: var(--bloom-ink-soft);
+  padding: 8px 10px 6px;
 }
-.admin-org-card-desc { font-size: 13.5px; line-height: 1.55; color: var(--bloom-ink-soft); margin: 0 0 16px; }
-.admin-org-card-enter {
+.admin-switcher-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.admin-switcher-item:hover { background: var(--bloom-bg); }
+.admin-switcher-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--org-accent, var(--bloom-accent));
+  color: #fff;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 13px;
+  justify-content: center;
   font-weight: 600;
-  color: var(--track-accent, var(--bloom-accent));
-  margin-top: auto;
+  font-size: 11px;
 }
+.admin-switcher-item-name { font-size: 13px; font-weight: 500; }
+.admin-switcher-item-check { color: var(--org-accent, var(--bloom-accent)); }
+.admin-switcher-divider { height: 1px; background: var(--bloom-card-border); margin: 6px 4px; }
+.admin-switcher-all {
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--bloom-ink-soft);
+}
+.admin-switcher-all:hover { background: var(--bloom-bg); }
 
-/* Task 2 — the org-scoped dashboard's own branding header (organization icon + name + kind/
-   school), so the screen reads as a real, dedicated dashboard rather than the old bare testing
-   form. `<h1 class="page-title">` renders inside it, inheriting the exact same title styling every
-   other screen already uses, so the org's own name still reads as the page's real title. */
-.admin-dash-header {
+.admin-nav-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--bloom-bg) 45%, transparent);
+  padding: 28px 12px 8px;
+}
+.admin-nav { display: flex; flex-direction: column; gap: 2px; }
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--bloom-bg) 65%, transparent);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.admin-nav-item:hover { color: var(--bloom-bg); background: rgba(255, 255, 255, 0.05); }
+.admin-nav-item.active { background: rgba(255, 255, 255, 0.08); color: var(--bloom-bg); }
+.admin-nav-item.active::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--org-accent, var(--bloom-accent));
+  margin-right: 3px;
+}
+.admin-nav-item-label { flex: 1; }
+.admin-nav-item-count { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: color-mix(in srgb, var(--bloom-bg) 45%, transparent); }
+
+.admin-sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.admin-sidebar-foot-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.admin-sidebar-foot-body { min-width: 0; flex: 1; }
+.admin-sidebar-foot-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-sidebar-foot-role { font-size: 12px; color: color-mix(in srgb, var(--bloom-bg) 55%, transparent); }
+.admin-sidebar-sound-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: var(--bloom-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+.admin-sidebar-sound-btn:hover { border-color: rgba(255, 255, 255, 0.35); }
+
+.admin-main { overflow-y: auto; min-width: 0; }
+.admin-main-inner { max-width: 1080px; margin: 0 auto; padding: 36px 48px 80px; }
+
+/* Shared primitives used by every section (Overview/Events/Resources/Organization) and by the
+   editor/drawer overlays — a small vocabulary of admin-console-exclusive classes with no existing
+   equivalent elsewhere in this app (unlike form fields/page titles, which reuse the shared
+   `.task-form-field`/`.label`/`.field-label`/`.field-hint`/`.page-title`/`.page-sub` classes
+   directly — see each section component's own header comment). */
+.admin-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 4px; }
+.admin-today { font-size: 13px; color: var(--bloom-ink-soft); }
+.admin-head-actions { display: flex; gap: 8px; }
+.btn-admin-primary,
+.btn-admin-outline,
+.btn-admin-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+.btn-admin-primary { background: var(--org-accent, var(--bloom-accent)); color: #fff; }
+.btn-admin-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-admin-outline { background: var(--bloom-card); border-color: var(--bloom-card-border); color: var(--bloom-ink); }
+.btn-admin-outline:hover { border-color: var(--bloom-ink); }
+.btn-admin-dark { background: var(--bloom-ink); color: var(--bloom-bg); }
+.btn-admin-dark:hover { opacity: 0.9; }
+.btn-admin-primary:active, .btn-admin-outline:active, .btn-admin-dark:active { transform: scale(0.97); }
+
+.admin-card { background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 14px; padding: 20px 22px; }
+.admin-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.admin-card-title { font-weight: 600; font-size: 15px; color: var(--bloom-ink); }
+.admin-link-btn { background: none; border: 0; cursor: pointer; font-size: 13px; color: var(--bloom-ink-soft); padding: 0; }
+.admin-link-btn:hover { color: var(--bloom-ink); }
+.admin-empty-note { font-size: 14px; color: var(--bloom-ink-soft); }
+
+/* Overview */
+.admin-stat-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 24px; background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 14px; }
+.admin-stat-cell { padding: 18px 22px; border-right: 1px solid var(--bloom-card-border); }
+.admin-stat-cell:last-child { border-right: none; }
+.admin-stat-label { font-size: 13px; color: var(--bloom-ink-soft); }
+.admin-stat-value { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 4px; color: var(--bloom-ink); font-variant-numeric: tabular-nums; }
+.admin-overview-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start; }
+.admin-upcoming-card { padding: 8px 0 4px; }
+.admin-upcoming-card .admin-card-head { padding: 10px 22px 8px; margin-bottom: 0; }
+.admin-upcoming-card .admin-empty-note { padding: 0 22px 14px; }
+.admin-upcoming-list { display: flex; flex-direction: column; }
+.admin-upcoming-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 22px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--bloom-card-border);
+  cursor: pointer;
+  text-align: left;
+}
+.admin-upcoming-row:hover { background: var(--bloom-bg); }
+.admin-upcoming-date { text-align: center; border: 1px solid var(--bloom-card-border); border-radius: 9px; padding: 4px 0; }
+.admin-upcoming-mon { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--org-accent, var(--bloom-accent)); }
+.admin-upcoming-day { display: block; font-size: 17px; font-weight: 600; color: var(--bloom-ink); line-height: 1.1; }
+.admin-upcoming-body { min-width: 0; }
+.admin-upcoming-label { font-weight: 500; font-size: 14px; color: var(--bloom-ink); }
+.admin-upcoming-event { font-size: 12.5px; color: var(--bloom-ink-soft); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-upcoming-rel { font-size: 12px; color: var(--bloom-ink-soft); font-family: 'IBM Plex Mono', monospace; }
+.admin-overview-side { display: flex; flex-direction: column; gap: 18px; }
+.admin-attention-list { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.admin-attention-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px;
+  margin: 0 -8px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  width: calc(100% + 16px);
+}
+.admin-attention-row:hover { background: var(--bloom-bg); }
+.admin-attention-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bloom-yellow); margin-top: 6px; flex-shrink: 0; }
+.admin-attention-title { display: block; font-size: 14px; font-weight: 500; color: var(--bloom-ink); }
+.admin-attention-note { display: block; font-size: 12.5px; color: var(--bloom-ink-soft); margin-top: 1px; }
+.admin-branding-teaser {
+  display: block;
+  text-align: left;
+  background: color-mix(in srgb, var(--org-accent, var(--bloom-accent)) 8%, var(--bloom-card));
+  border: 1px solid color-mix(in srgb, var(--org-accent, var(--bloom-accent)) 25%, var(--bloom-card-border));
+  border-radius: 14px;
+  padding: 18px 20px;
+  cursor: pointer;
+}
+.admin-branding-teaser-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--org-accent, var(--bloom-accent)); }
+.admin-branding-teaser-name { font-weight: 600; font-size: 15px; margin-top: 8px; color: var(--bloom-ink); }
+.admin-branding-teaser-tagline { font-size: 13px; color: var(--bloom-ink-soft); margin: 4px 0 0; line-height: 1.5; }
+.admin-branding-teaser-cta { font-size: 13px; color: var(--org-accent, var(--bloom-accent)); margin-top: 10px; font-weight: 500; }
+.admin-classroom-card { margin-top: 18px; }
+
+/* Events & opportunities */
+.admin-filter-tabs { display: flex; gap: 4px; margin-top: 24px; border-bottom: 1px solid var(--bloom-card-border); }
+.admin-filter-tab {
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--bloom-ink-soft);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-filter-tab span { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--bloom-ink-soft); }
+.admin-filter-tab.active { color: var(--bloom-ink); border-bottom-color: var(--org-accent, var(--bloom-ink)); }
+.admin-events-table { margin-top: 18px; padding: 0; overflow: hidden; }
+.admin-events-table-head {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.5fr) 110px 110px;
+  gap: 16px;
+  padding: 12px 20px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bloom-ink-soft);
+  background: var(--bloom-bg);
+  border-bottom: 1px solid var(--bloom-card-border);
+}
+.admin-events-row-wrap { display: flex; align-items: stretch; border-bottom: 1px solid var(--bloom-card-border); }
+.admin-events-row-wrap:last-child { border-bottom: none; }
+.admin-events-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.5fr) 110px 110px;
+  gap: 16px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 15px 20px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.admin-events-row:hover { background: var(--bloom-bg); }
+.admin-events-row-name { font-weight: 600; font-size: 14px; color: var(--bloom-ink); }
+.admin-events-row-meta { font-size: 12.5px; color: var(--bloom-ink-soft); margin-top: 3px; }
+.admin-events-row-plan { text-align: right; }
+.admin-status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.admin-events-row-remove { align-self: center; margin-right: 16px; flex-shrink: 0; }
+
+/* Resources */
+.admin-kind-filters { display: flex; gap: 6px; margin-top: 24px; flex-wrap: wrap; }
+.admin-kind-pill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-card);
+  color: var(--bloom-ink-soft);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.admin-kind-pill.active { background: var(--bloom-ink); border-color: var(--bloom-ink); color: var(--bloom-bg); }
+.admin-resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; margin-top: 20px; }
+.admin-resource-card { display: flex; flex-direction: column; gap: 12px; min-height: 170px; padding: 18px; }
+.admin-resource-card-top { display: flex; justify-content: flex-end; }
+.admin-resource-kind-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; }
+.admin-resource-card-title { font-weight: 600; font-size: 15px; line-height: 1.35; color: var(--bloom-ink); }
+.admin-resource-card-desc { font-size: 13px; color: var(--bloom-ink-soft); margin: 0; }
+.admin-resource-card-link { font-size: 12.5px; color: var(--bloom-ink-soft); font-family: 'IBM Plex Mono', monospace; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-resource-card-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--bloom-card-border); font-size: 12px; color: var(--bloom-ink-soft); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+
+/* Organization Profile & Branding */
+.admin-profile-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 24px; margin-top: 28px; align-items: start; }
+.admin-profile-card { padding: 0; }
+.admin-profile-block { padding: 22px 24px; border-bottom: 1px solid var(--bloom-card-border); }
+.admin-profile-block:last-child { border-bottom: none; }
+.admin-profile-logo-block { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 18px; align-items: center; }
+.admin-profile-logo-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
+  background: repeating-linear-gradient(135deg, var(--bloom-card-border) 0 7px, var(--bloom-bg) 7px 14px);
+  border: 1px dashed var(--bloom-ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--bloom-ink-soft);
+}
+.admin-swatch-row { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.admin-swatch { width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer; }
+.admin-swatch.active { box-shadow: 0 0 0 3px var(--bloom-card), 0 0 0 5px var(--bloom-ink); }
+.admin-preview-col { position: sticky; top: 0; }
+.admin-preview-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bloom-ink-soft); margin-bottom: 10px; }
+.admin-student-card { background: var(--bloom-card); border: 1px solid var(--bloom-card-border); border-radius: 18px; overflow: hidden; box-shadow: var(--bloom-shadow-hover); }
+.admin-student-card-band { height: 96px; }
+.admin-student-card-body { padding: 0 22px 22px; }
+.admin-student-card-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  border: 3px solid var(--bloom-card);
+  margin-top: -30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 600;
+}
+.admin-student-card-name { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin-top: 12px; color: var(--bloom-ink); }
+.admin-student-card-meta { font-size: 13px; color: var(--bloom-ink-soft); margin-top: 2px; }
+.admin-student-card-tagline { font-size: 14px; line-height: 1.5; margin-top: 12px; color: var(--bloom-ink); }
+.admin-student-card-pills { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.admin-student-pill { padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.admin-student-pill-neutral { background: var(--bloom-bg); color: var(--bloom-ink-soft); }
+.admin-student-card-follow { margin-top: 18px; padding: 11px; text-align: center; border-radius: 10px; background: var(--bloom-ink); color: var(--bloom-bg); font-size: 14px; font-weight: 500; }
+
+/* Event editor (full-page overlay), Task 1 — a real 4-step wizard: rail / form / live preview. */
+.admin-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: var(--bloom-bg);
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr);
+}
+.admin-editor-header {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 18px 0 4px;
+  padding: 0 24px;
+  background: var(--bloom-card);
+  border-bottom: 1px solid var(--bloom-card-border);
 }
-.admin-dash-header-icon {
-  display: inline-flex;
+.admin-editor-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--bloom-card-border);
+  background: var(--bloom-card);
+  color: var(--bloom-ink);
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  flex-shrink: 0;
-  background: color-mix(in srgb, var(--track-accent, var(--bloom-accent)) 16%, var(--bloom-card));
-  color: var(--track-accent, var(--bloom-accent));
 }
-.admin-dash-header-kind {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--track-accent, var(--bloom-accent));
-  margin-top: 4px;
+.admin-editor-close:hover { border-color: var(--bloom-ink); }
+.admin-editor-heading { font-weight: 600; font-size: 15px; color: var(--bloom-ink); }
+.admin-editor-org-tag { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bloom-ink-soft); }
+.admin-editor-org-dot { width: 8px; height: 8px; border-radius: 50%; }
+.admin-editor-header-actions { margin-left: auto; display: flex; gap: 8px; }
+.admin-editor-body { display: grid; grid-template-columns: 216px minmax(0, 1fr) 360px; min-height: 0; }
+@media (max-width: 1100px) { .admin-editor-body { grid-template-columns: 190px minmax(0, 1fr); } .admin-editor-preview { display: none; } }
+.admin-editor-rail { padding: 28px 16px; border-right: 1px solid var(--bloom-card-border); display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
+.admin-editor-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
 }
-
-/* Task 1 — "Current events/opportunities," scoped per org. Same card/border/shadow language
-   `.prior-exp-card` already established, plus a colored left-edge accent bar (the same "data/JSX
-   picks the value, CSS just reads a custom property" convention `--tile-accent`/`--track-accent`/
-   `--pb-accent` already use elsewhere) so a dense list of events still reads as organized by
-   subject area at a glance, matching the rest of this app's own established visual language for
-   track-colored content. */
-.admin-dash-event-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-.admin-dash-event-card {
-  background: var(--bloom-card);
-  border: 1px solid var(--bloom-card-border);
-  border-left: 4px solid var(--track-accent, var(--bloom-accent));
-  border-radius: 8px;
-  padding: 14px 16px;
-}
-.admin-dash-event-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.admin-dash-event-name { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; color: var(--bloom-ink); }
-.admin-dash-event-type { font-size: 12px; font-style: italic; color: var(--bloom-ink-soft); margin-top: 2px; }
-.admin-dash-milestone-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.admin-dash-milestone-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12.5px;
+.admin-editor-step.active { background: var(--bloom-card); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 1px var(--bloom-card-border); }
+.admin-editor-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bloom-card-border);
   color: var(--bloom-ink-soft);
-  padding: 3px 0;
-  border-top: 1px dashed var(--bloom-card-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
 }
-.admin-dash-milestone-list li:first-child { border-top: none; }
-.admin-dash-milestone-list li strong { color: var(--bloom-ink); font-weight: 600; }
+.admin-editor-step-num.current { background: var(--bloom-ink); color: var(--bloom-bg); }
+.admin-editor-step-num.done { color: #fff; }
+.admin-editor-step-label { display: block; font-size: 14px; font-weight: 500; color: var(--bloom-ink); }
+.admin-editor-step-sub { display: block; font-size: 12px; color: var(--bloom-ink-soft); margin-top: 1px; }
+.admin-editor-content { overflow-y: auto; min-width: 0; }
+.admin-editor-content-inner { max-width: 640px; margin: 0 auto; padding: 40px 32px 48px; }
+.admin-editor-step-of { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bloom-ink-soft); }
+.admin-editor-step-title { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 0; color: var(--bloom-ink); }
+.admin-editor-step-hint { font-size: 14px; color: var(--bloom-ink-soft); margin: 6px 0 0; }
+.admin-editor-fields { display: flex; flex-direction: column; gap: 22px; margin-top: 28px; }
+.admin-input-lg { font-size: 16px !important; padding: 12px 14px !important; }
+.admin-editor-footer { display: flex; justify-content: space-between; margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--bloom-card-border); }
+.admin-editor-preview { border-left: 1px solid var(--bloom-card-border); background: var(--bloom-bg); overflow-y: auto; padding: 28px; }
+.admin-student-card-sm { max-width: 320px; }
+.admin-student-card-cover {
+  height: 130px;
+  background: repeating-linear-gradient(135deg, var(--bloom-card-border) 0 8px, var(--bloom-bg) 8px 16px);
+}
+.admin-student-card-header-row { display: flex; align-items: center; gap: 8px; }
+.admin-student-card-mini-avatar { width: 20px; height: 20px; border-radius: 5px; color: #fff; font-size: 9px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.admin-student-card-org-name { font-size: 12px; color: var(--bloom-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-student-pill-type { margin-left: auto; flex-shrink: 0; }
+.admin-student-card-title { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; margin-top: 12px; line-height: 1.2; color: var(--bloom-ink); }
+.admin-student-card-loc { font-size: 13px; color: var(--bloom-ink-soft); margin-top: 4px; }
+.admin-student-card-desc { font-size: 13px; line-height: 1.5; color: var(--bloom-ink); margin: 10px 0 0; }
+.admin-student-card-ms-list { margin-top: 16px; display: flex; flex-direction: column; }
+.admin-student-card-ms-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding-bottom: 12px; font-size: 13px; color: var(--bloom-ink); }
+.admin-student-card-ms-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; border: 2px solid; }
+.admin-student-card-ms-date { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--bloom-ink-soft); margin-top: 1px; }
+
+/* Basics step — event type picker, reused verbatim by the resource drawer's own kind picker. */
+.admin-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-type-card { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--bloom-card-border); background: var(--bloom-card); cursor: pointer; text-align: left; }
+.admin-type-card.active { border-color: var(--org-accent, var(--bloom-accent)); background: color-mix(in srgb, var(--org-accent, var(--bloom-accent)) 8%, var(--bloom-card)); box-shadow: 0 0 0 1px var(--org-accent, var(--bloom-accent)); }
+.admin-type-card-label { font-size: 14px; font-weight: 600; color: var(--bloom-ink); }
+.admin-type-card-desc { font-size: 12px; color: var(--bloom-ink-soft); margin-top: 3px; }
+
+/* Milestones step — the editable list + quick-add presets, alongside AdminMilestoneTimeline's own
+   real visualization (see that file's own CSS block right below). */
+.admin-milestone-editor { padding: 0; overflow: hidden; }
+.admin-milestone-editor-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 168px 32px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--bloom-card-border);
+}
+.admin-milestone-editor-row input[type="text"],
+.admin-milestone-editor-row input[type="date"] {
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bloom-bg);
+  color: var(--bloom-ink);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+}
+.admin-milestone-editor-row input[type="date"] { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.admin-milestone-editor-idx { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--bloom-ink-soft); }
+.admin-milestone-editor-remove {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--bloom-ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-milestone-editor-remove:hover { background: var(--bloom-bg); color: var(--bloom-ink); }
+.admin-milestone-editor-add { width: 100%; padding: 13px 16px; background: transparent; border: 0; cursor: pointer; text-align: left; font-size: 14px; font-weight: 500; }
+.admin-milestone-editor-add:hover { background: var(--bloom-bg); }
+.admin-preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-preset-pill {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--bloom-ink-soft);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--bloom-ink);
+}
+.admin-preset-pill:hover { border-style: solid; border-color: var(--bloom-ink); }
+
+/* Details step — visibility segmented control. */
+.admin-segmented { display: inline-flex; padding: 3px; background: var(--bloom-bg); border-radius: 10px; gap: 2px; }
+.admin-segmented-btn { padding: 8px 14px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--bloom-ink-soft); }
+.admin-segmented-btn.active { background: var(--bloom-card); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); color: var(--bloom-ink); }
+
+/* Review step */
+.admin-summary-card { padding: 0; overflow: hidden; }
+.admin-summary-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--bloom-card-border); }
+.admin-summary-row:last-child { border-bottom: none; }
+.admin-summary-key { font-size: 13px; color: var(--bloom-ink-soft); }
+.admin-summary-val { font-size: 14px; font-weight: 500; color: var(--bloom-ink); }
+.admin-publish-note { margin-top: 16px; padding: 16px 20px; border-radius: 12px; border: 1px solid; font-size: 13px; line-height: 1.5; color: var(--bloom-ink); }
+
+/* AdminMilestoneTimeline.jsx's own real, day-gap-computed visualization. */
+.admin-timeline-card { padding: 20px 24px 16px; }
+.admin-timeline-track-wrap { position: relative; height: 132px; }
+.admin-timeline-line { position: absolute; left: 0; right: 0; top: 66px; height: 2px; background: var(--bloom-card-border); border-radius: 2px; }
+.admin-timeline-today { position: absolute; top: 54px; height: 26px; width: 0; border-left: 1px dashed var(--bloom-ink-soft); }
+.admin-timeline-point { position: absolute; top: 0; bottom: 0; width: 0; }
+.admin-timeline-dot {
+  position: absolute;
+  top: 60px;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bloom-card);
+  border-width: 3px;
+  border-style: solid;
+}
+.admin-timeline-label {
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  width: 130px;
+  text-align: center;
+  bottom: calc(100% - 52px);
+}
+.admin-timeline-label.below { bottom: auto; top: calc(100% - 52px); }
+.admin-timeline-label-name { display: block; font-size: 12px; font-weight: 600; color: var(--bloom-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-timeline-label-date { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--bloom-ink-soft); }
+.admin-timeline-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--bloom-ink-soft); padding-top: 10px; border-top: 1px solid var(--bloom-card-border); }
+
+/* Add resource drawer — a slide-in panel from the right, matching the attached design's own
+   structure exactly (kind picker, title, URL/file note, link-to-event). */
+.admin-drawer-overlay { position: fixed; inset: 0; z-index: 160; }
+.admin-drawer-backdrop { position: absolute; inset: 0; background: rgba(24, 24, 27, 0.3); }
+.admin-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 460px;
+  max-width: 100%;
+  background: var(--bloom-card);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.12);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.admin-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--bloom-card-border); }
+.admin-drawer-title { font-weight: 600; font-size: 17px; color: var(--bloom-ink); }
+.admin-drawer-body { overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 22px; }
+.admin-drawer-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--bloom-card-border); }
+
+/* Narrow viewports keep the sidebar visible (just narrower) rather than hiding it outright with
+   no alternative navigation to reach the other 3 sections — an admin console built for real
+   desktop use, per the attached design's own layout, doesn't need a full mobile nav pattern, but
+   it must never strand the admin on Overview with no way out either. */
+@media (max-width: 860px) {
+  .admin-console { grid-template-columns: 200px minmax(0, 1fr); }
+  .admin-switcher-parent, .admin-nav-item-label { overflow: hidden; text-overflow: ellipsis; }
+  .admin-main-inner { padding: 24px 20px 60px; }
+  .admin-overview-grid, .admin-profile-grid { grid-template-columns: 1fr; }
+  .admin-events-table-head, .admin-events-row { grid-template-columns: minmax(0, 1fr) 90px; }
+  .admin-events-table-head > div:nth-child(2), .admin-events-row > div:nth-child(2),
+  .admin-events-table-head > div:nth-child(4), .admin-events-row-plan { display: none; }
+}
 
 .hub-debug-row { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .profile-debug-modal { max-width: 720px; width: 92vw; }
