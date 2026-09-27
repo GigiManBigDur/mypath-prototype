@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useModalExit } from '../hooks/useModalExit';
 
@@ -57,7 +58,20 @@ export default function AddTaskModal({
     onSubmit({ title: taskName.trim(), date: taskDate, desc: taskDesc.trim() });
   };
 
-  return (
+  // Bug fix, found while verifying the Glassmorphism redesign, Stage 1 (see CLAUDE.md) — real,
+  // confirmed to already exist on the unmodified app (via `git stash`), not something that pass
+  // introduced: this component was rendered INLINE (no portal) as a direct child of whichever
+  // screen calls it — fine for every Roadmap.jsx caller (Map 2 is never wrapped in
+  // `.screen-transition`), but HubScreen.jsx's own "Add a Task" Quick Action also renders it, and
+  // the Hub IS one of `App.jsx`'s `TRANSITION_SCREENS` — the exact same containing-block landmine
+  // already documented and fixed for MascotWidget/the course detail modal elsewhere in this
+  // codebase (`.screen-transition`'s own fill-mode entrance transform makes it a containing block
+  // for `position: fixed` descendants), confirmed directly here too via `getBoundingClientRect()`:
+  // the overlay's own `top`/`height` matched the Hub's own scrolled content box instead of the
+  // real viewport. `createPortal(..., document.body)` is the same established fix every other
+  // instance of this landmine in this app already uses — safe for the Roadmap.jsx callers too,
+  // since portaling an already-correctly-positioned fixed overlay changes nothing about it.
+  return createPortal(
     <div className={`overlay${closing ? ' overlay-exit' : ''}`} onClick={onCancel}>
       <div className={`modal${closing ? ' modal-exit' : ''}`} onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onCancel}><X size={18} /></button>
@@ -92,6 +106,7 @@ export default function AddTaskModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

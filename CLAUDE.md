@@ -14253,6 +14253,171 @@ rather than inventing new ones.**
   never opens `roadmapLayout.js` at all, only reuses `roadmapGenerator.js`'s already-existing,
   unmodified `applyOverviewLocking`/anchor-promotion machinery.
 
+**Glassmorphism Redesign, Stage 1 — Hub test pass. A genuinely new, third design language for
+this app (distinct from both the original parchment palette and the "bloom"/hub-Apple palette,
+the latter built by the earlier "Adapt Claude Design's Output Into the Existing Radial Hub
+Layout" pass above), extracted from a second Claude Design mockup and applied to the Hub ONLY —
+a deliberate, controlled test before Chat/Roadmap/Welcome each get their own, separately-scoped
+pass. This stage is style/structure only: every real hub mechanism (tile unlock/lock rules,
+`GUIDED_SEQUENCE`'s own next-step resolution, the `chatPhase` same-screen chat transition,
+`HubChatPanel` itself, Your Progress/Quick Actions/the quote card/the debug row, search/avatar/
+sound settings) is completely unmodified underneath — only how the Hub presents itself changed.**
+- **Shared, reusable tokens (`:root`, global.css) — `--glass-*`** — deliberately NOT baked
+  directly into Hub-only classes, since the identical values are meant to apply to Chat/Roadmap/
+  Welcome once each gets its own pass: `--glass-ink`/`--glass-ink-soft` (text roles),
+  `--glass-surface-bg`/`--glass-surface-bg-strong`/`--glass-surface-border` (the translucent
+  glass recipe), `--glass-blur` (`blur(18px) saturate(160%)`), `--glass-shadow`/
+  `--glass-shadow-hover` (a cool-toned soft shadow + an inner white glow), `--glass-radius-sm/md/
+  lg`, three ambient accent colors (`--glass-accent-periwinkle`/`-pink`/`-mint`), and two motion
+  durations (`--glass-motion-fast`/`-slow`). The class names that actually READ these tokens
+  (`.hub-guide-panel`, `.hub-keepgoing-btn`, etc.) stay per-screen and Hub-scoped for now, matching
+  this codebase's own long-standing per-screen CSS convention — only the underlying VALUES are
+  shared, not a new generic cross-screen utility class.
+- **No mascot character graphic anywhere in this stage — a deliberate, explicit user
+  confirmation, not an oversight.** `MascotIcon`, the measured pointing angle (`usePointAngle`),
+  and the spotlight-style `.pointing-target` glow are all completely unused by `HubScreen.jsx` for
+  this pass (neither deleted from the codebase nor rewritten — `MascotIcon` is still shared by
+  every other real dialogue surface in the app, and the measured-angle technique comes back in
+  Stage 2, wired to this same real `GUIDED_SEQUENCE` state). "Which real module is next" is
+  communicated in plain text only: the guide panel's own message, plus a new footer "Keep going"
+  CTA (below) — never a visual beam.
+- **Background layer (`.hub-glass-bg`)** — a fixed, full-viewport gradient wash plus 3
+  slow-drifting ambient blobs (periwinkle/pink/mint), the first DOM child of `.hub-screen` so
+  every later, plain-static sibling paints on top of it by ordinary document order. **A real,
+  deliberate correction made before this shipped**: a first attempt also gave every OTHER
+  `.hub-screen` child a blanket `position: relative; z-index: 1` "to be safe" — wrong, and
+  genuinely destructive: `AddTaskModal` renders its own real `.overlay` INLINE (not portaled) as
+  a direct child of `.hub-screen` while open (see its own bug-fix entry below), and that blanket
+  rule would have overridden its real `position: fixed` full-viewport behavior, breaking the
+  modal outright. The actual, correct fix needs nothing on the siblings at all — only a NEGATIVE
+  z-index on the background wash itself (`z-index: -1`, not `0`): per the CSS stacking-context
+  painting order, a positioned descendant with `z-index: 0` paints AFTER (on top of) plain in-flow
+  static content, not before it; only a negative z-index paints in the earlier "behind everything"
+  step. Respects `prefers-reduced-motion` by freezing the drift (confirmed via a real
+  `reducedMotion: 'reduce'` Playwright context — `animationName` resolves to `none`), never
+  removing the wash/blobs outright, since a static soft-color background isn't itself motion.
+- **Header** — `.hub-topbar`/`.hub-icon-btn`/`.hub-avatar` (built by the earlier "Adapt Claude
+  Design's Output" pass) were ALREADY a close match for Stage 1's own "glass search pill /
+  circular icon buttons / gradient profile button" recipe — a translucent blurred pill, round icon
+  buttons, a gradient-filled avatar circle — so this pass only sharpens the glass recipe itself
+  (reading the new shared tokens: stronger blur/saturation, `--glass-shadow`) rather than
+  rebuilding any of it from scratch. The one real, functional change: `.hub-avatar` — previously a
+  plain decorative `<div aria-hidden>` — is now a real `<button>` navigating to the always-unlocked
+  Profile tile (`patch({ screen: 'profile' })`), matching the mockup's "gradient profile button"
+  with a genuine destination behind it instead of pure decoration. The circular notification bell
+  stays purely decorative (unchanged — no real notifications feature exists to back it), and the
+  sound-settings/voice-toggle button is untouched (`SoundSettingsPopover`, deferring to whatever
+  the app already does — Stage 1's own explicit "no new voice/speech logic" boundary).
+- **Intro/greeting column** — `.hub-header-row` (the eyebrow-ish "Welcome back" line, the real
+  gradient headline, the supporting copy) already satisfied this requirement before this pass and
+  is completely untouched.
+- **Guide panel (`.hub-guide-panel`, new)** — the guide message (`nextStepIntro`,
+  `GUIDED_SEQUENCE`) relocated out of the now-removed mascot's speech bubble into its own
+  standalone glass card: a small decorative icon (a plain `Sparkles` glyph — not a face/character,
+  per the no-mascot boundary), an eyebrow ("Your guide"), the real message text, the "Ask MyPath
+  AI anything" trigger (unchanged onClick/mechanism, only its resting visual polish touched — the
+  `chatPhase` transition and `HubChatPanel` itself are completely unvisited by this pass), and the
+  existing real progress-dots indicator. Whenever there's genuinely no active message left (the
+  guided sequence is complete and its one-time completion line has already been shown), a plain,
+  honest, non-invented neutral placeholder renders instead ("You're all caught up for now...").
+- **Tile grid (`.hub-tile-grid`, new)** — a clean, responsive CSS grid
+  (`repeat(auto-fill, minmax(240px, 1fr))`) using the real 10-tile array/order directly, replacing
+  the old absolutely-positioned radial scatter (`RADIAL_POSITIONS`/`.hub-tile-slot`, both removed
+  — they existed only to scatter tiles around a centered mascot this stage no longer renders). The
+  decorative `PARTICLES` array was removed the same way, superseded by the new background layer's
+  own ambient blobs. `.hub-tile` itself (icon badge, title, description, translucent blurred card,
+  hover lift) needed almost no changes — it was already close to a real glass surface from the
+  earlier hub pass. Each card reflects 3 real states, not 2: unlocked/locked (unchanged, via
+  `tile.unlock`/`tile.lockedReason`) and a genuine THIRD state, "completed" — derived by looking
+  up the matching `GUIDED_SEQUENCE` step (careers/majors/programs/courseSelection/opportunities/
+  projectBuilder/myNarrative all have one; Academic Plan/Your School List/Profile don't, by
+  design, since those are meant to be revisited, not "finished") and reading its own real
+  `isDone(state)` — never a second, invented completion concept. A completed tile gets a soft mint
+  border plus a "✓ Done" status pill (replacing "OPEN"); an unlocked-but-not-done tile gets a new
+  trailing arrow icon, matching the mockup's own "icon badge, title, description, trailing icon"
+  card recipe.
+- **Footer "Keep going" CTA (`.hub-keepgoing-btn`, new)** — points at whichever real module
+  `nextStep` (the identical `GUIDED_SEQUENCE` data the guide panel already resolves) says is
+  next: a real hub tile for every step except `finalReview` (which has no tile of its own — that
+  conversation lives behind "Ask MyPath AI anything," not a tile — so it opens the chat instead),
+  including the synthetic `ENDPOINT_STEP`'s own `'plan'` id once the sequence is complete (Academic
+  Plan is always a real tile, so this never resolves to nothing there). Hidden while the chat is
+  open/transitioning, matching the visibility of the row below it.
+- **Module-entry modal**: none built — the Hub already navigates directly on tile click
+  (`goTo(tile)`), with no existing intermediate modal to preserve or replace, matching Stage 1's
+  own "only build one if the app doesn't already have its own" instruction literally.
+- **Everything else preserved, restyled onto the new glass surface**: Your Progress (the
+  conic-gradient completion ring, its 3 real stats, its "View Roadmap" link — all byte-for-byte
+  unmodified logic), Quick Actions (Add a Task/Start Over — same handlers), the quote card, and
+  the debug row all keep their exact real behavior; only their background/border/shadow moved to
+  the shared glass recipe (`--glass-surface-bg-strong`/`--glass-surface-border`/`--glass-blur`/
+  `--glass-shadow`), so the whole page reads as one consistent surface language.
+- **The chat panel's own positioning needed one real adjustment, not its own logic.**
+  `.hub-chat-panel` used to be `position: absolute; top: 58%` against `.hub-radial-wrap`'s own
+  large, fixed 1080px height (tuned for the old radial scatter) — with that wrapper gone and no
+  fixed-height container left to size a percentage against, it's now a plain, centered, in-flow
+  block (`position: relative; margin: 4px auto 28px`). This is a pure positioning change; nothing
+  about `HubChatPanel`'s own header/session-tabs/messages/input, or the `chatPhase` state machine
+  driving it, was touched — matching Stage 1's own explicit "reskin only the resting trigger,
+  leave the chatPhase transition/HubChatPanel completely untouched" boundary.
+- **Keyboard accessibility** — every new/reskinned interactive glass surface (tiles, the Keep
+  going CTA, the Ask-AI trigger, header icon buttons, the avatar button, quick-action buttons, the
+  progress card's "View Roadmap" link, the topbar search field) gets the exact specified
+  `focus-visible` treatment (`3px solid #3d5bd9`, `3px` offset) — confirmed directly via a real
+  keyboard Tab walk landing on an unlocked tile and reading its computed outline, not just written
+  and assumed correct.
+- **Bug fix, found via this stage's own narrow-viewport verification — confirmed via `git
+  stash` to already exist on the unmodified codebase (predating this pass entirely, not
+  introduced by it): `.hub-topbar` never had a narrow-viewport rule of its own.** Its logo +
+  search field + 3 action buttons genuinely don't fit on one row below ~640px, and with
+  `.hub-topbar-actions` set to `flex-shrink: 0`, the actions cluster simply overflowed past the
+  real viewport edge instead of wrapping — confirmed directly via `document.documentElement.
+  scrollWidth` (535px against a 390px `clientWidth`) both before AND after this pass's own
+  changes, isolating it as a real, pre-existing gap rather than something this redesign caused.
+  Fixed (in scope, since it directly affects this pass's own "verify narrow-viewport layout"
+  checklist item and this exact component is already being touched): a `max-width: 640px` rule
+  lets the topbar wrap, with the search field dropping to its own full-width second row (`order:
+  3; flex: 1 1 100%`) — the logo and action-button cluster, the two genuinely small
+  `flex-shrink: 0` pieces, stay comfortably together on the first row. Re-verified afterward:
+  `scrollWidth` now exactly matches `clientWidth` (390/390) at that same width.
+- **Bug fix, `AddTaskModal.jsx` — also found via this stage's own verification, also confirmed
+  pre-existing via `git stash` (not introduced by this pass, and in fact slightly less severe
+  after it, since the new Hub layout is shorter than the old radial one): this shared component
+  was rendered INLINE (no portal) as a direct child of whichever screen calls it — safe for every
+  `Roadmap.jsx` caller (Map 2 is never wrapped in `.screen-transition`), but `HubScreen.jsx`'s own
+  "Add a Task" Quick Action ALSO renders it, and the Hub IS one of `App.jsx`'s `TRANSITION_SCREENS`
+  — the exact same containing-block landmine already documented and fixed for `MascotWidget`/the
+  course detail modal elsewhere in this codebase (`.screen-transition`'s own fill-mode entrance
+  transform makes it a containing block for `position: fixed` descendants). Confirmed directly via
+  `getBoundingClientRect()`: the overlay's own `top`/`height` matched the Hub's scrolled content
+  box (`top: -290`, `height: 1353` against a real 900px-tall viewport) instead of the true
+  viewport. Fixed with the same established `createPortal(..., document.body)` pattern this exact
+  landmine already has a fix for everywhere else in this app — safe for the `Roadmap.jsx` callers
+  too, since portaling an already-correctly-positioned fixed overlay changes nothing about it
+  (re-verified directly: the overlay box there stayed byte-identical, `top:0, left:0, 1280x900`,
+  before and after). Re-verified on the Hub afterward too: the overlay box is now the real,
+  correct full viewport (`top:0, left:0, 1280x900, position: fixed`).
+- Verified with a dedicated Playwright suite against the real running dev server (not just code
+  review): real data integrity (all 10 real tile titles present, zero fabricated content), a
+  locked tile's click is a genuine no-op (`state.screen` stays `'hub'`), an unlocked tile's click
+  correctly navigates (`'discovery'`), the Keep Going CTA's text matches the real next guided step,
+  the Ask-AI trigger opens the real chat panel, zero mascot elements render anywhere
+  (`.mascot-pose`/`.mascot-bob`/`.hub-mascot-figure`, all confirmed absent), zero page/console
+  errors throughout, `prefers-reduced-motion` correctly disables both the background drift and the
+  guide-panel text's entrance animation, and a real keyboard Tab walk reaches a focus-visible
+  unlocked tile with the exact specified outline. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20, byte-for-byte identical to baseline — this stage never opens
+  `roadmapLayout.js`) all stay clean. Real desktop (1440px) and narrow (390px) screenshots were
+  taken and visually reviewed, per this stage's own explicit request, before Stage 2 begins.
+- **Explicitly NOT started, awaiting the user's own separate sign-off and a new prompt, per the
+  original task's own scope**: Stage 2 (the animated glass-orb mascot + spotlight-beam pointing
+  tour, wired to this exact real `GUIDED_SEQUENCE`/`chatPhase`/measured-angle state — never
+  invented scripted tour/insight text), and the separate, later passes applying these same shared
+  `--glass-*` tokens to the Welcome, AI Chat, and Roadmap screens (Roadmap's own pass will need the
+  strictest guardrail: an explicit statement that it won't touch `layoutRoadmap()`/date-positioning
+  math, verified against `npm run verify:spacing` before and after, matching every prior pass that
+  has touched that screen).
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
@@ -15096,3 +15261,22 @@ download). Cover at minimum:
   `DEFAULT_STATE`'s own fields back out of `localStorage` in a test, or the check will read `null`
   and look like a missing-field bug that isn't real. `npm run build`/`npm run lint` should stay
   clean; `npm run verify:spacing` should stay 20/20 (this feature never opens `roadmapLayout.js`).
+- Glassmorphism Redesign, Stage 1 (Hub test pass): seed state directly and drive the real dev
+  server rather than trusting a visual read alone — the actual bugs this pass caught (the topbar
+  narrow-viewport overflow, `AddTaskModal`'s broken fixed-overlay positioning) only surfaced via
+  real `getBoundingClientRect()`/`document.documentElement.scrollWidth` measurements, not
+  eyeballing a screenshot. When adding a bounding-box overflow check, remember `.hub-glass-bg`'s
+  own decorative blobs are EXPECTED to report negative/off-viewport coordinates from `getBoundingClientRect()`
+  (they extend past the container on purpose, e.g. `left: -10vw`) — their parent has `overflow:
+  hidden`, so this never actually contributes to real document overflow; a blanket "flag anything
+  off-viewport" scan will false-positive on them, so cross-check any real overflow finding against
+  `document.documentElement.scrollWidth` vs `clientWidth` before treating it as a bug. Before
+  attributing ANY finding to this pass specifically, `git stash` and re-run the identical check
+  against the unmodified codebase first — both real bugs this pass fixed (the topbar overflow,
+  `AddTaskModal`'s positioning) turned out to already exist beforehand, confirmed this way rather
+  than assumed. To confirm "no mascot at all," check for zero `.mascot-pose`/`.mascot-bob`/
+  `.hub-mascot-figure` elements, not just the absence of one specific class. To confirm the guide
+  panel reads real (not invented) text, seed a specific `GUIDED_SEQUENCE`-relevant state (e.g. a
+  selected major with no selected program yet) and check `.hub-guide-panel-text`'s own content
+  against that step's real, known intro string. `npm run build`/`npm run lint`/`npm run
+  verify:spacing` (20/20) should all stay clean — this stage never opens `roadmapLayout.js`.

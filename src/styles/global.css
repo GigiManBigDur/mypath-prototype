@@ -57,6 +57,33 @@
      admin-entered opportunities and the Google Classroom demo mockup — the two are told apart by
      their own distinct icon + literal title-suffix text, not by color alone. */
   --bloom-admin: #64748B;
+
+  /* Glassmorphism redesign, Stage 1 — Hub test pass (see CLAUDE.md) — a genuinely NEW, third
+     design language, distinct from both the original parchment palette and the "bloom"/hub-Apple
+     palette above, extracted from a Claude Design mockup ("MyPath welcome page redesign.zip") and
+     built here as shared, REUSABLE tokens (fonts, glass surface recipe, radii, color roles,
+     motion) since the exact same tokens are meant to apply to the Chat, Roadmap, and Welcome
+     screens in later, separately-scoped passes — never one-off values baked directly into
+     Hub-only classes. This first pass (Stage 1) reads them from the Hub only, as a controlled
+     test; every class that actually uses them below is still named/scoped per-screen (e.g.
+     `.hub-guide-panel`), matching this codebase's own long-standing per-screen CSS convention —
+     only the underlying token VALUES are shared, not a generic cross-screen utility class. */
+  --glass-ink: #1B1F3B;
+  --glass-ink-soft: #5B6178;
+  --glass-surface-bg: rgba(255, 255, 255, 0.5);
+  --glass-surface-bg-strong: rgba(255, 255, 255, 0.68);
+  --glass-surface-border: rgba(255, 255, 255, 0.85);
+  --glass-blur: blur(18px) saturate(160%);
+  --glass-shadow: 0 14px 34px -16px rgba(70, 90, 160, 0.14), inset 0 0 20px rgba(255, 255, 255, 0.35);
+  --glass-shadow-hover: 0 22px 44px -18px rgba(70, 90, 160, 0.22), inset 0 0 22px rgba(255, 255, 255, 0.4);
+  --glass-radius-sm: 14px;
+  --glass-radius-md: 20px;
+  --glass-radius-lg: 28px;
+  --glass-accent-periwinkle: #7C8CF8;
+  --glass-accent-pink: #F19BD1;
+  --glass-accent-mint: #79E0C4;
+  --glass-motion-fast: 180ms;
+  --glass-motion-slow: 480ms;
 }
 
 * { box-sizing: border-box; }
@@ -7444,4 +7471,307 @@ body:has(.onboarding-meeting-active) {
 }
 @media (prefers-reduced-motion: reduce) {
   .sound-settings-popover, .sound-settings-popover-exit { animation: none; }
+}
+
+/* ============================================================================================
+   Glassmorphism redesign, Stage 1 — Hub test pass (see CLAUDE.md)
+   Appended at the very end of this file so these rules win any same-specificity tie against the
+   earlier "Adapt Claude Design's Output Into the Existing Radial Hub Layout" hub CSS above (this
+   codebase's own established "append last to win ties via source order" convention) — deliberate
+   overrides, not accidental duplicates. Reads the shared `--glass-*` tokens defined at `:root`
+   above (fonts/blur/radii/color roles/motion), not one-off hub-scoped values, since the same
+   tokens are meant to apply to Chat/Roadmap/Welcome once those screens get their own,
+   separately-scoped pass. Scope: background layer, header polish, the new no-mascot guide panel,
+   a clean glass-card tile grid (replacing the old scattered radial layout, which existed only to
+   scatter tiles around a centered mascot this stage deliberately omits), and the footer "Keep
+   going" CTA. Every other Hub feature (Your Progress, Quick Actions, the quote card, the debug
+   row, the chat panel transition) keeps its exact existing behavior — visual-only overrides here.
+   ============================================================================================ */
+
+/* Background layer — a fixed, low-opacity gradient wash plus a few slow-drifting ambient color
+   blobs (periwinkle/pink/mint), sitting behind every other Hub element by plain DOM order (this
+   div is the FIRST child of `.hub-screen`, so later siblings paint on top of it with no z-index
+   juggling needed). Purely decorative — `aria-hidden`, `pointer-events: none` — and respects
+   `prefers-reduced-motion` by simply freezing the drift, never removing the wash/blobs entirely
+   (a static soft-color background is not itself motion). */
+.hub-glass-bg {
+  position: fixed;
+  inset: 0;
+  /* A negative z-index (not 0) is what actually keeps this behind every other Hub element with
+     no per-element opt-in needed: per the CSS stacking-context painting order, a positioned
+     descendant with z-index:0 paints AFTER (on top of) plain in-flow static content, not before
+     it — only a NEGATIVE z-index paints in the earlier "behind everything" step. Confirmed this
+     is the only change actually needed here — a real, deliberate correction from a first attempt
+     that also tried forcing every OTHER `.hub-screen` child to `position: relative` "to be safe,"
+     which would have broken `AddTaskModal`'s own `.overlay` (rendered inline here, not portaled,
+     when open) by overriding its real `position: fixed` full-viewport behavior. */
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(160deg, #F3F4FB 0%, #F7F1F8 45%, #EFFBF6 100%);
+}
+.glass-blob,
+.hub-glass-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.38;
+  will-change: transform;
+}
+.hub-glass-blob-periwinkle {
+  width: 46vw;
+  height: 46vw;
+  left: -10vw;
+  top: -12vw;
+  background: var(--glass-accent-periwinkle);
+  animation: hub-glass-blob-drift-a 26s ease-in-out infinite;
+}
+.hub-glass-blob-pink {
+  width: 38vw;
+  height: 38vw;
+  right: -8vw;
+  top: 10vw;
+  background: var(--glass-accent-pink);
+  animation: hub-glass-blob-drift-b 32s ease-in-out infinite;
+}
+.hub-glass-blob-mint {
+  width: 40vw;
+  height: 40vw;
+  left: 18vw;
+  bottom: -16vw;
+  background: var(--glass-accent-mint);
+  animation: hub-glass-blob-drift-c 29s ease-in-out infinite;
+}
+@keyframes hub-glass-blob-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(3vw, 4vw) scale(1.08); }
+}
+@keyframes hub-glass-blob-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-4vw, 3vw) scale(1.05); }
+}
+@keyframes hub-glass-blob-drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2vw, -3vw) scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-glass-blob-periwinkle, .hub-glass-blob-pink, .hub-glass-blob-mint { animation: none; }
+}
+
+/* Everything the Hub actually renders sits above the fixed background layer for free, with no
+   opt-in needed on any of it — `.hub-glass-bg`'s own negative z-index (above) is what places it
+   behind every other, plain-static Hub child, not a rule on those children themselves. A first
+   attempt here also forced every OTHER `.hub-screen` child to `position: relative; z-index: 1`
+   "to be safe" — removed: `AddTaskModal` renders its own real `.overlay` INLINE (not portaled)
+   as a direct child of `.hub-screen` while open, and that blanket rule would have overridden its
+   real `position: fixed` full-viewport behavior, breaking the modal outright. */
+
+/* Header polish — the existing `.hub-topbar`/`.hub-icon-btn`/`.hub-avatar` (defined earlier in
+   this file, under the "Adapt Claude Design's Output" hub pass) already implement Stage 1's own
+   "glass search pill / circular icon buttons / gradient profile button" recipe close to
+   verbatim — a translucent blurred pill, round icon buttons, a gradient-filled avatar circle —
+   so this section only sharpens the glass recipe itself (a touch more saturation/blur, reading
+   the new shared tokens) rather than rebuilding any of it from scratch. */
+.hub-topbar {
+  background: var(--glass-surface-bg-strong);
+  border: 1.5px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+.hub-avatar {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+}
+.hub-avatar:hover { transform: scale(1.06); }
+.hub-avatar:active { transform: scale(0.97); }
+
+/* Intro/greeting column — `.hub-header-row` already carries a real eyebrow-ish "Welcome back"
+   line, a gradient headline, and supporting copy (Stage 1's own intro-column recipe); this pass
+   leaves that structure untouched and adds the guide panel right below it. */
+.hub-guide-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  text-align: left;
+  margin: 20px 0 28px;
+  padding: 20px 24px;
+  border-radius: var(--glass-radius-lg);
+  background: var(--glass-surface-bg);
+  border: 1.5px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+.hub-guide-panel-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--glass-accent-periwinkle), var(--glass-accent-mint));
+  box-shadow: 0 6px 16px -6px rgba(124, 140, 248, 0.55);
+}
+.hub-guide-panel-body { flex: 1; min-width: 0; }
+.hub-guide-panel-eyebrow {
+  margin: 0 0 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--glass-ink-soft);
+}
+.hub-guide-panel-text {
+  margin: 0 0 14px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--glass-ink);
+  animation: hub-dialogue-in var(--glass-motion-slow) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hub-guide-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-guide-panel-text { animation: none; }
+}
+
+/* Tile grid — a clean, responsive glass-card grid, replacing the old absolutely-positioned radial
+   scatter (which no longer has a mascot to scatter around). `.hub-tile` itself (icon badge,
+   title, description, lock reason, translucent blurred card, hover lift) is already close to a
+   real glass surface from the earlier hub pass — kept, just no longer wrapped in a per-tile
+   `.hub-tile-slot` positioning shim, since a grid item needs no manual centering translate at all. */
+.hub-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+  margin: 4px 0 28px;
+}
+.hub-tile {
+  background: var(--glass-surface-bg-strong);
+  border: 1.5px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+.hub-tile:hover:not(:disabled) { box-shadow: var(--glass-shadow-hover); }
+/* A tile's real "completed" state (see HubScreen.jsx's own `guidedStep?.isDone(state)` lookup) —
+   a soft mint accent border/status pill, distinct from both the plain unlocked look and the
+   muted/grey locked one, so all three real states genuinely read differently at a glance. */
+.hub-tile.completed { border-color: rgba(121, 224, 196, 0.65); }
+.hub-tile-status.done {
+  background: rgba(121, 224, 196, 0.22);
+  color: #0F7A5C;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.hub-tile-arrow {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  color: var(--glass-ink-soft);
+  opacity: 0.55;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.hub-tile:hover:not(:disabled) .hub-tile-arrow { opacity: 0.9; transform: translateX(2px); }
+
+/* Footer "Keep going" CTA — a glass pill pointing at whichever real module is next
+   (HubScreen.jsx's own `keepGoingTarget`, derived from the exact GUIDED_SEQUENCE data the guide
+   panel above already reads). Sits between the tile grid and the quote/quick-actions row. */
+.hub-keepgoing-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1.5px solid var(--glass-surface-border);
+  background: linear-gradient(120deg, var(--glass-accent-periwinkle), var(--glass-accent-mint));
+  color: #fff;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+}
+.hub-keepgoing-btn:hover { transform: translateY(-2px); box-shadow: var(--glass-shadow-hover); }
+.hub-keepgoing-btn:active { transform: translateY(0) scale(0.98); }
+
+/* Quote card / Quick Actions — same glass recipe as the tile grid/guide panel above, so the whole
+   page reads as one consistent surface language rather than two different card styles. */
+.hub-quote-card,
+.hub-quick-actions {
+  background: var(--glass-surface-bg-strong);
+  border: 1.5px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+/* The chat panel no longer has a fixed-height radial wrap to position itself against (percentage-
+   based `top: 58%` needs a real, non-collapsing parent height, which a plain-flow, auto-height
+   layout doesn't reliably provide) — a plain centered, in-flow block instead. This changes ONLY
+   where the panel sits, per Stage 1's own explicit "reskin only the trigger, leave the chatPhase
+   transition/HubChatPanel completely untouched" scope — nothing about its own header/tabs/
+   messages/input, or the chatPhase state machine driving it, changed at all. */
+.hub-chat-panel {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+  margin: 4px auto 28px;
+  background: var(--glass-surface-bg-strong);
+  border: 1.5px solid var(--glass-surface-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Keyboard accessibility — every new/reskinned interactive glass surface gets the same explicit
+   focus-visible outline (not just a browser default), matching this app's own established
+   `focus-visible` treatment elsewhere (`.welcome-cta`). */
+.hub-tile:focus-visible,
+.hub-keepgoing-btn:focus-visible,
+.hub-ask-ai-bubble-btn:focus-visible,
+.hub-icon-btn:focus-visible,
+.hub-avatar:focus-visible,
+.hub-quick-action-btn:focus-visible,
+.hub-progress-view-link:focus-visible {
+  outline: 3px solid #3d5bd9;
+  outline-offset: 3px;
+}
+.hub-topbar-search:focus-within {
+  outline: 3px solid #3d5bd9;
+  outline-offset: 2px;
+}
+
+/* Narrow-viewport fallback — the tile grid is already responsive (`auto-fill`), so it collapses
+   to fewer columns on its own; only the guide panel's own row needs an explicit stack-to-column
+   rule below a small width, and the background blobs shrink so they don't force horizontal
+   overflow on a narrow phone.
+   Bug fix, found via this stage's own narrow-viewport verification (confirmed via `git stash` to
+   already exist on the unmodified codebase, not something this pass introduced): `.hub-topbar`
+   never had a narrow-viewport rule of its own at all — its logo + search field + 3 action buttons
+   (notification/sound-settings/avatar) genuinely don't fit on one row once the viewport gets
+   narrow, and with `.hub-topbar-actions` set to `flex-shrink: 0`, the actions cluster simply
+   overflowed past the real viewport edge instead of wrapping (confirmed directly: a 390px
+   viewport's own `document.documentElement.scrollWidth` read 535px, well past its 390px
+   `clientWidth`). Fixed by letting the topbar wrap: the search field drops to its own full-width
+   second row, leaving the logo and action buttons — the two genuinely small, `flex-shrink: 0`
+   pieces — comfortably on the first row together. */
+@media (max-width: 640px) {
+  .hub-guide-panel { flex-direction: column; align-items: flex-start; }
+  .hub-glass-blob-periwinkle, .hub-glass-blob-pink, .hub-glass-blob-mint { filter: blur(40px); opacity: 0.28; }
+  .hub-topbar { flex-wrap: wrap; row-gap: 10px; }
+  .hub-topbar-search { order: 3; flex: 1 1 100%; max-width: none; }
 }

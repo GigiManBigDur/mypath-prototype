@@ -1,14 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Briefcase, GraduationCap, Landmark, BookOpen, Search, Hammer,
   Map as MapIcon, ListChecks, Lock, ArrowRight, RotateCcw, Leaf, Bell, User, UserCircle2,
-  TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass,
+  TrendingUp, Zap, Plus, Bug, X, Sparkles, Compass, Check,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
 import { AVATAR_OPTIONS } from './SignUpScreen';
-import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
 import HubChatPanel from '../components/HubChatPanel';
 import SoundSettingsPopover from '../components/SoundSettingsPopover';
@@ -412,99 +411,13 @@ const TILE_ACCENTS = [
   { bg: 'var(--hub-tile-green)', fg: '#ffffff' },
 ];
 
-// Radial-layout pass, Task 1 (see CLAUDE.md) — hand-tuned percentage slots (of `.hub-radial-wrap`'s
-// own box) forming a loose ring of up to 11 tiles around the centered mascot, scattered left/right
-// of the vertical center column the mascot + its dialogue bubble occupy so nothing ever overlaps
-// them. Assigned by plain tile INDEX (`tiles[i]` -> `RADIAL_POSITIONS[i]`), not tile identity —
-// which real tile lands in which visual slot can shift a little when `hasPartnerSchool` toggles
-// (Transcript & GPA/Course Selection insert into the middle of the array), the same acceptable
-// trade the old grid's own CSS auto-flow already made. A real physics/collision layout was
-// considered and rejected for a purely decorative composition like this one — fixed, hand-checked
-// slots are simpler and can't drift into overlap the way a runtime algorithm tuned for only 8-10
-// items could.
-//
-// Prior Experience Collection + New Profile Page (see CLAUDE.md) added the 11th slot (bottom-
-// center) once the new Profile tile pushed a partner-school student's real tile count past the
-// original 10 — re-verified via the same real bounding-box math the original 10-slot layout was
-// checked with (232x194px tiles, this wrap's own 1300px max-width/1080px height): a bottom-center
-// slot clears every one of the original 10 with real margin, since its horizontal position
-// (x=50, dead-center) sits far enough from its nearest neighbors' own x values (26/74, at the
-// y-band just above it) to clear despite the short vertical gap, and its own y (89%) keeps its
-// full box within the wrap's own bottom edge with real margin to spare (not a razor-thin fit).
-//
-// AI-First Onboarding, Stage 4 (see CLAUDE.md) — the new "My Narrative" tile brings a partner-
-// school student's real tile count to exactly 11, which this array was ALREADY sized for
-// (confirmed directly via `git show HEAD` before touching anything: 10 real tiles / 11 positions
-// existed prior to this addition, i.e. one position was already provisioned past what was
-// strictly needed at the time) — so no new slot was added here at all, only a real DOM-
-// measurement re-check (not just re-trusting old math) that all 11 real tiles still render with
-// zero pairwise overlap now that every one of the 11 positions is genuinely in use.
-//
-// Persist and Allow Continuing the Onboarding Conversation (see CLAUDE.md), Task 3 — the new
-// "Our Conversation" tile brings a partner-school student's real tile count to exactly 12, past
-// what this array was sized for — a genuinely new 12th slot, {x:50, y:15}.
-//
-// A real, confirmed miscalculation happened while picking this: an earlier attempt at {x:26,y:38}
-// assumed the wrap renders at its own CSS max-width (1300px) — but `.hub-screen`'s own max-width
-// (1320px) + 32px padding each side (global.css) caps the wrap's REAL content width at 1256px, not
-// 1300px, and that ~3.4% difference was exactly enough to turn an assumed-clear ~2px margin into a
-// real, confirmed ~6px overlap with the existing (8,27) slot — caught directly via a real
-// Playwright `getBoundingClientRect()` measurement, not by re-checking the same flawed offline math
-// harder. The center-column exclusion zone was ALSO re-measured directly rather than re-guessed:
-// `.hub-mascot-area`'s own real rendered box (capped at a fixed 460px width regardless of the
-// wrap's own width, per its `width: min(92%, 460px)` rule) is genuinely only x∈[31.7%,68.3%],
-// y∈[22.5%,57.5%] of the wrap — narrower on both axes than the earlier hand-estimated x∈[28,72]/
-// y∈[3,72] exclusion zone, which was excluding real, perfectly safe space above/below the mascot
-// for no reason. Recomputing candidates against the REAL 1256px wrap width and the REAL, measured
-// mascot-area box found {50,15} — dead-center, comfortably above the mascot's own real top edge —
-// clearing every one of the 11 existing slots by a genuine ~120px real margin, an order of
-// magnitude safer than the earlier candidate's near-zero fit. Re-verified afterward via a real
-// `getBoundingClientRect()` measurement of all 12 rendered tiles (not just this offline math) that
-// zero pairwise overlaps exist, the same "don't just trust the math, measure the real DOM"
-// discipline this array's own prior additions already established — and this time the measurement
-// came FIRST, informing the final choice, rather than only checking a already-decided one.
-// Multi-Session Chat (see CLAUDE.md) removed the "Our Conversation" tile that slot 11 ({50,15})
-// was originally added for, dropping the real tile count for a partner-school student back down
-// to 11 (slots 0-10) — that range was already verified overlap-free before slot 11 was ever added,
-// so this is safe as-is. Slot 11 is left in place, harmlessly spare, matching this array's own
-// established "provisioned ahead, unused for now" precedent rather than being removed outright.
-const RADIAL_POSITIONS = [
-  { x: 22, y: 8 },
-  { x: 78, y: 8 },
-  { x: 8, y: 27 },
-  { x: 92, y: 27 },
-  { x: 4, y: 48 },
-  { x: 96, y: 48 },
-  { x: 10, y: 69 },
-  { x: 90, y: 69 },
-  { x: 26, y: 88 },
-  { x: 74, y: 88 },
-  { x: 50, y: 89 },
-  { x: 50, y: 15 },
-];
-
-// Radial-layout pass, Task 1's "small decorative floating dots/particles" — purely visual flavor,
-// fixed positions/colors/sizes (reusing TILE_ACCENTS's own vivid palette for cohesion), no data
-// behind any of it. Deliberately kept out of the center column the mascot/dialogue occupy, same
-// as the tile slots above.
-// Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) — colors moved
-// to the same `--hub-tile-*` custom properties TILE_ACCENTS now reads, so a particle's own color
-// stays a real reference into the hub's one accent palette rather than a second, independently
-// hardcoded copy of the old bloom hex values.
-const PARTICLES = [
-  { x: 34, y: 12, size: 7, color: 'var(--hub-tile-purple)' },
-  { x: 66, y: 10, size: 6, color: 'var(--hub-tile-gold)' },
-  { x: 16, y: 34, size: 8, color: 'var(--hub-tile-teal)' },
-  { x: 84, y: 32, size: 6, color: 'var(--hub-tile-orange)' },
-  { x: 30, y: 46, size: 5, color: 'var(--hub-tile-pink)' },
-  { x: 70, y: 44, size: 7, color: 'var(--hub-tile-blue)' },
-  { x: 20, y: 62, size: 6, color: 'var(--hub-tile-green)' },
-  { x: 80, y: 60, size: 8, color: 'var(--hub-tile-purple)' },
-  { x: 38, y: 80, size: 5, color: 'var(--hub-tile-gold)' },
-  { x: 62, y: 82, size: 6, color: 'var(--hub-tile-teal)' },
-  { x: 46, y: 18, size: 5, color: 'var(--hub-tile-orange)' },
-  { x: 54, y: 96, size: 6, color: 'var(--hub-tile-pink)' },
-];
+// Glassmorphism redesign, Stage 1 (see CLAUDE.md) — the hand-tuned `RADIAL_POSITIONS` scatter
+// slots and the decorative `PARTICLES` array (both tuned around the now-removed centered mascot)
+// are gone: the confirmed Stage 1 layout is a clean, responsive glass-card grid (`.hub-tile-grid`,
+// global.css) using the real tile array/order below directly, with no per-tile position data of
+// its own to maintain. The mascot itself is deliberately omitted for this whole stage (per the
+// user's own explicit confirmation) — the real glass-orb guide, and whatever scattered/pointing
+// layout it needs, comes back in Stage 2, not reintroduced here piecemeal.
 
 // Task 3's own decorative quote card, shown purely as visual flavor — same "this app never
 // fabricates a source" posture the rest of this codebase already holds for any quoted/cited text,
@@ -564,14 +477,12 @@ export default function HubScreen() {
   const nextStepIntro = guidedStepAlreadySeen
     ? (sequenceComplete ? null : getMascotLine('hub-guided-revisit'))
     : nextStepFullIntro;
-  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own pointing dialogue speaks
-  // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue.
-  // There's no "dismiss" concept for this always-visible bubble, so it just speaks whenever
-  // `nextStepIntro` changes (advancing to a new guided step, or the seen-state flipping to the
-  // generic revisit line) and stops on unmount (navigating away from the hub) — both handled
-  // inside the hook itself. Radial-layout pass, Task 4 — the hook's own returned boolean now also
-  // drives the mascot's distinct "speaking" animation state.
-  const isSpeaking = useMascotSpeech(nextStepIntro, state.voiceMuted);
+  // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own guide message still speaks
+  // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue —
+  // "whatever the app already does" (Stage 1's own explicit no-new-speech-logic boundary), just no
+  // longer wired to a mascot animation state, since no mascot renders on the hub this stage. It
+  // speaks whenever `nextStepIntro` changes and stops on unmount, both handled inside the hook.
+  useMascotSpeech(nextStepIntro, state.voiceMuted);
 
   // Final Alignment-Check Conversation (see CLAUDE.md) — fires the one automatic, no-typed-text
   // check-in turn the moment `finalReview` genuinely becomes the current guided step (i.e. every
@@ -656,39 +567,13 @@ export default function HubScreen() {
     ? Math.max(1, realDaysBetween(startOfToday(), parseDateInputValue(state.accountCreatedAt)) + 1)
     : 1;
 
-  const mascotRef = useRef(null);
-  const tileRefs = useRef(new Map());
-  // Pointing-animation overhaul (see CLAUDE.md) — the real, precisely measured angle from the
-  // mascot to the current target tile (bug fix: an earlier version only measured a binary left/
-  // right side, aiming every target on a given side at the same fixed angle regardless of exactly
-  // where it actually sat — see the hook's own comment below).
-  //
-  // Adjustment (see CLAUDE.md) — the end-of-sequence fix originally suppressed pointing entirely
-  // once `sequenceComplete`, but the one-time completion message deserves ONE paired pointing
-  // gesture at Academic Plan (`ENDPOINT_STEP.id`, 'plan') — the natural last thing to direct the
-  // student toward — not silence forever. `guidedStepAlreadySeen` (already the exact signal that
-  // gates whether the completion TEXT itself is still the fresh, first-time line or has already
-  // been shown) does double duty here: while it's still `false` (this is genuinely the first
-  // visit where the sequence just completed), `pointingTargetId` stays `nextStep.id` — which is
-  // 'plan' in this state, same as ENDPOINT_STEP's own id — so the mascot points at Academic Plan
-  // for exactly that one visit, alongside the completion line. The moment that line has been
-  // shown once (`guidedStepAlreadySeen` flips true on the next fresh mount), `pointingTargetId`
-  // becomes `null` — back to the neutral idle pose with no active target, matching "a single,
-  // one-time gesture only." Every non-complete state is completely unaffected: `nextStep.id` is
-  // used exactly as before.
-  // Final Alignment-Check Conversation (see CLAUDE.md) — no hub TILE has `id: 'finalReview'` (the
-  // conversation itself lives behind the "Ask MyPath AI anything" button under the mascot's own
-  // dialogue, not a tile). Remove Redundant Narrative Card + Add Pointing Animation to Chat Button
-  // (see CLAUDE.md) — that button is now ALSO registered in `tileRefs` (below, under the stable
-  // synthetic id `'askAi'`, the exact same ref-callback pattern every real tile already uses), so
-  // `usePointAngle` — already fully generic over whatever key `tileRefs` resolves, with no real
-  // concept of "tile" beyond that — can point the mascot at it exactly like any other guided
-  // target, using the SAME arm-raise/glow mechanism, rather than a second, parallel pointing
-  // system. Written as a plain value (not buried in a one-off check) so any future guided step
-  // wanting this same "point at chat" treatment can reuse the identical `'askAi'` target.
-  const pointingTargetId = (sequenceComplete && guidedStepAlreadySeen) ? null
-    : (nextStep.id === 'finalReview' ? 'askAi' : nextStep.id);
-  const pointAngle = usePointAngle(mascotRef, tileRefs, pointingTargetId, tiles.length);
+  // Glassmorphism redesign, Stage 1 (see CLAUDE.md) — the mascot, its measured pointing angle, and
+  // the spotlight-style `.pointing-target` glow it drove are all deliberately gone for this stage
+  // (per the user's own explicit confirmation: no character graphic, no tour, no spotlight-beam
+  // pointing). Which real module is "next" is instead communicated in plain text — the guide
+  // panel's own message plus the footer "Keep going" CTA below (`keepGoingTarget`) — not a visual
+  // beam. `usePointAngle`/`MascotIcon` come back in Stage 2, wired to this same real guided-
+  // sequence state, not reintroduced piecemeal here.
 
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
   // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
@@ -780,8 +665,30 @@ export default function HubScreen() {
     setSearchSubmitted(true);
   };
 
+  // Glassmorphism redesign, Stage 1's own footer "Keep going" CTA (see CLAUDE.md) — points at the
+  // real next incomplete/unlocked module, reading the exact same `nextStep` (GUIDED_SEQUENCE) data
+  // the guide panel above already resolves, never a second, invented "what's next" concept.
+  // `finalReview` has no hub tile of its own (that conversation lives behind "Ask MyPath AI
+  // anything," not a tile) — every other real step id corresponds to a real tile, including the
+  // synthetic `ENDPOINT_STEP`'s own 'plan' id once the sequence is complete.
+  const keepGoingTile = nextStep.id === 'finalReview' ? null : TILES.find((t) => t.id === nextStep.id);
+  const keepGoingTarget = nextStep.id === 'finalReview'
+    ? { label: 'Continue our conversation', onClick: openChat }
+    : (keepGoingTile ? { label: keepGoingTile.title, onClick: () => goTo(keepGoingTile) } : null);
+
   return (
     <div className="hub-screen">
+      {/* Glassmorphism redesign, Stage 1 (see CLAUDE.md) — a fixed, low-opacity gradient wash plus
+          a few slow-drifting ambient color blobs (periwinkle/pink/mint), reading the new shared
+          `--glass-*` tokens (global.css) rather than one-off hub-scoped values, since this same
+          background layer is meant to apply to Chat/Roadmap/Welcome once those get their own,
+          separately-scoped pass. Purely decorative. */}
+      <div className="hub-glass-bg" aria-hidden="true">
+        <span className="hub-glass-blob hub-glass-blob-periwinkle" />
+        <span className="hub-glass-blob hub-glass-blob-pink" />
+        <span className="hub-glass-blob hub-glass-blob-mint" />
+      </div>
+
       <div className="hub-topbar">
         <div className="hub-topbar-logo">
           <Leaf size={22} color="var(--hub-accent)" />
@@ -815,11 +722,17 @@ export default function HubScreen() {
               mascot voice" gear — see App.jsx's own matching comment for why).
               Independent Toggle Controls for AI Voice and Background Music (see CLAUDE.md) — the
               old single-click mute button is now the shared SoundSettingsPopover (also used by
-              App.jsx's own generic header), exposing two genuinely independent controls. */}
+              App.jsx's own generic header), exposing two genuinely independent controls. Stage 1's
+              own "voice-toggle button can render visually but should no-op or defer to whatever
+              the app already does" is exactly what this already does — untouched. */}
           <SoundSettingsPopover buttonClassName="hub-icon-btn" />
-          <div className="hub-avatar" aria-hidden="true">
+          {/* Glassmorphism redesign, Stage 1 — a real, clickable gradient profile button (was a
+              plain decorative div) now navigating to the always-unlocked Profile tile, matching
+              the mockup's own "gradient profile button" recipe with a genuine destination behind
+              it, not pure decoration. */}
+          <button type="button" className="hub-avatar" aria-label="Open your profile" onClick={() => patch({ screen: 'profile' })}>
             {avatarOption ? <avatarOption.Icon size={17} /> : <User size={17} />}
-          </div>
+          </button>
         </div>
       </div>
 
@@ -829,7 +742,9 @@ export default function HubScreen() {
           {/* Adapt Claude Design's Output (see CLAUDE.md) — the headline's second clause gets the
               attached design's own gradient-text treatment (a plain <span>, no logic involved);
               the first clause stays plain ink, matching the reference's own "lead-in, then
-              gradient payoff" split. */}
+              gradient payoff" split. Untouched by the Stage 1 glassmorphism pass — already a real
+              gradient headline over an eyebrow + supporting copy, exactly what Stage 1's own intro
+              column calls for. */}
           <h1 className="page-title hub-title">What would you like <span className="hub-title-gradient">to accomplish today?</span></h1>
           <p className="page-sub">All the tools you need for your academic journey, in one place.</p>
         </div>
@@ -855,157 +770,65 @@ export default function HubScreen() {
         )}
       </div>
 
-      <div className={`hub-radial-wrap${chatPhase !== 'hidden' ? ' chat-mode' : ''}`}>
-        {/* Adapt Claude Design's Output Into the Existing Radial Hub Layout (see CLAUDE.md) —
-            purely decorative orbit rings/conic-gradient halo/dot-grid texture recreating the
-            attached design's own background, centered on the exact same point `.hub-mascot-area`
-            already uses. Sits at z-index 0, strictly behind the particles/tiles/mascot below —
-            this never moves or resizes anything, it's a background layer under the unchanged
-            composition. */}
-        <div className="hub-orbit-decor" aria-hidden="true">
-          <span className="hub-orbit-ring hub-orbit-ring-outer" />
-          <span className="hub-orbit-ring hub-orbit-ring-inner" />
-          <span className="hub-orbit-glow" />
-          <span className="hub-orbit-dotgrid" />
-        </div>
-        {/* Enhance AI Chat Page Visuals (see CLAUDE.md), Task 1 — these decorative particles used
-            to be hidden entirely outside the normal hub view (`chatPhase === 'hidden' &&`); they
-            now render in every phase, giving the chat page the same "gentle floating dots" ambient
-            motion the hub itself already has, instead of the chat view reading as visually bare by
-            comparison. Purely additive — nothing about what these ARE changed, only when they
-            show. */}
-        {PARTICLES.map((p, i) => (
-          <span
-            // eslint-disable-next-line react/no-array-index-key
-            key={i}
-            className="hub-particle"
-            aria-hidden="true"
-            style={{
-              left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size,
-              background: p.color, animationDelay: `${(i % 6) * 0.35}s`,
-            }}
-          />
-        ))}
-
-        <div className="hub-mascot-area">
-          {/* A dedicated wrapper around just the mascot SVG, sized tightly to it — NOT the whole
-              .hub-mascot-area (which also contains the greeting bubble stacked below). `pointAngle`
-              (below) measures against THIS ref, so it's computed from the mascot's real center, not
-              from further down past the bubble. Polished Hub-to-Chat Transition (see CLAUDE.md) —
-              this element (and its containing `.hub-mascot-area`) renders completely unconditionally
-              across every `chatPhase` value: the mascot never moves, never unmounts, never
-              re-measures — it's the one visual anchor the whole transition reads as continuous
-              around.
-              Enhance AI Chat Page Visuals, Tasks 2/3 — `chat-grown` drives a smooth CSS
-              `transform: scale(...)` (global.css), applied via `transition`, not a change to
-              `MascotIcon`'s own `size` prop — scaling the WRAPPER via CSS keeps the mascot's own
-              real document CENTER fixed (the default `transform-origin` is the element's own
-              center), so it grows/shrinks in place rather than drifting, and reuses the exact
-              "CSS transition, not a JS-timed animation" approach every other transform on this
-              screen already uses (`.mascot-pose`, `.hub-tile:hover`, etc.). True for both
-              'tiles-exiting' (grows in sync with the tiles fading out, so it's already at its
-              larger size by the time the chat panel finishes entering) and 'chat' (stays grown for
-              the duration of the chat page) — false for 'chat-exiting'/'hidden', so it starts
-              shrinking the instant "Back to Hub" is clicked, in sync with the chat panel's own
-              exit fade and the tiles' own re-entrance. */}
-          <div className={`hub-mascot-figure${chatPhase === 'tiles-exiting' || chatPhase === 'chat' ? ' chat-grown' : ''}`} ref={mascotRef}>
-            {/* Adjustment (see CLAUDE.md) — `pointing` reads `pointingTargetId` (above) rather
-                than a plain `!sequenceComplete` gate now, so the ONE visit where the completion
-                line is genuinely new still gets a real paired pointing gesture at Academic Plan;
-                every visit after that (once `pointingTargetId` is `null`) keeps the mascot's
-                mouth/body animating (the SEPARATE `speaking` prop, untouched) without raising the
-                arm/wand toward a target that no longer means anything. Opt-In Voice Per Message in
-                Chat (see CLAUDE.md) — `speaking` no longer ORs in a chat-reply flag: voice for open-
-                ended chat is opt-in per message now (a Play button inside `ChatConversation`, not
-                auto-triggered), so there's no more "a new chat reply arrived" signal for this
-                mascot to react to. The guided-tutorial dialogue's own `isSpeaking` is completely
-                unaffected — untouched by this fix, per its own explicit scope. */}
-            <MascotIcon size={150} speaking={isSpeaking} pointing={pointingTargetId !== null && isSpeaking} pointAngle={pointAngle} />
-          </div>
-          {/* Bug fix, found while building the Polished Hub-to-Chat Transition (see CLAUDE.md):
-              conditionally NOT rendering this bubble at all while in chat mode (an earlier version
-              of this code) shrank `.hub-mascot-area`'s own flex column height — and since that
-              area is positioned via `top: 40%; transform: translate(-50%, -50%)`, a shorter box
-              shifts WHERE that -50% vertical center lands, moving the mascot by a few real pixels
-              the instant chat mode was entered, confirmed directly via
-              `getBoundingClientRect()` before/after — a real, if small, violation of "the mascot
-              stays anchored... doesn't move." Fixed by always mounting this bubble (so its own
-              real height never changes across `chatPhase` values) and hiding it via
-              `visibility: hidden` (which reserves its layout space, unlike `display: none`) rather
-              than conditional rendering. */}
-          <div className={`mascot-greeting${chatPhase !== 'hidden' ? ' mascot-greeting-hidden' : ''}`}>
-              {/* `key` forces a fresh DOM node whenever the dialogue text itself changes (advancing
-                  to a new guided step), which is what makes .mascot-dialogue's CSS entrance
-                  animation replay on every new line instead of only once ever — see global.css's
-                  own comment. Bug fix (see CLAUDE.md) — `nextStepIntro` is now genuinely `null`
-                  once the one-time completion acknowledgment has already been shown, in which case
-                  only the button below renders here.
-                  Make "Ask MyPath AI anything" available before the tutorial finishes (see
-                  CLAUDE.md) — this used to be an either/or: the button only ever appeared ONCE the
-                  guided sequence was fully done (`sequenceComplete && guidedStepAlreadySeen`),
-                  replacing the dialogue text entirely rather than sitting alongside it. Now it
-                  renders UNCONDITIONALLY, right under whatever dialogue text is currently showing
-                  (real per-step intro/revisit lines and the one-time completion message are all
-                  completely unaffected — same exact `nextStepIntro` value, same seen-tracking) —
-                  a student who wants to ask the general assistant something can do so at any point
-                  in the tutorial, not just after finishing it. */}
-              {nextStepIntro && <p key={nextStepIntro} className="mascot-dialogue">{nextStepIntro}</p>}
-              {/* Remove Redundant Narrative Card + Add Pointing Animation to Chat Button (see
-                  CLAUDE.md) — registered into the SAME `tileRefs` Map every real hub tile already
-                  uses (`pointingTargetId`/`usePointAngle`, above), under the stable synthetic id
-                  `'askAi'`, so this button can be a genuine pointing/glow TARGET like any other
-                  guided moment — the exact `if (el) ... set ... else ... delete ...` ref-callback
-                  shape the tiles' own loop below already establishes. `.pointing-target` reuses the
-                  identical pulsing-glow CSS class (global.css) the tiles already apply. */}
-              <button
-                type="button"
-                className={`hub-ask-ai-bubble-btn${pointingTargetId === 'askAi' ? ' pointing-target' : ''}`}
-                ref={(el) => {
-                  if (el) tileRefs.current.set('askAi', el);
-                  else tileRefs.current.delete('askAi');
-                }}
-                onClick={openChat}
-              >
-                <Sparkles size={14} /> Ask MyPath AI anything
-              </button>
-              {/* The reference image's own "1/6" indicator, rebuilt from real GUIDED_SEQUENCE data
-                  (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
-              <div className="hub-progress-dots">
-                {Array.from({ length: guidedProgress.total }).map((_, i) => (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
-                ))}
-                <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
-              </div>
+      {/* Glassmorphism redesign, Stage 1's own "guide" panel (see CLAUDE.md) — the real current
+          hub-guide message (`nextStepIntro`, GUIDED_SEQUENCE above), relocated out of the
+          now-removed mascot's speech bubble into its own standalone glass card. Deliberately no
+          mascot/character graphic here at all (user-confirmed) — a plain decorative icon stands in
+          for it; the real glass-orb guide comes back in Stage 2. A neutral, non-invented
+          placeholder shows whenever there's genuinely no active message left (the sequence is
+          complete and its one-time completion line has already been shown once). */}
+      <div className="hub-guide-panel">
+        <div className="hub-guide-panel-icon" aria-hidden="true"><Sparkles size={18} /></div>
+        <div className="hub-guide-panel-body">
+          <p className="hub-guide-panel-eyebrow">Your guide</p>
+          {/* `key` forces a fresh DOM node whenever the message text itself changes, the same
+              "new key = new node = the entrance animation replays" pattern this file already used
+              for `.mascot-dialogue` before this stage. */}
+          <p key={nextStepIntro || 'quiet'} className="hub-guide-panel-text">
+            {nextStepIntro || "You're all caught up for now — explore any unlocked tool below, or revisit your Academic Plan anytime."}
+          </p>
+          <div className="hub-guide-panel-actions">
+            <button type="button" className="hub-ask-ai-bubble-btn" onClick={openChat}>
+              <Sparkles size={14} /> Ask MyPath AI anything
+            </button>
+            {/* The reference image's own "1/6" indicator, built from real GUIDED_SEQUENCE data
+                (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
+            <div className="hub-progress-dots">
+              {Array.from({ length: guidedProgress.total }).map((_, i) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
+              ))}
+              <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
+            </div>
           </div>
         </div>
+      </div>
 
-        {(chatPhase === 'hidden' || chatPhase === 'tiles-exiting') && tiles.map((tile, i) => {
-          const unlocked = tile.unlock(state, hasPartnerSchool);
-          // Adjustment (see CLAUDE.md) — reads `pointingTargetId` (above) instead of a plain
-          // `!sequenceComplete` gate, so the Academic Plan tile correctly glows for the one visit
-          // where the completion line is genuinely new (pairing the tile-glow with that one-time
-          // pointing gesture), then stops glowing on every visit after — never a persistent,
-          // ongoing highlight.
-          const isPointingTarget = tile.id === pointingTargetId;
-          const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
-          const pos = RADIAL_POSITIONS[i % RADIAL_POSITIONS.length];
-          const isExiting = chatPhase === 'tiles-exiting';
-          return (
-            // `.hub-tile-slot` is a plain, never-animated wrapper doing only the {x%, y%}
-            // centering (translate(-50%, -50%)) — kept on a SEPARATE element from `.hub-tile`
-            // itself on purpose, since `.hub-tile`'s own entrance/hover/press animations each set
-            // `transform` too, and a CSS transform replaces (rather than composes with) another
-            // rule's transform on the SAME element — see global.css's own comment on this exact
-            // bug for the full story.
-            <div key={tile.id} className="hub-tile-slot" style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
+      {(chatPhase === 'hidden' || chatPhase === 'tiles-exiting') && (
+        // Glassmorphism redesign, Stage 1 (see CLAUDE.md) — a clean, responsive glass-card grid
+        // using the real tile array/order directly, replacing the old scattered radial layout
+        // (which existed only to scatter tiles around a centered mascot — with no mascot in this
+        // stage, there's nothing left to scatter around). Per the user's own confirmed
+        // interpretation: a real tile count like this app's own doesn't map cleanly to a fixed
+        // scatter composition anyway, so a grid is the honest, robust choice here.
+        <div className="hub-tile-grid">
+          {tiles.map((tile, i) => {
+            const unlocked = tile.unlock(state, hasPartnerSchool);
+            // A tile's real "completed" state, where one honestly exists: the same GUIDED_SEQUENCE
+            // step this tile corresponds to (careers/majors/programs/courseSelection/opportunities/
+            // projectBuilder/myNarrative) already tracks real completion via `isDone` — reused
+            // directly here rather than inventing a second concept. Tiles with no matching guided
+            // step (Academic Plan, Your School List, Profile) have no "done" state at all, by
+            // design — they're meant to be revisited, not finished.
+            const guidedStep = GUIDED_SEQUENCE.find((s) => s.id === tile.id);
+            const done = unlocked && !!guidedStep?.isDone(state);
+            const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
+            const isExiting = chatPhase === 'tiles-exiting';
+            return (
               <button
                 type="button"
-                ref={(el) => {
-                  if (el) tileRefs.current.set(tile.id, el);
-                  else tileRefs.current.delete(tile.id);
-                }}
-                className={`hub-tile${unlocked ? '' : ' locked'}${isPointingTarget ? ' pointing-target' : ''}${isExiting ? ' hub-tile-exiting' : ''}`}
+                key={tile.id}
+                className={`hub-tile${unlocked ? '' : ' locked'}${done ? ' completed' : ''}${isExiting ? ' hub-tile-exiting' : ''}`}
                 disabled={!unlocked}
                 onClick={() => goTo(tile)}
                 style={{
@@ -1018,35 +841,45 @@ export default function HubScreen() {
                   animationDelay: `${i * (isExiting ? 30 : 40)}ms`,
                 }}
               >
-                {/* Adapt Claude Design's Output (see CLAUDE.md) — a purely decorative "OPEN"
-                    status pill (attached design's own vocabulary) alongside the icon badge, on
-                    a real unlocked tile only. Additive only: the existing lock/unlock icon-swap
-                    inside `.hub-tile-icon-box` is completely untouched. */}
                 <div className="hub-tile-top-row">
                   <div className="hub-tile-icon-box">
                     {unlocked
                       ? <tile.Icon size={22} />
                       : <Lock className="hub-tile-lock-icon" size={20} />}
                   </div>
-                  {unlocked && <span className="hub-tile-status">OPEN</span>}
+                  {unlocked && (
+                    <span className={`hub-tile-status${done ? ' done' : ''}`}>
+                      {done ? (<><Check size={11} /> Done</>) : 'OPEN'}
+                    </span>
+                  )}
                 </div>
                 <div className="hub-tile-title">{tile.title}</div>
                 <p className="hub-tile-desc">{tile.desc}</p>
                 {!unlocked && (
                   <p className="hub-tile-lock-reason">{tile.lockedReason(state, hasPartnerSchool)}</p>
                 )}
+                {unlocked && <ArrowRight className="hub-tile-arrow" size={16} aria-hidden="true" />}
               </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      )}
 
-        {(chatPhase === 'chat' || chatPhase === 'chat-exiting') && (
-          <HubChatPanel
-            exiting={chatPhase === 'chat-exiting'}
-            onBack={closeChat}
-          />
-        )}
-      </div>
+      {(chatPhase === 'chat' || chatPhase === 'chat-exiting') && (
+        <HubChatPanel
+          exiting={chatPhase === 'chat-exiting'}
+          onBack={closeChat}
+        />
+      )}
+
+      {/* Glassmorphism redesign, Stage 1's own footer "Keep going" CTA (see CLAUDE.md) — see
+          `keepGoingTarget` above; hidden while the chat is open/transitioning, matching the rest
+          of this row's own visibility. */}
+      {chatPhase === 'hidden' && keepGoingTarget && (
+        <button type="button" className="hub-keepgoing-btn" onClick={keepGoingTarget.onClick}>
+          Keep going: {keepGoingTarget.label} <ArrowRight size={14} />
+        </button>
+      )}
 
       <div className="hub-bottom-row">
         <div className="hub-quote-card">
@@ -1098,62 +931,10 @@ export default function HubScreen() {
   );
 }
 
-// Pointing-animation overhaul (see CLAUDE.md) — measures the REAL angle from the mascot's own
-// center to the current target tile's actual center, same "don't fake it, measure real DOM
-// positions" posture WelcomeScreen's own marker placement already established (getPointAtLength
-// there, getBoundingClientRect here) and the same measurement this replaced (the old
-// `PointerArrow`'s own angle math, before that) already held. Bug fix: an intermediate version of
-// this reduced the real measurement down to a binary left/right comparison, which aimed every
-// target on a given side at the identical fixed lean/raise angle regardless of exactly where it
-// sat — a tile almost directly overhead got the same gesture as one far off at a shallow angle.
-// This version keeps the full `atan2` angle (degrees, standard convention: 0=target directly
-// right, 90=directly below, -90=directly above, ±180=directly left) so MascotIcon.jsx can aim the
-// lean/arm/wand precisely along it. Returns `null` (mascot stays centered, no pointing pose
-// applied) until a real measurement is available, same "don't guess" fallback the old arrow's own
-// `angle === null` check already held.
-function usePointAngle(mascotRef, tileRefs, targetId, tileCount) {
-  const [angle, setAngle] = useState(null);
-
-  useLayoutEffect(() => {
-    function recompute() {
-      const mascotEl = mascotRef.current;
-      const targetEl = tileRefs.current.get(targetId);
-      if (!mascotEl || !targetEl) { setAngle(null); return; }
-      const mascotRect = mascotEl.getBoundingClientRect();
-      const targetRect = targetEl.getBoundingClientRect();
-      const mx = mascotRect.left + mascotRect.width / 2;
-      const my = mascotRect.top + mascotRect.height / 2;
-      const tx = targetRect.left + targetRect.width / 2;
-      const ty = targetRect.top + targetRect.height / 2;
-      setAngle(Math.atan2(ty - my, tx - mx) * (180 / Math.PI));
-    }
-    // A plain synchronous call here raced React StrictMode's dev-only double-mount: the ref
-    // callbacks that populate `tileRefs` hadn't landed yet the instant this specific layout
-    // effect fired (confirmed directly, back when this same measurement drove the old arrow's own
-    // angle instead — both `mascotRef.current` and every `tileRefs` entry read as unset at that
-    // exact point, then were populated a moment later), so nothing ever appeared at all. A single
-    // `requestAnimationFrame` defers the first measurement to after the browser's next paint, by
-    // which point StrictMode's mount/remount cycle has settled and every ref is reliably attached
-    // — same "don't trust synchronous-at-mount DOM state, wait a frame" lesson WelcomeScreen's own
-    // double-rAF trail reveal already established for this codebase, just one rAF instead of two
-    // since there's no CSS transition being raced here, only a DOM read.
-    const raf = requestAnimationFrame(recompute);
-    // Tile positions genuinely reflow on resize (a real CSS grid, not a fixed-viewBox SVG like
-    // WelcomeScreen's trail) and whenever the number of rendered tiles changes (hasPartnerSchool
-    // toggling, or the pointing target itself moving to a different tile). These later calls need
-    // no rAF wrapper of their own — by resize time the DOM is already settled, this only mattered
-    // for the very first measurement racing mount.
-    window.addEventListener('resize', recompute);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', recompute);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetId, tileCount]);
-
-  return angle;
-}
-
-// The mascot illustration itself now lives in ../components/MascotIcon.jsx, shared with Stage 5's
-// in-flow MascotWidget (see CLAUDE.md) — was a local, hub-only component before that stage
-// existed.
+// Glassmorphism redesign, Stage 1 (see CLAUDE.md) — `usePointAngle` (the real, measured
+// mascot-to-tile pointing angle) and the mascot illustration itself (`../components/
+// MascotIcon.jsx`) are both deliberately unused by this screen for this stage — no character
+// graphic, no spotlight-beam pointing, per the user's own explicit confirmation. Neither was
+// deleted from the codebase; `MascotIcon` is still shared by Stage 5's in-flow `MascotWidget` and
+// every other real dialogue surface, and the measured-angle technique comes back here in Stage 2,
+// wired to this same real guided-sequence state.
