@@ -2044,7 +2044,7 @@ button.card.passed:hover {
   overflow: hidden;
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.2s ease;
 }
-.hub-tile:hover:not(:disabled) { transform: translateY(-4px); box-shadow: var(--hub-shadow-hover); }
+.hub-tile:hover:not(:disabled):not(.locked) { transform: translateY(-4px); box-shadow: var(--hub-shadow-hover); }
 .hub-tile:active:not(:disabled) { transform: translateY(-1px) scale(0.985); }
 /* A faint diagonal wash of the tile's own accent color (the attached design's own per-card
    gradient tint), reading behind the real icon/title/desc content since a `::before` paints
@@ -2107,7 +2107,7 @@ button.card.passed:hover {
   box-shadow: 0 8px 18px rgba(16, 24, 20, 0.16);
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.hub-tile:hover:not(:disabled) .hub-tile-icon-box { transform: scale(1.08) rotate(-4deg); }
+.hub-tile:hover:not(:disabled):not(.locked) .hub-tile-icon-box { transform: scale(1.08) rotate(-4deg); }
 /* The attached design's own small "OPEN" pill, shown only on a real, currently-unlocked tile
    (HubScreen.jsx) — purely decorative, additive to the existing lock-icon-swap mechanism, never a
    replacement for it. */
@@ -7662,7 +7662,7 @@ body:has(.onboarding-meeting-active) {
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow);
 }
-.hub-tile:hover:not(:disabled) { box-shadow: var(--glass-shadow-hover); }
+.hub-tile:hover:not(:disabled):not(.locked) { box-shadow: var(--glass-shadow-hover); }
 /* A tile's real "completed" state (see HubScreen.jsx's own `guidedStep?.isDone(state)` lookup) —
    a soft mint accent border/status pill, distinct from both the plain unlocked look and the
    muted/grey locked one, so all three real states genuinely read differently at a glance. */
@@ -7682,7 +7682,7 @@ body:has(.onboarding-meeting-active) {
   opacity: 0.55;
   transition: transform 0.18s ease, opacity 0.18s ease;
 }
-.hub-tile:hover:not(:disabled) .hub-tile-arrow { opacity: 0.9; transform: translateX(2px); }
+.hub-tile:hover:not(:disabled):not(.locked) .hub-tile-arrow { opacity: 0.9; transform: translateX(2px); }
 
 /* Footer "Keep going" CTA — a glass pill pointing at whichever real module is next
    (HubScreen.jsx's own `keepGoingTarget`, derived from the exact GUIDED_SEQUENCE data the guide
@@ -7746,7 +7746,8 @@ body:has(.onboarding-meeting-active) {
 .hub-icon-btn:focus-visible,
 .hub-avatar:focus-visible,
 .hub-quick-action-btn:focus-visible,
-.hub-progress-view-link:focus-visible {
+.hub-progress-view-link:focus-visible,
+.hub-tour-btn:focus-visible {
   outline: 3px solid #3d5bd9;
   outline-offset: 3px;
 }
@@ -7775,3 +7776,144 @@ body:has(.onboarding-meeting-active) {
   .hub-topbar { flex-wrap: wrap; row-gap: 10px; }
   .hub-topbar-search { order: 3; flex: 1 1 100%; max-width: none; }
 }
+
+/* ============================================================================================
+   Hub redesign, Stage 2 — mascot returns, real spotlight pointing, an honest tour (see CLAUDE.md)
+   Appended at the very end of this file, same "append last to win ties via source order"
+   convention Stage 1's own block already established. Scope: the mascot's own hero block (a
+   decorative glass "stage" — halo + a slow orbit ring — around the exact same, unmodified
+   `MascotIcon` illustration used everywhere else in the app), the tour walkthrough's own small
+   controls, and 2 additional floating glass-bubble accents. `.hub-tile.pointing-target` /
+   `.hub-ask-ai-bubble-btn.pointing-target` (both defined earlier in this file, from the
+   pre-Glassmorphism era) needed no changes at all — just a real target again to apply them to.
+   ============================================================================================ */
+
+/* The mascot's own hero block — plain, centered document flow (NOT the old `.hub-mascot-area`'s
+   `position: absolute; top: 40%`, which assumed a large fixed-height radial-wrap ancestor that no
+   longer exists under Stage 1's grid layout). `.hub-mascot-figure` itself is reused byte-for-byte
+   from the pre-Glassmorphism era (global.css, further up this file) — its own pulse-ring aura and
+   `.chat-grown` grow/shrink transition were already fully built and simply went dormant once
+   Stage 1 stopped rendering anything with this class; nothing there needed to change. */
+.hub-mascot-hero {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 20px;
+}
+/* A slow, continuously spinning thin ring with 2 small dot accents, echoing the reference design's
+   own orbit-ring motif without touching `MascotIcon`'s real geometry at all — purely decorative,
+   `pointer-events: none`, sized a little larger than `.hub-mascot-figure` so it reads as orbiting
+   AROUND the character rather than overlapping it. */
+.hub-mascot-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 210px;
+  height: 210px;
+  margin: -105px 0 0 -105px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(124, 140, 248, 0.35);
+  pointer-events: none;
+  animation: hub-mascot-orbit-spin 22s linear infinite;
+}
+.hub-mascot-orbit-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.9);
+}
+.hub-mascot-orbit-dot-a { top: -3px; left: 50%; margin-left: -3px; background: var(--glass-accent-periwinkle); }
+.hub-mascot-orbit-dot-b { bottom: 12%; right: 4%; background: var(--glass-accent-mint); }
+@keyframes hub-mascot-orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-mascot-orbit { animation: none; }
+}
+
+/* "Take the tour" + its own Next / Skip controls — a quiet ghost pill for the secondary actions
+   (Skip tour, Take the tour) and a small filled pill for the primary "Next"/"Done" action, reading
+   the same glass/accent tokens every other Hub control already uses rather than the app-wide
+   `.btn-*` classes (which read the OLDER, non-hub-scoped parchment palette on this screen). */
+.hub-tour-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--glass-surface-border);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+}
+.hub-tour-btn-ghost {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--hub-ink-soft);
+}
+.hub-tour-btn-ghost:hover { color: var(--hub-ink); box-shadow: var(--glass-shadow); }
+.hub-tour-btn-primary {
+  background: var(--hub-accent);
+  color: #fff;
+  border-color: transparent;
+}
+.hub-tour-btn-primary:hover { transform: translateY(-2px); box-shadow: var(--glass-shadow-hover); }
+.hub-tour-btn:active { transform: translateY(0) scale(0.98); }
+.hub-tour-counter {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--hub-ink-soft);
+}
+
+/* Two additional small floating "glass bubble" accents, on top of Stage 1's own 3-blob wash —
+   pure CSS, same drift technique, respecting `prefers-reduced-motion` the same way. */
+.hub-glass-bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.15) 60%, rgba(124, 140, 248, 0.25) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+.hub-glass-bubble-a {
+  width: 64px;
+  height: 64px;
+  right: 8vw;
+  top: 22vh;
+  animation: hub-glass-bubble-float-a 9s ease-in-out infinite;
+}
+.hub-glass-bubble-b {
+  width: 30px;
+  height: 30px;
+  left: 12vw;
+  top: 55vh;
+  animation: hub-glass-bubble-float-b 7s ease-in-out infinite;
+}
+@keyframes hub-glass-bubble-float-a {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-18px); }
+}
+@keyframes hub-glass-bubble-float-b {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50% { transform: translateY(14px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-glass-bubble-a, .hub-glass-bubble-b { animation: none; }
+}
+
+@media (max-width: 640px) {
+  .hub-mascot-orbit { width: 170px; height: 170px; margin: -85px 0 0 -85px; }
+  .hub-glass-bubble-a, .hub-glass-bubble-b { display: none; }
+}
+
+/* Real, confirmed bug found while testing search-dimming: a plain inline `opacity` style was
+   silently overridden by `.hub-tile`'s own `hub-tile-pop-in` entrance animation — that keyframe's
+   `animation-fill-mode: both` keeps applying its own final `opacity: 1` value indefinitely once
+   the animation ends, and per the CSS cascade, an Animation's computed value outranks a plain
+   (non-`!important`) author declaration REGARDLESS of specificity, including an inline style —
+   confirmed directly via `getComputedStyle` reporting `opacity: 1` even with a real inline
+   `opacity: 0.32` present in the element's own `style` attribute. A dedicated `!important` class
+   is what actually wins here, since `!important` sits above CSS Animations in the cascade. */
+.hub-tile.hub-tile-search-dim { opacity: 0.32 !important; }

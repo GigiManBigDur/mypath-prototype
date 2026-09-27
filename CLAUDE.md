@@ -14409,14 +14409,118 @@ sound settings) is completely unmodified underneath — only how the Hub present
   verify:spacing` (20/20, byte-for-byte identical to baseline — this stage never opens
   `roadmapLayout.js`) all stay clean. Real desktop (1440px) and narrow (390px) screenshots were
   taken and visually reviewed, per this stage's own explicit request, before Stage 2 begins.
-- **Explicitly NOT started, awaiting the user's own separate sign-off and a new prompt, per the
-  original task's own scope**: Stage 2 (the animated glass-orb mascot + spotlight-beam pointing
-  tour, wired to this exact real `GUIDED_SEQUENCE`/`chatPhase`/measured-angle state — never
-  invented scripted tour/insight text), and the separate, later passes applying these same shared
-  `--glass-*` tokens to the Welcome, AI Chat, and Roadmap screens (Roadmap's own pass will need the
-  strictest guardrail: an explicit statement that it won't touch `layoutRoadmap()`/date-positioning
-  math, verified against `npm run verify:spacing` before and after, matching every prior pass that
-  has touched that screen).
+- Stage 2 (below) is now done. The separate, later passes applying these same shared `--glass-*`
+  tokens to the Welcome, AI Chat, and Roadmap screens are still not started (Roadmap's own pass
+  will need the strictest guardrail: an explicit statement that it won't touch `layoutRoadmap()`/
+  date-positioning math, verified against `npm run verify:spacing` before and after, matching every
+  prior pass that has touched that screen).
+
+**Hub redesign, Stage 2: the mascot returns + real spotlight pointing + an honest tour.** Brings
+back everything Stage 1 deliberately deferred — the mascot character, the measured pointing beam,
+and a walkthrough — driven by a real Claude Design reference (`MyPath Hub.dc.html`, imported via
+the `claude_design` MCP tool from `claude.ai/design` project `ad41ce45-bf4f-4228-b59e-afe028b46768`)
+rather than invented from scratch. That file is a Claude-Design **preview mockup** — it runs on its
+own bespoke `support.js` runtime (a Web-Animations-API `Component` class, `{{ }}` template
+bindings) unrelated to this app's real React/Vite stack, and its own `TILES`/`TOUR`/`INSIGHT`/
+`MORE` arrays are fictional demo data (8 made-up tiles, scripted dialogue, a fake "Finish Module"
+button marking a module done without the student ever doing anything) — so this stage translates
+the design LANGUAGE and interaction ideas into this app's real, already-built Hub, wired to real
+state, never fabricated demo content. Purely additive on top of Stage 1: the tile grid, guide
+panel, progress card, quote card, Quick Actions, debug row, and the chat-panel transition all keep
+their exact existing behavior.
+- **The mascot reuses `MascotIcon.jsx` directly — not a new, visually-different character.** The
+  design's own glass-styled creature turned out, on inspection, to already be a re-skinned
+  restatement of THIS app's own established mascot (leaf-sprout "ears," a dark visor with glowing
+  teal eye-strokes and a mouth bar, a chest badge) rather than a genuinely different design — so
+  Stage 2 keeps the one shared illustration used everywhere else in the app (chat panels,
+  onboarding, milestone planning) and only adds new, Hub-scoped decorative chrome around it: a new
+  `.hub-mascot-hero` (plain, centered document flow — replacing the old `position: absolute; top:
+  40%` `.hub-mascot-area`, which assumed a large fixed-height radial-wrap ancestor Stage 1's grid
+  layout no longer has) and a new, purely decorative slow-spinning `.hub-mascot-orbit` ring with 2
+  small dot accents, echoing the reference's own orbit motif without touching `MascotIcon`'s real
+  geometry at all. `.hub-mascot-figure` itself — including its own pulse-ring aura and the
+  `.chat-grown` grow/shrink transition from the earlier "Mascot Grow/Shrink Transition" work — is
+  reused byte-for-byte from the pre-Stage-1 era; it had simply gone dormant once Stage 1 stopped
+  rendering anything with that class, nothing there needed to change.
+- **The real, measured spotlight-pointing system is recovered from git history (commit `8a8d2fb`),
+  not reinvented** — `usePointAngle` (this file, bottom of `HubScreen.jsx`) is byte-for-byte the
+  same hook: a `mascotRef` + a `tileRefs` `Map`, a `useLayoutEffect` measuring real
+  `getBoundingClientRect()` centers, one `requestAnimationFrame`-deferred first measurement (to
+  dodge a StrictMode double-mount race) plus a `resize` listener, returning a real `atan2` angle in
+  degrees or `null` until a genuine measurement exists (never guessed). `tileRefs` now ALSO
+  registers the "Ask MyPath AI anything" button under the synthetic id `'askAi'` (the same
+  convention this app's own earlier "Add Pointing Animation to Chat Button" fix already
+  established) — one identical mechanism aims the beam at either a real tile or that button.
+  `.hub-tile.pointing-target`/`.hub-ask-ai-bubble-btn.pointing-target` (both already fully styled
+  in `global.css` from the pre-Glassmorphism era, never deleted) needed zero new CSS to reuse.
+- **Locked-tile clicks are informative now, not inert.** Each `TILES` entry gained a new,
+  purely-derived `dependsOn: (state, hasPartnerSchool) => id | null` field (`majors` depends on
+  `careers`, `programs` on `majors`, `plan`/`programSummary`/`projectBuilder`/non-partner
+  `opportunities` on `programs`, `courseSelection`/partner `opportunities`/`myNarrative` on
+  `'askAi'` — Transcript & GPA and the student's own overview both happen inside the AI
+  conversation now, no dedicated tile to point at). A locked tile is no longer HTML `disabled` (
+  `aria-disabled` instead, keeping the a11y semantics honest while letting a real click register);
+  clicking one calls `noteLockedTile(tile)`, which shows a transient note in the guide panel and
+  retargets the beam at the real dependency for ~3.2s before reverting — the note text is always
+  the tile's own already-shown `lockedReason(state, hasPartnerSchool)` string verbatim, never a
+  second, invented phrasing; `dependsOn` only decides where the beam points while it's showing.
+  **A real, confirmed CSS specificity bug was caught and fixed while removing `disabled`**: four
+  `.hub-tile:hover:not(:disabled)` rules (two from the original Stage 3 lock/unlock pass, two from
+  Stage 1's own glass override) relied on the native `disabled` attribute to keep a locked tile's
+  hover state muted — once `disabled` was removed in favor of `aria-disabled`, `:not(:disabled)`
+  became permanently true, so a locked-but-hovered tile would have picked up the same hover-lift/
+  glow-shadow treatment as an unlocked one. Fixed by adding `:not(.locked)` to all four selectors,
+  matching this app's own established `button.card:hover:not(.selected):not(.passed)` precedent for
+  the identical class of problem.
+- **"Take the tour"** — a real, honest walkthrough button in the guide panel (shown only when idle
+  — no active locked-tile note, no tour running, and the chat panel isn't open, since there'd be no
+  tiles to point at). Steps through the real `tiles` array in order using each tile's own real
+  `title`/`desc` (no fabricated `TOUR` copy, unlike the design's own scripted array), pointing the
+  beam at each and swapping the guide panel's text/eyebrow (`"Taking the tour"`), with Next / Skip
+  tour controls and a real "n / total" counter (`.hub-tour-btn`/`.hub-tour-counter`, new). Ending
+  the tour (finishing past the last tile, or Skip) reverts the guide panel and beam back to the
+  live `nextStepIntro`/`nextStep` state with zero change to any real unlock/progress data — `tour
+  Index` is a plain, session-only `useState`, matching this app's own "a browse toggle doesn't need
+  to survive a reload" convention elsewhere.
+- **Small, honest upgrades matching the reference directly**: the notification bell now shows a
+  brief static note on click ("No new notifications — you're all caught up.") through the exact
+  same transient-note mechanism the locked-tile feedback uses (just with no `targetId`, so the beam
+  keeps pointing at whatever it already was rather than going aimless over a purely decorative
+  interruption); the topbar search is now genuinely functional — typing dims non-matching tiles
+  (title+desc substring match) and Enter opens the first unlocked match, replacing the previous
+  "Coming soon" placeholder, since this only filters/opens real, already-existing tiles and needs
+  no fabricated data; and `.hub-glass-bg` gained 2 additional small floating "glass bubble" accents
+  (`.hub-glass-bubble-a`/`-b`, pure CSS, `prefers-reduced-motion`-safe like the existing 3 blobs) on
+  top of Stage 1's own wash.
+  - **A real, confirmed bug was found and fixed while verifying the search-dimming feature — not
+    a Playwright artifact this time.** The first implementation dimmed a non-matching tile via a
+    plain inline `style={{ opacity: 0.32 }}` — `getComputedStyle` reported `opacity: 1` regardless,
+    confirmed directly (not assumed) by reading the element's own real `style` attribute (correctly
+    showing `opacity: 0.32`) alongside its computed value (`1`). Root cause: `.hub-tile`'s own
+    `hub-tile-pop-in` entrance animation runs with `animation-fill-mode: both`, which keeps applying
+    the animation's own final `opacity: 1` keyframe value indefinitely once it ends — and per the
+    CSS cascade, a running/filled Animation's computed value outranks a plain (non-`!important`)
+    author declaration REGARDLESS of specificity, including an inline style. Fixed with a dedicated
+    `.hub-tile-search-dim { opacity: 0.32 !important; }` class instead (`!important` sits above CSS
+    Animations in the cascade) — the same "an animation on an element silently overrides another
+    rule's value for that same property" landmine this codebase has already documented for
+    `transform` several times, now confirmed for `opacity` too.
+- Verified with two dedicated Playwright suites against the real running dev server (not just code
+  review): the mascot SVG renders inside `.hub-mascot-figure` and genuinely points (a real,
+  non-identity lean transform) at whatever tile `nextStep` currently resolves to; clicking a locked
+  tile shows its own real `lockedReason` text with the "Heads up" eyebrow, retargets the beam to
+  the real dependency, does NOT navigate, and the note auto-clears back to the live guide message;
+  "Take the tour" walks through the real tiles in order (real titles/descriptions, a correct "n/N"
+  counter) and Skip returns to the normal actions row having touched zero real progress/unlock
+  data; typing a real tile's title dims every non-matching tile to a confirmed sub-0.5 opacity
+  while the match stays fully opaque, and Enter navigates to the first real unlocked match; the
+  bell click shows the honest static note; `prefers-reduced-motion` disables both the new orbit-ring
+  spin and the new glass-bubble drift. A second suite re-confirmed every pre-existing Hub behavior
+  is unaffected: the Progress card still renders once a program is selected, an unlocked tile still
+  navigates normally (the real `goTo` path, not `noteLockedTile`), the chat-panel transition still
+  grows/shrinks the mascot via the untouched `chat-grown` class and the tile grid still un/remounts
+  correctly around it, and a window resize still recomputes a genuinely different real pointing
+  angle with zero page errors. `npm run build`/`npm run lint` both stay clean.
 
 ## Testing changes
 
@@ -15280,3 +15384,21 @@ download). Cover at minimum:
   selected major with no selected program yet) and check `.hub-guide-panel-text`'s own content
   against that step's real, known intro string. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) should all stay clean — this stage never opens `roadmapLayout.js`.
+- Hub redesign, Stage 2 (mascot + real spotlight pointing + tour): a locked tile now carries
+  `aria-disabled`, not real `disabled` — Playwright's own actionability check still treats
+  `aria-disabled="true"` as "not enabled" and refuses a plain `.click()` (a real user can click it
+  fine; this is purely a Playwright heuristic), so use `{ force: true }` when clicking a locked
+  tile in a test. To verify the beam's real target, poll `.hub-tile.pointing-target`/
+  `.hub-ask-ai-bubble-btn.pointing-target` after a short wait (the angle resolves one
+  `requestAnimationFrame` after mount/target-change, not synchronously). When adding any NEW
+  per-tile dimming/highlight style, remember `.hub-tile`'s own `hub-tile-pop-in` entrance animation
+  runs with `fill-mode: both`, which silently overrides a plain inline style for the SAME property
+  (confirmed directly for `opacity` while building this stage — `getComputedStyle` read `1` even
+  with a real `opacity: 0.32` inline style present) — use a dedicated `!important` class instead of
+  an inline style for anything that has to win against a still-"filled" entrance animation. Confirm
+  "Take the tour" only ever reads real `tiles` data (never a hardcoded array) and that finishing or
+  skipping it writes nothing to `state` beyond the local `tourIndex`/`transientNote` UI state, and
+  confirm the pre-existing chat-panel transition (`chat-grown`, tile grid un/remounting) still
+  works exactly as before, since Stage 2 reuses that class rather than replacing it. `npm run
+  build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay clean — this stage never
+  opens `roadmapLayout.js` either.

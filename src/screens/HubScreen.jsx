@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect, useLayoutEffect, useMemo, useRef, useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   Briefcase, GraduationCap, Landmark, BookOpen, Search, Hammer,
@@ -8,6 +10,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { isSurveyComplete } from './SurveyScreen';
 import { AVATAR_OPTIONS } from './SignUpScreen';
+import MascotIcon from '../components/MascotIcon';
 import AddTaskModal from '../components/AddTaskModal';
 import HubChatPanel from '../components/HubChatPanel';
 import SoundSettingsPopover from '../components/SoundSettingsPopover';
@@ -64,6 +67,14 @@ function partnerSchoolGate(unlockFn, lockedReasonFn) {
 // here, the same way there's no "go sign up" hub tile either. `isSurveyComplete` is still imported
 // and used below (partnerSchoolGate, the Academic Plan progress-card gate, etc.), just no longer
 // as a hub-tile unlock condition for a tile that no longer exists.
+// Hub redesign, Stage 2 (see CLAUDE.md) — `dependsOn` is new, purely display-only metadata: which
+// real hub target a locked tile's own already-existing `lockedReason` string is actually ABOUT, so
+// clicking a locked tile can point the mascot's spotlight beam at the real prerequisite instead of
+// just leaving it aimed wherever it already was. `'askAi'` is the same synthetic target id the
+// pointing system already uses for the "Ask MyPath AI anything" button (Transcript & GPA and the
+// student's own overview both happen inside that conversation now, not on a dedicated tile). Never
+// invents new copy — the note shown is always the tile's own real `lockedReason(state,
+// hasPartnerSchool)` text, `dependsOn` only decides where the beam points while showing it.
 const TILES = [
   {
     id: 'careers', screen: 'discovery', discoveryEntryStep: 'careers', Icon: Briefcase,
@@ -75,6 +86,7 @@ const TILES = [
     // mid-onboarding rather than assuming that can't happen.
     unlock: (state) => isSurveyComplete(state),
     lockedReason: () => 'Complete the onboarding steps first',
+    dependsOn: () => null,
   },
   {
     id: 'majors', screen: 'discovery', discoveryEntryStep: 'majors', Icon: GraduationCap,
@@ -82,6 +94,7 @@ const TILES = [
     desc: 'See majors that lead toward your chosen careers.',
     unlock: (state) => state.selectedCareerIds.length > 0,
     lockedReason: () => 'Select at least one career first',
+    dependsOn: () => 'careers',
   },
   {
     id: 'programs', screen: 'discovery', discoveryEntryStep: 'programs', Icon: Landmark,
@@ -89,6 +102,7 @@ const TILES = [
     desc: 'Browse real schools known for your selected majors.',
     unlock: (state) => state.selectedMajorIds.length > 0,
     lockedReason: () => 'Select at least one major first',
+    dependsOn: () => 'majors',
   },
   {
     // Deliberately unlocked as soon as a program is selected, same gate as Your School List
@@ -102,6 +116,7 @@ const TILES = [
     desc: 'Your personalized roadmap, task by task.',
     unlock: (state) => state.selectedProgramKeys.length > 0,
     lockedReason: () => 'Select at least one program first',
+    dependsOn: () => 'programs',
   },
   {
     // AI-First Onboarding, Stage 4 (see CLAUDE.md), Task 1 — "similar in role to Your School
@@ -115,6 +130,7 @@ const TILES = [
     desc: 'The direction from your first conversation, and your multi-year path.',
     unlock: (state) => !!getNarrativeProject(state),
     lockedReason: () => 'Confirm your overview in your first conversation to see this',
+    dependsOn: () => 'askAi',
   },
   {
     id: 'programSummary', screen: 'programSummary', Icon: ListChecks,
@@ -122,6 +138,7 @@ const TILES = [
     desc: 'Your selected programs, grouped by Reach, Match, and Safety.',
     unlock: (state) => state.selectedProgramKeys.length > 0,
     lockedReason: () => 'Select at least one program first',
+    dependsOn: () => 'programs',
   },
   // Implement the Corrected Flow Order: Transcript & GPA Moves Into Session 1 (see CLAUDE.md),
   // Task 3 — the standalone "Transcript & GPA" tile that used to live here (unlocked once a
@@ -137,6 +154,7 @@ const TILES = [
     title: 'Course Selection',
     desc: "Pick next year's courses from your school's real catalog.",
     requiresPartnerSchool: true,
+    dependsOn: () => 'askAi',
     ...partnerSchoolGate(
       (state) => state.transcriptCompleted,
       () => 'Complete or skip Transcript & GPA first',
@@ -154,6 +172,7 @@ const TILES = [
     desc: 'Find real competitions, clubs, and programs worth pursuing.',
     unlock: (state, hasPartnerSchool) => (hasPartnerSchool ? state.transcriptCompleted : state.selectedProgramKeys.length > 0),
     lockedReason: (state, hasPartnerSchool) => (hasPartnerSchool ? 'Complete or skip Transcript & GPA first' : 'Select at least one program first'),
+    dependsOn: (state, hasPartnerSchool) => (hasPartnerSchool ? 'askAi' : 'programs'),
   },
   {
     id: 'projectBuilder', screen: 'projectBuilder', Icon: Hammer,
@@ -161,6 +180,7 @@ const TILES = [
     desc: 'Start a hands-on project to build your portfolio.',
     unlock: (state) => state.selectedProgramKeys.length > 0,
     lockedReason: () => 'Select at least one program first',
+    dependsOn: () => 'programs',
   },
   {
     // Prior Experience Collection + New Profile Page (see CLAUDE.md), Task 3 — always unlocked,
@@ -412,12 +432,15 @@ const TILE_ACCENTS = [
 ];
 
 // Glassmorphism redesign, Stage 1 (see CLAUDE.md) — the hand-tuned `RADIAL_POSITIONS` scatter
-// slots and the decorative `PARTICLES` array (both tuned around the now-removed centered mascot)
-// are gone: the confirmed Stage 1 layout is a clean, responsive glass-card grid (`.hub-tile-grid`,
-// global.css) using the real tile array/order below directly, with no per-tile position data of
-// its own to maintain. The mascot itself is deliberately omitted for this whole stage (per the
-// user's own explicit confirmation) — the real glass-orb guide, and whatever scattered/pointing
-// layout it needs, comes back in Stage 2, not reintroduced here piecemeal.
+// slots and the decorative `PARTICLES` array (both tuned around a centered mascot in an
+// absolutely-positioned radial wrap) are gone for good: the tile grid stays a clean, responsive
+// glass-card grid (`.hub-tile-grid`, global.css) using the real tile array/order below directly,
+// with no per-tile position data of its own to maintain — real tile count varies with
+// `hasPartnerSchool`, which never mapped cleanly onto a fixed scatter composition anyway. Stage 2
+// (see CLAUDE.md) brings the mascot itself back, as its own hero element above the guide panel
+// (`.hub-mascot-hero`, below) rather than scattered among the tiles — the real, measured
+// spotlight-pointing beam works identically either way, since it's computed from live DOM
+// positions, not fixed coordinates.
 
 // Task 3's own decorative quote card, shown purely as visual flavor — same "this app never
 // fabricates a source" posture the rest of this codebase already holds for any quoted/cited text,
@@ -477,12 +500,72 @@ export default function HubScreen() {
   const nextStepIntro = guidedStepAlreadySeen
     ? (sequenceComplete ? null : getMascotLine('hub-guided-revisit'))
     : nextStepFullIntro;
+  // Hub redesign, Stage 2 (see CLAUDE.md) — the mascot returns, using the exact real, measured
+  // spotlight-pointing system this screen used before the Glassmorphism redesign removed it
+  // (recovered from git history, commit 8a8d2fb, not reinvented). `mascotRef` is the character's
+  // own real DOM center; `tileRefs` is a plain id->element `Map` covering every real tile button
+  // PLUS the "Ask MyPath AI anything" button (registered under the synthetic id `'askAi'`, the
+  // same convention this app already established for that button once Transcript & GPA/the
+  // student's own overview moved into the AI conversation instead of a dedicated tile) — so the
+  // beam can aim at either kind of real target through one identical mechanism. `usePointAngle`
+  // (defined at the bottom of this file) is untouched from the recovered version: a real `atan2`
+  // angle in degrees, `null` until a genuine measurement exists (never guessed), recomputed on
+  // resize and whenever the target itself changes.
+  const mascotRef = useRef(null);
+  const tileRefs = useRef(new Map());
+
+  // A manual, opt-in walkthrough through the REAL tiles (their own real title/desc, no invented
+  // copy) — `null` means no tour is active. A short-lived `transientNote` (its own real text plus,
+  // optionally, a real dependency id to point the beam at) covers two honest, non-modal
+  // interruptions: clicking a locked tile (reuses that tile's own already-shown `lockedReason` text
+  // verbatim, never new copy) and the decorative notification bell. Both are session-only UI
+  // state, matching this app's own established "a browse toggle/local view choice doesn't need to
+  // survive a reload" convention elsewhere.
+  const [tourIndex, setTourIndex] = useState(null);
+  const [transientNote, setTransientNote] = useState(null); // { text, targetId } | null
+  const transientNoteTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(transientNoteTimerRef.current), []);
+
+  const showTransientNote = (text, targetId = null) => {
+    clearTimeout(transientNoteTimerRef.current);
+    setTransientNote({ text, targetId });
+    transientNoteTimerRef.current = setTimeout(() => setTransientNote(null), 3200);
+  };
+  // Locked-tile clicks are informative now, not inert — the note is always the tile's own real
+  // `lockedReason` string (never a second, invented phrasing), and `dependsOn` (TILES, above) only
+  // decides where the beam points while it's showing.
+  const noteLockedTile = (tile) => showTransientNote(
+    tile.lockedReason(state, hasPartnerSchool),
+    tile.dependsOn ? tile.dependsOn(state, hasPartnerSchool) : null,
+  );
+
+  const activeTourTile = tourIndex !== null ? tiles[tourIndex] : null;
+  const startTour = () => { setTransientNote(null); setTourIndex(0); };
+  const tourNext = () => setTourIndex((i) => (i + 1 < tiles.length ? i + 1 : null));
+  const skipTour = () => setTourIndex(null);
+
+  // The guide panel's own eyebrow/text and the beam's own target all read from ONE priority order
+  // — a transient note first, then a manual tour step, then the real live guided-sequence state —
+  // never more than one of these three active at once.
+  const guideEyebrow = transientNote ? 'Heads up' : (activeTourTile ? 'Taking the tour' : 'Your guide');
+  const guideText = transientNote
+    ? transientNote.text
+    : activeTourTile
+      ? `${activeTourTile.title}: ${activeTourTile.desc}`
+      : (nextStepIntro || "You're all caught up for now — explore any unlocked tool below, or revisit your Academic Plan anytime.");
+  // A transient note only redirects the beam when it's genuinely ABOUT a real dependency (a locked
+  // tile click) — the bell's own note has no `targetId`, so the beam simply keeps pointing at
+  // whatever it already was rather than going aimless over a purely decorative interruption.
+  const pointingTargetId = (transientNote && transientNote.targetId)
+    || (activeTourTile ? activeTourTile.id : (nextStep.id === 'finalReview' ? 'askAi' : nextStep.id));
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own guide message still speaks
-  // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue —
-  // "whatever the app already does" (Stage 1's own explicit no-new-speech-logic boundary), just no
-  // longer wired to a mascot animation state, since no mascot renders on the hub this stage. It
-  // speaks whenever `nextStepIntro` changes and stops on unmount, both handled inside the hook.
-  useMascotSpeech(nextStepIntro, state.voiceMuted);
+  // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue,
+  // now also driving the returned mascot's own speaking/pointing animation (Stage 2) instead of
+  // running with no visible character at all. Speaks whatever `guideText` currently resolves to —
+  // the live guided-sequence line, a tour step, or a transient note — and stops on unmount, both
+  // handled inside the hook.
+  const isSpeaking = useMascotSpeech(guideText, state.voiceMuted);
+  const pointAngle = usePointAngle(mascotRef, tileRefs, pointingTargetId, tiles.length);
 
   // Final Alignment-Check Conversation (see CLAUDE.md) — fires the one automatic, no-typed-text
   // check-in turn the moment `finalReview` genuinely becomes the current guided step (i.e. every
@@ -567,14 +650,6 @@ export default function HubScreen() {
     ? Math.max(1, realDaysBetween(startOfToday(), parseDateInputValue(state.accountCreatedAt)) + 1)
     : 1;
 
-  // Glassmorphism redesign, Stage 1 (see CLAUDE.md) — the mascot, its measured pointing angle, and
-  // the spotlight-style `.pointing-target` glow it drove are all deliberately gone for this stage
-  // (per the user's own explicit confirmation: no character graphic, no tour, no spotlight-beam
-  // pointing). Which real module is "next" is instead communicated in plain text — the guide
-  // panel's own message plus the footer "Keep going" CTA below (`keepGoingTarget`) — not a visual
-  // beam. `usePointAngle`/`MascotIcon` come back in Stage 2, wired to this same real guided-
-  // sequence state, not reintroduced piecemeal here.
-
   // Radial-layout pass, Task 3 — Quick Actions' "Add a Task" wires to this app's existing custom-
   // task feature (the same `state.customTasks` array/shape Roadmap.jsx's own "+ Add Task" writes
   // to), reusing the shared AddTaskModal rather than a new form.
@@ -633,6 +708,11 @@ export default function HubScreen() {
     // of this same button — forcing the session at every other point in the walkthrough would
     // clobber a student's own deliberate choice to stay on an unrelated general session.
     if (nextStep.id === 'finalReview') patch({ activeChatSessionId: 'narrative' });
+    // Hub redesign, Stage 2 — a manual tour or a transient note has nothing left to point at once
+    // the tile grid unmounts for the chat panel, so both are cleared on the way in rather than
+    // left stale for whenever the student comes back.
+    setTourIndex(null);
+    setTransientNote(null);
     setChatPhase('tiles-exiting');
     chatTransitionTimer.current = setTimeout(() => setChatPhase('chat'), TILE_EXIT_MS);
   };
@@ -653,16 +733,20 @@ export default function HubScreen() {
 
   const avatarOption = AVATAR_OPTIONS.find((a) => a.id === state.avatarIcon);
 
-  // Small fix — the topbar search bar (see CLAUDE.md). It used to be `readOnly` (couldn't be
-  // typed into at all); now it's a real, typeable field that honestly reveals "Coming soon" on
-  // submit instead of silently doing nothing — there's still no real search feature behind this
-  // app's own content, matching every other explicitly-placeholder control in this app (the old
-  // ask-ai bar's own "Coming soon!" note, before it became the real chat).
+  // Hub redesign, Stage 2 — the topbar search is now genuinely functional, not a "Coming soon"
+  // placeholder: it filters/opens REAL, already-existing tiles (title + description substring
+  // match), so it needed no fabricated data or a second search concept to build. Typing dims any
+  // non-matching tile (below, in the tile grid); Enter opens the first UNLOCKED match, if any —
+  // a real, honest "no matches" note otherwise (cleared the instant the query is edited again).
   const [searchValue, setSearchValue] = useState('');
-  const [searchSubmitted, setSearchSubmitted] = useState(false);
+  const [searchNoMatch, setSearchNoMatch] = useState(false);
+  const searchQuery = searchValue.trim().toLowerCase();
+  const tileMatchesSearch = (tile) => !searchQuery || `${tile.title} ${tile.desc}`.toLowerCase().includes(searchQuery);
   const submitSearch = (e) => {
     e.preventDefault();
-    setSearchSubmitted(true);
+    if (!searchQuery) { setSearchNoMatch(false); return; }
+    const match = tiles.find((t) => tileMatchesSearch(t) && t.unlock(state, hasPartnerSchool));
+    if (match) { setSearchNoMatch(false); goTo(match); } else setSearchNoMatch(true);
   };
 
   // Glassmorphism redesign, Stage 1's own footer "Keep going" CTA (see CLAUDE.md) — points at the
@@ -687,6 +771,10 @@ export default function HubScreen() {
         <span className="hub-glass-blob hub-glass-blob-periwinkle" />
         <span className="hub-glass-blob hub-glass-blob-pink" />
         <span className="hub-glass-blob hub-glass-blob-mint" />
+        {/* Hub redesign, Stage 2 — 2 small floating glass bubbles, on top of Stage 1's own 3-blob
+            wash, for a bit more of the reference design's iridescent depth. */}
+        <span className="hub-glass-bubble hub-glass-bubble-a" />
+        <span className="hub-glass-bubble hub-glass-bubble-b" />
       </div>
 
       <div className="hub-topbar">
@@ -702,19 +790,27 @@ export default function HubScreen() {
             value={searchValue}
             onChange={(e) => {
               setSearchValue(e.target.value);
-              // A fresh edit clears any previously-shown note — re-submitting (even the same
-              // text) is what reveals it again, not leaving a stale note up while typing.
-              setSearchSubmitted(false);
+              // A fresh edit clears any previously-shown "no matches" note — re-submitting (even
+              // the same text) is what reveals it again, not leaving a stale note up while typing.
+              setSearchNoMatch(false);
             }}
           />
-          {searchSubmitted && <span className="hub-topbar-search-note">Coming soon!</span>}
+          {searchNoMatch && <span className="hub-topbar-search-note">No open tool matches that yet.</span>}
         </form>
         <div className="hub-topbar-actions">
-          {/* Purely decorative, matching the search field's own "placeholder is fine" scope — this
-              app has no real notifications feature to back a live badge count with, and inventing
-              one would be exactly the kind of fabricated number this codebase's data layer never
-              allows itself elsewhere. */}
-          <button type="button" className="hub-icon-btn" aria-label="Notifications" title="Notifications">
+          {/* The bell itself stays decorative — this app has no real notifications feature to back
+              a live badge count with, and inventing one would be exactly the kind of fabricated
+              number this codebase's data layer never allows itself elsewhere — but it's no longer
+              a pure no-op: it shows a real, honest static note in the guide panel, the same
+              harmless "small transient message" convention this screen's own locked-tile feedback
+              now uses too. */}
+          <button
+            type="button"
+            className="hub-icon-btn"
+            aria-label="Notifications"
+            title="Notifications"
+            onClick={() => showTransientNote("No new notifications — you're all caught up.")}
+          >
             <Bell size={16} />
           </button>
           {/* ElevenLabs Voice integration (see CLAUDE.md) — always renders now (no more
@@ -770,36 +866,77 @@ export default function HubScreen() {
         )}
       </div>
 
-      {/* Glassmorphism redesign, Stage 1's own "guide" panel (see CLAUDE.md) — the real current
-          hub-guide message (`nextStepIntro`, GUIDED_SEQUENCE above), relocated out of the
-          now-removed mascot's speech bubble into its own standalone glass card. Deliberately no
-          mascot/character graphic here at all (user-confirmed) — a plain decorative icon stands in
-          for it; the real glass-orb guide comes back in Stage 2. A neutral, non-invented
-          placeholder shows whenever there's genuinely no active message left (the sequence is
-          complete and its one-time completion line has already been shown once). */}
+      {/* Hub redesign, Stage 2 (see CLAUDE.md) — the mascot's own hero block, directly above the
+          guide panel (its speech-bubble partner). `mascotRef` is what `usePointAngle` measures
+          FROM; a small decorative glass halo + a slow orbit ring (two small dot accents) echo the
+          reference design's own iridescent glass look without forking `MascotIcon`'s real
+          geometry — the same illustration used everywhere else in the app, just given new
+          Hub-only surrounding chrome. `chat-grown` reuses the exact existing (previously dormant)
+          grow/shrink transition this class already carries from the Hub-to-Chat transition work,
+          so the mascot still visibly grows while the chat panel opens and shrinks back on close. */}
+      <div className="hub-mascot-hero">
+        <span className="hub-mascot-orbit" aria-hidden="true">
+          <span className="hub-mascot-orbit-dot hub-mascot-orbit-dot-a" />
+          <span className="hub-mascot-orbit-dot hub-mascot-orbit-dot-b" />
+        </span>
+        <div
+          className={`hub-mascot-figure${(chatPhase === 'tiles-exiting' || chatPhase === 'chat') ? ' chat-grown' : ''}`}
+          ref={mascotRef}
+        >
+          <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} pointAngle={pointAngle} />
+        </div>
+      </div>
+
+      {/* The guide panel — the real current hub-guide message (`guideText`, resolved above from
+          whichever of a transient note / manual tour step / the live GUIDED_SEQUENCE state is
+          currently active). A neutral, non-invented placeholder shows whenever there's genuinely
+          no active message left (the sequence is complete and its one-time completion line has
+          already been shown once). */}
       <div className="hub-guide-panel">
         <div className="hub-guide-panel-icon" aria-hidden="true"><Sparkles size={18} /></div>
         <div className="hub-guide-panel-body">
-          <p className="hub-guide-panel-eyebrow">Your guide</p>
+          <p className="hub-guide-panel-eyebrow">{guideEyebrow}</p>
           {/* `key` forces a fresh DOM node whenever the message text itself changes, the same
               "new key = new node = the entrance animation replays" pattern this file already used
               for `.mascot-dialogue` before this stage. */}
-          <p key={nextStepIntro || 'quiet'} className="hub-guide-panel-text">
-            {nextStepIntro || "You're all caught up for now — explore any unlocked tool below, or revisit your Academic Plan anytime."}
-          </p>
+          <p key={guideText} className="hub-guide-panel-text">{guideText}</p>
           <div className="hub-guide-panel-actions">
-            <button type="button" className="hub-ask-ai-bubble-btn" onClick={openChat}>
-              <Sparkles size={14} /> Ask MyPath AI anything
-            </button>
-            {/* The reference image's own "1/6" indicator, built from real GUIDED_SEQUENCE data
-                (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
-            <div className="hub-progress-dots">
-              {Array.from({ length: guidedProgress.total }).map((_, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
-              ))}
-              <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
-            </div>
+            {activeTourTile ? (
+              // A real, honest walkthrough — the real `tiles` array in order, own real title/desc,
+              // no fabricated tour copy. Ends back on the live guided-sequence state either way.
+              <>
+                <button type="button" className="hub-tour-btn hub-tour-btn-ghost" onClick={skipTour}>Skip tour</button>
+                <span className="hub-tour-counter">{tourIndex + 1} / {tiles.length}</span>
+                <button type="button" className="hub-tour-btn hub-tour-btn-primary" onClick={tourNext}>
+                  {tourIndex + 1 >= tiles.length ? 'Done' : 'Next'} <ArrowRight size={13} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  ref={(el) => { if (el) tileRefs.current.set('askAi', el); else tileRefs.current.delete('askAi'); }}
+                  className={`hub-ask-ai-bubble-btn${pointingTargetId === 'askAi' ? ' pointing-target' : ''}`}
+                  onClick={openChat}
+                >
+                  <Sparkles size={14} /> Ask MyPath AI anything
+                </button>
+                {chatPhase === 'hidden' && (
+                  <button type="button" className="hub-tour-btn hub-tour-btn-ghost" onClick={startTour}>
+                    Take the tour
+                  </button>
+                )}
+                {/* The reference image's own "1/6" indicator, built from real GUIDED_SEQUENCE data
+                    (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
+                <div className="hub-progress-dots">
+                  {Array.from({ length: guidedProgress.total }).map((_, i) => (
+                    // eslint-disable-next-line react/no-array-index-key
+                    <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
+                  ))}
+                  <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -824,13 +961,21 @@ export default function HubScreen() {
             const done = unlocked && !!guidedStep?.isDone(state);
             const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
             const isExiting = chatPhase === 'tiles-exiting';
+            // Hub redesign, Stage 2 — a locked tile is no longer HTML `disabled`: clicking it now
+            // shows its own real `lockedReason` in the guide panel and retargets the beam at its
+            // real dependency (`noteLockedTile`) instead of being a silent no-op. Real navigation
+            // still requires `unlocked` either way. `aria-disabled` keeps the semantics honest for
+            // assistive tech even though the element stays natively clickable/focusable.
+            const isPointingTarget = pointingTargetId === tile.id;
+            const matchesSearch = tileMatchesSearch(tile);
             return (
               <button
                 type="button"
                 key={tile.id}
-                className={`hub-tile${unlocked ? '' : ' locked'}${done ? ' completed' : ''}${isExiting ? ' hub-tile-exiting' : ''}`}
-                disabled={!unlocked}
-                onClick={() => goTo(tile)}
+                ref={(el) => { if (el) tileRefs.current.set(tile.id, el); else tileRefs.current.delete(tile.id); }}
+                className={`hub-tile${unlocked ? '' : ' locked'}${done ? ' completed' : ''}${isExiting ? ' hub-tile-exiting' : ''}${isPointingTarget ? ' pointing-target' : ''}${matchesSearch ? '' : ' hub-tile-search-dim'}`}
+                aria-disabled={!unlocked}
+                onClick={() => (unlocked ? goTo(tile) : noteLockedTile(tile))}
                 style={{
                   '--tile-accent-bg': accent.bg, '--tile-accent-fg': accent.fg,
                   // Polished Hub-to-Chat Transition (Task 2) — the SAME per-tile stagger the
@@ -931,10 +1076,52 @@ export default function HubScreen() {
   );
 }
 
-// Glassmorphism redesign, Stage 1 (see CLAUDE.md) — `usePointAngle` (the real, measured
-// mascot-to-tile pointing angle) and the mascot illustration itself (`../components/
-// MascotIcon.jsx`) are both deliberately unused by this screen for this stage — no character
-// graphic, no spotlight-beam pointing, per the user's own explicit confirmation. Neither was
-// deleted from the codebase; `MascotIcon` is still shared by Stage 5's in-flow `MascotWidget` and
-// every other real dialogue surface, and the measured-angle technique comes back here in Stage 2,
-// wired to this same real guided-sequence state.
+// Hub redesign, Stage 2 (see CLAUDE.md) — measures the REAL angle from the mascot's own center to
+// the current target's actual center (a real tile, or the "Ask MyPath AI anything" button under
+// the synthetic id `'askAi'`), same "don't fake it, measure real DOM positions" posture
+// WelcomeScreen's own marker placement already established. Recovered verbatim from this screen's
+// own pre-glassmorphism implementation (git history, commit `8a8d2fb`) rather than reinvented —
+// that version already fixed the one real bug this hook had (an earlier pass reduced the
+// measurement down to a binary left/right comparison, aiming every target on a given side at the
+// identical fixed angle regardless of exactly where it sat). Returns `null` (mascot stays
+// centered, no pointing pose applied) until a real measurement is available.
+function usePointAngle(mascotRef, tileRefs, targetId, tileCount) {
+  const [angle, setAngle] = useState(null);
+
+  useLayoutEffect(() => {
+    function recompute() {
+      const mascotEl = mascotRef.current;
+      const targetEl = tileRefs.current.get(targetId);
+      if (!mascotEl || !targetEl) { setAngle(null); return; }
+      const mascotRect = mascotEl.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      const mx = mascotRect.left + mascotRect.width / 2;
+      const my = mascotRect.top + mascotRect.height / 2;
+      const tx = targetRect.left + targetRect.width / 2;
+      const ty = targetRect.top + targetRect.height / 2;
+      setAngle(Math.atan2(ty - my, tx - mx) * (180 / Math.PI));
+    }
+    // A plain synchronous call here would race React StrictMode's dev-only double-mount: the ref
+    // callbacks that populate `tileRefs` haven't landed yet the instant this specific layout
+    // effect fires (confirmed directly the first time this hook existed). A single
+    // `requestAnimationFrame` defers the first measurement to after the browser's next paint, by
+    // which point StrictMode's mount/remount cycle has settled and every ref is reliably attached
+    // — same "don't trust synchronous-at-mount DOM state, wait a frame" lesson WelcomeScreen's own
+    // double-rAF trail reveal already established for this codebase, just one rAF instead of two
+    // since there's no CSS transition being raced here, only a DOM read.
+    const raf = requestAnimationFrame(recompute);
+    // Tile positions genuinely reflow on resize (a real CSS grid, not a fixed-viewBox SVG) and
+    // whenever the number of rendered tiles changes (`hasPartnerSchool` toggling, or the pointing
+    // target itself moving to a different tile). These later calls need no rAF wrapper of their
+    // own — by resize time the DOM is already settled, this only mattered for the very first
+    // measurement racing mount.
+    window.addEventListener('resize', recompute);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', recompute);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetId, tileCount]);
+
+  return angle;
+}
