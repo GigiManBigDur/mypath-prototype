@@ -7587,74 +7587,33 @@ body:has(.onboarding-meeting-active) {
 .hub-avatar:hover { transform: scale(1.06); }
 .hub-avatar:active { transform: scale(0.97); }
 
-/* Intro/greeting column — `.hub-header-row` already carries a real eyebrow-ish "Welcome back"
-   line, a gradient headline, and supporting copy (Stage 1's own intro-column recipe); this pass
-   leaves that structure untouched and adds the guide panel right below it. */
-.hub-guide-panel {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  text-align: left;
-  margin: 20px 0 28px;
-  padding: 20px 24px;
-  border-radius: var(--glass-radius-lg);
-  background: var(--glass-surface-bg);
-  border: 1.5px solid var(--glass-surface-border);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-shadow);
-}
-.hub-guide-panel-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: linear-gradient(135deg, var(--glass-accent-periwinkle), var(--glass-accent-mint));
-  box-shadow: 0 6px 16px -6px rgba(124, 140, 248, 0.55);
-}
-.hub-guide-panel-body { flex: 1; min-width: 0; }
-.hub-guide-panel-eyebrow {
+/* The guide message now lives back inside the mascot's own speech bubble (`.mascot-greeting`,
+   defined much earlier in this file — its little tail points up at the character), not a separate
+   full-width card: Stage 1's standalone `.hub-guide-panel` existed only because that stage
+   rendered no mascot for a bubble to belong to. These two rules are all the bubble needs on top of
+   its own existing styling — a small mode eyebrow ("Your guide" / "Heads up" / "Taking the tour")
+   and a centered, wrapping actions row for the Ask-AI / tour controls / progress dots. */
+.mascot-greeting p.mascot-greeting-eyebrow {
   margin: 0 0 6px;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--glass-ink-soft);
+  color: var(--hub-ink-soft);
 }
-.hub-guide-panel-text {
-  margin: 0 0 14px;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 14.5px;
-  line-height: 1.55;
-  color: var(--glass-ink);
-  animation: hub-dialogue-in var(--glass-motion-slow) cubic-bezier(0.16, 1, 0.3, 1);
-}
-.hub-guide-panel-actions {
+.hub-guide-actions {
   display: flex;
   align-items: center;
-  gap: 18px;
+  justify-content: center;
+  gap: 10px;
   flex-wrap: wrap;
+  margin-top: 4px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .hub-guide-panel-text { animation: none; }
-}
+/* The progress dots already carry their own `margin-top` for the old stacked layout — inside this
+   wrapping row they'd sit a row lower than the buttons beside them without this reset. */
+.hub-guide-actions .hub-progress-dots { margin-top: 0; }
 
-/* Tile grid — a clean, responsive glass-card grid, replacing the old absolutely-positioned radial
-   scatter (which no longer has a mascot to scatter around). `.hub-tile` itself (icon badge,
-   title, description, lock reason, translucent blurred card, hover lift) is already close to a
-   real glass surface from the earlier hub pass — kept, just no longer wrapped in a per-tile
-   `.hub-tile-slot` positioning shim, since a grid item needs no manual centering translate at all. */
-.hub-tile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 18px;
-  margin: 4px 0 28px;
-}
 .hub-tile {
   background: var(--glass-surface-bg-strong);
   border: 1.5px solid var(--glass-surface-border);
@@ -7718,18 +7677,13 @@ body:has(.onboarding-meeting-active) {
   box-shadow: var(--glass-shadow);
 }
 
-/* The chat panel no longer has a fixed-height radial wrap to position itself against (percentage-
-   based `top: 58%` needs a real, non-collapsing parent height, which a plain-flow, auto-height
-   layout doesn't reliably provide) — a plain centered, in-flow block instead. This changes ONLY
-   where the panel sits, per Stage 1's own explicit "reskin only the trigger, leave the chatPhase
-   transition/HubChatPanel completely untouched" scope — nothing about its own header/tabs/
-   messages/input, or the chatPhase state machine driving it, changed at all. */
+/* The chat panel keeps its ORIGINAL absolute positioning inside `.hub-radial-wrap` (defined
+   earlier in this file: `left: 50%; top: 58%`, i.e. below the mascot's own center) — Stage 1
+   temporarily flattened it to a plain in-flow block only because that stage had no fixed-height
+   radial wrap to position against. With the radial composition restored (Stage 2), that original
+   positioning is what keeps the mascot visually anchored in place across the whole hub-to-chat
+   transition, so only the glass SURFACE treatment is overridden here, never the geometry. */
 .hub-chat-panel {
-  position: relative;
-  left: auto;
-  top: auto;
-  transform: none;
-  margin: 4px auto 28px;
   background: var(--glass-surface-bg-strong);
   border: 1.5px solid var(--glass-surface-border);
   backdrop-filter: var(--glass-blur);
@@ -7756,10 +7710,9 @@ body:has(.onboarding-meeting-active) {
   outline-offset: 2px;
 }
 
-/* Narrow-viewport fallback — the tile grid is already responsive (`auto-fill`), so it collapses
-   to fewer columns on its own; only the guide panel's own row needs an explicit stack-to-column
-   rule below a small width, and the background blobs shrink so they don't force horizontal
-   overflow on a narrow phone.
+/* Narrow-viewport fallback — the radial ring's own collapse-to-grid rules live earlier in this
+   file (`@media (max-width: 980px)`, alongside `.hub-radial-wrap`); this block only shrinks the
+   background blobs so they don't force horizontal overflow on a narrow phone.
    Bug fix, found via this stage's own narrow-viewport verification (confirmed via `git stash` to
    already exist on the unmodified codebase, not something this pass introduced): `.hub-topbar`
    never had a narrow-viewport rule of its own at all — its logo + search field + 3 action buttons
@@ -7771,7 +7724,6 @@ body:has(.onboarding-meeting-active) {
    second row, leaving the logo and action buttons — the two genuinely small, `flex-shrink: 0`
    pieces — comfortably on the first row together. */
 @media (max-width: 640px) {
-  .hub-guide-panel { flex-direction: column; align-items: flex-start; }
   .hub-glass-blob-periwinkle, .hub-glass-blob-pink, .hub-glass-blob-mint { filter: blur(40px); opacity: 0.28; }
   .hub-topbar { flex-wrap: wrap; row-gap: 10px; }
   .hub-topbar-search { order: 3; flex: 1 1 100%; max-width: none; }
@@ -7788,29 +7740,15 @@ body:has(.onboarding-meeting-active) {
    pre-Glassmorphism era) needed no changes at all — just a real target again to apply them to.
    ============================================================================================ */
 
-/* The mascot's own hero block — plain, centered document flow (NOT the old `.hub-mascot-area`'s
-   `position: absolute; top: 40%`, which assumed a large fixed-height radial-wrap ancestor that no
-   longer exists under Stage 1's grid layout). `.hub-mascot-figure` itself is reused byte-for-byte
-   from the pre-Glassmorphism era (global.css, further up this file) — its own pulse-ring aura and
-   `.chat-grown` grow/shrink transition were already fully built and simply went dormant once
-   Stage 1 stopped rendering anything with this class; nothing there needed to change. */
-.hub-mascot-hero {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  margin: 4px 0 20px;
-}
 /* A slow, continuously spinning thin ring with 2 small dot accents, echoing the reference design's
    own orbit-ring motif without touching `MascotIcon`'s real geometry at all — purely decorative,
-   `pointer-events: none`, sized a little larger than `.hub-mascot-figure` so it reads as orbiting
-   AROUND the character rather than overlapping it. */
+   `pointer-events: none`. A CHILD of `.hub-mascot-figure` (150x150, `position: relative`) rather
+   than a sibling, so it's automatically centered on the character AND inherits the `.chat-grown`
+   scale transform for free. `inset: -34px` sits it clear of the figure's own `::after` pulse-ring
+   aura (at -22px), so the static orbit and the expanding ripple read as two distinct layers. */
 .hub-mascot-orbit {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 210px;
-  height: 210px;
-  margin: -105px 0 0 -105px;
+  inset: -34px;
   border-radius: 50%;
   border: 1.5px dashed rgba(124, 140, 248, 0.35);
   pointer-events: none;
@@ -7840,12 +7778,12 @@ body:has(.onboarding-meeting-active) {
 .hub-tour-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 9px 16px;
+  gap: 5px;
+  padding: 7px 13px;
   border-radius: 999px;
   border: 1.5px solid var(--glass-surface-border);
   font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
@@ -7904,7 +7842,7 @@ body:has(.onboarding-meeting-active) {
 }
 
 @media (max-width: 640px) {
-  .hub-mascot-orbit { width: 170px; height: 170px; margin: -85px 0 0 -85px; }
+  .hub-mascot-orbit { inset: -22px; }
   .hub-glass-bubble-a, .hub-glass-bubble-b { display: none; }
 }
 

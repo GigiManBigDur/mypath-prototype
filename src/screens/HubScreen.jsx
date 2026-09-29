@@ -431,16 +431,58 @@ const TILE_ACCENTS = [
   { bg: 'var(--hub-tile-green)', fg: '#ffffff' },
 ];
 
-// Glassmorphism redesign, Stage 1 (see CLAUDE.md) — the hand-tuned `RADIAL_POSITIONS` scatter
-// slots and the decorative `PARTICLES` array (both tuned around a centered mascot in an
-// absolutely-positioned radial wrap) are gone for good: the tile grid stays a clean, responsive
-// glass-card grid (`.hub-tile-grid`, global.css) using the real tile array/order below directly,
-// with no per-tile position data of its own to maintain — real tile count varies with
-// `hasPartnerSchool`, which never mapped cleanly onto a fixed scatter composition anyway. Stage 2
-// (see CLAUDE.md) brings the mascot itself back, as its own hero element above the guide panel
-// (`.hub-mascot-hero`, below) rather than scattered among the tiles — the real, measured
-// spotlight-pointing beam works identically either way, since it's computed from live DOM
-// positions, not fixed coordinates.
+// Hub redesign, Stage 2 (see CLAUDE.md) — the hand-tuned radial scatter is BACK, restored
+// byte-for-byte from the pre-Glassmorphism version (git history, commit `b968a63`) rather than
+// re-derived: Stage 1 replaced it with a plain grid only because that stage deliberately rendered
+// no mascot to scatter around, and the real, centered-mascot composition is what this screen is
+// actually meant to look like (and what the Claude Design reference itself shows).
+//
+// Percentage slots of `.hub-radial-wrap`'s own box, forming a loose ring around the centered
+// mascot, scattered left/right of the vertical center column the mascot + its dialogue bubble
+// occupy so nothing ever overlaps them. Assigned by plain tile INDEX (`tiles[i]` ->
+// `RADIAL_POSITIONS[i]`), not tile identity — which real tile lands in which visual slot can shift
+// a little when `hasPartnerSchool` toggles (Course Selection inserts into the middle of the
+// array), the same acceptable trade the old grid's own CSS auto-flow already made. Fixed,
+// hand-checked slots were deliberately chosen over a runtime physics/collision layout for a purely
+// decorative composition capped at ~11 items: simpler, and they can't drift into overlap the way a
+// general-purpose algorithm could. Every addition to this array over its own history was verified
+// by real `getBoundingClientRect()` measurement of all rendered tiles (232x194px tiles against this
+// wrap's own 1300px max-width/1080px height), not offline math alone — a real, confirmed
+// miscalculation happened once from trusting the latter (see CLAUDE.md). Slot 11 ({50,15}) is
+// currently spare, left in place per this array's own "provisioned ahead, unused for now"
+// precedent.
+const RADIAL_POSITIONS = [
+  { x: 22, y: 8 },
+  { x: 78, y: 8 },
+  { x: 8, y: 27 },
+  { x: 92, y: 27 },
+  { x: 4, y: 48 },
+  { x: 96, y: 48 },
+  { x: 10, y: 69 },
+  { x: 90, y: 69 },
+  { x: 26, y: 88 },
+  { x: 74, y: 88 },
+  { x: 50, y: 89 },
+  { x: 50, y: 15 },
+];
+
+// Small decorative floating dots — purely visual flavor at fixed positions, no data behind any of
+// it, reusing the hub's own `--hub-tile-*` accent palette rather than a second hardcoded copy.
+// Deliberately kept out of the center column the mascot/dialogue occupy, same as the tile slots.
+const PARTICLES = [
+  { x: 34, y: 12, size: 7, color: 'var(--hub-tile-purple)' },
+  { x: 66, y: 10, size: 6, color: 'var(--hub-tile-gold)' },
+  { x: 16, y: 34, size: 8, color: 'var(--hub-tile-teal)' },
+  { x: 84, y: 32, size: 6, color: 'var(--hub-tile-orange)' },
+  { x: 30, y: 46, size: 5, color: 'var(--hub-tile-pink)' },
+  { x: 70, y: 44, size: 7, color: 'var(--hub-tile-blue)' },
+  { x: 20, y: 62, size: 6, color: 'var(--hub-tile-green)' },
+  { x: 80, y: 60, size: 8, color: 'var(--hub-tile-purple)' },
+  { x: 38, y: 80, size: 5, color: 'var(--hub-tile-gold)' },
+  { x: 62, y: 82, size: 6, color: 'var(--hub-tile-teal)' },
+  { x: 46, y: 18, size: 5, color: 'var(--hub-tile-orange)' },
+  { x: 54, y: 96, size: 6, color: 'var(--hub-tile-pink)' },
+];
 
 // Task 3's own decorative quote card, shown purely as visual flavor — same "this app never
 // fabricates a source" posture the rest of this codebase already holds for any quoted/cited text,
@@ -511,6 +553,26 @@ export default function HubScreen() {
   // (defined at the bottom of this file) is untouched from the recovered version: a real `atan2`
   // angle in degrees, `null` until a genuine measurement exists (never guessed), recomputed on
   // resize and whenever the target itself changes.
+  // `chatPhase` drives a same-screen state transition, not a navigation — no route/screen change:
+  //   'hidden'        — normal hub (tiles + mascot bubble), the default and end state either way.
+  //   'tiles-exiting' — tiles play their staggered fade/scale-out; mascot NEVER moves/unmounts.
+  //   'chat'          — tiles unmounted, HubChatPanel mounted (plays its own staggered entrance).
+  //   'chat-exiting'  — HubChatPanel plays its own staggered exit; tiles still unmounted.
+  // Returning to 'hidden' remounts the tile block fresh, which is what makes the EXISTING
+  // `hub-tile-pop-in` entrance keyframe (already unconditional on `.hub-tile`) replay for free —
+  // "reversing the same transition" needs no separate re-entrance animation of its own. Declared
+  // up here (its own `openChat`/`closeChat` handlers stay further down) because the mascot's
+  // pointing target below genuinely depends on it — there's nothing to point at once the tiles
+  // have unmounted for the chat panel.
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const TILE_EXIT_MS = reducedMotion ? 0 : 560;
+  const CHAT_EXIT_MS = reducedMotion ? 0 : 380;
+  const [chatPhase, setChatPhase] = useState('hidden');
+  const chatTransitionTimer = useRef(null);
+  useEffect(() => () => {
+    if (chatTransitionTimer.current) clearTimeout(chatTransitionTimer.current);
+  }, []);
+
   const mascotRef = useRef(null);
   const tileRefs = useRef(new Map());
 
@@ -547,16 +609,27 @@ export default function HubScreen() {
   // The guide panel's own eyebrow/text and the beam's own target all read from ONE priority order
   // — a transient note first, then a manual tour step, then the real live guided-sequence state —
   // never more than one of these three active at once.
+  // `guideText` is deliberately allowed to be `null` — that's the real, documented end state once
+  // the guided sequence's own one-time completion acknowledgment has already been shown ("after
+  // that single acknowledgment, don't show either message again"), in which case the bubble simply
+  // renders its actions without any dialogue line rather than a permanent filler message.
   const guideEyebrow = transientNote ? 'Heads up' : (activeTourTile ? 'Taking the tour' : 'Your guide');
   const guideText = transientNote
     ? transientNote.text
     : activeTourTile
       ? `${activeTourTile.title}: ${activeTourTile.desc}`
-      : (nextStepIntro || "You're all caught up for now — explore any unlocked tool below, or revisit your Academic Plan anytime.");
+      : nextStepIntro;
   // A transient note only redirects the beam when it's genuinely ABOUT a real dependency (a locked
   // tile click) — the bell's own note has no `targetId`, so the beam simply keeps pointing at
   // whatever it already was rather than going aimless over a purely decorative interruption.
-  const pointingTargetId = (transientNote && transientNote.targetId)
+  // ...and there's nothing to point AT at all once the chat panel has taken over: the tiles are
+  // unmounted by then and the bubble holding the Ask-AI button is hidden, so the mascot drops back
+  // to its neutral centered pose rather than holding a stale gesture aimed at a tile that isn't on
+  // screen anymore. 'tiles-exiting' deliberately still points — the tiles are genuinely still there,
+  // mid-fade.
+  const pointingSuppressed = chatPhase === 'chat' || chatPhase === 'chat-exiting';
+  const pointingTargetId = pointingSuppressed ? null
+    : (transientNote && transientNote.targetId)
     || (activeTourTile ? activeTourTile.id : (nextStep.id === 'finalReview' ? 'askAi' : nextStep.id));
   // Dashboard/Guide feature, Stage 6 (see CLAUDE.md) — the hub's own guide message still speaks
   // aloud too, same shared mechanism MascotWidget uses for every other screen's in-flow dialogue,
@@ -682,24 +755,8 @@ export default function HubScreen() {
   // bubble's own text rather than sitting alongside it. It now renders unconditionally, underneath
   // whatever real dialogue text is currently showing (or alone, once that text has genuinely gone
   // quiet) — a student can ask the general assistant something at any point during the tutorial,
-  // not only after finishing it.
-  //
-  // `chatPhase` drives a same-screen state transition, not a navigation — no route/screen change:
-  //   'hidden'        — normal hub (tiles + mascot bubble), the default and end state either way.
-  //   'tiles-exiting' — tiles play their staggered fade/scale-out; mascot NEVER moves/unmounts.
-  //   'chat'          — tiles unmounted, HubChatPanel mounted (plays its own staggered entrance).
-  //   'chat-exiting'  — HubChatPanel plays its own staggered exit; tiles still unmounted.
-  // Returning to 'hidden' remounts the tile block fresh, which is what makes the EXISTING
-  // `hub-tile-pop-in` entrance keyframe (already unconditional on `.hub-tile`) replay for free —
-  // "reversing the same transition" (Task 5) needs no separate re-entrance animation of its own.
-  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-  const TILE_EXIT_MS = reducedMotion ? 0 : 560;
-  const CHAT_EXIT_MS = reducedMotion ? 0 : 380;
-  const [chatPhase, setChatPhase] = useState('hidden');
-  const chatTransitionTimer = useRef(null);
-  useEffect(() => () => {
-    if (chatTransitionTimer.current) clearTimeout(chatTransitionTimer.current);
-  }, []);
+  // not only after finishing it. (`chatPhase`'s own state machine is documented where it's
+  // declared, further up — it had to move above the mascot's pointing target, which depends on it.)
   const openChat = () => {
     // Final Alignment-Check Conversation (see CLAUDE.md) — when the current guided step is
     // specifically the final review, land directly on "Our Conversation" (the pinned narrative
@@ -866,112 +923,145 @@ export default function HubScreen() {
         )}
       </div>
 
-      {/* Hub redesign, Stage 2 (see CLAUDE.md) — the mascot's own hero block, directly above the
-          guide panel (its speech-bubble partner). `mascotRef` is what `usePointAngle` measures
-          FROM; a small decorative glass halo + a slow orbit ring (two small dot accents) echo the
-          reference design's own iridescent glass look without forking `MascotIcon`'s real
-          geometry — the same illustration used everywhere else in the app, just given new
-          Hub-only surrounding chrome. `chat-grown` reuses the exact existing (previously dormant)
-          grow/shrink transition this class already carries from the Hub-to-Chat transition work,
-          so the mascot still visibly grows while the chat panel opens and shrinks back on close. */}
-      <div className="hub-mascot-hero">
-        <span className="hub-mascot-orbit" aria-hidden="true">
-          <span className="hub-mascot-orbit-dot hub-mascot-orbit-dot-a" />
-          <span className="hub-mascot-orbit-dot hub-mascot-orbit-dot-b" />
-        </span>
-        <div
-          className={`hub-mascot-figure${(chatPhase === 'tiles-exiting' || chatPhase === 'chat') ? ' chat-grown' : ''}`}
-          ref={mascotRef}
-        >
-          <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} pointAngle={pointAngle} />
+      {/* Hub redesign, Stage 2 (see CLAUDE.md) — the real radial composition is back: ONE container
+          holding the centered mascot AND every tile, scattered around it at hand-tuned
+          `RADIAL_POSITIONS` slots (`.hub-tile-slot`, absolute), exactly as this screen looked
+          before the Glassmorphism pass temporarily flattened it into a grid — and exactly what the
+          Claude Design reference itself shows (bot dead-center, tools orbiting it). The chat panel
+          is absolutely positioned inside this SAME box (below the mascot's own center), which is
+          what lets the mascot stay visually anchored in place across the whole hub-to-chat
+          transition rather than the page re-flowing around it. */}
+      <div className="hub-radial-wrap">
+        {/* Purely decorative orbit rings / conic halo / dot-grid texture, centered on the exact
+            same point `.hub-mascot-area` uses and sitting behind everything else (z-index 0) — it
+            reads as texture under the composition, never a layout element competing with it. */}
+        <div className="hub-orbit-decor" aria-hidden="true">
+          <span className="hub-orbit-ring hub-orbit-ring-outer" />
+          <span className="hub-orbit-ring hub-orbit-ring-inner" />
+          <span className="hub-orbit-glow" />
+          <span className="hub-orbit-dotgrid" />
         </div>
-      </div>
 
-      {/* The guide panel — the real current hub-guide message (`guideText`, resolved above from
-          whichever of a transient note / manual tour step / the live GUIDED_SEQUENCE state is
-          currently active). A neutral, non-invented placeholder shows whenever there's genuinely
-          no active message left (the sequence is complete and its one-time completion line has
-          already been shown once). */}
-      <div className="hub-guide-panel">
-        <div className="hub-guide-panel-icon" aria-hidden="true"><Sparkles size={18} /></div>
-        <div className="hub-guide-panel-body">
-          <p className="hub-guide-panel-eyebrow">{guideEyebrow}</p>
-          {/* `key` forces a fresh DOM node whenever the message text itself changes, the same
-              "new key = new node = the entrance animation replays" pattern this file already used
-              for `.mascot-dialogue` before this stage. */}
-          <p key={guideText} className="hub-guide-panel-text">{guideText}</p>
-          <div className="hub-guide-panel-actions">
-            {activeTourTile ? (
-              // A real, honest walkthrough — the real `tiles` array in order, own real title/desc,
-              // no fabricated tour copy. Ends back on the live guided-sequence state either way.
-              <>
-                <button type="button" className="hub-tour-btn hub-tour-btn-ghost" onClick={skipTour}>Skip tour</button>
-                <span className="hub-tour-counter">{tourIndex + 1} / {tiles.length}</span>
-                <button type="button" className="hub-tour-btn hub-tour-btn-primary" onClick={tourNext}>
-                  {tourIndex + 1 >= tiles.length ? 'Done' : 'Next'} <ArrowRight size={13} />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  ref={(el) => { if (el) tileRefs.current.set('askAi', el); else tileRefs.current.delete('askAi'); }}
-                  className={`hub-ask-ai-bubble-btn${pointingTargetId === 'askAi' ? ' pointing-target' : ''}`}
-                  onClick={openChat}
-                >
-                  <Sparkles size={14} /> Ask MyPath AI anything
-                </button>
-                {chatPhase === 'hidden' && (
-                  <button type="button" className="hub-tour-btn hub-tour-btn-ghost" onClick={startTour}>
-                    Take the tour
+        {PARTICLES.map((p, i) => (
+          <span
+            // eslint-disable-next-line react/no-array-index-key
+            key={i}
+            className="hub-particle"
+            aria-hidden="true"
+            style={{
+              left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size,
+              background: p.color, animationDelay: `${(i % 6) * 0.35}s`,
+            }}
+          />
+        ))}
+
+        <div className="hub-mascot-area">
+          {/* Sized tightly to the mascot SVG alone (NOT the whole `.hub-mascot-area`, which also
+              contains the dialogue bubble stacked below) — `pointAngle` measures against THIS ref,
+              so the beam's origin is the character's real center, not somewhere past the bubble.
+              Renders unconditionally across every `chatPhase` value: the mascot never moves, never
+              unmounts, never re-measures — it's the one visual anchor the whole transition reads as
+              continuous around. `chat-grown` drives a smooth CSS `transform: scale(...)` (global
+              .css) so it grows in place while the chat panel opens and shrinks back on close. */}
+          <div
+            className={`hub-mascot-figure${(chatPhase === 'tiles-exiting' || chatPhase === 'chat') ? ' chat-grown' : ''}`}
+            ref={mascotRef}
+          >
+            {/* Stage 2's own small decorative orbit ring with 2 dot accents, hugging the character
+                — echoes the reference design's own orbit motif without touching `MascotIcon`'s real
+                geometry at all. A child of the figure, so it scales along with `chat-grown` for
+                free rather than needing its own separate transition. */}
+            <span className="hub-mascot-orbit" aria-hidden="true">
+              <span className="hub-mascot-orbit-dot hub-mascot-orbit-dot-a" />
+              <span className="hub-mascot-orbit-dot hub-mascot-orbit-dot-b" />
+            </span>
+            <MascotIcon size={150} speaking={isSpeaking} pointing={isSpeaking} pointAngle={pointAngle} />
+          </div>
+
+          {/* The mascot's own speech bubble (its little tail points up at the character) — the real
+              current guide message plus its actions. Bug fix, carried over from the Hub-to-Chat
+              transition work: this is HIDDEN via `visibility` (which keeps its layout space) rather
+              than unmounted while chat is open, because `.hub-mascot-area` centers itself on its own
+              total flex-column height — removing the bubble's height outright would shift where that
+              -50% lands and visibly move the mascot. */}
+          <div className={`mascot-greeting${chatPhase !== 'hidden' ? ' mascot-greeting-hidden' : ''}`}>
+            {guideText && <p className="mascot-greeting-eyebrow">{guideEyebrow}</p>}
+            {/* `key` forces a fresh DOM node whenever the message text itself changes, which is what
+                replays `.mascot-dialogue`'s own CSS entrance animation on every new line instead of
+                only once ever. `guideText` is genuinely `null` once the guided sequence's one-time
+                completion acknowledgment has already been shown — in that state only the actions
+                below render, matching the documented "then stay quiet" behavior. */}
+            {guideText && <p key={guideText} className="mascot-dialogue">{guideText}</p>}
+            <div className="hub-guide-actions">
+              {activeTourTile ? (
+                // A real, honest walkthrough — the real `tiles` array in order, own real title/desc,
+                // no fabricated tour copy. Ends back on the live guided-sequence state either way.
+                <>
+                  <button type="button" className="hub-tour-btn hub-tour-btn-ghost" onClick={skipTour}>Skip tour</button>
+                  <span className="hub-tour-counter">{tourIndex + 1} / {tiles.length}</span>
+                  <button type="button" className="hub-tour-btn hub-tour-btn-primary" onClick={tourNext}>
+                    {tourIndex + 1 >= tiles.length ? 'Done' : 'Next'} <ArrowRight size={13} />
                   </button>
-                )}
-                {/* The reference image's own "1/6" indicator, built from real GUIDED_SEQUENCE data
-                    (getGuidedProgress above) rather than invented — no "AI" branding anywhere here. */}
-                <div className="hub-progress-dots">
-                  {Array.from({ length: guidedProgress.total }).map((_, i) => (
-                    // eslint-disable-next-line react/no-array-index-key
-                    <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
-                  ))}
-                  <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
-                </div>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    ref={(el) => { if (el) tileRefs.current.set('askAi', el); else tileRefs.current.delete('askAi'); }}
+                    className={`hub-ask-ai-bubble-btn${pointingTargetId === 'askAi' ? ' pointing-target' : ''}`}
+                    onClick={openChat}
+                  >
+                    <Sparkles size={14} /> Ask MyPath AI anything
+                  </button>
+                  {chatPhase === 'hidden' && (
+                    <button type="button" className="hub-tour-btn hub-tour-btn-ghost" onClick={startTour}>
+                      Take the tour
+                    </button>
+                  )}
+                  {/* The reference image's own "1/6" indicator, built from real GUIDED_SEQUENCE data
+                      (getGuidedProgress above) rather than invented — no "AI" branding here. */}
+                  <div className="hub-progress-dots">
+                    {Array.from({ length: guidedProgress.total }).map((_, i) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <span key={i} className={`hub-progress-dot${i < guidedProgress.doneCount ? ' done' : ''}${i === guidedProgress.currentIndex ? ' current' : ''}`} />
+                    ))}
+                    <span className="hub-progress-count">{Math.min(guidedProgress.currentIndex + 1, guidedProgress.total)}/{guidedProgress.total}</span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {(chatPhase === 'hidden' || chatPhase === 'tiles-exiting') && (
-        // Glassmorphism redesign, Stage 1 (see CLAUDE.md) — a clean, responsive glass-card grid
-        // using the real tile array/order directly, replacing the old scattered radial layout
-        // (which existed only to scatter tiles around a centered mascot — with no mascot in this
-        // stage, there's nothing left to scatter around). Per the user's own confirmed
-        // interpretation: a real tile count like this app's own doesn't map cleanly to a fixed
-        // scatter composition anyway, so a grid is the honest, robust choice here.
-        <div className="hub-tile-grid">
-          {tiles.map((tile, i) => {
-            const unlocked = tile.unlock(state, hasPartnerSchool);
-            // A tile's real "completed" state, where one honestly exists: the same GUIDED_SEQUENCE
-            // step this tile corresponds to (careers/majors/programs/courseSelection/opportunities/
-            // projectBuilder/myNarrative) already tracks real completion via `isDone` — reused
-            // directly here rather than inventing a second concept. Tiles with no matching guided
-            // step (Academic Plan, Your School List, Profile) have no "done" state at all, by
-            // design — they're meant to be revisited, not finished.
-            const guidedStep = GUIDED_SEQUENCE.find((s) => s.id === tile.id);
-            const done = unlocked && !!guidedStep?.isDone(state);
-            const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
-            const isExiting = chatPhase === 'tiles-exiting';
-            // Hub redesign, Stage 2 — a locked tile is no longer HTML `disabled`: clicking it now
-            // shows its own real `lockedReason` in the guide panel and retargets the beam at its
-            // real dependency (`noteLockedTile`) instead of being a silent no-op. Real navigation
-            // still requires `unlocked` either way. `aria-disabled` keeps the semantics honest for
-            // assistive tech even though the element stays natively clickable/focusable.
-            const isPointingTarget = pointingTargetId === tile.id;
-            const matchesSearch = tileMatchesSearch(tile);
-            return (
+        {(chatPhase === 'hidden' || chatPhase === 'tiles-exiting') && tiles.map((tile, i) => {
+          const unlocked = tile.unlock(state, hasPartnerSchool);
+          // A tile's real "completed" state, where one honestly exists: the same GUIDED_SEQUENCE
+          // step this tile corresponds to (careers/majors/programs/courseSelection/opportunities/
+          // projectBuilder/myNarrative) already tracks real completion via `isDone` — reused
+          // directly here rather than inventing a second concept. Tiles with no matching guided
+          // step (Academic Plan, Your School List, Profile) have no "done" state at all, by
+          // design — they're meant to be revisited, not finished.
+          const guidedStep = GUIDED_SEQUENCE.find((s) => s.id === tile.id);
+          const done = unlocked && !!guidedStep?.isDone(state);
+          const accent = TILE_ACCENTS[i % TILE_ACCENTS.length];
+          const pos = RADIAL_POSITIONS[i % RADIAL_POSITIONS.length];
+          const isExiting = chatPhase === 'tiles-exiting';
+          // Hub redesign, Stage 2 — a locked tile is no longer HTML `disabled`: clicking it now
+          // shows its own real `lockedReason` in the mascot's bubble and retargets the beam at its
+          // real dependency (`noteLockedTile`) instead of being a silent no-op. Real navigation
+          // still requires `unlocked` either way. `aria-disabled` keeps the semantics honest for
+          // assistive tech even though the element stays natively clickable/focusable.
+          const isPointingTarget = pointingTargetId === tile.id;
+          const matchesSearch = tileMatchesSearch(tile);
+          return (
+            // `.hub-tile-slot` is a plain, never-animated wrapper doing only the {x%, y%} centering
+            // (`translate(-50%, -50%)`) — kept on a SEPARATE element from `.hub-tile` itself on
+            // purpose, since `.hub-tile`'s own entrance/hover/press animations each set `transform`
+            // too, and a CSS transform replaces (rather than composes with) another rule's
+            // transform on the SAME element — see global.css's own comment on this exact bug.
+            <div key={tile.id} className="hub-tile-slot" style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
               <button
                 type="button"
-                key={tile.id}
                 ref={(el) => { if (el) tileRefs.current.set(tile.id, el); else tileRefs.current.delete(tile.id); }}
                 className={`hub-tile${unlocked ? '' : ' locked'}${done ? ' completed' : ''}${isExiting ? ' hub-tile-exiting' : ''}${isPointingTarget ? ' pointing-target' : ''}${matchesSearch ? '' : ' hub-tile-search-dim'}`}
                 aria-disabled={!unlocked}
@@ -1003,19 +1093,18 @@ export default function HubScreen() {
                 {!unlocked && (
                   <p className="hub-tile-lock-reason">{tile.lockedReason(state, hasPartnerSchool)}</p>
                 )}
-                {unlocked && <ArrowRight className="hub-tile-arrow" size={16} aria-hidden="true" />}
               </button>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          );
+        })}
 
-      {(chatPhase === 'chat' || chatPhase === 'chat-exiting') && (
-        <HubChatPanel
-          exiting={chatPhase === 'chat-exiting'}
-          onBack={closeChat}
-        />
-      )}
+        {(chatPhase === 'chat' || chatPhase === 'chat-exiting') && (
+          <HubChatPanel
+            exiting={chatPhase === 'chat-exiting'}
+            onBack={closeChat}
+          />
+        )}
+      </div>
 
       {/* Glassmorphism redesign, Stage 1's own footer "Keep going" CTA (see CLAUDE.md) — see
           `keepGoingTarget` above; hidden while the chat is open/transitioning, matching the rest

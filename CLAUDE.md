@@ -14425,23 +14425,53 @@ bindings) unrelated to this app's real React/Vite stack, and its own `TILES`/`TO
 `MORE` arrays are fictional demo data (8 made-up tiles, scripted dialogue, a fake "Finish Module"
 button marking a module done without the student ever doing anything) — so this stage translates
 the design LANGUAGE and interaction ideas into this app's real, already-built Hub, wired to real
-state, never fabricated demo content. Purely additive on top of Stage 1: the tile grid, guide
-panel, progress card, quote card, Quick Actions, debug row, and the chat-panel transition all keep
-their exact existing behavior.
+state, never fabricated demo content. The progress card, quote card, Quick Actions, debug row, and
+the chat-panel transition all keep their exact existing behavior.
+- **The centered-mascot RADIAL LAYOUT is restored — the single most important correction of this
+  stage.** Stage 1 had replaced the scattered ring with a plain `.hub-tile-grid` and justified it
+  as an honest call ("a real tile count like this app's own doesn't map cleanly onto a fixed 8-slot
+  scatter"), but that reasoning compared against the design mockup's own fictional 8 tiles and
+  overlooked that THIS app already had a real, hand-tuned, overlap-verified 12-slot
+  `RADIAL_POSITIONS` array sized for exactly this tile count. A first pass at Stage 2 kept the grid
+  and hung the mascot above it as a separate hero block; the user's own direct feedback ("the format
+  [is] supposed to look like the version before where the bot is in the center") corrected that, and
+  it's also what the Claude Design reference itself shows. `RADIAL_POSITIONS`/`PARTICLES` are
+  restored byte-for-byte from the pre-Glassmorphism version (git history, commit `b968a63`) rather
+  than re-derived, and **every piece of the radial CSS turned out to still be intact in
+  `global.css`** — `.hub-radial-wrap` (the fixed 1080px-tall `position: relative` box),
+  `.hub-mascot-area` (absolute, centered), `.hub-tile-slot` (the per-tile `{x%,y%}` centering
+  wrapper, deliberately a SEPARATE never-animated element from `.hub-tile` itself, since that
+  button's own entrance/hover/press animations each set `transform` and would silently replace a
+  centering translate on the same element), `.hub-particle`, `.hub-orbit-decor`, `.mascot-greeting`
+  and every narrow-viewport collapse-to-grid fallback: Stage 1 never deleted any of it, it only
+  APPENDED overrides at the end of the file. So restoring the composition needed no new layout CSS
+  at all — only dropping Stage 1's own `.hub-tile-grid`/`.hub-guide-panel` blocks and reverting its
+  `.hub-chat-panel` positioning override (keeping that override's glass SURFACE treatment, which is
+  genuinely nicer, and letting the original absolute-inside-the-radial-wrap geometry apply again —
+  that geometry is what keeps the mascot visually anchored in place across the whole hub-to-chat
+  transition).
+- **The guide message moved back into the mascot's own speech bubble** (`.mascot-greeting`, whose
+  little tail points up at the character) rather than Stage 1's standalone full-width
+  `.hub-guide-panel` card — that card only existed because Stage 1 rendered no mascot for a bubble
+  to belong to. Two small new rules are all it needed on top of the bubble's own existing styling:
+  a mode eyebrow (`.mascot-greeting-eyebrow` — "Your guide" / "Heads up" / "Taking the tour") and a
+  centered, wrapping `.hub-guide-actions` row for the Ask-AI button, tour controls and progress
+  dots. `guideText` is also allowed to be genuinely `null` again (only the actions render), restoring
+  the documented "after the one-time completion acknowledgment, stay quiet" behavior that Stage 1's
+  own permanent placeholder line had quietly overridden.
 - **The mascot reuses `MascotIcon.jsx` directly — not a new, visually-different character.** The
   design's own glass-styled creature turned out, on inspection, to already be a re-skinned
   restatement of THIS app's own established mascot (leaf-sprout "ears," a dark visor with glowing
   teal eye-strokes and a mouth bar, a chest badge) rather than a genuinely different design — so
   Stage 2 keeps the one shared illustration used everywhere else in the app (chat panels,
-  onboarding, milestone planning) and only adds new, Hub-scoped decorative chrome around it: a new
-  `.hub-mascot-hero` (plain, centered document flow — replacing the old `position: absolute; top:
-  40%` `.hub-mascot-area`, which assumed a large fixed-height radial-wrap ancestor Stage 1's grid
-  layout no longer has) and a new, purely decorative slow-spinning `.hub-mascot-orbit` ring with 2
-  small dot accents, echoing the reference's own orbit motif without touching `MascotIcon`'s real
-  geometry at all. `.hub-mascot-figure` itself — including its own pulse-ring aura and the
-  `.chat-grown` grow/shrink transition from the earlier "Mascot Grow/Shrink Transition" work — is
-  reused byte-for-byte from the pre-Stage-1 era; it had simply gone dormant once Stage 1 stopped
-  rendering anything with that class, nothing there needed to change.
+  onboarding, milestone planning) and only adds one new, Hub-scoped decorative touch: a slow-
+  spinning `.hub-mascot-orbit` ring with 2 small dot accents, echoing the reference's own orbit
+  motif without touching `MascotIcon`'s real geometry at all. It's a CHILD of `.hub-mascot-figure`
+  (`inset: -34px`, clear of that element's own `::after` pulse-ring aura at -22px) so it centers on
+  the character automatically AND inherits the `.chat-grown` scale for free. `.hub-mascot-figure`
+  itself — including that pulse-ring aura and the `.chat-grown` grow/shrink transition from the
+  earlier "Mascot Grow/Shrink Transition" work — is reused byte-for-byte from the pre-Stage-1 era;
+  it had simply gone dormant once Stage 1 stopped rendering anything with that class.
 - **The real, measured spotlight-pointing system is recovered from git history (commit `8a8d2fb`),
   not reinvented** — `usePointAngle` (this file, bottom of `HubScreen.jsx`) is byte-for-byte the
   same hook: a `mascotRef` + a `tileRefs` `Map`, a `useLayoutEffect` measuring real
@@ -14460,8 +14490,8 @@ their exact existing behavior.
   `'askAi'` — Transcript & GPA and the student's own overview both happen inside the AI
   conversation now, no dedicated tile to point at). A locked tile is no longer HTML `disabled` (
   `aria-disabled` instead, keeping the a11y semantics honest while letting a real click register);
-  clicking one calls `noteLockedTile(tile)`, which shows a transient note in the guide panel and
-  retargets the beam at the real dependency for ~3.2s before reverting — the note text is always
+  clicking one calls `noteLockedTile(tile)`, which shows a transient note in the mascot's own bubble
+  and retargets the beam at the real dependency for ~3.2s before reverting — the note text is always
   the tile's own already-shown `lockedReason(state, hasPartnerSchool)` string verbatim, never a
   second, invented phrasing; `dependsOn` only decides where the beam points while it's showing.
   **A real, confirmed CSS specificity bug was caught and fixed while removing `disabled`**: four
@@ -14472,13 +14502,13 @@ their exact existing behavior.
   glow-shadow treatment as an unlocked one. Fixed by adding `:not(.locked)` to all four selectors,
   matching this app's own established `button.card:hover:not(.selected):not(.passed)` precedent for
   the identical class of problem.
-- **"Take the tour"** — a real, honest walkthrough button in the guide panel (shown only when idle
+- **"Take the tour"** — a real, honest walkthrough button in the mascot's bubble (shown only when idle
   — no active locked-tile note, no tour running, and the chat panel isn't open, since there'd be no
   tiles to point at). Steps through the real `tiles` array in order using each tile's own real
   `title`/`desc` (no fabricated `TOUR` copy, unlike the design's own scripted array), pointing the
-  beam at each and swapping the guide panel's text/eyebrow (`"Taking the tour"`), with Next / Skip
-  tour controls and a real "n / total" counter (`.hub-tour-btn`/`.hub-tour-counter`, new). Ending
-  the tour (finishing past the last tile, or Skip) reverts the guide panel and beam back to the
+  beam at each and swapping the bubble's text/eyebrow (`"Taking the tour"`), with Next / Skip tour
+  controls and a real "n / total" counter (`.hub-tour-btn`/`.hub-tour-counter`, new). Ending the
+  tour (finishing past the last tile, or Skip) reverts the bubble and beam back to the
   live `nextStepIntro`/`nextStep` state with zero change to any real unlock/progress data — `tour
   Index` is a plain, session-only `useState`, matching this app's own "a browse toggle doesn't need
   to survive a reload" convention elsewhere.
@@ -14505,22 +14535,41 @@ their exact existing behavior.
     Animations in the cascade) — the same "an animation on an element silently overrides another
     rule's value for that same property" landmine this codebase has already documented for
     `transform` several times, now confirmed for `opacity` too.
-- Verified with two dedicated Playwright suites against the real running dev server (not just code
-  review): the mascot SVG renders inside `.hub-mascot-figure` and genuinely points (a real,
-  non-identity lean transform) at whatever tile `nextStep` currently resolves to; clicking a locked
-  tile shows its own real `lockedReason` text with the "Heads up" eyebrow, retargets the beam to
-  the real dependency, does NOT navigate, and the note auto-clears back to the live guide message;
-  "Take the tour" walks through the real tiles in order (real titles/descriptions, a correct "n/N"
-  counter) and Skip returns to the normal actions row having touched zero real progress/unlock
-  data; typing a real tile's title dims every non-matching tile to a confirmed sub-0.5 opacity
-  while the match stays fully opaque, and Enter navigates to the first real unlocked match; the
-  bell click shows the honest static note; `prefers-reduced-motion` disables both the new orbit-ring
-  spin and the new glass-bubble drift. A second suite re-confirmed every pre-existing Hub behavior
-  is unaffected: the Progress card still renders once a program is selected, an unlocked tile still
-  navigates normally (the real `goTo` path, not `noteLockedTile`), the chat-panel transition still
-  grows/shrinks the mascot via the untouched `chat-grown` class and the tile grid still un/remounts
-  correctly around it, and a window resize still recomputes a genuinely different real pointing
-  angle with zero page errors. `npm run build`/`npm run lint` both stay clean.
+  - **A second, small, genuinely PRE-EXISTING glitch was caught via screenshot and fixed**: with the
+    tiles unmounted for the chat panel, the mascot used to hold a stale pointing gesture aimed at a
+    tile that was no longer on screen (`usePointAngle`'s own effect deps — `[targetId, tileCount]` —
+    don't change when the tiles simply unmount, so the last measured angle persisted). Fixed by
+    suppressing the pointing target outright once `chatPhase` is `'chat'`/`'chat-exiting'` (
+    `'tiles-exiting'` deliberately still points — the tiles are genuinely still there, mid-fade),
+    which required hoisting `chatPhase`'s own declaration above the pointing computation that now
+    depends on it.
+- Verified with two dedicated Playwright suites (27 + 9 checks) against the real running dev server
+  (not just code review): the mascot SVG renders inside `.hub-mascot-figure` and genuinely points (a
+  real, non-identity lean transform) at whatever tile `nextStep` currently resolves to; clicking a
+  locked tile shows its own real `lockedReason` text with the "Heads up" eyebrow, retargets the beam
+  to the real dependency, does NOT navigate, and the note auto-clears back to the live guide
+  message; "Take the tour" walks through the real tiles in order (real titles/descriptions, a
+  correct "n/N" counter) and Skip returns to the normal actions row having touched zero real
+  progress/unlock data; typing a real tile's title dims every non-matching tile to a confirmed
+  sub-0.5 opacity while the match stays fully opaque, and Enter navigates to the first real unlocked
+  match; the bell click shows the honest static note; `prefers-reduced-motion` disables both the new
+  orbit-ring spin and the new glass-bubble drift. **The restored radial composition is verified by
+  real `getBoundingClientRect()` measurement, not eyeballing** — zero pairwise tile overlap across
+  the whole ring, no tile overlapping the centered mascot + its bubble, no tile spilling past the
+  wrap's bottom edge into the row below, and zero horizontal page overflow — re-measured for BOTH a
+  9-tile (no partner school) and a 10-tile (Roslyn) configuration, since `hasPartnerSchool` changes
+  which real tile lands in which slot. (The topmost slots deliberately overhang the wrap's own TOP
+  edge by ~11px into the empty space under the headline — by design in the slot tuning, harmless
+  since the wrap has no `overflow: hidden`; an over-strict first version of that assertion flagged
+  it as a failure before being corrected.) A second suite re-confirmed every pre-existing Hub
+  behavior is unaffected: the Progress card still renders once a program is selected, an unlocked
+  tile still navigates normally (the real `goTo` path, not `noteLockedTile`), the chat-panel
+  transition still grows/shrinks the mascot via the untouched `chat-grown` class with the tiles
+  un/remounting correctly around it, and a window resize still recomputes a genuinely different real
+  pointing angle with zero page errors. Real screenshots of the desktop ring, the chat-open state,
+  and a 390px narrow viewport (which correctly collapses the ring to the pre-existing one-column
+  grid fallback) were each reviewed visually on top of that. `npm run build`/`npm run lint` both
+  stay clean.
 
 ## Testing changes
 
@@ -15384,8 +15433,15 @@ download). Cover at minimum:
   selected major with no selected program yet) and check `.hub-guide-panel-text`'s own content
   against that step's real, known intro string. `npm run build`/`npm run lint`/`npm run
   verify:spacing` (20/20) should all stay clean — this stage never opens `roadmapLayout.js`.
-- Hub redesign, Stage 2 (mascot + real spotlight pointing + tour): a locked tile now carries
-  `aria-disabled`, not real `disabled` — Playwright's own actionability check still treats
+- Hub redesign, Stage 2 (centered mascot + real spotlight pointing + tour): the tile ring is
+  absolutely positioned again, so locate tiles via `.hub-tile-slot` (or `.hub-tile:has-text(...)`),
+  never `.hub-tile-grid` — that Stage 1 class no longer exists. ALWAYS re-verify the ring with real
+  `getBoundingClientRect()` pairwise-overlap math after touching `RADIAL_POSITIONS`, `.hub-tile`'s
+  own `min-height`, or any tile content that changes card height (a long `lockedReason` wraps to 3
+  lines and pushes one card to 225px), and check BOTH a partner-school and non-partner-school seed,
+  since `hasPartnerSchool` changes which tile lands in which slot. Note the topmost slots
+  deliberately overhang the wrap's TOP edge by ~11px — only a spill past the BOTTOM edge is a real
+  bug. A locked tile now carries `aria-disabled`, not real `disabled` — Playwright's own actionability check still treats
   `aria-disabled="true"` as "not enabled" and refuses a plain `.click()` (a real user can click it
   fine; this is purely a Playwright heuristic), so use `{ force: true }` when clicking a locked
   tile in a test. To verify the beam's real target, poll `.hub-tile.pointing-target`/
