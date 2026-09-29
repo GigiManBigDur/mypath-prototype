@@ -14571,6 +14571,51 @@ the chat-panel transition all keep their exact existing behavior.
   grid fallback) were each reviewed visually on top of that. `npm run build`/`npm run lint` both
   stay clean.
 
+**Bug fix + standing convention: overscroll (macOS rubber-band) must never reveal a stale page
+background — on this screen or any future redesign.** Reported from real trackpad use: scrolling up
+past the top of the hub opened the platform's elastic overscroll gutter and showed a hard white band
+above the page's own lavender background. Root cause: the gutter is painted by the CANVAS background
+alone (the root/body background) — nothing else can paint there, and in particular a `position:
+fixed` full-page wash layer, which is how every recent screen redesign in this app paints its own
+background (`.hub-glass-bg`), is clipped to the viewport by definition. `body:has(.app-shell-hub)`
+was still painting the flat `#F5F5F7` that genuinely matched the hub back when that rule was
+written, and went stale the moment the Glassmorphism pass moved the real visible wash into
+`.hub-glass-bg` — a class of drift this app had already hit once before at the BOTTOM of this same
+screen (see the earlier `body:has(.app-shell-hub)` entry above, which introduced that rule).
+- **The structural fix, applied once for every screen: `overscroll-behavior: none` on `html, body`**
+  (global.css, right under the root reset). This suppresses the bounce itself, so there is no gutter
+  to reveal anything — present screens and any future redesign alike, rather than each new screen
+  having to remember to keep its own canvas colour in sync. Set on BOTH elements deliberately: the
+  viewport's own value is taken from the root, falling back to `body`, so this is correct whichever
+  one a given engine consults. It only suppresses the VIEWPORT's own bounce/chaining — an inner
+  scroller (the chat's own message list, etc.) still chains up to the page exactly as before, since
+  that's governed by the inner element's own value, not this one. Confirmed directly via
+  `getComputedStyle` on both elements, on a hub screen and a non-hub (bloom) screen.
+- **The belt-and-braces half, and the convention to follow for any new redesign**: `body:has(<that
+  screen's shell class>)` must paint the same wash the screen itself shows at the top of the page,
+  so an engine that ignores `overscroll-behavior` still reveals a seamless continuation rather than
+  a mismatch. To make drift impossible rather than merely discouraged, the hub's wash is now
+  declared ONCE as a `:root` token pair — `--hub-page-wash` (the gradient) and `--hub-page-wash-top`
+  (its first stop, used as the canvas background-COLOR, since a gutter is filled with the canvas
+  colour rather than its background-image) — read by BOTH `.hub-glass-bg` and
+  `body:has(.app-shell-hub)`. Note the token has to live at `:root`, not on `.app-shell-hub`: that
+  element is a DESCENDANT of body, so body could never see a custom property declared there (the
+  same trap the original flat-hex rule's own comment already documented).
+- The other per-screen canvas rules were each re-checked and are NOT stale: `body:has(
+  .app-shell-bloom)`/`.app-shell-plan`/`.app-shell-admin-console` all paint flat `--bloom-bg`, which
+  is genuinely those screens' own background (their shells are transparent and show the canvas
+  directly — confirmed by reading the real computed values, i.e. those screens are inherently
+  overscroll-safe), and `body:has(.onboarding-meeting-active)` already paints its animated gradient
+  on body itself.
+- Verified: computed `overscroll-behavior` is `none` on both elements across screens; the hub's
+  canvas no longer paints the stale `#F5F5F7` and its gradient is byte-identical to the fixed
+  layer's own (proving the shared token, not two copies); a bloom screen's canvas still equals its
+  own real `--bloom-bg`; in-viewport appearance is unchanged by screenshot; and both hub Playwright
+  suites plus `npm run build`/`npm run lint` stay clean. **The rubber-band gesture itself cannot be
+  reproduced in headless Chromium** (it's a compositor-level platform effect), so the verification
+  here is the structural one — what the canvas actually paints — rather than a screenshot of the
+  gutter.
+
 ## Testing changes
 
 There's no automated test suite. To verify a change actually works, run the dev server and
@@ -15458,3 +15503,18 @@ download). Cover at minimum:
   works exactly as before, since Stage 2 reuses that class rather than replacing it. `npm run
   build`/`npm run lint`/`npm run verify:spacing` (20/20) should all stay clean — this stage never
   opens `roadmapLayout.js` either.
+- Overscroll / canvas background (applies to EVERY screen redesign, not just the hub): the macOS
+  rubber-band gesture itself cannot be reproduced in headless Chromium — it's a compositor-level
+  platform effect, not a scroll position a test can set — so verify this structurally instead.
+  Confirm `getComputedStyle(document.documentElement).overscrollBehavior` and the same on
+  `document.body` both read `none` (this is the real guard; it has to hold on both elements),
+  and confirm the screen's own `body:has(<shell class>)` canvas genuinely paints what the screen
+  shows at the top of the page rather than a stale colour from before its last redesign — the
+  strongest version of that check is asserting the canvas's own `background-image` is
+  BYTE-IDENTICAL to whatever the screen's `position: fixed` wash layer paints (proving they read
+  one shared `:root` token, not two copies that can drift), not merely that both "look right".
+  A `position: fixed` layer can never paint the overscroll gutter, so "the screen looks correct
+  in-viewport" is not evidence the canvas underneath it is correct. When adding a new full-page
+  wash to any screen, declare it once as a `:root` token pair (gradient + its first stop as a
+  plain colour) and have both the fixed layer and the `body:has(...)` rule read it — a custom
+  property declared on the shell element itself is invisible to `body`, since body is its ancestor.

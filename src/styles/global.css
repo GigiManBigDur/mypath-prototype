@@ -84,12 +84,45 @@
   --glass-accent-mint: #79E0C4;
   --glass-motion-fast: 180ms;
   --glass-motion-slow: 480ms;
+  /* The hub's own full-page wash, declared ONCE here because two different things have to paint it
+     and must never drift apart: `.hub-glass-bg` (the fixed in-viewport layer the decorative blobs
+     sit on) and `body:has(.app-shell-hub)` (the canvas, which is the only thing that can paint into
+     the overscroll gutter — see the `overscroll-behavior` block below). `--hub-page-wash-top` is
+     that gradient's own first stop, used as the canvas background-COLOR, since a gutter is filled
+     with the canvas colour rather than its background-image. */
+  --hub-page-wash: linear-gradient(160deg, #F3F4FB 0%, #F7F1F8 45%, #EFFBF6 100%);
+  --hub-page-wash-top: #F3F4FB;
 }
 
 * { box-sizing: border-box; }
 
 html, body, #root {
   min-height: 100%;
+}
+
+/* Bug fix, reported from real macOS trackpad use (see CLAUDE.md) — scrolling PAST the top (or
+   bottom) of the page triggers the platform's elastic "rubber-band" overscroll, and the gutter it
+   opens up is painted by the CANVAS background alone (i.e. the root/body background). NOTHING else
+   can paint there: a `position: fixed` background layer — which is how every one of this app's
+   recent screen redesigns paints its own full-page wash (`.hub-glass-bg`, etc.) — is clipped to the
+   viewport by definition, so the gutter falls through to whatever `<body>` happens to be, which is
+   how a hard white band appeared above the hub's own lavender background.
+   `overscroll-behavior: none` is the STRUCTURAL fix, applied once here for every screen: it
+   suppresses the bounce entirely, so there is no gutter to reveal anything in the first place —
+   present screens and any future redesign alike, rather than each one having to remember to keep
+   its own `body:has(...)` colour in sync. Set on BOTH `html` and `body` deliberately: the viewport's
+   own value is taken from the root element, falling back to `body`, so this is correct regardless
+   of which one a given engine consults. This only suppresses the viewport's own bounce/chaining —
+   an inner scroller (the chat's own message list, etc.) still chains up to the page exactly as
+   before, since that's governed by the inner element's own value, not this one.
+   The per-screen `body:has(.app-shell-*)` rules below are the belt-and-braces half: they keep the
+   canvas painted to match each screen's own real top-of-page background, so even an engine that
+   ignores `overscroll-behavior` reveals a seamless continuation rather than a jarring mismatch.
+   KEEP THAT PAIRING IN MIND FOR ANY NEW SCREEN REDESIGN: if the screen paints its wash in a fixed
+   layer, give `body:has(<that screen's shell class>)` the same wash (share one `:root` token rather
+   than copying the value — see `--hub-page-wash` below). */
+html, body {
+  overscroll-behavior: none;
 }
 
 body {
@@ -246,11 +279,16 @@ body {
    `body:has(.app-shell-bloom)`/`body:has(.app-shell-plan)` right below already handle the
    identical class of problem for their own screens. */
 body:has(.app-shell-hub) {
-  /* Literal hex, not `var(--hub-bg)` — that custom property is declared ON
-     `.app-shell.app-shell-hub` itself (a DESCENDANT of body), so body, as an ancestor, can never
-     actually see it; this mirrors the exact value `.app-shell.app-shell-hub` sets for itself. */
-  background: #F5F5F7;
-  background-image: none;
+  /* Reads `--hub-page-wash*` (declared at `:root`, NOT on `.app-shell.app-shell-hub` — that element
+     is a DESCENDANT of body, so body, as an ancestor, could never see a token declared there; this
+     is exactly why the hub's own `--hub-*` palette can't be used from here). Was a flat `#F5F5F7`,
+     which matched the hub's real background when it was written and went stale the moment the
+     glassmorphism pass moved the visible wash into `.hub-glass-bg` — that mismatch is what surfaced
+     as a hard white band above the page during real macOS overscroll. Now it mirrors the exact same
+     token that fixed layer paints, so the two can't drift again. */
+  background-color: var(--hub-page-wash-top);
+  background-image: var(--hub-page-wash);
+  background-attachment: fixed;
 }
 
 /* Implement New Admin Dashboard, Align Colors With the Menu Screen (see CLAUDE.md) — the admin
@@ -7508,7 +7546,9 @@ body:has(.onboarding-meeting-active) {
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  background: linear-gradient(160deg, #F3F4FB 0%, #F7F1F8 45%, #EFFBF6 100%);
+  /* Shared with `body:has(.app-shell-hub)` via one `:root` token — the canvas has to paint the
+     identical wash to cover the overscroll gutter this fixed layer can never reach. */
+  background: var(--hub-page-wash);
 }
 .glass-blob,
 .hub-glass-blob {
